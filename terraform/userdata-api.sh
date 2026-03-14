@@ -111,9 +111,12 @@ cp -r dist/* /var/www/parley/
 echo "=== Creating environment configuration ==="
 mkdir -p /etc/parley
 
+# URL-encode the DB password to handle special characters
+DB_PASSWORD_ENCODED=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$DB_PASSWORD")
+
 # Create environment file with PATH for Go
 cat > /etc/parley/env <<EOF
-DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=disable
+DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD_ENCODED}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=disable
 JWT_SECRET=${JWT_SECRET}
 PORT=${PORT}
 REDIS_URL=redis://localhost:6379
