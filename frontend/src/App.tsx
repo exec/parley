@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { InvitePage } from './pages/InvitePage';
+import { VerifyEmail } from './pages/VerifyEmail';
 import { AppProvider, useApp } from './context/AppContext';
 import { useWebSocket } from './hooks/useWebSocket';
 import { DmMessage } from './api/types';
@@ -510,6 +511,7 @@ function App() {
           </ProtectedRoute>
         }
       />
+      <Route path="/verify-email" element={<VerifyEmail />} />
       {/* Channel routes — all handled by MainApp which syncs URL with state */}
       <Route path="/" element={ProtectedApp} />
       <Route path="/channels/*" element={ProtectedApp} />

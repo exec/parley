@@ -172,6 +172,19 @@ CREATE INDEX IF NOT EXISTS idx_server_roles_server_id ON server_roles(server_id)
 CREATE INDEX IF NOT EXISTS idx_server_member_roles_server_user ON server_member_roles(server_id, user_id);
 CREATE INDEX IF NOT EXISTS idx_server_member_roles_role ON server_member_roles(role_id);
 `,
+
+	`-- Add email verification support
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_token VARCHAR(64);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_verification_token ON users(email_verification_token) WHERE email_verification_token IS NOT NULL;
+`,
+
+	`-- Add email rate-limit counters
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_resend_count INT NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_resend_date DATE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_change_count INT NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_change_date DATE;
+`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

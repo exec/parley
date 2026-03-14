@@ -56,8 +56,8 @@ func (r *Repository) DB() *sql.DB {
 // CreateUser creates a new user in the database
 func (r *Repository) CreateUser(ctx context.Context, user *User) error {
 	query := `
-		INSERT INTO users (username, email, password_hash, avatar_url, banner_url, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO users (username, email, password_hash, avatar_url, banner_url, email_verification_token, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, NULLIF($6, ''), $7, $8)
 		RETURNING id
 	`
 
@@ -71,6 +71,7 @@ func (r *Repository) CreateUser(ctx context.Context, user *User) error {
 		user.PasswordHash,
 		user.AvatarURL,
 		user.BannerURL,
+		user.EmailVerificationToken,
 		user.CreatedAt,
 		user.UpdatedAt,
 	).Scan(&user.ID)
@@ -85,7 +86,8 @@ func (r *Repository) CreateUser(ctx context.Context, user *User) error {
 // GetUserByID retrieves a user by their ID
 func (r *Repository) GetUserByID(ctx context.Context, id int64) (*User, error) {
 	query := `
-		SELECT id, username, email, password_hash, COALESCE(avatar_url, ''), COALESCE(banner_url, ''), created_at, updated_at
+		SELECT id, username, email, password_hash, COALESCE(avatar_url, ''), COALESCE(banner_url, ''),
+		       email_verified, COALESCE(email_verification_token, ''), created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
@@ -98,6 +100,8 @@ func (r *Repository) GetUserByID(ctx context.Context, id int64) (*User, error) {
 		&user.PasswordHash,
 		&user.AvatarURL,
 		&user.BannerURL,
+		&user.EmailVerified,
+		&user.EmailVerificationToken,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -115,7 +119,8 @@ func (r *Repository) GetUserByID(ctx context.Context, id int64) (*User, error) {
 // GetUserByEmail retrieves a user by their email
 func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*User, error) {
 	query := `
-		SELECT id, username, email, password_hash, COALESCE(avatar_url, ''), COALESCE(banner_url, ''), created_at, updated_at
+		SELECT id, username, email, password_hash, COALESCE(avatar_url, ''), COALESCE(banner_url, ''),
+		       email_verified, COALESCE(email_verification_token, ''), created_at, updated_at
 		FROM users
 		WHERE email = $1
 	`
@@ -128,6 +133,8 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*User, e
 		&user.PasswordHash,
 		&user.AvatarURL,
 		&user.BannerURL,
+		&user.EmailVerified,
+		&user.EmailVerificationToken,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -145,7 +152,8 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*User, e
 // GetUserByUsername retrieves a user by their username
 func (r *Repository) GetUserByUsername(ctx context.Context, username string) (*User, error) {
 	query := `
-		SELECT id, username, email, password_hash, COALESCE(avatar_url, ''), COALESCE(banner_url, ''), created_at, updated_at
+		SELECT id, username, email, password_hash, COALESCE(avatar_url, ''), COALESCE(banner_url, ''),
+		       email_verified, COALESCE(email_verification_token, ''), created_at, updated_at
 		FROM users
 		WHERE username = $1
 	`
@@ -158,6 +166,8 @@ func (r *Repository) GetUserByUsername(ctx context.Context, username string) (*U
 		&user.PasswordHash,
 		&user.AvatarURL,
 		&user.BannerURL,
+		&user.EmailVerified,
+		&user.EmailVerificationToken,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -176,8 +186,9 @@ func (r *Repository) GetUserByUsername(ctx context.Context, username string) (*U
 func (r *Repository) UpdateUser(ctx context.Context, user *User) error {
 	query := `
 		UPDATE users
-		SET username = $1, email = $2, password_hash = $3, avatar_url = $4, banner_url = $5, updated_at = $6
-		WHERE id = $7
+		SET username = $1, email = $2, password_hash = $3, avatar_url = $4, banner_url = $5,
+		    email_verification_token = NULLIF($6, ''), updated_at = $7
+		WHERE id = $8
 	`
 
 	user.UpdatedAt = time.Now()
@@ -188,6 +199,7 @@ func (r *Repository) UpdateUser(ctx context.Context, user *User) error {
 		user.PasswordHash,
 		user.AvatarURL,
 		user.BannerURL,
+		user.EmailVerificationToken,
 		user.UpdatedAt,
 		user.ID,
 	)
@@ -203,6 +215,141 @@ func (r *Repository) UpdateUser(ctx context.Context, user *User) error {
 		return ErrNotFound
 	}
 
+	return nil
+}
+
+// GetUserByVerificationToken retrieves a user by their email verification token.
+func (r *Repository) GetUserByVerificationToken(ctx context.Context, token string) (*User, error) {
+	query := `
+		SELECT id, username, email, password_hash, COALESCE(avatar_url, ''), COALESCE(banner_url, ''),
+		       email_verified, COALESCE(email_verification_token, ''), created_at, updated_at
+		FROM users
+		WHERE email_verification_token = $1
+	`
+
+	var user User
+	err := r.db.QueryRowContext(ctx, query, token).Scan(
+		&user.ID,
+		&user.Username,
+		&user.Email,
+		&user.PasswordHash,
+		&user.AvatarURL,
+		&user.BannerURL,
+		&user.EmailVerified,
+		&user.EmailVerificationToken,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+// SetEmailVerified marks a user's email as verified and clears the verification token.
+func (r *Repository) SetEmailVerified(ctx context.Context, userID int64) error {
+	query := `UPDATE users SET email_verified = TRUE, email_verification_token = NULL, updated_at = NOW() WHERE id = $1`
+	result, err := r.db.ExecContext(ctx, query, userID)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// CheckAndIncrementEmailResend atomically checks whether the user is under the daily
+// resend limit (3 per day) and increments the counter if so. Returns ErrInvalidOperation
+// when the limit is exceeded.
+func (r *Repository) CheckAndIncrementEmailResend(ctx context.Context, userID int64) error {
+	query := `
+		UPDATE users
+		SET
+			email_resend_count = CASE
+				WHEN email_resend_date IS NULL OR email_resend_date < CURRENT_DATE THEN 1
+				ELSE email_resend_count + 1
+			END,
+			email_resend_date = CURRENT_DATE
+		WHERE id = $1
+		  AND (email_resend_date IS NULL OR email_resend_date < CURRENT_DATE OR email_resend_count < 3)
+	`
+	result, err := r.db.ExecContext(ctx, query, userID)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrInvalidOperation
+	}
+	return nil
+}
+
+// CheckAndIncrementEmailChange atomically checks whether the user is under the daily
+// email-change limit (3 per day) and increments the counter if so. Returns ErrInvalidOperation
+// when the limit is exceeded.
+func (r *Repository) CheckAndIncrementEmailChange(ctx context.Context, userID int64) error {
+	query := `
+		UPDATE users
+		SET
+			email_change_count = CASE
+				WHEN email_change_date IS NULL OR email_change_date < CURRENT_DATE THEN 1
+				ELSE email_change_count + 1
+			END,
+			email_change_date = CURRENT_DATE
+		WHERE id = $1
+		  AND (email_change_date IS NULL OR email_change_date < CURRENT_DATE OR email_change_count < 3)
+	`
+	result, err := r.db.ExecContext(ctx, query, userID)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrInvalidOperation
+	}
+	return nil
+}
+
+// UpdateUserEmail changes a user's email address, clears email_verified, sets a new
+// verification token, and resets the resend counter (new verification = fresh slate).
+func (r *Repository) UpdateUserEmail(ctx context.Context, userID int64, newEmail, token string) error {
+	query := `
+		UPDATE users
+		SET email = $2,
+		    email_verified = FALSE,
+		    email_verification_token = NULLIF($3, ''),
+		    email_resend_count = 0,
+		    email_resend_date = NULL,
+		    updated_at = NOW()
+		WHERE id = $1
+	`
+	result, err := r.db.ExecContext(ctx, query, userID, newEmail, token)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrNotFound
+	}
 	return nil
 }
 

@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -65,6 +64,7 @@ func registerRoutes(
 			r.Use(rateLimitMiddleware(authLimiter))
 			r.Post("/register", handleAuthRegister(authService))
 			r.Post("/login", handleAuthLogin(authService))
+			r.Get("/verify-email", handleVerifyEmail(authService))
 		})
 
 		// Protected routes - require authentication
@@ -125,6 +125,8 @@ func registerRoutes(
 			r.Get("/users/search", handleUserSearch(repo))
 			r.Get("/users/{id}", handleGetUser(repo))
 			r.Put("/auth/profile", handleUpdateProfile(authService))
+			r.Put("/auth/email", handleChangeEmail(authService))
+			r.Post("/auth/resend-verification", handleResendVerification(authService))
 
 			// File upload endpoint - 25MB limit (overrides global 64KB cap)
 			r.With(func(next http.Handler) http.Handler {
@@ -157,17 +159,9 @@ func registerRoutes(
 					return
 				}
 
-				// NSFW check for images — fail open if sidecar is unavailable
-				contentType := header.Header.Get("Content-Type")
-				if strings.HasPrefix(contentType, "image/") {
-					isNSFW, err := checkNSFW(r.Context(), data, contentType)
-					if err != nil {
-						log.Printf("NSFW check error (allowing upload): %v", err)
-					} else if isNSFW {
-						http.Error(w, "content rejected by moderation", http.StatusUnprocessableEntity)
-						return
-					}
-				}
+				// NSFW check disabled — sidecar moved to dedicated box (TODO)
+				// contentType := header.Header.Get("Content-Type")
+				// if strings.HasPrefix(contentType, "image/") { checkNSFW(...) }
 
 				ext := filepath.Ext(header.Filename)
 				key := fmt.Sprintf("uploads/%s%s", generateID(), ext)
@@ -467,13 +461,15 @@ func handleUpdateProfile(authService *auth.AuthService) http.HandlerFunc {
 			Username        string `json:"username"`
 			CurrentPassword string `json:"current_password"`
 			NewPassword     string `json:"new_password"`
+			AvatarURL       string `json:"avatar_url"`
+			BannerURL       string `json:"banner_url"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			jsonError(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
 
-		user, err := authService.UpdateProfile(r.Context(), userIDStr, req.Username, req.CurrentPassword, req.NewPassword)
+		user, err := authService.UpdateProfile(r.Context(), userIDStr, req.Username, req.CurrentPassword, req.NewPassword, req.AvatarURL, req.BannerURL)
 		if err != nil {
 			jsonError(w, err.Error(), http.StatusBadRequest)
 			return
@@ -481,5 +477,72 @@ func handleUpdateProfile(authService *auth.AuthService) http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(user)
+	}
+}
+
+// Verify email handler - GET /api/auth/verify-email?token=xxx
+func handleVerifyEmail(authService *auth.AuthService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		token := r.URL.Query().Get("token")
+		if token == "" {
+			jsonError(w, "token is required", http.StatusBadRequest)
+			return
+		}
+
+		if err := authService.VerifyEmail(r.Context(), token); err != nil {
+			jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"message": "Email verified successfully"})
+	}
+}
+
+// Change email handler - PUT /api/auth/email
+func handleChangeEmail(authService *auth.AuthService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userIDStr := auth.GetUserIDFromContext(r)
+		if userIDStr == "" {
+			jsonError(w, "user not authenticated", http.StatusUnauthorized)
+			return
+		}
+
+		var req struct {
+			NewEmail string `json:"new_email"`
+			Password string `json:"password"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			jsonError(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		user, err := authService.ChangeEmail(r.Context(), userIDStr, req.NewEmail, req.Password)
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(user)
+	}
+}
+
+// Resend verification handler - POST /api/auth/resend-verification
+func handleResendVerification(authService *auth.AuthService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userIDStr := auth.GetUserIDFromContext(r)
+		if userIDStr == "" {
+			jsonError(w, "user not authenticated", http.StatusUnauthorized)
+			return
+		}
+
+		if err := authService.ResendVerification(r.Context(), userIDStr); err != nil {
+			jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"message": "Verification email sent"})
 	}
 }

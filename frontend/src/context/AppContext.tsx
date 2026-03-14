@@ -66,6 +66,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         email: u.email || u.Email || '',
         avatar_url: u.avatar_url || '',
         banner_url: u.banner_url || '',
+        email_verified: u.email_verified ?? undefined,
       };
     } catch {
       return null;

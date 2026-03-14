@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { User } from '../../api/types';
-import { updateProfile } from '../../api/auth';
+import { updateProfile, resendVerification, changeEmail } from '../../api/auth';
 import { uploadFile } from '../../api/upload';
 
 interface UserSettingsModalProps {
@@ -29,6 +29,13 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendMessage, setResendMessage] = useState('');
+  const [showChangeEmail, setShowChangeEmail] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [emailPassword, setEmailPassword] = useState('');
+  const [emailChangeLoading, setEmailChangeLoading] = useState(false);
+  const [emailChangeMessage, setEmailChangeMessage] = useState<{ text: string; ok: boolean } | null>(null);
   const avatarFileInputRef = useRef<HTMLInputElement>(null);
   const bannerFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -42,6 +49,11 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
       setConfirmPassword('');
       setError('');
       setSuccess('');
+      setResendMessage('');
+      setShowChangeEmail(false);
+      setNewEmail('');
+      setEmailPassword('');
+      setEmailChangeMessage(null);
     }
   }, [isOpen, currentUser]);
 
@@ -226,13 +238,121 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
 
           <div className="form-group">
             <label className="form-label">Email</label>
-            <input
-              className="form-input"
-              type="email"
-              value={currentUser?.email || ''}
-              disabled
-              title="Email cannot be changed"
-            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input
+                className="form-input"
+                type="email"
+                value={currentUser?.email || ''}
+                disabled
+                style={{ flex: 1 }}
+              />
+              <button
+                type="button"
+                onClick={() => { setShowChangeEmail(v => !v); setEmailChangeMessage(null); setNewEmail(''); setEmailPassword(''); }}
+                style={{ background: 'none', border: '1px solid #444', color: '#aaa', borderRadius: 4, padding: '6px 12px', cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap' }}
+              >
+                {showChangeEmail ? 'Cancel' : 'Change'}
+              </button>
+            </div>
+
+            {/* Verification status */}
+            {currentUser && currentUser.email_verified === false && !showChangeEmail && (
+              <div style={{ marginTop: 8, padding: '8px 12px', background: '#2a1f00', border: '1px solid #664400', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ color: '#ffaa00', fontSize: 13 }}>Email not verified</span>
+                <button
+                  type="button"
+                  disabled={resendLoading}
+                  onClick={async () => {
+                    setResendLoading(true);
+                    setResendMessage('');
+                    try {
+                      await resendVerification();
+                      setResendMessage('Verification email sent!');
+                    } catch (err: unknown) {
+                      setResendMessage((err as { message?: string })?.message || 'Failed to send email');
+                    } finally {
+                      setResendLoading(false);
+                    }
+                  }}
+                  style={{ background: 'none', border: '1px solid #664400', color: '#ffaa00', borderRadius: 4, padding: '2px 10px', cursor: 'pointer', fontSize: 12 }}
+                >
+                  {resendLoading ? 'Sending...' : 'Resend'}
+                </button>
+                {resendMessage && (
+                  <span style={{ fontSize: 12, color: resendMessage.includes('sent') ? '#32CD32' : '#ff4444' }}>{resendMessage}</span>
+                )}
+              </div>
+            )}
+            {currentUser?.email_verified && (
+              <div style={{ marginTop: 6, fontSize: 12, color: '#32CD32' }}>✓ Email verified</div>
+            )}
+
+            {/* Change email form */}
+            {showChangeEmail && (
+              <div style={{ marginTop: 10, padding: '12px 14px', background: '#111', border: '1px solid #333', borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 12, color: '#aaa', display: 'block', marginBottom: 4 }}>New Email Address</label>
+                  <input
+                    className="form-input"
+                    type="email"
+                    value={newEmail}
+                    onChange={e => setNewEmail(e.target.value)}
+                    placeholder="new@example.com"
+                    autoComplete="email"
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, color: '#aaa', display: 'block', marginBottom: 4 }}>Current Password</label>
+                  <input
+                    className="form-input"
+                    type="password"
+                    value={emailPassword}
+                    onChange={e => setEmailPassword(e.target.value)}
+                    placeholder="Confirm with your password"
+                    autoComplete="current-password"
+                  />
+                </div>
+                {emailChangeMessage && (
+                  <span style={{ fontSize: 12, color: emailChangeMessage.ok ? '#32CD32' : '#ff4444' }}>{emailChangeMessage.text}</span>
+                )}
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <button
+                    type="button"
+                    disabled={emailChangeLoading || !newEmail.trim() || !emailPassword}
+                    onClick={async () => {
+                      setEmailChangeLoading(true);
+                      setEmailChangeMessage(null);
+                      try {
+                        const updated = await changeEmail(newEmail.trim(), emailPassword);
+                        const stored = localStorage.getItem('user');
+                        if (stored) {
+                          const parsed = JSON.parse(stored);
+                          localStorage.setItem('user', JSON.stringify({ ...parsed, email: updated.email, email_verified: false }));
+                        }
+                        onUpdate(updated);
+                        setEmailChangeMessage({ text: 'Email updated — check your inbox to verify the new address.', ok: true });
+                        setNewEmail('');
+                        setEmailPassword('');
+                        setShowChangeEmail(false);
+                      } catch (err: unknown) {
+                        setEmailChangeMessage({ text: (err as { message?: string })?.message || 'Failed to change email', ok: false });
+                      } finally {
+                        setEmailChangeLoading(false);
+                      }
+                    }}
+                    style={{ background: '#32CD32', border: 'none', color: '#000', borderRadius: 4, padding: '6px 16px', cursor: 'pointer', fontSize: 13, fontWeight: 600, opacity: emailChangeLoading || !newEmail.trim() || !emailPassword ? 0.5 : 1 }}
+                  >
+                    {emailChangeLoading ? 'Saving...' : 'Save Email'}
+                  </button>
+                </div>
+                <p style={{ fontSize: 11, color: '#666', margin: 0 }}>Limited to 3 email changes and 3 resend attempts per day.</p>
+              </div>
+            )}
+
+            {/* Show success from email change after form closes */}
+            {!showChangeEmail && emailChangeMessage?.ok && (
+              <div style={{ marginTop: 8, fontSize: 12, color: '#32CD32' }}>{emailChangeMessage.text}</div>
+            )}
           </div>
         </div>
 

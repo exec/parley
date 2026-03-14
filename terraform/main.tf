@@ -81,6 +81,9 @@ resource "digitalocean_droplet" "parley_api" {
     SPACES_REGION     = var.region
     SPACES_ENDPOINT   = var.spaces_endpoint
     SPACES_CDN_URL    = var.spaces_cdn_url
+    BREVO_API_KEY     = var.brevo_api_key
+    BREVO_FROM_EMAIL  = var.brevo_from_email
+    SITE_URL          = var.site_url
   })
 
   tags = ["parley", "api"]

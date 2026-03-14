@@ -15,14 +15,16 @@ const (
 
 // User represents a user in the system
 type User struct {
-	ID           int64     `json:"id" db:"id"`
-	Username     string    `json:"username" db:"username"`
-	Email        string    `json:"email" db:"email"`
-	PasswordHash string    `json:"-" db:"password_hash"`
-	AvatarURL    string    `json:"avatar_url,omitempty" db:"avatar_url"`
-	BannerURL    string    `json:"banner_url,omitempty" db:"banner_url"`
-	CreatedAt    time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at" db:"updated_at"`
+	ID                      int64     `json:"id" db:"id"`
+	Username                string    `json:"username" db:"username"`
+	Email                   string    `json:"email" db:"email"`
+	PasswordHash            string    `json:"-" db:"password_hash"`
+	AvatarURL               string    `json:"avatar_url,omitempty" db:"avatar_url"`
+	BannerURL               string    `json:"banner_url,omitempty" db:"banner_url"`
+	EmailVerified           bool      `json:"email_verified" db:"email_verified"`
+	EmailVerificationToken  string    `json:"-" db:"email_verification_token"`
+	CreatedAt               time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt               time.Time `json:"updated_at" db:"updated_at"`
 }
 
 // Server represents a Discord server/guild

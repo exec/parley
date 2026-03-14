@@ -4,6 +4,7 @@ export interface User {
   email: string;
   avatar_url?: string;
   banner_url?: string;
+  email_verified?: boolean;
 }
 
 export interface Role {

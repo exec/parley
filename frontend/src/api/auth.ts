@@ -57,3 +57,15 @@ export interface UpdateProfileRequest {
 export async function updateProfile(req: UpdateProfileRequest): Promise<User> {
   return apiClient.put<User>('/auth/profile', req);
 }
+
+export async function changeEmail(newEmail: string, password: string): Promise<User> {
+  return apiClient.put<User>('/auth/email', { new_email: newEmail, password });
+}
+
+export async function verifyEmail(token: string): Promise<{ message: string }> {
+  return apiClient.get<{ message: string }>(`/auth/verify-email?token=${encodeURIComponent(token)}`);
+}
+
+export async function resendVerification(): Promise<{ message: string }> {
+  return apiClient.post<{ message: string }>('/auth/resend-verification', {});
+}

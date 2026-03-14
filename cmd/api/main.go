@@ -18,6 +18,7 @@ import (
 	"parley/internal/auth"
 	"parley/internal/channel"
 	"parley/internal/db"
+	"parley/internal/email"
 	"parley/internal/message"
 	"parley/internal/server"
 	"parley/internal/spaces"
@@ -86,8 +87,24 @@ func main() {
 	// Initialize repository layer
 	repo := db.NewRepository(dbConn)
 
+	// Initialize email client for verification emails
+	brevoAPIKey := os.Getenv("BREVO_API_KEY")
+	brevoFromEmail := os.Getenv("BREVO_FROM_EMAIL")
+	siteURL := os.Getenv("SITE_URL")
+	if siteURL == "" {
+		siteURL = "https://parley.x86-64.com"
+	}
+	var emailClient *email.Client
+	if brevoAPIKey != "" && brevoFromEmail != "" {
+		emailClient = email.NewClient(brevoAPIKey, brevoFromEmail, "Parley")
+		log.Println("Email client initialized (Brevo)")
+	} else {
+		log.Println("Email client not configured (BREVO_API_KEY or BREVO_FROM_EMAIL missing) — email verification disabled")
+	}
+
 	// Initialize services
 	authService := auth.NewAuthService(repo)
+	authService.SetEmailClient(emailClient, siteURL)
 	serverService := server.NewServerService(repo)
 	channelService := channel.NewChannelService(repo)
 	messageService := message.NewMessageService(repo)

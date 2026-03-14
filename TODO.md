@@ -42,8 +42,8 @@ This is a living task list for Parley - a Discord clone.
 
 ### Pending
 
+- [x] Right-click context menu on usernames in sidebar (user sidebar) — "Manage Roles" context menu added
 - [ ] Right-click context menu on usernames in chat (channel messages)
-- [ ] Right-click context menu on usernames in sidebar (user sidebar)
 - [ ] DM from search doesn't show for the sender
 - [ ] User joining server doesn't refresh server sidebar for others immediately
 - [ ] Message editing in voice channels
@@ -54,19 +54,20 @@ This is a living task list for Parley - a Discord clone.
 ## Medium Priority
 
 ### Features
-- [ ] Typing indicators
-- [ ] Unread message badges on servers and DM channels
-- [ ] Real-time online status indicators
+- [x] Typing indicators
+- [x] Unread message badges on servers and DM channels
+- [x] Real-time online status indicators
 - [ ] Channel topics and descriptions
-- [ ] Message reactions
+- [x] Message reactions
 - [ ] Emoji picker
-- [ ] Image/file upload in messages
-- [ ] Server pictures and user profile pictures (DigitalOcean Spaces)
-- [ ] User banners (PNG/JPG/animated GIF support with ideal size recommendation)
+- [x] Image/file upload in messages
+- [x] Server pictures and user profile pictures (DigitalOcean Spaces)
+- [ ] User banners (upload + storage done; profile modal doesn't display banner yet — `PublicUser` missing `banner_url`)
+- [x] Email verification (Brevo HTTP API)
 
 ### Infrastructure
 - [ ] CI/CD deploy script (auto-deploy on push to main)
-- [ ] WebSocket reconnection with exponential backoff
+- [x] WebSocket reconnection with exponential backoff
 
 ---
 
@@ -87,10 +88,10 @@ This is a living task list for Parley - a Discord clone.
   - Ban users (dissolve accounts with funny error message)
   - View logs/metrics
 
-- [ ] Server-wide permissions/privileges system
+- [x] Server-wide permissions/privileges system (scaffolding)
   - Tab in server settings to control these
-  - Multiple roles per user
-  - Custom role interface (not browser dropdown)
+  - Multiple roles per user — done
+  - Custom role interface — done (ManageRolesModal with color picker, permission flags, member assignment)
 
 - [ ] Passkey authentication
   - Configurable in user settings
@@ -105,6 +106,6 @@ This is a living task list for Parley - a Discord clone.
 
 ## Already Implemented but Need Verification/Adjustment
 
-- [ ] User-profile-username CSS (top margin issue - user fixed, need verification)
-- [ ] Server settings modal (delete button working?)
-- [ ] Channel URLs (URL-based navigation - refresh preserves position)
+- [x] User-profile-username CSS (duplicate rule fixed — `margin: 25px 0 0` now applies correctly)
+- [x] Server settings modal (delete button works with confirmation step)
+- [x] Channel URLs (URL-based navigation — refresh preserves server/channel/DM position)

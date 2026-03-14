@@ -94,3 +94,22 @@ variable "spaces_cdn_url" {
   description = "Base URL for serving uploaded files (CDN or direct)"
   type        = string
 }
+
+variable "brevo_api_key" {
+  description = "Brevo (Sendinblue) API key for transactional email"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "brevo_from_email" {
+  description = "From email address for verification emails"
+  type        = string
+  default     = "noreply@parley.x86-64.com"
+}
+
+variable "site_url" {
+  description = "Public URL of the site (used in email links)"
+  type        = string
+  default     = "https://parley.x86-64.com"
+}
