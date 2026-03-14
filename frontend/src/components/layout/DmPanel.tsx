@@ -26,7 +26,7 @@ const UserContextMenu: React.FC<UserContextMenuProps> = ({ position, onClose, on
     <div
       ref={ref}
       className="user-context-menu"
-      style={{ bottom: `calc(100% - ${position.top}px + 8px)`, left: position.left }}
+      style={{ bottom: `calc(100vh - ${position.top}px)`, left: position.left }}
     >
       <button className="user-context-item" onClick={() => { onSettings(); onClose(); }}>
         User Settings

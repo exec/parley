@@ -354,3 +354,72 @@
   width: 18px;
   height: 18px;
 }
+
+.user-area.clickable {
+  cursor: pointer;
+}
+
+.user-area.clickable:hover .user-info {
+  background-color: var(--bg-tertiary);
+}
+
+.cl-settings-icon {
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.user-area.clickable:hover .cl-settings-icon {
+  color: var(--text-primary);
+}
+
+/* User context menu (ChannelList) */
+.cl-user-context-menu {
+  position: fixed;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px;
+  min-width: 180px;
+  z-index: 1000;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+}
+
+.cl-user-context-item {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 8px 12px;
+  text-align: left;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 3px;
+  font-family: inherit;
+  transition: all 0.1s ease;
+}
+
+.cl-user-context-item:hover {
+  background-color: var(--accent);
+  color: #000;
+}
+
+.cl-user-context-item.danger {
+  color: #f04747;
+}
+
+.cl-user-context-item.danger:hover {
+  background-color: #f04747;
+  color: #fff;
+}
+
+.cl-user-context-divider {
+  height: 1px;
+  background-color: var(--border);
+  margin: 4px 0;
+}

@@ -1116,7 +1116,7 @@
   font-size: 24px;
   font-weight: bold;
   color: var(--discord-text);
-  margin: 0;
+  margin: 25px;
 }
 
 .user-profile-tag {

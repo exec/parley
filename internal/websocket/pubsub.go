@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"sync"
 	"time"
 
@@ -26,6 +27,13 @@ func NewRedisPubSub(redisURL string) (*RedisPubSub, error) {
 	opt, err := redis.ParseURL(redisURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse Redis URL: %w", err)
+	}
+
+	// If no password in URL but REDIS_PASSWORD env var is set, use that
+	if opt.Password == "" {
+		if password := os.Getenv("REDIS_PASSWORD"); password != "" {
+			opt.Password = password
+		}
 	}
 
 	client := redis.NewClient(opt)

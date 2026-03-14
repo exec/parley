@@ -135,6 +135,7 @@ function MainApp() {
       onServerSettings={() => setShowServerSettings(true)}
       currentUser={currentUser ?? undefined}
       onLogout={logout}
+      onOpenSettings={() => setShowUserSettings(true)}
       onVoiceChannelClick={() => setShowVoiceModal(true)}
     />
   ) : (
