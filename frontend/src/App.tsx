@@ -18,6 +18,7 @@ import { ManageRolesModal } from './components/modals/ManageRolesModal';
 import { UserProfileModal } from './components/modals/UserProfileModal';
 import { ServerSettingsModal } from './components/modals/ServerSettingsModal';
 import { UserSettingsModal } from './components/modals/UserSettingsModal';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 type View = 'homepage' | 'server' | 'dm';
 
@@ -314,7 +315,9 @@ const AuthRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 const ProtectedApp = (
   <ProtectedRoute>
     <AppProvider>
-      <MainApp />
+      <ErrorBoundary>
+        <MainApp />
+      </ErrorBoundary>
     </AppProvider>
   </ProtectedRoute>
 );

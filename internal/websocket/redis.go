@@ -38,6 +38,7 @@ func newNodeID() string {
 func NewRedisHub(hub *Hub) *RedisHub {
 	redisURL := os.Getenv("REDIS_URL")
 	if redisURL == "" {
+		log.Printf("WARNING: REDIS_URL not set, falling back to redis://localhost:6379 — cross-node broadcasting will silently fail if Redis is not running locally")
 		redisURL = "redis://localhost:6379"
 	}
 

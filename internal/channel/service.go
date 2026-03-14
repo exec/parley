@@ -41,10 +41,15 @@ func NewChannelService(repo *db.Repository) *ChannelService {
 	}
 }
 
+const maxChannelNameLen = 100
+
 // CreateChannel creates a new channel
 func (s *ChannelService) CreateChannel(ctx context.Context, serverID, name string, channelType int, parentID *string) (*Channel, error) {
 	if name == "" {
 		return nil, errors.New("channel name is required")
+	}
+	if len(name) > maxChannelNameLen {
+		return nil, errors.New("channel name must be 100 characters or fewer")
 	}
 
 	serverIDInt, err := strconv.ParseInt(serverID, 10, 64)
@@ -118,6 +123,9 @@ func (s *ChannelService) GetServerChannels(ctx context.Context, serverID string)
 func (s *ChannelService) UpdateChannel(ctx context.Context, id, name string) (*Channel, error) {
 	if name == "" {
 		return nil, errors.New("channel name is required")
+	}
+	if len(name) > maxChannelNameLen {
+		return nil, errors.New("channel name must be 100 characters or fewer")
 	}
 
 	idInt, err := strconv.ParseInt(id, 10, 64)
