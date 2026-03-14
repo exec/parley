@@ -50,14 +50,9 @@ echo "=== Installing Node.js ==="
 curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
 run_with_retry "apt-get install -y nodejs"
 
-# Install Go
+# Install Go from apt repository
 echo "=== Installing Go ==="
-if ! command -v go &> /dev/null; then
-    run_with_retry "curl -fsSL https://go.dev/dl/go1.25.0.linux-amd64.tar.gz -o /tmp/go.tar.gz"
-    rm -rf /usr/local/go
-    tar -C /usr/local -xzf /tmp/go.tar.gz
-    rm /tmp/go.tar.gz
-fi
+run_with_retry "apt-get install -y golang-go"
 
 # Verify Go installation
 if ! command -v go &> /dev/null; then
