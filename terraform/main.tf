@@ -130,15 +130,5 @@ resource "digitalocean_loadbalancer" "parley_lb" {
 # Note: DNS records not managed by Terraform - configure manually at your registrar
 # Point your domain to the load balancer IP after creation
 
-resource "digitalocean_spaces_bucket" "parley_uploads" {
-  name   = var.spaces_bucket
-  region = var.region
-  acl    = "public-read"
-
-  cors_rule {
-    allowed_headers = ["*"]
-    allowed_methods = ["GET", "PUT", "POST", "DELETE"]
-    allowed_origins = ["*"]
-    max_age_seconds = 3000
-  }
-}
+# Spaces bucket (parley-prod) is managed manually in the DO console
+# with CDN already configured — not managed by Terraform.
