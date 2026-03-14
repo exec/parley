@@ -65,8 +65,8 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 	if authorID == "" {
 		return nil, errors.New("author ID is required")
 	}
-	if content == "" {
-		return nil, errors.New("content is required")
+	if content == "" && attachmentURL == "" {
+		return nil, errors.New("content or attachment is required")
 	}
 
 	// Convert channelID from string to int64

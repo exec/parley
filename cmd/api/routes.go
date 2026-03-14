@@ -38,8 +38,16 @@ func registerRoutes(
 	hub *ws.Hub,
 	spacesClient *spaces.Client,
 ) {
-	// Cap request bodies at 64 KB for all routes.
-	router.Use(maxBodyMiddleware(64 * 1024))
+	// Cap request bodies at 64 KB for all routes except /api/upload,
+	// which applies its own 25 MB limit inside the handler.
+	router.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/api/upload" {
+				r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
+			}
+			next.ServeHTTP(w, r)
+		})
+	})
 
 	// Health check endpoint
 	router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
