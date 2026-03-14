@@ -74,6 +74,28 @@
   color: var(--accent);
 }
 
+.dm-panel-item.unread .dm-panel-name {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.dm-unread-badge {
+  margin-left: auto;
+  min-width: 18px;
+  height: 18px;
+  background-color: #ff4444;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
 .dm-panel-avatar {
   width: 32px;
   height: 32px;

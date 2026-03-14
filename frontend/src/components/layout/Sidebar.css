@@ -67,6 +67,26 @@
   color: var(--bg-primary);
 }
 
+.server-unread-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  min-width: 18px;
+  height: 18px;
+  background-color: #ff4444;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  pointer-events: none;
+  border: 2px solid var(--bg-primary);
+  line-height: 1;
+}
+
 .server-icon {
   width: 48px;
   height: 48px;

@@ -110,6 +110,7 @@ interface ChannelListProps {
   onLogout?: () => void;
   onOpenSettings?: () => void;
   onVoiceChannelClick?: () => void;
+  channelUnreadCounts?: Record<string, number>;
 }
 
 const ChannelList: React.FC<ChannelListProps> = ({
@@ -127,6 +128,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
   onLogout,
   onOpenSettings,
   onVoiceChannelClick,
+  channelUnreadCounts = {},
 }) => {
   const [textChannelsCollapsed, setTextChannelsCollapsed] = useState(false);
   const [voiceChannelsCollapsed, setVoiceChannelsCollapsed] = useState(false);
@@ -190,27 +192,34 @@ const ChannelList: React.FC<ChannelListProps> = ({
           </button>
         </div>
 
-        {!textChannelsCollapsed && textChannels.map(channel => (
-          <div
-            key={channel.id}
-            className={`channel-item ${channel.id === activeChannelId ? 'active' : ''}`}
-            onClick={() => onChannelSelect(channel.id)}
-            onMouseEnter={() => setHoveredChannel(channel.id)}
-            onMouseLeave={() => setHoveredChannel(null)}
-          >
-            <span className="channel-icon">#</span>
-            <span className="channel-name">{channel.name}</span>
-            {hoveredChannel === channel.id && (
-              <button
-                className="delete-channel-btn"
-                onClick={e => { e.stopPropagation(); onDeleteChannel(channel.id); }}
-                title="Delete channel"
-              >
-                ×
-              </button>
-            )}
-          </div>
-        ))}
+        {!textChannelsCollapsed && textChannels.map(channel => {
+          const unread = channelUnreadCounts[channel.id] ?? 0;
+          const isActive = channel.id === activeChannelId;
+          return (
+            <div
+              key={channel.id}
+              className={`channel-item ${isActive ? 'active' : ''} ${unread > 0 && !isActive ? 'unread' : ''}`}
+              onClick={() => onChannelSelect(channel.id)}
+              onMouseEnter={() => setHoveredChannel(channel.id)}
+              onMouseLeave={() => setHoveredChannel(null)}
+            >
+              <span className="channel-icon">#</span>
+              <span className="channel-name">{channel.name}</span>
+              {unread > 0 && !isActive && (
+                <span className="channel-unread-badge">{unread > 99 ? '99+' : unread}</span>
+              )}
+              {hoveredChannel === channel.id && (
+                <button
+                  className="delete-channel-btn"
+                  onClick={e => { e.stopPropagation(); onDeleteChannel(channel.id); }}
+                  title="Delete channel"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          );
+        })}
 
         <div className="category-row">
           <div

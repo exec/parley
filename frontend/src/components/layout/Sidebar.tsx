@@ -13,6 +13,7 @@ interface SidebarProps {
   onServerSelect: (serverId: string) => void;
   onCreateServer: () => void;
   onHomepage?: () => void;
+  serverUnreadCounts?: Record<string, number>;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -21,9 +22,11 @@ const Sidebar: React.FC<SidebarProps> = ({
   onServerSelect,
   onCreateServer,
   onHomepage,
+  serverUnreadCounts = {},
 }) => {
   const renderServerIcon = (server: Server) => {
     const isActive = server.id === activeServerId;
+    const unread = serverUnreadCounts[server.id] ?? 0;
 
     return (
       <div
@@ -39,6 +42,9 @@ const Sidebar: React.FC<SidebarProps> = ({
           </span>
         )}
         <span className="tooltip">{server.name}</span>
+        {unread > 0 && !isActive && (
+          <span className="server-unread-badge">{unread > 99 ? '99+' : unread}</span>
+        )}
       </div>
     );
   };

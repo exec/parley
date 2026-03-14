@@ -1,10 +1,11 @@
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { InvitePage } from './pages/InvitePage';
 import { AppProvider, useApp } from './context/AppContext';
 import { useWebSocket } from './hooks/useWebSocket';
+import { DmMessage } from './api/types';
 import MainLayout from './components/layout/MainLayout';
 import ChannelList from './components/layout/ChannelList';
 import DmPanel from './components/layout/DmPanel';
@@ -76,6 +77,9 @@ function MainApp() {
   const typingTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const lastTypingSentRef = useRef<number>(0);
 
+  // Unread counts: channelId (or dmChannelId) → unread message count
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+
   // Determine current view
   const view: View = activeDmChannel ? 'dm' : activeServer ? 'server' : 'homepage';
 
@@ -114,6 +118,27 @@ function MainApp() {
       navigate('/', { replace: true });
     }
   }, [activeDmChannel?.id, activeServer?.id, activeChannel?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Clear unread count when the active channel or DM channel changes
+  useEffect(() => {
+    if (!activeChannel) return;
+    setUnreadCounts(prev => {
+      if (!prev[activeChannel.id]) return prev;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { [activeChannel.id]: _cleared, ...rest } = prev;
+      return rest;
+    });
+  }, [activeChannel?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!activeDmChannel) return;
+    setUnreadCounts(prev => {
+      if (!prev[activeDmChannel.id]) return prev;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { [activeDmChannel.id]: _cleared, ...rest } = prev;
+      return rest;
+    });
+  }, [activeDmChannel?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleServerMemberJoin = useCallback((_serverId: string, _userId: string) => {
     // When a member joins, reload servers to show the new server for the joining user
@@ -175,7 +200,18 @@ function MainApp() {
     // Clear typing indicator when a message arrives from that user
     clearTypingUser(msg.channel_id, msg.author_id);
     receiveMessage(msg);
-  }, [receiveMessage, clearTypingUser]);
+    // Track unread for channels we're not currently viewing
+    if (msg.channel_id !== activeChannel?.id) {
+      setUnreadCounts(prev => ({ ...prev, [msg.channel_id]: (prev[msg.channel_id] ?? 0) + 1 }));
+    }
+  }, [receiveMessage, clearTypingUser, activeChannel?.id]);
+
+  const handleReceiveDmMessage = useCallback((msg: DmMessage) => {
+    receiveDmMessage(msg);
+    if (msg.dm_channel_id !== activeDmChannel?.id) {
+      setUnreadCounts(prev => ({ ...prev, [msg.dm_channel_id]: (prev[msg.dm_channel_id] ?? 0) + 1 }));
+    }
+  }, [receiveDmMessage, activeDmChannel?.id]);
 
   // Get all channel IDs from all servers to subscribe to for notifications
   const allChannelIds = servers.flatMap(server =>
@@ -184,7 +220,7 @@ function MainApp() {
 
   const { sendTyping } = useWebSocket({
     onMessage: handleReceiveMessage,
-    onDmMessage: receiveDmMessage,
+    onDmMessage: handleReceiveDmMessage,
     onServerMemberJoin: handleServerMemberJoin,
     onTyping: handleTyping,
     activeChannelId: activeChannel?.id ?? null,
@@ -198,6 +234,18 @@ function MainApp() {
     lastTypingSentRef.current = now;
     sendTyping(activeChannel.id, currentUser.username);
   }, [activeChannel, currentUser, sendTyping]);
+
+  // Aggregate unread counts per server (from the active server's channel list)
+  const serverUnreadCounts = useMemo(() => {
+    const result: Record<string, number> = {};
+    channels.forEach(ch => {
+      const count = unreadCounts[ch.id];
+      if (count) {
+        result[ch.server_id] = (result[ch.server_id] ?? 0) + count;
+      }
+    });
+    return result;
+  }, [channels, unreadCounts]);
 
   const handleViewProfile = (userId: string) => {
     setProfileUserId(userId);
@@ -225,6 +273,7 @@ function MainApp() {
       onLogout={logout}
       onOpenSettings={() => setShowUserSettings(true)}
       onVoiceChannelClick={() => setShowVoiceModal(true)}
+      channelUnreadCounts={unreadCounts}
     />
   ) : (
     <DmPanel
@@ -234,6 +283,7 @@ function MainApp() {
       onSelectDm={selectDmChannel}
       onLogout={logout}
       onOpenSettings={() => setShowUserSettings(true)}
+      dmUnreadCounts={unreadCounts}
     />
   );
 
@@ -312,6 +362,7 @@ function MainApp() {
         onHomepage={handleGoHome}
         leftPanel={leftPanel}
         rightPanel={rightPanel}
+        serverUnreadCounts={serverUnreadCounts}
       >
         {mainContent}
       </MainLayout>

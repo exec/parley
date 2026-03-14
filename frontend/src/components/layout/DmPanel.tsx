@@ -46,6 +46,7 @@ interface DmPanelProps {
   onSelectDm: (channelId: string) => void;
   onLogout?: () => void;
   onOpenSettings?: () => void;
+  dmUnreadCounts?: Record<string, number>;
 }
 
 const DmPanel: React.FC<DmPanelProps> = ({
@@ -55,6 +56,7 @@ const DmPanel: React.FC<DmPanelProps> = ({
   onSelectDm,
   onLogout,
   onOpenSettings,
+  dmUnreadCounts = {},
 }) => {
   const [contextMenu, setContextMenu] = useState<{ top: number; left: number } | null>(null);
   const userAreaRef = useRef<HTMLDivElement>(null);
@@ -74,18 +76,25 @@ const DmPanel: React.FC<DmPanelProps> = ({
         {dmChannels.length === 0 ? (
           <div className="dm-panel-empty">No direct messages yet</div>
         ) : (
-          dmChannels.map(channel => (
-            <div
-              key={channel.id}
-              className={`dm-panel-item ${channel.id === activeDmChannelId ? 'active' : ''}`}
-              onClick={() => onSelectDm(channel.id)}
-            >
-              <div className="dm-panel-avatar">
-                {channel.other_username.charAt(0).toUpperCase()}
+          dmChannels.map(channel => {
+            const unread = dmUnreadCounts[channel.id] ?? 0;
+            const isActive = channel.id === activeDmChannelId;
+            return (
+              <div
+                key={channel.id}
+                className={`dm-panel-item ${isActive ? 'active' : ''} ${unread > 0 && !isActive ? 'unread' : ''}`}
+                onClick={() => onSelectDm(channel.id)}
+              >
+                <div className="dm-panel-avatar">
+                  {channel.other_username.charAt(0).toUpperCase()}
+                </div>
+                <span className="dm-panel-name">{channel.other_username}</span>
+                {unread > 0 && !isActive && (
+                  <span className="dm-unread-badge">{unread > 99 ? '99+' : unread}</span>
+                )}
               </div>
-              <span className="dm-panel-name">{channel.other_username}</span>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 

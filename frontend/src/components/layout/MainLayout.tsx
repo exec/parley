@@ -17,6 +17,7 @@ interface MainLayoutProps {
   onServerSelect: (serverId: string) => void;
   onCreateServer: () => void;
   onHomepage?: () => void;
+  serverUnreadCounts?: Record<string, number>;
 }
 
 const MainLayout: React.FC<MainLayoutProps> = ({
@@ -28,6 +29,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
   onServerSelect,
   onCreateServer,
   onHomepage,
+  serverUnreadCounts,
 }) => {
   return (
     <div className="main-layout">
@@ -37,6 +39,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
         onServerSelect={onServerSelect}
         onCreateServer={onCreateServer}
         onHomepage={onHomepage}
+        serverUnreadCounts={serverUnreadCounts}
       />
       {leftPanel}
       <div className="main-content">
