@@ -98,7 +98,7 @@ func (h *Hub) UnregisterClient(client *Client) {
 
 	if _, ok := h.clients[client]; ok {
 		delete(h.clients, client)
-		close(client.send)
+		client.closeSend()
 
 		// Remove from user map
 		if h.userToClient[client.userID] != nil {
@@ -185,7 +185,7 @@ func (h *Hub) SendToUser(userID string, messageType string, payload []byte) erro
 		default:
 			// Client's send buffer is full, close the connection
 			delete(h.clients, client)
-			close(client.send)
+			client.closeSend()
 			delete(h.userToClient[userID], client)
 		}
 	}
@@ -238,7 +238,7 @@ func (h *Hub) BroadcastToChannel(channelID string, messageType string, payload [
 		default:
 			// Client's send buffer is full, close the connection
 			delete(h.clients, client)
-			close(client.send)
+			client.closeSend()
 
 			// Remove from user map
 			if h.userToClient[client.userID] != nil {

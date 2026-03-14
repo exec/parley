@@ -3,6 +3,7 @@ package websocket
 import (
 	"encoding/json"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -30,6 +31,10 @@ type Client struct {
 	// Buffered channel of outbound messages
 	send chan []byte
 
+	// closeOnce ensures client.send is only closed once, regardless of which
+	// code path triggers the teardown (buffer-full eviction vs normal unregister).
+	closeOnce sync.Once
+
 	// User ID associated with this client
 	userID string
 }
@@ -37,11 +42,16 @@ type Client struct {
 // NewClient creates a new client
 func NewClient(hub *Hub, conn *websocket.Conn, userID string) *Client {
 	return &Client{
-		hub:   hub,
-		conn:  conn,
-		send:  make(chan []byte, 256),
+		hub:    hub,
+		conn:   conn,
+		send:   make(chan []byte, 256),
 		userID: userID,
 	}
+}
+
+// closeSend closes the send channel exactly once.
+func (c *Client) closeSend() {
+	c.closeOnce.Do(func() { close(c.send) })
 }
 
 // ReadPump reads messages from the WebSocket connection

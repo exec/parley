@@ -143,11 +143,32 @@ func (s *ChannelService) UpdateChannel(ctx context.Context, id, name string) (*C
 	return dbChannelToChannel(channel), nil
 }
 
-// DeleteChannel deletes a channel by ID
-func (s *ChannelService) DeleteChannel(ctx context.Context, id string) error {
+// DeleteChannel deletes a channel by ID. Only the server owner may delete channels.
+func (s *ChannelService) DeleteChannel(ctx context.Context, id string, userID string) error {
 	idInt, err := strconv.ParseInt(id, 10, 64)
 	if err != nil {
 		return errors.New("invalid channel ID")
+	}
+
+	ch, err := s.repo.GetChannelByID(ctx, idInt)
+	if err != nil {
+		if err == db.ErrNotFound {
+			return errors.New("channel not found")
+		}
+		return err
+	}
+
+	srv, err := s.repo.GetServerByID(ctx, ch.ServerID)
+	if err != nil {
+		return err
+	}
+
+	userIDInt, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		return errors.New("invalid user ID")
+	}
+	if srv.OwnerID != userIDInt {
+		return errors.New("forbidden")
 	}
 
 	err = s.repo.DeleteChannel(ctx, idInt)

@@ -2,6 +2,36 @@
 
 This is a living task list for Parley - a Discord clone.
 
+## Bugs
+
+### Critical
+- [x] **Double-close panic on WebSocket client** — `websocket/hub.go:101,188,241` — `UnregisterClient` closes `client.send`, but `SendToUser`/`BroadcastToChannel` also close it when the send buffer is full, and `WritePump` has its own defer close. Race between these paths will panic. Fix: use `sync.Once` to guard the close.
+- [x] **Any server member can delete any channel** — `channel/handler.go` — `DeleteChannel` handler never checks that the requesting user is the server owner before deleting. Any member can nuke channels.
+- [x] **JWT falls back to known weak secret** — `internal/auth/config.go:18` — If `JWT_SECRET` env var is unset the code falls back to the string `"parley-secret-key-change-in-production"`. Should panic/fatal on startup instead.
+- [ ] **WebSocket CheckOrigin disabled** — `cmd/api/routes.go:203` — `CheckOrigin` always returns `true`, allowing cross-site WebSocket hijacking (CSWSH). Should validate `Origin` against an allowlist matching CORS config.
+
+### High
+- [ ] **SendMessage silently drops author username on DB error** — `internal/message/service.go:86` — `Scan(&authorUsername)` error is ignored with `_`. If the query fails the message broadcasts with an empty username and no error is surfaced.
+- [ ] **DM message broadcast payload format wrong** — `internal/dm/handler.go` — DM message broadcast marshals an intermediate `event` map rather than the `DmMessage` struct directly. Client-side handler may not receive sender info correctly.
+- [ ] **No rate limiting on auth endpoints** — `cmd/api/routes.go:40-43` — `/api/auth/register` and `/api/auth/login` have no rate limit, enabling brute-force and account enumeration.
+- [ ] **No request body size limit** — `cmd/api/main.go` — No `MaxHeaderBytes` or `http.MaxBytesReader` set; large payloads can DOS the API.
+- [ ] **LIKE metachar injection in user search** — `internal/db/repository.go` — Search uses `ILIKE $1` with raw user input (parameterized, so not SQL-injectable, but `%` and `_` in the input bypass the intended prefix-search semantics).
+
+### Medium
+- [ ] **Missing null check on `activeChannel` in AppContext** — `frontend/src/context/AppContext.tsx:257` — `receiveMessage` accesses `activeChannel.id` inside a condition that already checks `activeChannel`, but the channel can become `null` between re-renders and the state setter. Add defensive check.
+- [ ] **Missing React error boundary** — `frontend/src/App.tsx` — A runtime rendering error crashes the entire app with a blank screen. Wrap major sections in an error boundary.
+- [ ] **No message channel-name length validation** — `internal/channel/service.go` — Only checks for empty name; no max length. Very long names cause DB truncation or UI overflow.
+- [ ] **Large message offset queries unvalidated** — `internal/message/handler.go:94-107` — Limit is capped at 200 but offset has no upper bound, allowing arbitrarily expensive DB seeks. Use keyset/cursor pagination.
+- [ ] **Hardcoded Redis fallback is silent** — `internal/websocket/redis.go:41` — Falls back to `redis://localhost:6379` with no warning log; in a misconfigured deploy this means cross-node broadcasts silently fail.
+
+### Low
+- [ ] **`UpdatedAt` not tracked for channels** — `internal/channel/service.go:172` — Channel struct populates `UpdatedAt` from `CreatedAt`. Add `updated_at` column.
+- [ ] **No exponential backoff on WebSocket reconnect** — `frontend/src/hooks/useWebSocket.ts:84` — Always reconnects after exactly 3 s. Should use exponential backoff with jitter. (Also listed under Infrastructure below.)
+- [ ] **Username length not validated on profile update** — `internal/auth/service.go:152-159` — No max-length check on username update; signup has a limit but profile update does not.
+- [ ] **No logging on WebSocket subscribe/unsubscribe failures** — `internal/websocket/client.go` — Silent failure makes subscription bugs hard to trace in logs.
+
+---
+
 ## High Priority
 
 ### Completed

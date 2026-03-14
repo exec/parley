@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"log"
 	"os"
 	"time"
 )
@@ -15,7 +16,7 @@ type Config struct {
 func DefaultConfig() *Config {
 	secretKey := os.Getenv("JWT_SECRET")
 	if secretKey == "" {
-		secretKey = "parley-secret-key-change-in-production"
+		log.Fatal("JWT_SECRET environment variable is not set — refusing to start with an insecure default")
 	}
 
 	return &Config{

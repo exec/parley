@@ -39,8 +39,7 @@ func DefaultConfig() *Config {
 
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
-		log.Println("WARNING: JWT_SECRET not set, using insecure default — set this in production")
-		jwtSecret = "parley-secret-key-change-in-production"
+		log.Fatal("JWT_SECRET environment variable is not set — refusing to start with an insecure default")
 	}
 
 	port := os.Getenv("PORT")

@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"parley/internal/auth"
 )
 
 // Handler handles HTTP requests for channels
@@ -143,8 +144,21 @@ func (h *Handler) DeleteChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.service.DeleteChannel(r.Context(), id); err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if err := h.service.DeleteChannel(r.Context(), id, userID); err != nil {
+		switch err.Error() {
+		case "channel not found":
+			http.Error(w, err.Error(), http.StatusNotFound)
+		case "forbidden":
+			http.Error(w, "only the server owner can delete channels", http.StatusForbidden)
+		default:
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 		return
 	}
 
