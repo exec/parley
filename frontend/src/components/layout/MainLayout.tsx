@@ -47,6 +47,8 @@ interface MainLayoutProps {
   ownerId?: string;
   onLogout?: () => void;
   onVoiceChannelClick?: () => void;
+  onHomepage?: () => void;
+  onViewProfile?: (userId: string) => void;
 }
 
 const MainLayout: React.FC<MainLayoutProps> = ({
@@ -67,6 +69,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({
   ownerId,
   onLogout,
   onVoiceChannelClick,
+  onHomepage,
+  onViewProfile,
 }) => {
   const showChannelList = !!activeServerId;
 
@@ -77,6 +81,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
         activeServerId={activeServerId}
         onServerSelect={onServerSelect}
         onCreateServer={onCreateServer}
+        onHomepage={onHomepage}
       />
 
       {showChannelList ? (
@@ -100,7 +105,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
             </div>
           </div>
 
-          <UserSidebar members={members} ownerId={ownerId} />
+          <UserSidebar members={members} ownerId={ownerId} onViewProfile={onViewProfile} />
         </>
       ) : (
         <div className="main-content no-server">

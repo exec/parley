@@ -728,3 +728,255 @@ func (r *Repository) RunMigrations(ctx context.Context) error {
 	_, err := r.db.ExecContext(ctx, MigrationSQL())
 	return err
 }
+
+// ============ DM Channel Operations ============
+
+// GetOrCreateDmChannel finds or creates a DM channel between two users
+func (r *Repository) GetOrCreateDmChannel(ctx context.Context, userAID, userBID int64) (*DmChannel, error) {
+	// Ensure user1_id < user2_id for the UNIQUE constraint
+	user1ID, user2ID := userAID, userBID
+	if user1ID > user2ID {
+		user1ID, user2ID = user2ID, user1ID
+	}
+
+	// Try to insert, ignore if exists
+	insertQuery := `
+		INSERT INTO dm_channels (user1_id, user2_id, created_at)
+		VALUES ($1, $2, NOW())
+		ON CONFLICT DO NOTHING
+	`
+	_, err := r.db.ExecContext(ctx, insertQuery, user1ID, user2ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the channel
+	query := `
+		SELECT id, user1_id, user2_id, created_at
+		FROM dm_channels
+		WHERE user1_id = $1 AND user2_id = $2
+	`
+	var channel DmChannel
+	err = r.db.QueryRowContext(ctx, query, user1ID, user2ID).Scan(
+		&channel.ID,
+		&channel.User1ID,
+		&channel.User2ID,
+		&channel.CreatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Populate the other user's info
+	otherUserID := user2ID
+	if userAID == user1ID {
+		otherUserID = user2ID
+	} else {
+		otherUserID = user1ID
+	}
+
+	var otherUser User
+	err = r.db.QueryRowContext(ctx, "SELECT id, username FROM users WHERE id = $1", otherUserID).Scan(&otherUser.ID, &otherUser.Username)
+	if err == nil {
+		channel.OtherUserID = otherUser.ID
+		channel.OtherUsername = otherUser.Username
+	}
+
+	return &channel, nil
+}
+
+// GetUserDmChannels returns all DM channels for a user
+func (r *Repository) GetUserDmChannels(ctx context.Context, userID int64) ([]DmChannel, error) {
+	query := `
+		SELECT dc.id, dc.user1_id, dc.user2_id, dc.created_at,
+			   u.id as other_user_id, u.username as other_username
+		FROM dm_channels dc
+		JOIN users u ON u.id = CASE WHEN dc.user1_id = $1 THEN dc.user2_id ELSE dc.user1_id END
+		WHERE dc.user1_id = $1 OR dc.user2_id = $1
+		ORDER BY dc.created_at DESC
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var channels []DmChannel
+	for rows.Next() {
+		var channel DmChannel
+		err := rows.Scan(
+			&channel.ID,
+			&channel.User1ID,
+			&channel.User2ID,
+			&channel.CreatedAt,
+			&channel.OtherUserID,
+			&channel.OtherUsername,
+		)
+		if err != nil {
+			return nil, err
+		}
+		channels = append(channels, channel)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return channels, nil
+}
+
+// GetDmChannelByID retrieves a DM channel by its ID
+func (r *Repository) GetDmChannelByID(ctx context.Context, id int64) (*DmChannel, error) {
+	query := `
+		SELECT id, user1_id, user2_id, created_at
+		FROM dm_channels
+		WHERE id = $1
+	`
+
+	var channel DmChannel
+	err := r.db.QueryRowContext(ctx, query, id).Scan(
+		&channel.ID,
+		&channel.User1ID,
+		&channel.User2ID,
+		&channel.CreatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &channel, nil
+}
+
+// ============ DM Message Operations ============
+
+// CreateDmMessage creates a new DM message
+func (r *Repository) CreateDmMessage(ctx context.Context, dmChannelID, authorID int64, content string) (*DmMessage, error) {
+	query := `
+		INSERT INTO dm_messages (dm_channel_id, author_id, content, created_at, updated_at)
+		VALUES ($1, $2, $3, NOW(), NOW())
+		RETURNING id, dm_channel_id, author_id, content, created_at, updated_at
+	`
+
+	var msg DmMessage
+	err := r.db.QueryRowContext(ctx, query, dmChannelID, authorID, content).Scan(
+		&msg.ID,
+		&msg.DmChannelID,
+		&msg.AuthorID,
+		&msg.Content,
+		&msg.CreatedAt,
+		&msg.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get author username
+	var username string
+	r.db.QueryRowContext(ctx, "SELECT username FROM users WHERE id = $1", authorID).Scan(&username)
+	msg.AuthorUsername = username
+
+	return &msg, nil
+}
+
+// GetDmMessages retrieves messages for a DM channel
+func (r *Repository) GetDmMessages(ctx context.Context, dmChannelID int64, limit, offset int) ([]DmMessage, error) {
+	query := `
+		SELECT m.id, m.dm_channel_id, m.author_id, m.content, m.created_at, m.updated_at, u.username
+		FROM dm_messages m
+		JOIN users u ON u.id = m.author_id
+		WHERE m.dm_channel_id = $1
+		ORDER BY m.created_at ASC
+		LIMIT $2 OFFSET $3
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, dmChannelID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var messages []DmMessage
+	for rows.Next() {
+		var msg DmMessage
+		err := rows.Scan(
+			&msg.ID,
+			&msg.DmChannelID,
+			&msg.AuthorID,
+			&msg.Content,
+			&msg.CreatedAt,
+			&msg.UpdatedAt,
+			&msg.AuthorUsername,
+		)
+		if err != nil {
+			return nil, err
+		}
+		messages = append(messages, msg)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return messages, nil
+}
+
+// ============ User Search & Profile Operations ============
+
+// GetPublicUser returns public profile info for a user
+func (r *Repository) GetPublicUser(ctx context.Context, userID int64) (*PublicUser, error) {
+	query := `
+		SELECT id, username, COALESCE(avatar_url, ''), created_at
+		FROM users
+		WHERE id = $1
+	`
+
+	var user PublicUser
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(
+		&user.ID,
+		&user.Username,
+		&user.AvatarURL,
+		&user.CreatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+// SearchUsers searches users by username prefix
+func (r *Repository) SearchUsers(ctx context.Context, query string, excludeUserID int64) ([]PublicUser, error) {
+	sqlQuery := `
+		SELECT id, username, COALESCE(avatar_url, ''), created_at
+		FROM users
+		WHERE username ILIKE $1 AND id != $2
+		ORDER BY username
+		LIMIT 20
+	`
+
+	rows, err := r.db.QueryContext(ctx, sqlQuery, query+"%", excludeUserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []PublicUser
+	for rows.Next() {
+		var user PublicUser
+		err := rows.Scan(
+			&user.ID,
+			&user.Username,
+			&user.AvatarURL,
+			&user.CreatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, user)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return users, nil
+}

@@ -50,3 +50,51 @@ export interface ApiError {
   message: string;
   code?: string;
 }
+
+// Direct Message types
+export interface DmChannel {
+  id: string;
+  user1_id: string;
+  user2_id: string;
+  created_at: string;
+  other_username: string;
+  other_user_id: string;
+}
+
+export interface DmMessage {
+  id: string;
+  dm_channel_id: string;
+  author_id: string;
+  author_username: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Public user profile (for search and profiles)
+export interface PublicUser {
+  id: string;
+  username: string;
+  avatar_url: string;
+  created_at: string;
+}
+
+// DM types
+export interface DmChannel {
+  id: string;
+  user1_id: string;
+  user2_id: string;
+  created_at: string;
+  other_username: string;
+  other_user_id: string;
+}
+
+export interface DmMessage {
+  id: string;
+  dm_channel_id: string;
+  author_id: string;
+  author_username: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}

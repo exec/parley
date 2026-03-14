@@ -9,6 +9,9 @@ import { ChatWindow } from './components/chat/ChatWindow';
 import { CreateServerModal } from './components/modals/CreateServerModal';
 import { CreateChannelModal } from './components/modals/CreateChannelModal';
 import { ManageRolesModal } from './components/modals/ManageRolesModal';
+import { DmChat } from './components/chat/DmChat';
+import { UserProfileModal } from './components/modals/UserProfileModal';
+import { Homepage } from './pages/Homepage';
 
 function MainApp() {
   const {
@@ -28,42 +31,114 @@ function MainApp() {
     deleteChannel,
     sendMessage,
     receiveMessage,
+    receiveDmMessage,
     logout,
+    // DM
+    dmChannels,
+    activeDmChannel,
+    dmMessages,
+    isLoadingDms,
+    selectDmChannel,
+    sendDmMessage,
+    openDmChannel,
   } = useApp();
 
   const [showCreateServer, setShowCreateServer] = useState(false);
   const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [showManageRoles, setShowManageRoles] = useState(false);
   const [showVoiceModal, setShowVoiceModal] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
+
+  const [showHomepage, setShowHomepage] = useState(false);
 
   useWebSocket({
     onMessage: receiveMessage,
+    onDmMessage: receiveDmMessage,
     activeChannelId: activeChannel?.id ?? null,
   });
 
-  if (!isLoadingServers && servers.length === 0) {
+  const handleViewProfile = (userId: string) => {
+    setProfileUserId(userId);
+    setShowProfile(true);
+  };
+
+  if (showHomepage || (!isLoadingServers && servers.length === 0 && dmChannels.length === 0)) {
     return (
       <>
-        <div className="empty-state-layout">
-          <div className="empty-sidebar">
-            <div className="add-server-button-big" onClick={() => setShowCreateServer(true)}>
-              <span>+</span>
-            </div>
-          </div>
-          <div className="empty-state-content">
-            <div className="welcome-screen">
-              <h1 className="welcome-title">Welcome to Parley!</h1>
-              <p className="welcome-subtitle">You're not in any servers yet.</p>
-              <button className="create-server-cta" onClick={() => setShowCreateServer(true)}>
-                Create your first server
-              </button>
-            </div>
-          </div>
-        </div>
+        <Homepage
+          onCreateServer={() => setShowCreateServer(true)}
+          dmChannels={dmChannels}
+          onSelectDm={selectDmChannel}
+          onOpenDm={openDmChannel}
+          currentUserId={currentUser?.id}
+        />
         <CreateServerModal
           isOpen={showCreateServer}
           onClose={() => setShowCreateServer(false)}
           onCreate={createServer}
+        />
+      </>
+    );
+  }
+
+  // Show DM chat if a DM channel is active
+  if (activeDmChannel) {
+    return (
+      <>
+        <MainLayout
+          servers={servers}
+          activeServerId={null}
+          onServerSelect={selectServer}
+          onCreateServer={() => setShowCreateServer(true)}
+          channels={channels}
+          activeChannelId={null}
+          onChannelSelect={selectChannel}
+          onCreateChannel={() => setShowCreateChannel(true)}
+          onDeleteChannel={deleteChannel}
+          onManageRoles={() => setShowManageRoles(true)}
+          serverName={`@${activeDmChannel.other_username}`}
+          members={[]}
+          currentUser={currentUser ?? undefined}
+          ownerId={currentUser?.id}
+          onLogout={logout}
+          onVoiceChannelClick={() => setShowVoiceModal(true)}
+          onHomepage={() => setShowHomepage(true)}
+          onViewProfile={handleViewProfile}
+        >
+          <DmChat
+            channel={activeDmChannel}
+            messages={dmMessages}
+            currentUserId={currentUser?.id}
+            onSendMessage={sendDmMessage}
+            isLoading={isLoadingDms}
+          />
+        </MainLayout>
+
+        {showVoiceModal && (
+          <div className="modal-overlay" onClick={() => setShowVoiceModal(false)}>
+            <div className="modal-content" onClick={e => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2 className="modal-title">Voice Channels</h2>
+                <button className="modal-close" onClick={() => setShowVoiceModal(false)}>&times;</button>
+              </div>
+              <div className="modal-body">
+                <p style={{color: 'var(--discord-text-muted)', textAlign: 'center', padding: '20px 0'}}>
+                  Voice channels are coming soon!<br/>
+                  <span style={{fontSize: '13px', marginTop: '8px', display: 'block'}}>
+                    We're working on it. Stay tuned.
+                  </span>
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <UserProfileModal
+          isOpen={showProfile}
+          onClose={() => setShowProfile(false)}
+          userId={profileUserId}
+          onStartDm={openDmChannel}
         />
       </>
     );
@@ -88,6 +163,8 @@ function MainApp() {
         ownerId={activeServer?.owner_id}
         onLogout={logout}
         onVoiceChannelClick={() => setShowVoiceModal(true)}
+        onHomepage={() => setShowHomepage(true)}
+        onViewProfile={handleViewProfile}
       >
         {activeChannel ? (
           <ChatWindow
@@ -101,7 +178,11 @@ function MainApp() {
           <div className="no-channel-selected">
             <p>Select a channel to start chatting</p>
           </div>
-        ) : null}
+        ) : (
+          <div className="no-channel-selected">
+            <p>Select a channel or start a DM</p>
+          </div>
+        )}
       </MainLayout>
 
       <CreateServerModal
@@ -137,6 +218,13 @@ function MainApp() {
           </div>
         </div>
       )}
+
+      <UserProfileModal
+        isOpen={showProfile}
+        onClose={() => setShowProfile(false)}
+        userId={profileUserId}
+        onStartDm={openDmChannel}
+      />
     </>
   );
 }

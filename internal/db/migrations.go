@@ -67,8 +67,31 @@ var Migrations = []string{
 	CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
 	`,
 
-	// Migration to add the owner as the first member when a server is created
-	// This is handled in application logic, not as a separate migration
+	`-- Create DM channels table
+	CREATE TABLE IF NOT EXISTS dm_channels (
+		id BIGSERIAL PRIMARY KEY,
+		user1_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		user2_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+		UNIQUE(user1_id, user2_id)
+	);
+
+	-- Create DM messages table
+	CREATE TABLE IF NOT EXISTS dm_messages (
+		id BIGSERIAL PRIMARY KEY,
+		dm_channel_id BIGINT NOT NULL REFERENCES dm_channels(id) ON DELETE CASCADE,
+		author_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		content TEXT NOT NULL,
+		created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+		updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+	);
+
+	-- Create indexes for DM tables
+	CREATE INDEX IF NOT EXISTS idx_dm_channels_user1 ON dm_channels(user1_id);
+	CREATE INDEX IF NOT EXISTS idx_dm_channels_user2 ON dm_channels(user2_id);
+	CREATE INDEX IF NOT EXISTS idx_dm_messages_channel ON dm_messages(dm_channel_id);
+	CREATE INDEX IF NOT EXISTS idx_dm_messages_created ON dm_messages(created_at);
+	`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

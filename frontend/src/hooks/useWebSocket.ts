@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { Message } from '../api/types';
+import { Message, DmMessage } from '../api/types';
 
 interface WSMessage {
   type: string;
@@ -8,10 +8,11 @@ interface WSMessage {
 
 interface UseWebSocketOptions {
   onMessage: (msg: Message) => void;
+  onDmMessage?: (msg: DmMessage) => void;
   activeChannelId: string | null;
 }
 
-export function useWebSocket({ onMessage, activeChannelId }: UseWebSocketOptions) {
+export function useWebSocket({ onMessage, onDmMessage, activeChannelId }: UseWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const subscribedChannelRef = useRef<string | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -42,6 +43,8 @@ export function useWebSocket({ onMessage, activeChannelId }: UseWebSocketOptions
         const wsMsg: WSMessage = JSON.parse(event.data);
         if (wsMsg.type === 'MESSAGE_CREATE') {
           onMessage(wsMsg.payload as Message);
+        } else if (wsMsg.type === 'dm_message' && onDmMessage) {
+          onDmMessage(wsMsg.payload as DmMessage);
         }
       } catch {
         // ignore parse errors

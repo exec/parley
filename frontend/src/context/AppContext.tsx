@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { User, Server, Channel, Message, ServerMember } from '../api/types';
+import { User, Server, Channel, Message, ServerMember, DmChannel, DmMessage } from '../api/types';
 import { apiClient } from '../api/client';
 import * as serversApi from '../api/servers';
 import * as channelsApi from '../api/channels';
 import * as messagesApi from '../api/messages';
+import * as dmsApi from '../api/dms';
 
 interface AppState {
   currentUser: User | null;
@@ -16,6 +17,11 @@ interface AppState {
   isLoadingServers: boolean;
   isLoadingChannels: boolean;
   isLoadingMessages: boolean;
+  // DM state
+  dmChannels: DmChannel[];
+  activeDmChannel: DmChannel | null;
+  dmMessages: DmMessage[];
+  isLoadingDms: boolean;
 }
 
 interface AppActions {
@@ -27,6 +33,12 @@ interface AppActions {
   sendMessage: (content: string) => Promise<void>;
   receiveMessage: (msg: Message) => void;
   logout: () => void;
+  // DM actions
+  loadDmChannels: () => Promise<void>;
+  openDmChannel: (userId: string) => Promise<void>;
+  selectDmChannel: (channelId: string) => Promise<void>;
+  sendDmMessage: (content: string) => Promise<void>;
+  receiveDmMessage: (msg: DmMessage) => void;
 }
 
 const AppContext = createContext<(AppState & AppActions) | null>(null);
@@ -57,6 +69,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isLoadingChannels, setIsLoadingChannels] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
 
+  // DM state
+  const [dmChannels, setDmChannels] = useState<DmChannel[]>([]);
+  const [activeDmChannel, setActiveDmChannel] = useState<DmChannel | null>(null);
+  const [dmMessages, setDmMessages] = useState<DmMessage[]>([]);
+  const [isLoadingDms, setIsLoadingDms] = useState(false);
+
   // Initialize token from localStorage
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -73,9 +91,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       .then(setServers)
       .catch(console.error)
       .finally(() => setIsLoadingServers(false));
+
+    // Also load DM channels
+    dmsApi.getDmChannels()
+      .then(setDmChannels)
+      .catch(console.error);
   }, [currentUser]);
 
   const selectServer = useCallback(async (serverId: string) => {
+    // Clear DM state when selecting a server
+    setActiveDmChannel(null);
+    setDmMessages([]);
+
     const srv = servers.find(s => s.id === serverId);
     if (!srv) return;
     setActiveServer(srv);
@@ -106,6 +133,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [servers]);
 
   const selectChannel = useCallback(async (channelId: string) => {
+    // Clear DM state when selecting a channel
+    setActiveDmChannel(null);
+    setDmMessages([]);
+
     const ch = channels.find(c => c.id === channelId);
     if (!ch) return;
     setActiveChannel(ch);
@@ -162,6 +193,76 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [activeChannel]);
 
+  // DM Actions
+  const loadDmChannels = useCallback(async () => {
+    setIsLoadingDms(true);
+    try {
+      const channels = await dmsApi.getDmChannels();
+      setDmChannels(channels);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoadingDms(false);
+    }
+  }, []);
+
+  const openDmChannelAction = useCallback(async (userId: string) => {
+    try {
+      const channel = await dmsApi.openDmChannel(userId);
+      // Check if we already have this channel
+      setDmChannels(prev => {
+        const exists = prev.find(c => c.id === channel.id);
+        if (exists) return prev;
+        return [channel, ...prev];
+      });
+      setActiveDmChannel(channel);
+      setActiveServer(null);
+      setActiveChannel(null);
+      // Load messages
+      setIsLoadingDms(true);
+      const msgs = await dmsApi.getDmMessages(channel.id);
+      setDmMessages(msgs);
+      setIsLoadingDms(false);
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
+
+  const selectDmChannel = useCallback(async (channelId: string) => {
+    const channel = dmChannels.find(c => c.id === channelId);
+    if (!channel) return;
+
+    setActiveDmChannel(channel);
+    setActiveServer(null);
+    setActiveChannel(null);
+    setMessages([]);
+
+    setIsLoadingDms(true);
+    try {
+      const msgs = await dmsApi.getDmMessages(channel.id);
+      setDmMessages(msgs);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoadingDms(false);
+    }
+  }, [dmChannels]);
+
+  const sendDmMessage = useCallback(async (content: string) => {
+    if (!activeDmChannel) return;
+    const msg = await dmsApi.sendDmMessage(activeDmChannel.id, content);
+    setDmMessages(prev => [...prev, msg]);
+  }, [activeDmChannel]);
+
+  const receiveDmMessage = useCallback((msg: DmMessage) => {
+    if (activeDmChannel && msg.dm_channel_id === activeDmChannel.id) {
+      setDmMessages(prev => {
+        if (prev.some(m => m.id === msg.id)) return prev;
+        return [...prev, msg];
+      });
+    }
+  }, [activeDmChannel]);
+
   const logout = useCallback(() => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -181,6 +282,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isLoadingServers,
       isLoadingChannels,
       isLoadingMessages,
+      dmChannels,
+      activeDmChannel,
+      dmMessages,
+      isLoadingDms,
       selectServer,
       selectChannel,
       createServer,
@@ -189,6 +294,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       sendMessage,
       receiveMessage,
       logout,
+      loadDmChannels,
+      openDmChannel: openDmChannelAction,
+      selectDmChannel,
+      sendDmMessage,
+      receiveDmMessage,
     }}>
       {children}
     </AppContext.Provider>

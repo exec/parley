@@ -12,6 +12,7 @@ interface SidebarProps {
   activeServerId: string | null;
   onServerSelect: (serverId: string) => void;
   onCreateServer: () => void;
+  onHomepage?: () => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -19,6 +20,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   activeServerId,
   onServerSelect,
   onCreateServer,
+  onHomepage,
 }) => {
   const renderServerIcon = (server: Server) => {
     const isActive = server.id === activeServerId;
@@ -45,7 +47,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     <div className="sidebar">
       <div
         className={`home-button ${activeServerId === null ? 'active' : ''}`}
-        onClick={() => onServerSelect('')}
+        onClick={() => onHomepage?.()}
       >
         <svg
           viewBox="0 0 24 24"

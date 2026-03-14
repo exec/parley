@@ -13,9 +13,10 @@ interface UserPopoverProps {
   isOwner: boolean;
   position: { top: number; left: number };
   onClose: () => void;
+  onViewProfile?: (userId: string) => void;
 }
 
-const UserPopover: React.FC<UserPopoverProps> = ({ member, isOwner, position, onClose }) => {
+const UserPopover: React.FC<UserPopoverProps> = ({ member, isOwner, position, onClose, onViewProfile }) => {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -48,8 +49,8 @@ const UserPopover: React.FC<UserPopoverProps> = ({ member, isOwner, position, on
       <button className="user-popover-item" disabled>
         Send Message <span className="coming-soon">soon</span>
       </button>
-      <button className="user-popover-item" disabled>
-        View Profile <span className="coming-soon">soon</span>
+      <button className="user-popover-item" onClick={() => { onViewProfile?.(member.user_id); onClose(); }}>
+        View Profile
       </button>
     </div>
   );
@@ -58,9 +59,10 @@ const UserPopover: React.FC<UserPopoverProps> = ({ member, isOwner, position, on
 interface UserSidebarProps {
   members: ServerMember[];
   ownerId?: string;
+  onViewProfile?: (userId: string) => void;
 }
 
-const UserSidebar: React.FC<UserSidebarProps> = ({ members, ownerId }) => {
+const UserSidebar: React.FC<UserSidebarProps> = ({ members, ownerId, onViewProfile }) => {
   const [popover, setPopover] = useState<{ member: ServerMember; position: { top: number; left: number } } | null>(null);
 
   const handleMemberClick = (member: ServerMember, e: React.MouseEvent) => {
@@ -126,6 +128,7 @@ const UserSidebar: React.FC<UserSidebarProps> = ({ members, ownerId }) => {
           isOwner={popover.member.user_id === ownerId}
           position={popover.position}
           onClose={() => setPopover(null)}
+          onViewProfile={onViewProfile}
         />
       )}
     </div>

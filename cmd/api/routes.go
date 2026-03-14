@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	gorillawebsocket "github.com/gorilla/websocket"
@@ -11,6 +12,7 @@ import (
 	"parley/internal/auth"
 	"parley/internal/channel"
 	"parley/internal/db"
+	"parley/internal/dm"
 	"parley/internal/message"
 	"parley/internal/server"
 	ws "parley/internal/websocket"
@@ -71,6 +73,17 @@ func registerRoutes(
 			r.Post("/channels/{channelID}/messages", messageHandler.SendMessage)
 			r.Put("/messages/{id}", messageHandler.EditMessage)
 			r.Delete("/messages/{id}", messageHandler.DeleteMessage)
+
+			// DM routes
+			dmHandler := dm.NewHandler(repo, hub)
+			r.Get("/dms", dmHandler.GetDmChannels)
+			r.Post("/dms", dmHandler.OpenDmChannel)
+			r.Get("/dms/{id}/messages", dmHandler.GetDmMessages)
+			r.Post("/dms/{id}/messages", dmHandler.SendDmMessage)
+
+			// User routes
+			r.Get("/users/search", handleUserSearch(repo))
+			r.Get("/users/{id}", handleGetUser(repo))
 		})
 	})
 
@@ -196,5 +209,67 @@ func handleWebSocket(hub *ws.Hub) http.HandlerFunc {
 		// Start read and write pumps
 		go wsClient.WritePump()
 		go wsClient.ReadPump()
+	}
+}
+
+// User search handler - GET /api/users/search?q=<query>
+func handleUserSearch(repo *db.Repository) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userIDStr := auth.GetUserIDFromContext(r)
+		if userIDStr == "" {
+			jsonError(w, "user not authenticated", http.StatusUnauthorized)
+			return
+		}
+
+		userID, err := strconv.ParseInt(userIDStr, 10, 64)
+		if err != nil {
+			jsonError(w, "invalid user ID", http.StatusBadRequest)
+			return
+		}
+
+		query := r.URL.Query().Get("q")
+		if query == "" {
+			jsonError(w, "query parameter 'q' is required", http.StatusBadRequest)
+			return
+		}
+
+		users, err := repo.SearchUsers(r.Context(), query, userID)
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(users)
+	}
+}
+
+// Get user handler - GET /api/users/{id}
+func handleGetUser(repo *db.Repository) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userIDStr := chi.URLParam(r, "id")
+		if userIDStr == "" {
+			jsonError(w, "user ID is required", http.StatusBadRequest)
+			return
+		}
+
+		userID, err := strconv.ParseInt(userIDStr, 10, 64)
+		if err != nil {
+			jsonError(w, "invalid user ID", http.StatusBadRequest)
+			return
+		}
+
+		user, err := repo.GetPublicUser(r.Context(), userID)
+		if err != nil {
+			if err == db.ErrNotFound {
+				jsonError(w, "user not found", http.StatusNotFound)
+				return
+			}
+			jsonError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(user)
 	}
 }
