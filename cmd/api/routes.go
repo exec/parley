@@ -239,6 +239,10 @@ func handleUserSearch(repo *db.Repository) http.HandlerFunc {
 			return
 		}
 
+		if users == nil {
+			users = []db.PublicUser{}
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(users)
 	}

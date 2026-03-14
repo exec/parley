@@ -88,13 +88,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!currentUser) return;
     setIsLoadingServers(true);
     serversApi.getServers()
-      .then(setServers)
+      .then(data => setServers(data ?? []))
       .catch(console.error)
       .finally(() => setIsLoadingServers(false));
 
     // Also load DM channels
     dmsApi.getDmChannels()
-      .then(setDmChannels)
+      .then(data => setDmChannels(data ?? []))
       .catch(console.error);
   }, [currentUser]);
 
@@ -114,15 +114,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         channelsApi.getChannels(serverId),
         serversApi.getMembers(serverId),
       ]);
-      setChannels(chs);
-      setMembers(mems);
+      setChannels(chs ?? []);
+      setMembers(mems ?? []);
       // Auto-select first text channel
       const firstText = chs.find(c => c.type === 0);
       if (firstText) {
         setActiveChannel(firstText);
         setIsLoadingMessages(true);
         const msgs = await messagesApi.getMessages(firstText.id);
-        setMessages(msgs);
+        setMessages(msgs ?? []);
         setIsLoadingMessages(false);
       }
     } catch (err) {
@@ -143,7 +143,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setIsLoadingMessages(true);
     try {
       const msgs = await messagesApi.getMessages(channelId);
-      setMessages(msgs);
+      setMessages(msgs ?? []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -198,7 +198,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setIsLoadingDms(true);
     try {
       const channels = await dmsApi.getDmChannels();
-      setDmChannels(channels);
+      setDmChannels(channels ?? []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -221,7 +221,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Load messages
       setIsLoadingDms(true);
       const msgs = await dmsApi.getDmMessages(channel.id);
-      setDmMessages(msgs);
+      setDmMessages(msgs ?? []);
       setIsLoadingDms(false);
     } catch (err) {
       console.error(err);
@@ -240,7 +240,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setIsLoadingDms(true);
     try {
       const msgs = await dmsApi.getDmMessages(channel.id);
-      setDmMessages(msgs);
+      setDmMessages(msgs ?? []);
     } catch (err) {
       console.error(err);
     } finally {

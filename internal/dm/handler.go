@@ -48,6 +48,10 @@ func (h *Handler) GetDmChannels(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if channels == nil {
+		channels = []db.DmChannel{}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(channels)
 }
@@ -160,6 +164,10 @@ func (h *Handler) GetDmMessages(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	if messages == nil {
+		messages = []db.DmMessage{}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
