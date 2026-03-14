@@ -196,6 +196,8 @@ function MainApp() {
         onSendMessage={sendMessage}
         onEdit={(msg) => editMessage(msg.id, msg.content)}
         onDelete={deleteMessage}
+        onViewProfile={handleViewProfile}
+        onSendMessageToUser={(userId) => openDmChannel(userId)}
         isLoading={isLoadingMessages}
       />
     );

@@ -10,6 +10,8 @@ interface MessageListProps {
   onEdit?: (message: MessageType) => void;
   onDelete?: (messageId: string) => void;
   onReply?: (message: MessageType) => void;
+  onViewProfile?: (userId: string, username: string) => void;
+  onSendMessage?: (userId: string) => void;
   hasMore?: boolean;
   isLoading?: boolean;
 }
@@ -21,6 +23,8 @@ export const MessageList: React.FC<MessageListProps> = ({
   onEdit,
   onDelete,
   onReply,
+  onViewProfile,
+  onSendMessage,
   hasMore = false,
   isLoading = false,
 }) => {
@@ -126,6 +130,8 @@ export const MessageList: React.FC<MessageListProps> = ({
               onEdit={onEdit}
               onDelete={onDelete}
               onReply={onReply}
+              onViewProfile={onViewProfile}
+              onSendMessage={onSendMessage}
             />
           ))}
         </div>

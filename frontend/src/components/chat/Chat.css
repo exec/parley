@@ -111,6 +111,24 @@
   font-weight: 600;
   color: #32CD32;
   margin-right: 8px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.message-author:hover {
+  color: #32CD32;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+
+.message-avatar-clickable {
+  cursor: pointer;
+}
+
+.message-avatar-clickable:hover .avatar {
+  border-color: #32CD32;
+  box-shadow: 0 0 4px rgba(50, 205, 50, 0.5);
 }
 
 .message-timestamp {

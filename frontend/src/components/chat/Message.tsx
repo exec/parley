@@ -9,6 +9,8 @@ interface MessageProps {
   onEdit?: (message: MessageType) => void;
   onDelete?: (messageId: string) => void;
   onReply?: (message: MessageType) => void;
+  onViewProfile?: (userId: string, username: string) => void;
+  onSendMessage?: (userId: string) => void;
 }
 
 export const Message: React.FC<MessageProps> = ({
@@ -17,6 +19,8 @@ export const Message: React.FC<MessageProps> = ({
   onEdit,
   onDelete,
   onReply,
+  onViewProfile,
+  onSendMessage,
 }) => {
   const [showActions, setShowActions] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -75,6 +79,18 @@ export const Message: React.FC<MessageProps> = ({
     closeContextMenu();
   };
 
+  const handleViewProfile = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onViewProfile?.(message.author_id, message.author_username);
+    closeContextMenu();
+  };
+
+  const handleSendMessage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onSendMessage?.(message.author_id);
+    closeContextMenu();
+  };
+
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     setContextMenu({ x: e.clientX, y: e.clientY });
@@ -104,15 +120,27 @@ export const Message: React.FC<MessageProps> = ({
       onContextMenu={handleContextMenu}
     >
       <div className="message-avatar">
-        <Avatar
-          alt={message.author_username || 'User'}
-          fallback={message.author_username || 'User'}
-          size="md"
-        />
+        <div
+          className="message-avatar-clickable"
+          onClick={() => onViewProfile?.(message.author_id, message.author_username)}
+          title="Click to view profile"
+        >
+          <Avatar
+            alt={message.author_username || 'User'}
+            fallback={message.author_username || 'User'}
+            size="md"
+          />
+        </div>
       </div>
       <div className="message-content">
         <div className="message-header">
-          <span className="message-author">{message.author_username || 'Unknown User'}</span>
+          <span
+            className="message-author"
+            onClick={() => onViewProfile?.(message.author_id, message.author_username)}
+            title="Click to view profile"
+          >
+            {message.author_username || 'Unknown User'}
+          </span>
           <span className="message-timestamp">{formatTimestamp(message.created_at)}</span>
           {wasEdited && <span className="message-edited">(edited)</span>}
         </div>
@@ -157,6 +185,13 @@ export const Message: React.FC<MessageProps> = ({
         >
           <button className="context-menu-item" onClick={handleReply}>Reply</button>
           <button className="context-menu-item" onClick={handleCopy}>Copy Text</button>
+          {message.author_id !== currentUserId && (
+            <>
+              <div className="context-menu-divider" />
+              <button className="context-menu-item" onClick={handleSendMessage}>Send Message</button>
+              <button className="context-menu-item" onClick={handleViewProfile}>View Profile</button>
+            </>
+          )}
           {isOwnMessage && (
             <>
               <button className="context-menu-item" onClick={handleEdit}>Edit Message</button>
