@@ -6,6 +6,13 @@ import (
 	"sync"
 )
 
+// Publisher is implemented by RedisHub to cross-publish events to other nodes.
+// Hub holds an optional reference to it.
+type Publisher interface {
+	PublishToChannel(channelID, event string, data []byte)
+	PublishToUser(userID, event string, data []byte)
+}
+
 // Hub maintains the set of active clients and broadcasts messages
 type Hub struct {
 	mu sync.RWMutex
@@ -27,18 +34,29 @@ type Hub struct {
 
 	// Broadcast messages to clients
 	broadcast chan *Message
+
+	// publisher is optional; if set, events are also published cross-node via Redis
+	publisher Publisher
 }
 
 // NewHub creates a new Hub
 func NewHub() *Hub {
 	return &Hub{
-		clients:        make(map[*Client]bool),
-		userToClient:   make(map[string]map[*Client]bool),
-		channelSubs:   make(map[string]map[*Client]bool),
-		register:       make(chan *Client),
-		unregister:     make(chan *Client),
-		broadcast:      make(chan *Message),
+		clients:      make(map[*Client]bool),
+		userToClient: make(map[string]map[*Client]bool),
+		channelSubs:  make(map[string]map[*Client]bool),
+		register:     make(chan *Client),
+		unregister:   make(chan *Client),
+		broadcast:    make(chan *Message),
 	}
+}
+
+// SetPublisher sets the cross-node publisher (e.g. RedisHub).
+// Call this before starting the hub's Run loop.
+func (h *Hub) SetPublisher(p Publisher) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.publisher = p
 }
 
 // Run starts the hub's main loop
@@ -130,14 +148,22 @@ func (h *Hub) UnsubscribeFromChannel(channelID string, client *Client) {
 	}
 }
 
-// SendToUser sends a message to a specific user by their userID
+// SendToUser sends a message to a specific user by their userID.
+// It also publishes to Redis (if a publisher is set) so other nodes deliver it too.
 func (h *Hub) SendToUser(userID string, messageType string, payload []byte) error {
 	h.mu.Lock()
-	defer h.mu.Unlock()
+
+	// Capture publisher reference while holding lock, then release before calling it
+	pub := h.publisher
 
 	clients := h.userToClient[userID]
 	if clients == nil || len(clients) == 0 {
-		return nil // No clients found for user, not an error
+		h.mu.Unlock()
+		// Still publish cross-node — the user may be on a different node
+		if pub != nil {
+			pub.PublishToUser(userID, messageType, payload)
+		}
+		return nil
 	}
 
 	// Create WSMessage
@@ -148,6 +174,7 @@ func (h *Hub) SendToUser(userID string, messageType string, payload []byte) erro
 
 	msgBytes, err := json.Marshal(wsMsg)
 	if err != nil {
+		h.mu.Unlock()
 		return err
 	}
 
@@ -163,16 +190,31 @@ func (h *Hub) SendToUser(userID string, messageType string, payload []byte) erro
 		}
 	}
 
+	h.mu.Unlock()
+
+	// Publish cross-node so other nodes can deliver to their local clients
+	if pub != nil {
+		pub.PublishToUser(userID, messageType, payload)
+	}
+
 	return nil
 }
 
-// BroadcastToChannel sends a message to all clients subscribed to a channel
+// BroadcastToChannel sends a message to all clients subscribed to a channel.
+// It also publishes to Redis (if a publisher is set) so other nodes deliver it too.
 func (h *Hub) BroadcastToChannel(channelID string, messageType string, payload []byte) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
+
+	// Capture publisher reference while holding lock, then release before calling it
+	pub := h.publisher
 
 	clients := h.channelSubs[channelID]
 	if clients == nil || len(clients) == 0 {
+		h.mu.Unlock()
+		// Still publish cross-node — subscribers may be on other nodes
+		if pub != nil {
+			pub.PublishToChannel(channelID, messageType, payload)
+		}
 		return
 	}
 
@@ -184,6 +226,7 @@ func (h *Hub) BroadcastToChannel(channelID string, messageType string, payload [
 
 	msgBytes, err := json.Marshal(wsMsg)
 	if err != nil {
+		h.mu.Unlock()
 		log.Printf("Error marshaling broadcast message: %v", err)
 		return
 	}
@@ -204,5 +247,12 @@ func (h *Hub) BroadcastToChannel(channelID string, messageType string, payload [
 
 			delete(h.channelSubs[channelID], client)
 		}
+	}
+
+	h.mu.Unlock()
+
+	// Publish cross-node so other nodes can deliver to their local channel subscribers
+	if pub != nil {
+		pub.PublishToChannel(channelID, messageType, payload)
 	}
 }

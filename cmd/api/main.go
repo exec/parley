@@ -95,6 +95,16 @@ func main() {
 	// Initialize WebSocket hub
 	hub := websocket.NewHub()
 
+	// Set up Redis pub/sub for cross-node broadcasting (graceful fallback if unavailable)
+	redisHub := websocket.NewRedisHub(hub)
+	if redisHub != nil {
+		hub.SetPublisher(redisHub)
+		redisHub.Subscribe()
+		log.Println("Redis pub/sub enabled for cross-node WebSocket broadcasting")
+	} else {
+		log.Println("Running in local-only WebSocket mode (no Redis)")
+	}
+
 	// Set up the hub as the broadcaster for messages
 	hubBroadcaster := &HubBroadcaster{hub: hub}
 	messageService.SetBroadcaster(hubBroadcaster)
