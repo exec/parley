@@ -2,7 +2,13 @@ import React, { useCallback } from 'react';
 import { Channel, Message as MessageType } from '../../api/types';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
+import { TypingIndicator } from './TypingIndicator';
 import './Chat.css';
+
+interface TypingUser {
+  userId: string;
+  username: string;
+}
 
 interface ChatWindowProps {
   channel: Channel;
@@ -19,6 +25,8 @@ interface ChatWindowProps {
   isLoading?: boolean;
   replyTo?: MessageType | null;
   onClearReply?: () => void;
+  typingUsers?: TypingUser[];
+  onTyping?: () => void;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -36,6 +44,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   isLoading = false,
   replyTo,
   onClearReply,
+  typingUsers = [],
+  onTyping,
 }) => {
   const replyValue = replyTo ? `@${replyTo.author_username} ` : '';
 
@@ -63,9 +73,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         hasMore={hasMore}
         isLoading={isLoading}
       />
+      <TypingIndicator typingUsers={typingUsers} />
       <MessageInput
         channelName={channel.name}
         onSendMessage={handleSendMessage}
+        onTyping={onTyping}
         initialValue={replyValue}
       />
     </div>

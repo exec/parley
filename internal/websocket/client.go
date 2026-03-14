@@ -120,6 +120,30 @@ func (c *Client) handleMessage(msg WSMessage) {
 		}
 		c.hub.UnsubscribeFromChannel(payload.ChannelID, c)
 
+	case "TYPING":
+		var payload struct {
+			ChannelID string `json:"channel_id"`
+			Username  string `json:"username"`
+		}
+		if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+			log.Printf("TYPING from user %s: failed to parse payload: %v", c.userID, err)
+			return
+		}
+		if payload.ChannelID == "" {
+			return
+		}
+		// Build broadcast payload using the server-side user ID (not client-supplied)
+		broadcastPayload, err := json.Marshal(map[string]string{
+			"channel_id": payload.ChannelID,
+			"user_id":    c.userID,
+			"username":   payload.Username,
+		})
+		if err != nil {
+			log.Printf("TYPING from user %s: failed to marshal broadcast payload: %v", c.userID, err)
+			return
+		}
+		c.hub.BroadcastToChannel(payload.ChannelID, EventUserTyping, broadcastPayload)
+
 	default:
 		log.Printf("Unknown message type: %s", msg.Type)
 	}

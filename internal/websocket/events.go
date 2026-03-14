@@ -7,4 +7,5 @@ const (
 	EventMessageDelete = "MESSAGE_DELETE"
 	EventUserJoin      = "USER_JOIN"
 	EventUserLeave     = "USER_LEAVE"
+	EventUserTyping    = "USER_TYPING"
 )

@@ -71,6 +71,11 @@ function MainApp() {
   const [showServerSettings, setShowServerSettings] = useState(false);
   const [showUserSettings, setShowUserSettings] = useState(false);
 
+  // Typing indicators: channelId → list of typing users
+  const [typingUsers, setTypingUsers] = useState<Record<string, { userId: string; username: string }[]>>({});
+  const typingTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const lastTypingSentRef = useRef<number>(0);
+
   // Determine current view
   const view: View = activeDmChannel ? 'dm' : activeServer ? 'server' : 'homepage';
 
@@ -115,18 +120,84 @@ function MainApp() {
     loadServers();
   }, [loadServers]);
 
+  const clearTypingUser = useCallback((channelId: string, userId: string) => {
+    const key = `${channelId}:${userId}`;
+    const existing = typingTimeoutsRef.current.get(key);
+    if (existing) {
+      clearTimeout(existing);
+      typingTimeoutsRef.current.delete(key);
+    }
+    setTypingUsers(prev => {
+      const list = prev[channelId] ?? [];
+      if (!list.some(t => t.userId === userId)) return prev;
+      const filtered = list.filter(t => t.userId !== userId);
+      if (filtered.length === 0) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { [channelId]: _removed, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [channelId]: filtered };
+    });
+  }, []);
+
+  const handleTyping = useCallback((userId: string, username: string, channelId: string) => {
+    if (userId === currentUser?.id) return; // don't show self typing
+    const key = `${channelId}:${userId}`;
+
+    // Reset auto-expire timeout
+    const existing = typingTimeoutsRef.current.get(key);
+    if (existing) clearTimeout(existing);
+
+    setTypingUsers(prev => {
+      const list = prev[channelId] ?? [];
+      if (list.some(t => t.userId === userId)) return prev; // already in list
+      return { ...prev, [channelId]: [...list, { userId, username }] };
+    });
+
+    const timeout = setTimeout(() => {
+      setTypingUsers(prev => {
+        const list = prev[channelId] ?? [];
+        const filtered = list.filter(t => t.userId !== userId);
+        if (filtered.length === 0) {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { [channelId]: _removed, ...rest } = prev;
+          return rest;
+        }
+        return { ...prev, [channelId]: filtered };
+      });
+      typingTimeoutsRef.current.delete(key);
+    }, 3000);
+
+    typingTimeoutsRef.current.set(key, timeout);
+  }, [currentUser?.id]);
+
+  const handleReceiveMessage = useCallback((msg: Parameters<typeof receiveMessage>[0]) => {
+    // Clear typing indicator when a message arrives from that user
+    clearTypingUser(msg.channel_id, msg.author_id);
+    receiveMessage(msg);
+  }, [receiveMessage, clearTypingUser]);
+
   // Get all channel IDs from all servers to subscribe to for notifications
   const allChannelIds = servers.flatMap(server =>
     channels.filter(c => c.server_id === server.id).map(c => c.id)
   );
 
-  useWebSocket({
-    onMessage: receiveMessage,
+  const { sendTyping } = useWebSocket({
+    onMessage: handleReceiveMessage,
     onDmMessage: receiveDmMessage,
     onServerMemberJoin: handleServerMemberJoin,
+    onTyping: handleTyping,
     activeChannelId: activeChannel?.id ?? null,
     extraChannelIds: allChannelIds,
   });
+
+  const handleSendTyping = useCallback(() => {
+    if (!activeChannel || !currentUser) return;
+    const now = Date.now();
+    if (now - lastTypingSentRef.current < 2000) return; // throttle: at most once per 2s
+    lastTypingSentRef.current = now;
+    sendTyping(activeChannel.id, currentUser.username);
+  }, [activeChannel, currentUser, sendTyping]);
 
   const handleViewProfile = (userId: string) => {
     setProfileUserId(userId);
@@ -209,6 +280,8 @@ function MainApp() {
         onViewProfile={handleViewProfile}
         onSendMessageToUser={(userId) => openDmChannel(userId)}
         isLoading={isLoadingMessages}
+        typingUsers={typingUsers[activeChannel.id] ?? []}
+        onTyping={handleSendTyping}
       />
     );
   } else if (activeServer) {

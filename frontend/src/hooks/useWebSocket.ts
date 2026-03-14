@@ -10,11 +10,12 @@ interface UseWebSocketOptions {
   onMessage: (msg: Message) => void;
   onDmMessage?: (msg: DmMessage) => void;
   onServerMemberJoin?: (serverId: string, userId: string) => void;
+  onTyping?: (userId: string, username: string, channelId: string) => void;
   activeChannelId: string | null;
   extraChannelIds?: string[]; // Additional channels to subscribe to for notifications
 }
 
-export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
+export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onTyping, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const subscribedChannelsRef = useRef<Set<string>>(new Set());
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -26,9 +27,20 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, activ
   const onMessageRef = useRef(onMessage);
   const onDmMessageRef = useRef(onDmMessage);
   const onServerMemberJoinRef = useRef(onServerMemberJoin);
+  const onTypingRef = useRef(onTyping);
   useEffect(() => { onMessageRef.current = onMessage; }, [onMessage]);
   useEffect(() => { onDmMessageRef.current = onDmMessage; }, [onDmMessage]);
   useEffect(() => { onServerMemberJoinRef.current = onServerMemberJoin; }, [onServerMemberJoin]);
+  useEffect(() => { onTypingRef.current = onTyping; }, [onTyping]);
+
+  const sendTyping = useCallback((channelId: string, username: string) => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({
+      type: 'TYPING',
+      payload: { channel_id: channelId, username },
+    }));
+  }, []);
 
   const connect = useCallback(() => {
     const token = localStorage.getItem('token');
@@ -71,6 +83,13 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, activ
             const payload = wsMsg.payload as { server_id: string; user_id: string };
             if (payload.server_id && payload.user_id) {
               onServerMemberJoinRef.current(payload.server_id, payload.user_id);
+            }
+          }
+        } else if (wsMsg.type === 'USER_TYPING' && onTypingRef.current) {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            const payload = wsMsg.payload as { user_id: string; username: string; channel_id: string };
+            if (payload.user_id && payload.channel_id) {
+              onTypingRef.current(payload.user_id, payload.username ?? '', payload.channel_id);
             }
           }
         }
@@ -119,6 +138,7 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, activ
   }, [extraChannelIds]);
 
   // Subscribe/unsubscribe when active channel or extra channels change
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
@@ -154,4 +174,6 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, activ
       }
     });
   }, [activeChannelId, extraChannelIds]);
+
+  return { sendTyping };
 }

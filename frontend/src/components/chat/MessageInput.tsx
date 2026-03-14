@@ -4,6 +4,7 @@ import './Chat.css';
 interface MessageInputProps {
   channelName: string;
   onSendMessage: (content: string) => void;
+  onTyping?: () => void;
   disabled?: boolean;
   placeholder?: string;
   initialValue?: string;
@@ -12,6 +13,7 @@ interface MessageInputProps {
 export const MessageInput: React.FC<MessageInputProps> = ({
   channelName,
   onSendMessage,
+  onTyping,
   disabled = false,
   initialValue = '',
 }) => {
@@ -64,8 +66,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       const textarea = e.target;
       textarea.style.height = 'auto';
       textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+
+      // Notify parent that user is typing (parent throttles the WS send)
+      if (e.target.value.length > 0) {
+        onTyping?.();
+      }
     },
-    []
+    [onTyping]
   );
 
   const defaultPlaceholder = `Message #${channelName}`;
