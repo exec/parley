@@ -26,7 +26,7 @@ run_with_retry() {
         if eval "$cmd"; then
             return 0
         fi
-        echo "Failed, retrying in ${retry_delay}s..."
+        echo "Failed, retrying in $${retry_delay}s..."
         sleep $retry_delay
         attempt=$((attempt + 1))
     done
@@ -117,13 +117,13 @@ echo "=== Creating environment configuration ==="
 mkdir -p /etc/parley
 
 # URL-encode the DB password to handle special characters
-DB_PASSWORD_ENCODED=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "${DB_PASSWORD}")
+DB_PASSWORD_ENCODED=$$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$$DB_PASSWORD")
 
 # Create environment file with PATH for Go
 cat > /etc/parley/env <<EOF
-DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD_ENCODED}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=disable
-JWT_SECRET=${JWT_SECRET}
-PORT=${PORT}
+DATABASE_URL=postgresql://$$DB_USER:$$DB_PASSWORD_ENCODED@$$DB_HOST:$$DB_PORT/$$DB_NAME?sslmode=disable
+JWT_SECRET=$$JWT_SECRET
+PORT=$$PORT
 REDIS_URL=redis://localhost:6379
 PATH=/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 EOF

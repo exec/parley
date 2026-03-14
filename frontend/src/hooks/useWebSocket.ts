@@ -21,6 +21,14 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, activ
   const activeChannelIdRef = useRef<string | null>(activeChannelId);
   const extraChannelIdsRef = useRef<string[]>(extraChannelIds);
 
+  // Keep refs to the latest callbacks so ws.onmessage never captures stale closures
+  const onMessageRef = useRef(onMessage);
+  const onDmMessageRef = useRef(onDmMessage);
+  const onServerMemberJoinRef = useRef(onServerMemberJoin);
+  useEffect(() => { onMessageRef.current = onMessage; }, [onMessage]);
+  useEffect(() => { onDmMessageRef.current = onDmMessage; }, [onDmMessage]);
+  useEffect(() => { onServerMemberJoinRef.current = onServerMemberJoin; }, [onServerMemberJoin]);
+
   const connect = useCallback(() => {
     const token = localStorage.getItem('token');
     if (!token) return;
@@ -53,15 +61,14 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, activ
       try {
         const wsMsg: WSMessage = JSON.parse(event.data);
         if (wsMsg.type === 'MESSAGE_CREATE') {
-          onMessage(wsMsg.payload as Message);
-        } else if (wsMsg.type === 'dm_message' && onDmMessage) {
-          onDmMessage(wsMsg.payload as DmMessage);
-        } else if (wsMsg.type === 'server_member_join' && onServerMemberJoin) {
-          // Parse server member join event
+          onMessageRef.current(wsMsg.payload as Message);
+        } else if (wsMsg.type === 'dm_message' && onDmMessageRef.current) {
+          onDmMessageRef.current(wsMsg.payload as DmMessage);
+        } else if (wsMsg.type === 'server_member_join' && onServerMemberJoinRef.current) {
           if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
             const payload = wsMsg.payload as { server_id: string; user_id: string };
             if (payload.server_id && payload.user_id) {
-              onServerMemberJoin(payload.server_id, payload.user_id);
+              onServerMemberJoinRef.current(payload.server_id, payload.user_id);
             }
           }
         }
