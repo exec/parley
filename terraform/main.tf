@@ -156,7 +156,9 @@ resource "digitalocean_droplet" "parley_admin" {
 
   user_data = templatefile("${path.module}/userdata-admin.sh", {
     REPO_URL                 = var.repo_url
-    DATABASE_URL             = "postgres://parley:${var.db_password}@${digitalocean_droplet.parley_db.ipv4_address_private}/parley?sslmode=disable"
+    DB_HOST                  = digitalocean_droplet.parley_db.ipv4_address_private
+    DB_PASSWORD              = var.db_password
+    REDIS_HOST               = digitalocean_droplet.parley_db.ipv4_address_private
     ADMIN_JWT_SECRET         = var.admin_jwt_secret
     PARLEY_JWT_SECRET        = var.jwt_secret
     ADMIN_IMPERSONATE_SECRET = var.admin_impersonate_secret

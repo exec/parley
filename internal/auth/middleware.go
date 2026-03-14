@@ -55,6 +55,33 @@ func extractToken(r *http.Request) string {
 	return ""
 }
 
+// AuthMiddlewareWith returns an auth middleware that also checks for force logout
+// using the provided AuthService (which must have a non-nil repo).
+func AuthMiddlewareWith(svc *AuthService) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			tokenString := extractToken(r)
+			if tokenString == "" {
+				http.Error(w, "Authorization header required", http.StatusUnauthorized)
+				return
+			}
+			userID, iat, err := svc.ValidateTokenFull(tokenString)
+			if err != nil {
+				http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
+				return
+			}
+			if svc.repo != nil {
+				if kicked, _ := svc.IsForceLoggedOut(r.Context(), userID, iat); kicked {
+					http.Error(w, "Session expired", http.StatusUnauthorized)
+					return
+				}
+			}
+			ctx := context.WithValue(r.Context(), UserIDKey, userID)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
 // GetUserIDFromContext retrieves the userID from the request context
 func GetUserIDFromContext(r *http.Request) string {
 	userID, ok := r.Context().Value(UserIDKey).(string)

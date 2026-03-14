@@ -431,6 +431,40 @@ func (s *AuthService) CheckPassword(hash, password string) bool {
 	return err == nil
 }
 
+// ValidateTokenFull validates a JWT token and returns the userID and iat (issued-at) timestamp.
+func (s *AuthService) ValidateTokenFull(tokenString string) (userID string, iat int64, err error) {
+	if tokenString == "" {
+		return "", 0, errors.New("token is required")
+	}
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("invalid signing method")
+		}
+		return []byte(s.config.SecretKey), nil
+	})
+	if err != nil {
+		return "", 0, err
+	}
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		exp, ok := claims["exp"].(float64)
+		if !ok {
+			return "", 0, errors.New("invalid token claims")
+		}
+		if time.Now().Unix() > int64(exp) {
+			return "", 0, errors.New("token has expired")
+		}
+		uid, ok := claims["user_id"].(string)
+		if !ok {
+			return "", 0, errors.New("invalid user_id in token")
+		}
+		if iatF, ok := claims["iat"].(float64); ok {
+			iat = int64(iatF)
+		}
+		return uid, iat, nil
+	}
+	return "", 0, errors.New("invalid token")
+}
+
 // ValidateToken validates a JWT token and returns the userID
 func (s *AuthService) ValidateToken(tokenString string) (string, error) {
 	if tokenString == "" {

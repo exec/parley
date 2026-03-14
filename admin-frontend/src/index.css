@@ -16,7 +16,7 @@
   --text-dim: #22a322;
   --border: #1a3a1a;
   --border-bright: #2a5a2a;
-  --font: 'Courier New', 'Lucida Console', monospace;
+  --font: 'JetBrains Mono', 'Courier New', 'Lucida Console', monospace;
 }
 
 *, *::before, *::after {

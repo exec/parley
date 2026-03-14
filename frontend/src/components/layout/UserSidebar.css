@@ -377,7 +377,8 @@
   padding: 8px 12px;
   text-align: left;
   font-size: 13px;
-  color: #228B22;
+  font-weight: 500;
+  color: #32CD32;
   cursor: pointer;
   border-radius: 3px;
   font-family: inherit;

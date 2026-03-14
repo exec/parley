@@ -82,6 +82,8 @@ func (r *RedisHub) Subscribe() {
 			r.hub.BroadcastLocalToChannel(env.ChannelID, env.Event, []byte(env.Data))
 		case "user":
 			r.hub.SendLocalToUser(env.UserID, env.Event, []byte(env.Data))
+		case "kick":
+			r.hub.DisconnectUser(env.UserID)
 		default:
 			log.Printf("RedisHub: unknown event_type %q, dropping", env.EventType)
 		}

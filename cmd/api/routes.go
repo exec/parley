@@ -70,7 +70,7 @@ func registerRoutes(
 
 		// Protected routes - require authentication
 		r.Group(func(r chi.Router) {
-			r.Use(auth.AuthMiddleware)
+			r.Use(auth.AuthMiddlewareWith(authService))
 			// Bridge auth.UserIDKey ("userID") to server.UserIDKey (contextKey "user_id")
 			r.Use(bridgeUserIDMiddleware)
 
@@ -125,6 +125,7 @@ func registerRoutes(
 			// User routes
 			r.Get("/users/search", handleUserSearch(repo))
 			r.Get("/users/{id}", handleGetUser(repo))
+			r.Get("/auth/me", handleGetMe(repo))
 			r.Post("/auth/impersonate-token", handleImpersonateToken(authService))
 			r.Put("/auth/profile", handleUpdateProfile(authService))
 			r.Put("/auth/email", handleChangeEmail(authService))
@@ -343,6 +344,30 @@ func handleAuthLogin(authService *auth.AuthService) http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(AuthResponse{User: user, Token: token})
+	}
+}
+
+func handleGetMe(repo *db.Repository) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userIDStr := auth.GetUserIDFromContext(r)
+		var id int64
+		fmt.Sscan(userIDStr, &id)
+		user, err := repo.GetUserByID(r.Context(), id)
+		if err != nil {
+			jsonError(w, "not found", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(auth.User{
+			ID:            fmt.Sprintf("%d", user.ID),
+			Username:      user.Username,
+			Email:         user.Email,
+			AvatarURL:     user.AvatarURL,
+			BannerURL:     user.BannerURL,
+			EmailVerified: user.EmailVerified,
+			PhoneNumber:   user.PhoneNumber,
+			PhoneVerified: user.PhoneVerified,
+		})
 	}
 }
 

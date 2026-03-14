@@ -289,6 +289,22 @@ func (h *Hub) SendToUser(userID string, messageType string, payload []byte) erro
 	return nil
 }
 
+// DisconnectUser closes all WebSocket connections for the given user.
+// The natural teardown chain (WritePump exit → conn close → ReadPump unregister)
+// handles map cleanup, so we only need to close the send channels here.
+func (h *Hub) DisconnectUser(userID string) {
+	h.mu.RLock()
+	clients := make([]*Client, 0, len(h.userToClient[userID]))
+	for c := range h.userToClient[userID] {
+		clients = append(clients, c)
+	}
+	h.mu.RUnlock()
+
+	for _, c := range clients {
+		c.closeSend()
+	}
+}
+
 // BroadcastLocalToChannel sends to local clients subscribed to a channel ONLY.
 // No Redis publish — use this when delivering events received from Redis to avoid
 // the infinite re-broadcast loop that would occur if we published back to Redis.

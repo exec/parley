@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
 
 	"parley/internal/db"
@@ -23,6 +24,7 @@ import (
 var repo *db.Repository
 var adminJWTSecret string
 var parleyJWTSecret string
+var redisClient *redis.Client
 
 func main() {
 	if len(os.Args) < 2 {
@@ -57,6 +59,20 @@ func main() {
 	}
 	parleyJWTSecret = os.Getenv("PARLEY_JWT_SECRET")
 
+	// Optional Redis for kicking WS connections on ban/force-logout
+	if redisHost := os.Getenv("REDIS_HOST"); redisHost != "" {
+		opt := &redis.Options{Addr: redisHost + ":6379"}
+		rc := redis.NewClient(opt)
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		if err := rc.Ping(ctx).Err(); err != nil {
+			log.Printf("Warning: Redis unavailable (%v), WS kick will not propagate across nodes", err)
+		} else {
+			redisClient = rc
+			log.Printf("Connected to Redis at %s for WS kick events", redisHost)
+		}
+		cancel()
+	}
+
 	switch os.Args[1] {
 	case "serve":
 		runServer()
@@ -83,6 +99,26 @@ func main() {
 	default:
 		fmt.Printf("Unknown command: %s\n", os.Args[1])
 		os.Exit(1)
+	}
+}
+
+// publishKick publishes a kick event to Redis so API nodes disconnect the user's WS connections.
+func publishKick(userID string) {
+	if redisClient == nil {
+		return
+	}
+	env := map[string]interface{}{
+		"node_id":    "admin",
+		"event_type": "kick",
+		"user_id":    userID,
+		"event":      "FORCE_LOGOUT",
+		"data":       json.RawMessage("{}"),
+	}
+	data, _ := json.Marshal(env)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := redisClient.Publish(ctx, "parley:events", data).Err(); err != nil {
+		log.Printf("Warning: failed to publish kick for user %s: %v", userID, err)
 	}
 }
 
@@ -357,6 +393,7 @@ func handleBanUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	repo.ForceLogoutUser(r.Context(), id)
+	publishKick(fmt.Sprintf("%d", id))
 	jsonOK(w, map[string]string{"message": "user banned"})
 }
 
@@ -383,6 +420,7 @@ func handleForceLogout(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	publishKick(fmt.Sprintf("%d", id))
 	jsonOK(w, map[string]string{"message": "user force logged out"})
 }
 
