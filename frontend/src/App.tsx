@@ -40,36 +40,38 @@ function MainApp() {
   });
 
   return (
-    <MainLayout
-      servers={servers}
-      activeServerId={activeServer?.id ?? null}
-      onServerSelect={selectServer}
-      onCreateServer={() => setShowCreateServer(true)}
-      channels={channels}
-      activeChannelId={activeChannel?.id ?? null}
-      onChannelSelect={selectChannel}
-      onCreateChannel={() => setShowCreateChannel(true)}
-      onDeleteChannel={deleteChannel}
-      onManageRoles={() => setShowManageRoles(true)}
-      serverName={activeServer?.name ?? ''}
-      members={members}
-      currentUser={currentUser ?? undefined}
-      ownerId={activeServer?.owner_id}
-      onLogout={logout}
-    >
-      {activeChannel ? (
-        <ChatWindow
-          channel={activeChannel}
-          messages={messages}
-          currentUserId={currentUser?.id}
-          onSendMessage={sendMessage}
-          isLoading={isLoadingMessages}
-        />
-      ) : activeServer ? (
-        <div className="no-channel-selected">
-          <p>Select a channel to start chatting</p>
-        </div>
-      ) : null}
+    <>
+      <MainLayout
+        servers={servers}
+        activeServerId={activeServer?.id ?? null}
+        onServerSelect={selectServer}
+        onCreateServer={() => setShowCreateServer(true)}
+        channels={channels}
+        activeChannelId={activeChannel?.id ?? null}
+        onChannelSelect={selectChannel}
+        onCreateChannel={() => setShowCreateChannel(true)}
+        onDeleteChannel={deleteChannel}
+        onManageRoles={() => setShowManageRoles(true)}
+        serverName={activeServer?.name ?? ''}
+        members={members}
+        currentUser={currentUser ?? undefined}
+        ownerId={activeServer?.owner_id}
+        onLogout={logout}
+      >
+        {activeChannel ? (
+          <ChatWindow
+            channel={activeChannel}
+            messages={messages}
+            currentUserId={currentUser?.id}
+            onSendMessage={sendMessage}
+            isLoading={isLoadingMessages}
+          />
+        ) : activeServer ? (
+          <div className="no-channel-selected">
+            <p>Select a channel to start chatting</p>
+          </div>
+        ) : null}
+      </MainLayout>
 
       <CreateServerModal
         isOpen={showCreateServer}
@@ -86,7 +88,7 @@ function MainApp() {
         onClose={() => setShowManageRoles(false)}
         members={members}
       />
-    </MainLayout>
+    </>
   );
 }
 
