@@ -114,11 +114,17 @@ function MainApp() {
     loadServers();
   }, [loadServers]);
 
+  // Get all channel IDs from all servers to subscribe to for notifications
+  const allChannelIds = servers.flatMap(server =>
+    channels.filter(c => c.server_id === server.id).map(c => c.id)
+  );
+
   useWebSocket({
     onMessage: receiveMessage,
     onDmMessage: receiveDmMessage,
     onServerMemberJoin: handleServerMemberJoin,
     activeChannelId: activeChannel?.id ?? null,
+    extraChannelIds: allChannelIds,
   });
 
   const handleViewProfile = (userId: string) => {

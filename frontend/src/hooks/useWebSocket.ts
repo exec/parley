@@ -11,13 +11,15 @@ interface UseWebSocketOptions {
   onDmMessage?: (msg: DmMessage) => void;
   onServerMemberJoin?: (serverId: string, userId: string) => void;
   activeChannelId: string | null;
+  extraChannelIds?: string[]; // Additional channels to subscribe to for notifications
 }
 
-export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, activeChannelId }: UseWebSocketOptions) {
+export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
-  const subscribedChannelRef = useRef<string | null>(null);
+  const subscribedChannelsRef = useRef<Set<string>>(new Set());
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeChannelIdRef = useRef<string | null>(activeChannelId);
+  const extraChannelIdsRef = useRef<string[]>(extraChannelIds);
 
   const connect = useCallback(() => {
     const token = localStorage.getItem('token');
@@ -30,15 +32,21 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, activ
     wsRef.current = ws;
 
     ws.onopen = () => {
-      // Subscribe to active channel if we have one
-      const currentChannelId = activeChannelIdRef.current;
-      if (currentChannelId) {
+      // Subscribe to all channels we care about
+      const channelsToSubscribe = new Set<string>();
+      const currentActiveChannel = activeChannelIdRef.current;
+      if (currentActiveChannel) {
+        channelsToSubscribe.add(currentActiveChannel);
+      }
+      extraChannelIdsRef.current.forEach(ch => channelsToSubscribe.add(ch));
+
+      channelsToSubscribe.forEach(channelId => {
         ws.send(JSON.stringify({
           type: 'CHANNEL_SUBSCRIBE',
-          payload: { channel_id: currentChannelId },
+          payload: { channel_id: channelId },
         }));
-        subscribedChannelRef.current = currentChannelId;
-      }
+        subscribedChannelsRef.current.add(channelId);
+      });
     };
 
     ws.onmessage = (event) => {
@@ -66,7 +74,7 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, activ
 
     ws.onclose = () => {
       wsRef.current = null;
-      subscribedChannelRef.current = null;
+      subscribedChannelsRef.current.clear();
       // Reconnect after 3 seconds
       reconnectTimeoutRef.current = setTimeout(connect, 3000);
     };
@@ -94,28 +102,45 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, activ
     activeChannelIdRef.current = activeChannelId;
   }, [activeChannelId]);
 
-  // Subscribe/unsubscribe when active channel changes
+  // Update extraChannelIds ref when it changes
+  useEffect(() => {
+    extraChannelIdsRef.current = extraChannelIds;
+  }, [extraChannelIds]);
+
+  // Subscribe/unsubscribe when active channel or extra channels change
   useEffect(() => {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
-    // Unsubscribe from previous channel
-    if (subscribedChannelRef.current && subscribedChannelRef.current !== activeChannelId) {
-      ws.send(JSON.stringify({
-        type: 'CHANNEL_UNSUBSCRIBE',
-        payload: { channel_id: subscribedChannelRef.current },
-      }));
-    }
+    const oldChannels = new Set(subscribedChannelsRef.current);
+    const newChannels = new Set<string>();
 
-    // Subscribe to new channel
-    if (activeChannelId) {
-      ws.send(JSON.stringify({
-        type: 'CHANNEL_SUBSCRIBE',
-        payload: { channel_id: activeChannelId },
-      }));
-      subscribedChannelRef.current = activeChannelId;
-    } else {
-      subscribedChannelRef.current = null;
+    const currentActiveChannel = activeChannelIdRef.current;
+    if (currentActiveChannel) {
+      newChannels.add(currentActiveChannel);
     }
-  }, [activeChannelId]);
+    extraChannelIdsRef.current.forEach(ch => newChannels.add(ch));
+
+    // Unsubscribe from channels that are no longer needed
+    oldChannels.forEach(channelId => {
+      if (!newChannels.has(channelId)) {
+        ws.send(JSON.stringify({
+          type: 'CHANNEL_UNSUBSCRIBE',
+          payload: { channel_id: channelId },
+        }));
+        subscribedChannelsRef.current.delete(channelId);
+      }
+    });
+
+    // Subscribe to new channels
+    newChannels.forEach(channelId => {
+      if (!oldChannels.has(channelId)) {
+        ws.send(JSON.stringify({
+          type: 'CHANNEL_SUBSCRIBE',
+          payload: { channel_id: channelId },
+        }));
+        subscribedChannelsRef.current.add(channelId);
+      }
+    });
+  }, [activeChannelId, extraChannelIds]);
 }
