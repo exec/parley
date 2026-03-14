@@ -121,8 +121,8 @@ resource "digitalocean_loadbalancer" "parley_lb" {
     healthy_threshold      = 3
   }
 
-  # Droplet IDs to attach
-  droplet_ids = [for droplet in digitalocean_droplet.parley_api : droplet.id]
+  # Tag-based targeting so the LB survives API droplet replacements
+  droplet_tag = "api"
 
   vpc_uuid = digitalocean_vpc.parley_vpc.id
 }
