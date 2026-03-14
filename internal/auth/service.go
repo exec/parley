@@ -39,6 +39,9 @@ func (s *AuthService) Register(ctx context.Context, username, email, password st
 	if username == "" || email == "" || password == "" {
 		return User{}, "", errors.New("username, email, and password are required")
 	}
+	if len(username) > 32 {
+		return User{}, "", errors.New("username must be 32 characters or fewer")
+	}
 
 	// Check if user already exists by email
 	_, err := s.repo.GetUserByEmail(ctx, email)
@@ -150,6 +153,9 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername, cu
 	}
 
 	if newUsername != "" && newUsername != dbUser.Username {
+		if len(newUsername) > 32 {
+			return User{}, errors.New("username must be 32 characters or fewer")
+		}
 		// Check username isn't taken
 		existing, err := s.repo.GetUserByUsername(ctx, newUsername)
 		if err == nil && existing.ID != userIDInt {

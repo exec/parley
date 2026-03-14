@@ -25,10 +25,10 @@ This is a living task list for Parley - a Discord clone.
 - [x] **Hardcoded Redis fallback is silent** — `internal/websocket/redis.go:41` — Falls back to `redis://localhost:6379` with no warning log; in a misconfigured deploy this means cross-node broadcasts silently fail.
 
 ### Low
-- [ ] **`UpdatedAt` not tracked for channels** — `internal/channel/service.go:172` — Channel struct populates `UpdatedAt` from `CreatedAt`. Add `updated_at` column.
+- [x] **`UpdatedAt` not tracked for channels** — `internal/channel/service.go:172` — Channel struct populates `UpdatedAt` from `CreatedAt`. Add `updated_at` column.
 - [x] **No exponential backoff on WebSocket reconnect** — `frontend/src/hooks/useWebSocket.ts:84` — Always reconnects after exactly 3 s. Should use exponential backoff with jitter. (Also listed under Infrastructure below.)
-- [ ] **Username length not validated on profile update** — `internal/auth/service.go:152-159` — No max-length check on username update; signup has a limit but profile update does not.
-- [ ] **No logging on WebSocket subscribe/unsubscribe failures** — `internal/websocket/client.go` — Silent failure makes subscription bugs hard to trace in logs.
+- [x] **Username length not validated on profile update** — `internal/auth/service.go:152-159` — No max-length check on username update; signup has a limit but profile update does not.
+- [x] **No logging on WebSocket subscribe/unsubscribe failures** — `internal/websocket/client.go` — Silent failure makes subscription bugs hard to trace in logs.
 
 ---
 

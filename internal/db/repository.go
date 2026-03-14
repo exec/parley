@@ -494,7 +494,7 @@ func (r *Repository) CreateChannel(ctx context.Context, channel *Channel) error 
 // GetChannelByID retrieves a channel by its ID
 func (r *Repository) GetChannelByID(ctx context.Context, id int64) (*Channel, error) {
 	query := `
-		SELECT id, server_id, name, channel_type, position, parent_id, created_at
+		SELECT id, server_id, name, channel_type, position, parent_id, created_at, updated_at
 		FROM channels
 		WHERE id = $1
 	`
@@ -508,6 +508,7 @@ func (r *Repository) GetChannelByID(ctx context.Context, id int64) (*Channel, er
 		&channel.Position,
 		&channel.ParentID,
 		&channel.CreatedAt,
+		&channel.UpdatedAt,
 	)
 
 	if err == sql.ErrNoRows {
@@ -523,7 +524,7 @@ func (r *Repository) GetChannelByID(ctx context.Context, id int64) (*Channel, er
 // GetChannelsByServerID retrieves all channels for a server
 func (r *Repository) GetChannelsByServerID(ctx context.Context, serverID int64) ([]*Channel, error) {
 	query := `
-		SELECT id, server_id, name, channel_type, position, parent_id, created_at
+		SELECT id, server_id, name, channel_type, position, parent_id, created_at, updated_at
 		FROM channels
 		WHERE server_id = $1
 		ORDER BY position, name
@@ -546,6 +547,7 @@ func (r *Repository) GetChannelsByServerID(ctx context.Context, serverID int64) 
 			&channel.Position,
 			&channel.ParentID,
 			&channel.CreatedAt,
+			&channel.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -564,7 +566,7 @@ func (r *Repository) GetChannelsByServerID(ctx context.Context, serverID int64) 
 func (r *Repository) UpdateChannel(ctx context.Context, channel *Channel) error {
 	query := `
 		UPDATE channels
-		SET name = $1, channel_type = $2, position = $3, parent_id = $4
+		SET name = $1, channel_type = $2, position = $3, parent_id = $4, updated_at = NOW()
 		WHERE id = $5
 	`
 

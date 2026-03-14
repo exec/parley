@@ -93,23 +93,29 @@ func (c *Client) ReadPump() {
 func (c *Client) handleMessage(msg WSMessage) {
 	switch msg.Type {
 	case "CHANNEL_SUBSCRIBE":
-		// Parse and handle channel subscription
 		var payload struct {
 			ChannelID string `json:"channel_id"`
 		}
 		if err := json.Unmarshal(msg.Payload, &payload); err != nil {
-			log.Printf("Error parsing subscribe payload: %v", err)
+			log.Printf("CHANNEL_SUBSCRIBE from user %s: failed to parse payload: %v", c.userID, err)
+			return
+		}
+		if payload.ChannelID == "" {
+			log.Printf("CHANNEL_SUBSCRIBE from user %s: missing channel_id", c.userID)
 			return
 		}
 		c.hub.SubscribeToChannel(payload.ChannelID, c)
 
 	case "CHANNEL_UNSUBSCRIBE":
-		// Parse and handle channel unsubscription
 		var payload struct {
 			ChannelID string `json:"channel_id"`
 		}
 		if err := json.Unmarshal(msg.Payload, &payload); err != nil {
-			log.Printf("Error parsing unsubscribe payload: %v", err)
+			log.Printf("CHANNEL_UNSUBSCRIBE from user %s: failed to parse payload: %v", c.userID, err)
+			return
+		}
+		if payload.ChannelID == "" {
+			log.Printf("CHANNEL_UNSUBSCRIBE from user %s: missing channel_id", c.userID)
 			return
 		}
 		c.hub.UnsubscribeFromChannel(payload.ChannelID, c)

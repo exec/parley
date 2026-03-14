@@ -47,13 +47,14 @@ type ServerMember struct {
 
 // Channel represents a text or voice channel
 type Channel struct {
-	ID         int64          `json:"id" db:"id"`
-	ServerID   int64          `json:"server_id" db:"server_id"`
-	Name       string         `json:"name" db:"name"`
+	ID          int64         `json:"id" db:"id"`
+	ServerID    int64         `json:"server_id" db:"server_id"`
+	Name        string        `json:"name" db:"name"`
 	ChannelType ChannelType   `json:"channel_type" db:"channel_type"`
-	Position   int            `json:"position" db:"position"`
-	ParentID   sql.NullInt64  `json:"parent_id" db:"parent_id"`
-	CreatedAt  time.Time      `json:"created_at" db:"created_at"`
+	Position    int           `json:"position" db:"position"`
+	ParentID    sql.NullInt64 `json:"parent_id" db:"parent_id"`
+	CreatedAt   time.Time     `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time     `json:"updated_at" db:"updated_at"`
 }
 
 // Message represents a message in a channel

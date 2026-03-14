@@ -198,7 +198,7 @@ func dbChannelToChannel(dbCh *db.Channel) *Channel {
 		Name:       dbCh.Name,
 		Type:       ChannelType(dbCh.ChannelType),
 		CreatedAt:  dbCh.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:  dbCh.CreatedAt.Format(time.RFC3339), // DB doesn't track updated_at for channels
+		UpdatedAt:  dbCh.UpdatedAt.Format(time.RFC3339),
 	}
 
 	if dbCh.ParentID.Valid {

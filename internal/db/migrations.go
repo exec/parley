@@ -110,6 +110,10 @@ var Migrations = []string{
 	ALTER TABLE servers ADD COLUMN IF NOT EXISTS vanity_url VARCHAR(64) UNIQUE;
 	CREATE INDEX IF NOT EXISTS idx_servers_vanity_url ON servers(vanity_url) WHERE vanity_url IS NOT NULL;
 	`,
+
+	`-- Add updated_at to channels table
+	ALTER TABLE channels ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();
+	`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string
