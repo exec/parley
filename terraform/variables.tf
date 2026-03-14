@@ -50,14 +50,14 @@ variable "db_password" {
   description = "PostgreSQL parley user password"
   type        = string
   sensitive   = true
-  default     = ""
+  default     = "parley_secure_pwd_2026"
 }
 
 variable "jwt_secret" {
   description = "JWT secret for authentication"
   type        = string
   sensitive   = true
-  default     = ""
+  default     = "jwt_super_secret_key_do_not_share_2026"
 }
 
 variable "repo_url" {
