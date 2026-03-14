@@ -157,7 +157,7 @@ export const Message: React.FC<MessageProps> = ({
 
   return (
     <div
-      className="message"
+      className={`message${message.pending ? ' message-pending' : ''}`}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
       onContextMenu={handleContextMenu}

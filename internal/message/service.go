@@ -25,6 +25,7 @@ type Message struct {
 	AuthorID       string     `json:"author_id"`
 	AuthorUsername string     `json:"author_username"`
 	Content        string     `json:"content"`
+	Nonce          string     `json:"nonce,omitempty"`
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
 	Reactions      []Reaction `json:"reactions"`
@@ -52,8 +53,9 @@ func (s *MessageService) SetBroadcaster(b Broadcaster) {
 	s.broadcaster = b
 }
 
-// SendMessage creates a new message in a channel
-func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, content string) (*Message, error) {
+// SendMessage creates a new message in a channel.
+// nonce is a client-generated UUID used for deduplication; pass "" if not provided.
+func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, content, nonce string) (*Message, error) {
 	if channelID == "" {
 		return nil, errors.New("channel ID is required")
 	}
@@ -81,6 +83,7 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 		ChannelID: channelIDInt,
 		AuthorID:  authorIDInt,
 		Content:   content,
+		Nonce:     nonce,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
@@ -102,6 +105,7 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 		AuthorID:       authorID,
 		AuthorUsername: authorUsername,
 		Content:        content,
+		Nonce:          dbMsg.Nonce,
 		CreatedAt:      dbMsg.CreatedAt,
 		UpdatedAt:      dbMsg.UpdatedAt,
 		Reactions:      []Reaction{},

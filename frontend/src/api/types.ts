@@ -44,9 +44,11 @@ export interface Message {
   author_id: string;
   author_username: string;
   content: string;
+  nonce?: string;
   created_at: string;
   updated_at: string;
   reactions?: Reaction[];
+  pending?: boolean; // optimistic: true until confirmed by WS event
 }
 
 export interface AuthResponse {

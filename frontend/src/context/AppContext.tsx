@@ -243,10 +243,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [activeChannel]);
 
   const sendMessage = useCallback(async (content: string) => {
-    if (!activeChannel) return;
-    const msg = await messagesApi.sendMessage(activeChannel.id, content);
-    setMessages(prev => [...prev, msg]);
-  }, [activeChannel]);
+    if (!activeChannel || !currentUser) return;
+    const nonce = crypto.randomUUID();
+
+    // Optimistic: add immediately with a temporary pending flag so the sender
+    // sees their message right away without waiting for the WS echo.
+    const optimistic: Message = {
+      id: `pending-${nonce}`,
+      channel_id: activeChannel.id,
+      author_id: currentUser.id,
+      author_username: currentUser.username,
+      content,
+      nonce,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      reactions: [],
+      pending: true,
+    };
+    setMessages(prev => [...prev, optimistic]);
+
+    try {
+      await messagesApi.sendMessage(activeChannel.id, content, nonce);
+      // Don't add from the HTTP response — the WS broadcast carries the confirmed
+      // message back (with the same nonce) and receiveMessage will replace the
+      // optimistic entry. If WS is down, fall back to confirming via HTTP below.
+    } catch (err) {
+      // Remove the optimistic message on failure.
+      setMessages(prev => prev.filter(m => m.nonce !== nonce));
+      throw err;
+    }
+  }, [activeChannel, currentUser]);
 
   const editMessage = useCallback(async (messageId: string, content: string) => {
     const updated = await messagesApi.editMessage(messageId, content);
@@ -262,6 +288,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const ch = activeChannel;
     if (ch !== null && msg.channel_id === ch.id) {
       setMessages(prev => {
+        // If we have an optimistic entry for this nonce, replace it.
+        if (msg.nonce) {
+          const idx = prev.findIndex(m => m.nonce === msg.nonce);
+          if (idx >= 0) {
+            const next = [...prev];
+            next[idx] = msg;
+            return next;
+          }
+        }
+        // Guard against duplicate real IDs (e.g. WS delivered twice).
         if (prev.some(m => m.id === msg.id)) return prev;
         return [...prev, msg];
       });

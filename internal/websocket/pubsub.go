@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"sync"
 	"time"
@@ -83,20 +84,45 @@ func (r *RedisPubSub) Subscribe(channel string) *redis.PubSub {
 	return r.client.Subscribe(ctx, channel)
 }
 
-// StartSubscriber starts a background goroutine that listens to a channel
-// and calls the handler for each received message
+// StartSubscriber starts a background goroutine that listens to a Redis channel
+// and calls handler for each message. It reconnects automatically on failure
+// using exponential backoff capped at 30s.
 func (r *RedisPubSub) StartSubscriber(channel string, handler func(message []byte)) {
 	go func() {
-		// Create a new subscription
-		pubsub := r.Subscribe(channel)
-		ch := pubsub.Channel()
+		backoff := time.Second
+		for {
+			pubsub := r.client.Subscribe(context.Background(), channel)
+			ch := pubsub.Channel()
+			log.Printf("Redis: subscribed to %s", channel)
+			backoff = time.Second // reset on successful connect
 
-		for msg := range ch {
-			if msg == nil {
-				continue
+			for msg := range ch {
+				if msg == nil {
+					continue
+				}
+				handler([]byte(msg.Payload))
 			}
 
-			handler([]byte(msg.Payload))
+			// Channel closed — connection dropped or Redis restarted.
+			pubsub.Close()
+			log.Printf("Redis: subscription to %s lost, reconnecting in %s", channel, backoff)
+			time.Sleep(backoff)
+			if backoff < 30*time.Second {
+				backoff *= 2
+			}
+		}
+	}()
+
+	// Periodic ping to detect silent connection failures quickly.
+	go func() {
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			if err := r.client.Ping(ctx).Err(); err != nil {
+				log.Printf("Redis: ping failed: %v", err)
+			}
+			cancel()
 		}
 	}()
 }

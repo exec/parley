@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback, useMemo } from 'react';
 import { Message as MessageType } from '../../api/types';
 import { Message } from './Message';
 import './Chat.css';
@@ -102,7 +102,20 @@ export const MessageList: React.FC<MessageListProps> = ({
     }
   }, [onLoadMore, hasMore, isLoading]);
 
-  const groupedMessages = groupMessagesByDate(messages);
+  // Sort by integer ID so WS events arriving out of order never mis-sequence.
+  // Pending (optimistic) messages have a non-numeric id; sort them last.
+  const sortedMessages = useMemo(() => {
+    return [...messages].sort((a, b) => {
+      const aId = parseInt(a.id, 10);
+      const bId = parseInt(b.id, 10);
+      if (isNaN(aId) && isNaN(bId)) return 0;
+      if (isNaN(aId)) return 1;
+      if (isNaN(bId)) return -1;
+      return aId - bId;
+    });
+  }, [messages]);
+
+  const groupedMessages = groupMessagesByDate(sortedMessages);
 
   return (
     <div

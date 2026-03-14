@@ -40,6 +40,7 @@ func (h *Handler) Routes() http.Handler {
 // SendMessageRequest represents the request body for sending a message
 type SendMessageRequest struct {
 	Content string `json:"content"`
+	Nonce   string `json:"nonce"`
 }
 
 // SendMessage handles POST /channels/:channelID/messages
@@ -68,7 +69,7 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg, err := h.service.SendMessage(r.Context(), channelID, authorID.(string), req.Content)
+	msg, err := h.service.SendMessage(r.Context(), channelID, authorID.(string), req.Content, req.Nonce)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

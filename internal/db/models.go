@@ -63,6 +63,7 @@ type Message struct {
 	ChannelID      int64     `json:"channel_id" db:"channel_id"`
 	AuthorID       int64     `json:"author_id" db:"author_id"`
 	Content        string    `json:"content" db:"content"`
+	Nonce          string    `json:"nonce" db:"nonce"`
 	CreatedAt      time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at" db:"updated_at"`
 	AuthorUsername string    `json:"author_username" db:"-"`

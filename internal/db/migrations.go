@@ -127,6 +127,11 @@ var Migrations = []string{
 
 	CREATE INDEX IF NOT EXISTS idx_message_reactions_message_id ON message_reactions(message_id);
 	`,
+
+	`-- Add nonce to messages for client-side deduplication
+	ALTER TABLE messages ADD COLUMN IF NOT EXISTS nonce VARCHAR(64);
+	CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_nonce ON messages(nonce) WHERE nonce IS NOT NULL AND nonce != '';
+	`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

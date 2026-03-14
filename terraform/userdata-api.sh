@@ -43,7 +43,7 @@ run_with_retry "apt-get upgrade -y" || true
 
 # Install required packages with retry
 echo "=== Installing required packages ==="
-run_with_retry "apt-get install -y git curl build-essential nginx certbot python3-certbot-nginx ufw software-properties-common"
+run_with_retry "apt-get install -y git curl build-essential nginx certbot python3-certbot-nginx ufw software-properties-common redis-tools"
 
 # Install Node.js (LTS)
 echo "=== Installing Node.js ==="
@@ -125,37 +125,19 @@ EOF
 # Set proper permissions
 chmod 600 /etc/parley/env
 
-# Configure Redis to bind to localhost only (secure default)
-echo "=== Configuring Redis ==="
-cp /etc/redis/redis.conf /etc/redis/redis.conf.bak 2>/dev/null || true
-
-# Ensure Redis binds to localhost for security
-sed -i "s/^bind .*/bind 127.0.0.1/" /etc/redis/redis.conf 2>/dev/null || true
-
-# Start Redis service with retry
-echo "=== Starting Redis ==="
-run_with_retry "systemctl restart redis-server"
-run_with_retry "systemctl enable redis-server"
-
-# Verify Redis is responding
-if ! redis-cli ping | grep -q "PONG"; then
-    echo "ERROR: Redis not responding"
-    exit 1
-fi
-
 # Create systemd service
 echo "=== Creating systemd service ==="
 cat > /etc/systemd/system/parley-api.service <<EOF
 [Unit]
 Description=Parley API Service
-After=network.target redis.service
-Wants=redis.service
+After=network.target
 
 [Service]
 Type=simple
 User=root
 WorkingDirectory=/parley
 EnvironmentFile=/etc/parley/env
+ExecStartPre=/bin/sh -c 'until redis-cli -h ${REDIS_HOST} ping 2>/dev/null | grep -q PONG; do echo "Waiting for Redis..."; sleep 2; done'
 ExecStart=/usr/local/bin/parley-api
 Restart=always
 RestartSec=10

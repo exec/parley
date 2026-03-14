@@ -615,37 +615,37 @@ func (r *Repository) DeleteChannel(ctx context.Context, id int64) error {
 
 // ============ Message Operations ============
 
-// CreateMessage creates a new message in the database
+// CreateMessage creates a new message in the database.
+// If a nonce is set, duplicate submissions (retries) return the existing message instead of inserting.
 func (r *Repository) CreateMessage(ctx context.Context, message *Message) error {
-	query := `
-		INSERT INTO messages (channel_id, author_id, content, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id
-	`
-
 	now := time.Now()
 	message.CreatedAt = now
 	message.UpdatedAt = now
+
+	query := `
+		INSERT INTO messages (channel_id, author_id, content, nonce, created_at, updated_at)
+		VALUES ($1, $2, $3, NULLIF($4, ''), $5, $6)
+		ON CONFLICT (nonce) WHERE nonce IS NOT NULL AND nonce != ''
+		DO UPDATE SET updated_at = messages.updated_at
+		RETURNING id, created_at, updated_at, COALESCE(nonce, '')
+	`
 
 	err := r.db.QueryRowContext(ctx, query,
 		message.ChannelID,
 		message.AuthorID,
 		message.Content,
+		message.Nonce,
 		message.CreatedAt,
 		message.UpdatedAt,
-	).Scan(&message.ID)
+	).Scan(&message.ID, &message.CreatedAt, &message.UpdatedAt, &message.Nonce)
 
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 // GetMessageByID retrieves a message by its ID
 func (r *Repository) GetMessageByID(ctx context.Context, id int64) (*Message, error) {
 	query := `
-		SELECT id, channel_id, author_id, content, created_at, updated_at
+		SELECT id, channel_id, author_id, content, COALESCE(nonce, ''), created_at, updated_at
 		FROM messages
 		WHERE id = $1
 	`
@@ -656,6 +656,7 @@ func (r *Repository) GetMessageByID(ctx context.Context, id int64) (*Message, er
 		&message.ChannelID,
 		&message.AuthorID,
 		&message.Content,
+		&message.Nonce,
 		&message.CreatedAt,
 		&message.UpdatedAt,
 	)
@@ -673,11 +674,11 @@ func (r *Repository) GetMessageByID(ctx context.Context, id int64) (*Message, er
 // GetChannelMessages retrieves messages for a channel with pagination
 func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, limit, offset int) ([]*Message, error) {
 	query := `
-		SELECT m.id, m.channel_id, m.author_id, m.content, m.created_at, m.updated_at, u.username
+		SELECT m.id, m.channel_id, m.author_id, m.content, COALESCE(m.nonce, ''), m.created_at, m.updated_at, u.username
 		FROM messages m
 		JOIN users u ON u.id = m.author_id
 		WHERE m.channel_id = $1
-		ORDER BY m.created_at ASC
+		ORDER BY m.id ASC
 		LIMIT $2 OFFSET $3
 	`
 
@@ -695,6 +696,7 @@ func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, li
 			&message.ChannelID,
 			&message.AuthorID,
 			&message.Content,
+			&message.Nonce,
 			&message.CreatedAt,
 			&message.UpdatedAt,
 			&message.AuthorUsername,
