@@ -36,14 +36,16 @@ const UserContextMenu: React.FC<UserContextMenuProps> = ({ member, isCurrentUser
       className="user-context-menu"
       style={{ top: position.top, left: position.left }}
     >
+      <div className="user-context-menu-header">{member.username}</div>
+      <div className="user-context-menu-divider" />
+      <button className="user-context-menu-item" onClick={() => { onViewProfile?.(member.user_id); onClose(); }}>
+        View Profile
+      </button>
       {!isCurrentUser && (
         <button className="user-context-menu-item" onClick={() => { onSendMessage?.(member.user_id); onClose(); }}>
           Send Message
         </button>
       )}
-      <button className="user-context-menu-item" onClick={() => { onViewProfile?.(member.user_id); onClose(); }}>
-        View Profile
-      </button>
     </div>
   );
 };
@@ -61,17 +63,22 @@ const UserSidebar: React.FC<UserSidebarProps> = ({ members, ownerId, currentUser
 
   const handleMemberClick = (member: ServerMember, e: React.MouseEvent) => {
     e.stopPropagation();
-    // Left-click shows mini profile popup, right-click shows context menu
-    if (e.button === 2) {
-      // Right-click
-      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-      setContextMenu({
-        member,
-        position: { top: rect.top, left: rect.left - 200 },
-      });
-    } else {
-      // Left-click - do nothing (mini profile popup is handled by click handler in channel)
-    }
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    // Position menu to the left of the sidebar panel
+    setContextMenu({
+      member,
+      position: { top: rect.top, left: rect.left - 190 },
+    });
+  };
+
+  const handleMemberContextMenu = (member: ServerMember, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Use cursor position for right-click for precision
+    setContextMenu({
+      member,
+      position: { top: e.clientY, left: e.clientX - 190 },
+    });
   };
 
   const closeContextMenu = () => setContextMenu(null);
@@ -84,8 +91,8 @@ const UserSidebar: React.FC<UserSidebarProps> = ({ members, ownerId, currentUser
       key={member.id}
       className="member-item"
       onClick={(e) => handleMemberClick(member, e)}
-      onContextMenu={(e) => handleMemberClick(member, e)}
-      title="Click for profile, right-click for options"
+      onContextMenu={(e) => handleMemberContextMenu(member, e)}
+      title="Click for options"
     >
       <div className="member-avatar">
         <span className="member-avatar-placeholder">

@@ -24,6 +24,7 @@ export const Message: React.FC<MessageProps> = ({
 }) => {
   const [showActions, setShowActions] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [userContextMenu, setUserContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(message.content);
   const editRef = useRef<HTMLTextAreaElement>(null);
@@ -83,20 +84,32 @@ export const Message: React.FC<MessageProps> = ({
     e.stopPropagation();
     onViewProfile?.(message.author_id, message.author_username);
     closeContextMenu();
+    closeUserContextMenu();
   };
 
   const handleSendMessage = (e: React.MouseEvent) => {
     e.stopPropagation();
     onSendMessage?.(message.author_id);
     closeContextMenu();
+    closeUserContextMenu();
   };
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
+    setUserContextMenu(null);
     setContextMenu({ x: e.clientX, y: e.clientY });
   };
 
+  // Right-clicking specifically on the username or avatar shows a focused user menu
+  const handleUsernameContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation(); // prevent message-level context menu from also firing
+    setContextMenu(null);
+    setUserContextMenu({ x: e.clientX, y: e.clientY });
+  };
+
   const closeContextMenu = () => setContextMenu(null);
+  const closeUserContextMenu = () => setUserContextMenu(null);
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -104,6 +117,13 @@ export const Message: React.FC<MessageProps> = ({
     document.addEventListener('click', handleClick);
     return () => document.removeEventListener('click', handleClick);
   }, [contextMenu]);
+
+  useEffect(() => {
+    if (!userContextMenu) return;
+    const handleClick = () => closeUserContextMenu();
+    document.addEventListener('click', handleClick);
+    return () => document.removeEventListener('click', handleClick);
+  }, [userContextMenu]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(message.content);
@@ -123,7 +143,8 @@ export const Message: React.FC<MessageProps> = ({
         <div
           className="message-avatar-clickable"
           onClick={() => onViewProfile?.(message.author_id, message.author_username)}
-          title="Click to view profile"
+          onContextMenu={handleUsernameContextMenu}
+          title="Left-click to view profile · Right-click for options"
         >
           <Avatar
             alt={message.author_username || 'User'}
@@ -137,7 +158,8 @@ export const Message: React.FC<MessageProps> = ({
           <span
             className="message-author"
             onClick={() => onViewProfile?.(message.author_id, message.author_username)}
-            title="Click to view profile"
+            onContextMenu={handleUsernameContextMenu}
+            title="Left-click to view profile · Right-click for options"
           >
             {message.author_username || 'Unknown User'}
           </span>
@@ -198,6 +220,21 @@ export const Message: React.FC<MessageProps> = ({
               <div className="context-menu-divider" />
               <button className="context-menu-item danger" onClick={handleDelete}>Delete Message</button>
             </>
+          )}
+        </div>
+      )}
+
+      {userContextMenu && (
+        <div
+          className="message-context-menu user-context-menu-popup"
+          style={{ top: userContextMenu.y, left: userContextMenu.x }}
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="context-menu-username">{message.author_username}</div>
+          <div className="context-menu-divider" />
+          <button className="context-menu-item" onClick={handleViewProfile}>View Profile</button>
+          {message.author_id !== currentUserId && (
+            <button className="context-menu-item" onClick={handleSendMessage}>Send Message</button>
           )}
         </div>
       )}
