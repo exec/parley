@@ -254,18 +254,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const receiveMessage = useCallback((msg: Message) => {
-    console.log('[AppContext] receiveMessage:', { channel_id: msg.channel_id, activeChannelId: activeChannel?.id });
     if (activeChannel && msg.channel_id === activeChannel.id) {
       setMessages(prev => {
-        console.log('[AppContext] Adding message to channel', msg.channel_id);
         if (prev.some(m => m.id === msg.id)) return prev;
         return [...prev, msg];
-      });
-    } else {
-      console.log('[AppContext] Skipping message - channel mismatch or no activeChannel', {
-        msgChannelId: msg.channel_id,
-        activeChannelId: activeChannel?.id,
-        hasActiveChannel: !!activeChannel
       });
     }
   }, [activeChannel]);
