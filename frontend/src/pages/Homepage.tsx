@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { DmChannel } from '../api/types';
+import { DmChannel, PublicUser } from '../api/types';
 import { searchUsers } from '../api/users';
-import { PublicUser } from '../api/types';
 
 interface HomepageProps {
   onCreateServer: () => void;
