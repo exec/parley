@@ -254,7 +254,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const receiveMessage = useCallback((msg: Message) => {
-    if (activeChannel && msg.channel_id === activeChannel.id) {
+    const ch = activeChannel;
+    if (ch !== null && msg.channel_id === ch.id) {
       setMessages(prev => {
         if (prev.some(m => m.id === msg.id)) return prev;
         return [...prev, msg];

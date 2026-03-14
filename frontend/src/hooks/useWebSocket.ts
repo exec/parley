@@ -18,6 +18,7 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, activ
   const wsRef = useRef<WebSocket | null>(null);
   const subscribedChannelsRef = useRef<Set<string>>(new Set());
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectAttemptsRef = useRef(0);
   const activeChannelIdRef = useRef<string | null>(activeChannelId);
   const extraChannelIdsRef = useRef<string[]>(extraChannelIds);
 
@@ -40,6 +41,7 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, activ
     wsRef.current = ws;
 
     ws.onopen = () => {
+      reconnectAttemptsRef.current = 0; // reset backoff on successful connection
       // Subscribe to all channels we care about
       const channelsToSubscribe = new Set<string>();
       const currentActiveChannel = activeChannelIdRef.current;
@@ -80,8 +82,12 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, activ
     ws.onclose = () => {
       wsRef.current = null;
       subscribedChannelsRef.current.clear();
-      // Reconnect after 3 seconds
-      reconnectTimeoutRef.current = setTimeout(connect, 3000);
+      // Exponential backoff: 1s, 2s, 4s, 8s, 16s, capped at 30s, plus up to 1s jitter
+      const attempt = reconnectAttemptsRef.current;
+      reconnectAttemptsRef.current = attempt + 1;
+      const base = Math.min(1000 * Math.pow(2, attempt), 30000);
+      const delay = base + Math.random() * 1000;
+      reconnectTimeoutRef.current = setTimeout(connect, delay);
     };
 
     ws.onerror = () => {

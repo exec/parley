@@ -156,7 +156,7 @@ func (h *Handler) GetDmMessages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if offsetStr := r.URL.Query().Get("offset"); offsetStr != "" {
-		if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 {
+		if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 && o <= 10000 {
 			offset = o
 		}
 	}
