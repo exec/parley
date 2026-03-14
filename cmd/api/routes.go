@@ -89,6 +89,7 @@ func registerRoutes(
 			// User routes
 			r.Get("/users/search", handleUserSearch(repo))
 			r.Get("/users/{id}", handleGetUser(repo))
+			r.Put("/auth/profile", handleUpdateProfile(authService))
 		})
 	})
 
@@ -298,5 +299,35 @@ func handleGetUser(repo *db.Repository) http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(toPublicUserResponse(*user))
+	}
+}
+
+// Update profile handler - PUT /api/auth/profile
+func handleUpdateProfile(authService *auth.AuthService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userIDStr := auth.GetUserIDFromContext(r)
+		if userIDStr == "" {
+			jsonError(w, "user not authenticated", http.StatusUnauthorized)
+			return
+		}
+
+		var req struct {
+			Username        string `json:"username"`
+			CurrentPassword string `json:"current_password"`
+			NewPassword     string `json:"new_password"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			jsonError(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		user, err := authService.UpdateProfile(r.Context(), userIDStr, req.Username, req.CurrentPassword, req.NewPassword)
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(user)
 	}
 }

@@ -17,6 +17,7 @@ import { CreateChannelModal } from './components/modals/CreateChannelModal';
 import { ManageRolesModal } from './components/modals/ManageRolesModal';
 import { UserProfileModal } from './components/modals/UserProfileModal';
 import { ServerSettingsModal } from './components/modals/ServerSettingsModal';
+import { UserSettingsModal } from './components/modals/UserSettingsModal';
 
 type View = 'homepage' | 'server' | 'dm';
 
@@ -51,6 +52,7 @@ function MainApp() {
     selectDmChannel,
     sendDmMessage,
     openDmChannel,
+    updateCurrentUser,
   } = useApp();
 
   const navigate = useNavigate();
@@ -64,6 +66,7 @@ function MainApp() {
   const [showProfile, setShowProfile] = useState(false);
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
   const [showServerSettings, setShowServerSettings] = useState(false);
+  const [showUserSettings, setShowUserSettings] = useState(false);
 
   // Determine current view
   const view: View = activeDmChannel ? 'dm' : activeServer ? 'server' : 'homepage';
@@ -141,6 +144,7 @@ function MainApp() {
       currentUser={currentUser}
       onSelectDm={selectDmChannel}
       onLogout={logout}
+      onOpenSettings={() => setShowUserSettings(true)}
     />
   );
 
@@ -248,6 +252,13 @@ function MainApp() {
         onUpdate={updateServer}
         onDelete={() => deleteServer(activeServer?.id ?? '')}
         onCreateInvite={() => {}}
+      />
+
+      <UserSettingsModal
+        isOpen={showUserSettings}
+        onClose={() => setShowUserSettings(false)}
+        currentUser={currentUser}
+        onUpdate={updateCurrentUser}
       />
 
       {showVoiceModal && (

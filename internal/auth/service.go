@@ -133,6 +133,56 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (User, 
 	return user, token, nil
 }
 
+// UpdateProfile updates a user's username and/or password
+func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername, currentPassword, newPassword string) (User, error) {
+	id, err := fmt.Sscanf(userID, "%d", new(int64))
+	_ = id
+	if err != nil {
+		return User{}, errors.New("invalid user ID")
+	}
+
+	var userIDInt int64
+	fmt.Sscan(userID, &userIDInt)
+
+	dbUser, err := s.repo.GetUserByID(ctx, userIDInt)
+	if err != nil {
+		return User{}, errors.New("user not found")
+	}
+
+	if newUsername != "" && newUsername != dbUser.Username {
+		// Check username isn't taken
+		existing, err := s.repo.GetUserByUsername(ctx, newUsername)
+		if err == nil && existing.ID != userIDInt {
+			return User{}, errors.New("username already taken")
+		}
+		dbUser.Username = newUsername
+	}
+
+	if newPassword != "" {
+		if currentPassword == "" {
+			return User{}, errors.New("current password is required to set a new password")
+		}
+		if !s.CheckPassword(dbUser.PasswordHash, currentPassword) {
+			return User{}, errors.New("current password is incorrect")
+		}
+		hashed := s.HashPassword(newPassword)
+		if hashed == "" {
+			return User{}, errors.New("failed to hash password")
+		}
+		dbUser.PasswordHash = hashed
+	}
+
+	if err := s.repo.UpdateUser(ctx, dbUser); err != nil {
+		return User{}, err
+	}
+
+	return User{
+		ID:       userID,
+		Username: dbUser.Username,
+		Email:    dbUser.Email,
+	}, nil
+}
+
 // HashPassword creates a bcrypt hash of the password
 func (s *AuthService) HashPassword(password string) string {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)

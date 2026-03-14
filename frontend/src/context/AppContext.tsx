@@ -42,12 +42,13 @@ interface AppActions {
   sendDmMessage: (content: string) => Promise<void>;
   receiveDmMessage: (msg: DmMessage) => void;
   addServer: (server: Server) => void;
+  updateCurrentUser: (user: User) => void;
 }
 
 const AppContext = createContext<(AppState & AppActions) | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [currentUser] = useState<User | null>(() => {
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
       const stored = localStorage.getItem('user');
       if (!stored) return null;
@@ -305,6 +306,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     window.location.href = '/login';
   }, []);
 
+  const updateCurrentUser = useCallback((user: User) => {
+    setCurrentUser(user);
+    localStorage.setItem('user', JSON.stringify(user));
+  }, []);
+
   return (
     <AppContext.Provider value={{
       currentUser,
@@ -339,6 +345,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       selectDmChannel,
       sendDmMessage,
       receiveDmMessage,
+      updateCurrentUser,
     }}>
       {children}
     </AppContext.Provider>

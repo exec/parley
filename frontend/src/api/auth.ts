@@ -45,3 +45,13 @@ export function setAuthToken(token: string): void {
 export function clearAuthToken(): void {
   apiClient.setToken(null);
 }
+
+export interface UpdateProfileRequest {
+  username?: string;
+  current_password?: string;
+  new_password?: string;
+}
+
+export async function updateProfile(req: UpdateProfileRequest): Promise<User> {
+  return apiClient.put<User>('/auth/profile', req);
+}
