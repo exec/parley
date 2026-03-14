@@ -1,0 +1,179 @@
+:root {
+  --bg-primary: #000000;
+  --bg-secondary: #0a0a0a;
+  --bg-tertiary: #1a1a1a;
+  --text-primary: #32CD32;
+  --text-secondary: #228B22;
+  --accent: #32CD32;
+  --border: #1a3d1a;
+}
+
+.sidebar {
+  width: 72px;
+  min-width: 72px;
+  height: 100vh;
+  background-color: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 0;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+}
+
+.sidebar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+}
+
+.server-list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.server-icon-container {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  background-color: var(--bg-tertiary);
+}
+
+.server-icon-container:hover {
+  border-radius: 16px;
+  background-color: var(--accent);
+  color: var(--bg-primary);
+}
+
+.server-icon-container.active {
+  border-radius: 16px;
+  background-color: var(--accent);
+  color: var(--bg-primary);
+}
+
+.server-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  transition: all 0.2s ease;
+}
+
+.server-icon-container:hover .server-icon,
+.server-icon-container.active .server-icon {
+  border-radius: 16px;
+}
+
+.server-icon-placeholder {
+  font-size: 20px;
+  font-weight: bold;
+  color: var(--text-primary);
+  text-transform: uppercase;
+}
+
+.server-icon-container:hover .server-icon-placeholder,
+.server-icon-container.active .server-icon-placeholder {
+  color: var(--bg-primary);
+}
+
+.add-server-button {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: var(--bg-tertiary);
+  border: 2px dashed var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--text-primary);
+}
+
+.add-server-button:hover {
+  border-color: var(--accent);
+  border-style: solid;
+  color: var(--accent);
+}
+
+.add-server-button svg {
+  width: 24px;
+  height: 24px;
+}
+
+.divider {
+  width: 32px;
+  height: 2px;
+  background-color: var(--border);
+  margin: 8px 0;
+}
+
+.home-button {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.home-button:hover {
+  border-radius: 16px;
+  background-color: var(--accent);
+  color: var(--bg-primary);
+}
+
+.home-button.active {
+  border-radius: 16px;
+  background-color: var(--accent);
+  color: var(--bg-primary);
+}
+
+.home-button svg {
+  width: 28px;
+  height: 28px;
+}
+
+.tooltip {
+  position: absolute;
+  left: 64px;
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s, visibility 0.2s;
+  z-index: 1000;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.server-icon-container:hover .tooltip,
+.add-server-button:hover .tooltip,
+.home-button:hover .tooltip {
+  opacity: 1;
+  visibility: visible;
+}

@@ -1,0 +1,349 @@
+package server
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"time"
+
+	"github.com/google/uuid"
+	"parley/internal/db"
+)
+
+// Server represents a Discord server/guild in the API layer
+type Server struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	IconURL   string    `json:"icon_url,omitempty"`
+	OwnerID   string    `json:"owner_id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// ServerMember represents a member of a server
+type ServerMember struct {
+	ID        string    `json:"id"`
+	ServerID  string    `json:"server_id"`
+	UserID    string    `json:"user_id"`
+	Nickname  string    `json:"nickname,omitempty"`
+	JoinedAt  time.Time `json:"joined_at"`
+}
+
+// ServerService handles server and member operations
+type ServerService struct {
+	repo *db.Repository
+}
+
+// NewServerService creates a new ServerService
+func NewServerService(repo *db.Repository) *ServerService {
+	return &ServerService{repo: repo}
+}
+
+// CreateServer creates a new server and adds the owner as the first member
+func (s *ServerService) CreateServer(ctx context.Context, name, iconURL string, ownerID string) (*Server, error) {
+	if name == "" {
+		return nil, errors.New("server name is required")
+	}
+	if ownerID == "" {
+		return nil, errors.New("owner ID is required")
+	}
+
+	ownerIDInt, err := uuidToInt64(ownerID)
+	if err != nil {
+		return nil, errors.New("invalid owner ID format")
+	}
+
+	// Create server
+	server := &db.Server{
+		Name:    name,
+		IconURL: nullString(iconURL),
+		OwnerID: ownerIDInt,
+	}
+
+	err = s.repo.CreateServer(ctx, server)
+	if err != nil {
+		return nil, err
+	}
+
+	// Add owner as first member
+	member := &db.ServerMember{
+		ServerID: server.ID,
+		UserID:   ownerIDInt,
+		Nickname: "",
+	}
+
+	err = s.repo.AddMember(ctx, member)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Server{
+		ID:        int64ToUUID(server.ID),
+		Name:      server.Name,
+		IconURL:   nullStringToString(server.IconURL),
+		OwnerID:   int64ToUUID(server.OwnerID),
+		CreatedAt: server.CreatedAt,
+		UpdatedAt: server.UpdatedAt,
+	}, nil
+}
+
+// GetServer retrieves a server by ID
+func (s *ServerService) GetServer(ctx context.Context, id string) (*Server, error) {
+	if id == "" {
+		return nil, errors.New("server ID is required")
+	}
+
+	serverID, err := uuidToInt64(id)
+	if err != nil {
+		return nil, errors.New("invalid server ID format")
+	}
+
+	server, err := s.repo.GetServerByID(ctx, serverID)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return nil, errors.New("server not found")
+		}
+		return nil, err
+	}
+
+	return &Server{
+		ID:        int64ToUUID(server.ID),
+		Name:      server.Name,
+		IconURL:   nullStringToString(server.IconURL),
+		OwnerID:   int64ToUUID(server.OwnerID),
+		CreatedAt: server.CreatedAt,
+		UpdatedAt: server.UpdatedAt,
+	}, nil
+}
+
+// GetUserServers retrieves all servers a user is a member of
+func (s *ServerService) GetUserServers(ctx context.Context, userID string) ([]*Server, error) {
+	if userID == "" {
+		return nil, errors.New("user ID is required")
+	}
+
+	userIDInt, err := uuidToInt64(userID)
+	if err != nil {
+		return nil, errors.New("invalid user ID format")
+	}
+
+	servers, err := s.repo.GetServersByUserID(ctx, userIDInt)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]*Server, len(servers))
+	for i, server := range servers {
+		result[i] = &Server{
+			ID:        int64ToUUID(server.ID),
+			Name:      server.Name,
+			IconURL:   nullStringToString(server.IconURL),
+			OwnerID:   int64ToUUID(server.OwnerID),
+			CreatedAt: server.CreatedAt,
+			UpdatedAt: server.UpdatedAt,
+		}
+	}
+
+	return result, nil
+}
+
+// UpdateServer updates a server's name and icon
+func (s *ServerService) UpdateServer(ctx context.Context, id, name, iconURL string) (*Server, error) {
+	if id == "" {
+		return nil, errors.New("server ID is required")
+	}
+	if name == "" {
+		return nil, errors.New("server name is required")
+	}
+
+	serverID, err := uuidToInt64(id)
+	if err != nil {
+		return nil, errors.New("invalid server ID format")
+	}
+
+	// Get existing server to preserve OwnerID
+	server, err := s.repo.GetServerByID(ctx, serverID)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return nil, errors.New("server not found")
+		}
+		return nil, err
+	}
+
+	server.Name = name
+	server.IconURL = nullString(iconURL)
+
+	err = s.repo.UpdateServer(ctx, server)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return nil, errors.New("server not found")
+		}
+		return nil, err
+	}
+
+	return &Server{
+		ID:        int64ToUUID(server.ID),
+		Name:      server.Name,
+		IconURL:   nullStringToString(server.IconURL),
+		OwnerID:   int64ToUUID(server.OwnerID),
+		CreatedAt: server.CreatedAt,
+		UpdatedAt: server.UpdatedAt,
+	}, nil
+}
+
+// DeleteServer deletes a server by ID
+func (s *ServerService) DeleteServer(ctx context.Context, id string) error {
+	if id == "" {
+		return errors.New("server ID is required")
+	}
+
+	serverID, err := uuidToInt64(id)
+	if err != nil {
+		return errors.New("invalid server ID format")
+	}
+
+	err = s.repo.DeleteServer(ctx, serverID)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return errors.New("server not found")
+		}
+		return err
+	}
+
+	return nil
+}
+
+// AddMember adds a user to a server
+func (s *ServerService) AddMember(ctx context.Context, serverID, userID, nickname string) error {
+	if serverID == "" {
+		return errors.New("server ID is required")
+	}
+	if userID == "" {
+		return errors.New("user ID is required")
+	}
+
+	serverIDInt, err := uuidToInt64(serverID)
+	if err != nil {
+		return errors.New("invalid server ID format")
+	}
+
+	userIDInt, err := uuidToInt64(userID)
+	if err != nil {
+		return errors.New("invalid user ID format")
+	}
+
+	member := &db.ServerMember{
+		ServerID: serverIDInt,
+		UserID:   userIDInt,
+		Nickname: nickname,
+	}
+
+	err = s.repo.AddMember(ctx, member)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// RemoveMember removes a user from a server
+func (s *ServerService) RemoveMember(ctx context.Context, serverID, userID string) error {
+	if serverID == "" {
+		return errors.New("server ID is required")
+	}
+	if userID == "" {
+		return errors.New("user ID is required")
+	}
+
+	serverIDInt, err := uuidToInt64(serverID)
+	if err != nil {
+		return errors.New("invalid server ID format")
+	}
+
+	userIDInt, err := uuidToInt64(userID)
+	if err != nil {
+		return errors.New("invalid user ID format")
+	}
+
+	err = s.repo.RemoveMember(ctx, serverIDInt, userIDInt)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return errors.New("member not found")
+		}
+		return err
+	}
+
+	return nil
+}
+
+// GetMembers retrieves all members of a server
+func (s *ServerService) GetMembers(ctx context.Context, serverID string) ([]*ServerMember, error) {
+	if serverID == "" {
+		return nil, errors.New("server ID is required")
+	}
+
+	serverIDInt, err := uuidToInt64(serverID)
+	if err != nil {
+		return nil, errors.New("invalid server ID format")
+	}
+
+	members, err := s.repo.GetServerMembers(ctx, serverIDInt)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]*ServerMember, len(members))
+	for i, member := range members {
+		result[i] = &ServerMember{
+			ID:       int64ToUUID(member.ID),
+			ServerID: int64ToUUID(member.ServerID),
+			UserID:   int64ToUUID(member.UserID),
+			Nickname: member.Nickname,
+			JoinedAt: member.JoinedAt,
+		}
+	}
+
+	return result, nil
+}
+
+// Helper functions
+
+func nullString(s string) sql.NullString {
+	if s == "" {
+		return sql.NullString{Valid: false}
+	}
+	return sql.NullString{String: s, Valid: true}
+}
+
+func nullStringToString(ns sql.NullString) string {
+	if !ns.Valid {
+		return ""
+	}
+	return ns.String
+}
+
+func int64ToUUID(n int64) string {
+	// Convert int64 to UUID string representation
+	// This creates a valid v4 UUID from the int64 value
+	b := []byte{
+		byte(n >> 56), byte(n >> 48), byte(n >> 40), byte(n >> 32),
+		byte(n >> 24), byte(n >> 16), byte(n >> 8), byte(n),
+		// Add random bytes for UUID v4 format
+		0, 0, 0, 0, 0, 0, 0, 0,
+	}
+	// Set version (4) and variant (RFC 4122)
+	b[6] = (b[6] & 0x0f) | 0x40
+	b[8] = (b[8] & 0x3f) | 0x80
+
+	return uuid.UUID(b).String()
+}
+
+func uuidToInt64(id string) (int64, error) {
+	u, err := uuid.Parse(id)
+	if err != nil {
+		return 0, err
+	}
+	// Convert UUID bytes to int64 (first 8 bytes)
+	return int64(u[0])<<56 | int64(u[1])<<48 | int64(u[2])<<40 | int64(u[3])<<32 |
+		int64(u[4])<<24 | int64(u[5])<<16 | int64(u[6])<<8 | int64(u[7]), nil
+}

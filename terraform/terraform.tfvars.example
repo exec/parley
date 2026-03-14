@@ -1,0 +1,27 @@
+# DigitalOcean API token (from https://cloud.digitalocean.com/account/api/tokens)
+do_token = "your-digitalocean-token-here"
+
+# Region (nyc3, sfo3, lon1, etc.)
+region = "nyc3"
+
+# Droplet sizes
+api_droplet_size = "s-2vcpu-2gb"
+db_droplet_size  = "s-2vcpu-4gb"
+
+# Domain name
+domain_name = "parley.x86-64.com"
+
+# Number of API droplets
+api_count = 3
+
+# SSH private key path
+ssh_private_key = "~/.ssh/id_rsa"
+
+# PostgreSQL password (CHANGE THIS!)
+db_password = "change-me-in-production"
+
+# JWT secret (CHANGE THIS! - generate with: openssl rand -base64 32)
+jwt_secret = "change-me-use-openssl-rand-base64-32"
+
+# Git repository URL
+repo_url = "https://github.com/yourusername/parley.git"

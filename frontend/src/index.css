@@ -1,0 +1,189 @@
+:root {
+  --discord-bg-primary: #313338;
+  --discord-bg-secondary: #2b2d31;
+  --discord-bg-tertiary: #1e1f22;
+  --discord-text-normal: #dbdee1;
+  --discord-text-muted: #949ba4;
+  --discord-text-link: #00b0f4;
+  --discord-accent: #5865f2;
+  --discord-green: #23a55a;
+  --discord-yellow: #f0b232;
+  --discord-red: #da373c;
+  --discord-blurple: #5865f2;
+  --discord-gray: #4e5058;
+  --discord-hover: #3f4147;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'gg sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  background-color: var(--discord-bg-primary);
+  color: var(--discord-text-normal);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+a {
+  color: var(--discord-text-link);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+button {
+  cursor: pointer;
+  font-family: inherit;
+}
+
+input {
+  font-family: inherit;
+}
+
+/* Login Page Styles */
+.login-page,
+.register-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background-color: var(--discord-bg-secondary);
+}
+
+.login-page h1,
+.register-page h1 {
+  margin-bottom: 24px;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.login-form,
+.register-form {
+  background-color: var(--discord-bg-tertiary);
+  padding: 32px;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 400px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--discord-text-normal);
+  text-transform: uppercase;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 10px 12px;
+  background-color: var(--discord-bg-primary);
+  border: none;
+  border-radius: 4px;
+  color: var(--discord-text-normal);
+  font-size: 16px;
+}
+
+.form-group input:focus {
+  outline: 2px solid var(--discord-accent);
+  outline-offset: -2px;
+}
+
+.form-group input::placeholder {
+  color: var(--discord-text-muted);
+}
+
+.login-form button,
+.register-form button {
+  width: 100%;
+  padding: 12px;
+  background-color: var(--discord-blurple);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 16px;
+  font-weight: 600;
+  transition: background-color 0.2s ease;
+}
+
+.login-form button:hover,
+.register-form button:hover {
+  background-color: #4752c4;
+}
+
+/* Main App Layout */
+.main-app {
+  display: flex;
+  height: 100vh;
+}
+
+.sidebar {
+  width: 72px;
+  background-color: var(--discord-bg-tertiary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 0;
+}
+
+.server-list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.server-icon {
+  width: 48px;
+  height: 48px;
+  background-color: var(--discord-bg-secondary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-radius 0.2s ease;
+}
+
+.server-icon:hover {
+  background-color: var(--discord-accent);
+  border-radius: 16px;
+}
+
+.server-icon.home {
+  background-color: var(--discord-accent);
+  border-radius: 16px;
+}
+
+.content {
+  flex: 1;
+  background-color: var(--discord-bg-primary);
+  padding: 24px;
+}
+
+.content h1 {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.content p {
+  color: var(--discord-text-muted);
+}
