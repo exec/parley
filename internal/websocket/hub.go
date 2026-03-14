@@ -45,9 +45,9 @@ func NewHub() *Hub {
 		clients:      make(map[*Client]bool),
 		userToClient: make(map[string]map[*Client]bool),
 		channelSubs:  make(map[string]map[*Client]bool),
-		register:     make(chan *Client),
-		unregister:   make(chan *Client),
-		broadcast:    make(chan *Message),
+		register:     make(chan *Client, 64),
+		unregister:   make(chan *Client, 64),
+		broadcast:    make(chan *Message, 1024),
 	}
 }
 

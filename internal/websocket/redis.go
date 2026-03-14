@@ -83,13 +83,9 @@ func (r *RedisHub) Subscribe() {
 			Payload:   []byte(env.Data),
 		}
 
-		// Send to broadcast channel (non-blocking - drops if full)
-		select {
-		case r.hub.broadcast <- msg:
-			log.Printf("RedisHub: forwarded %s event for channel %s", env.EventType, env.ChannelID)
-		default:
-			log.Printf("RedisHub: broadcast channel full, dropping message")
-		}
+		// Send to broadcast channel (blocking - waits if full)
+		r.hub.broadcast <- msg
+		log.Printf("RedisHub: forwarded %s event for channel %s", env.EventType, env.ChannelID)
 	})
 }
 
