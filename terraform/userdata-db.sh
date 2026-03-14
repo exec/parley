@@ -76,10 +76,25 @@ if [ -n "$PG_CONF" ]; then
     fi
 fi
 
+# Install Redis for cross-node WebSocket broadcasting
+echo "=== Installing Redis ==="
+apt-get install -y redis-server
+
+# Configure Redis to listen on all interfaces (VPC traffic is firewalled)
+echo "=== Configuring Redis for remote connections ==="
+sed -i "s/^bind .*/bind 0.0.0.0/" /etc/redis/redis.conf 2>/dev/null || true
+# Disable protected mode since we're behind firewall
+sed -i "s/^protected-mode .*/protected-mode no/" /etc/redis/redis.conf 2>/dev/null || true
+
+# Restart Redis with new configuration
+systemctl restart redis-server
+systemctl enable redis-server
+
 # Configure firewall
 echo "=== Configuring firewall ==="
 ufw allow 22/tcp    # SSH
 ufw allow 5432/tcp  # PostgreSQL
+ufw allow 6379/tcp  # Redis
 ufw --force enable
 
 # Restart PostgreSQL with new configuration

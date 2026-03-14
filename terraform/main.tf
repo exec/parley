@@ -74,6 +74,7 @@ resource "digitalocean_droplet" "parley_api" {
     JWT_SECRET  = var.jwt_secret
     PORT        = "8080"
     REPO_URL    = var.repo_url
+    REDIS_HOST  = digitalocean_droplet.parley_db.ipv4_address_private
   })
 
   tags = ["parley", "api"]

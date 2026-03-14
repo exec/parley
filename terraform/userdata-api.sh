@@ -60,9 +60,8 @@ if ! command -v go &> /dev/null; then
     exit 1
 fi
 
-# Install Redis with retry
-echo "=== Installing Redis ==="
-run_with_retry "apt-get install -y redis-server"
+# Redis runs on the DB node - skip local install
+echo "=== Redis configured on DB node ==="
 
 # Add Go to PATH for all shells
 echo "=== Configuring Go PATH ==="
@@ -119,7 +118,7 @@ cat > /etc/parley/env <<EOF
 DATABASE_URL=postgresql://${DB_USER}:$${DB_PASSWORD_ENCODED}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=disable
 JWT_SECRET=${JWT_SECRET}
 PORT=${PORT}
-REDIS_URL=redis://localhost:6379
+REDIS_URL=redis://${REDIS_HOST}:6379
 PATH=/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 EOF
 
