@@ -1117,6 +1117,8 @@
   font-weight: bold;
   color: var(--discord-text);
   margin: 25px;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .user-profile-tag {
@@ -1534,6 +1536,8 @@
   font-weight: 700;
   color: var(--discord-text);
   margin: 0;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .user-profile-tag {
