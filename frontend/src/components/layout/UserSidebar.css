@@ -73,6 +73,14 @@
   transition: all 0.2s ease;
 }
 
+.member-item.member-offline {
+  opacity: 0.45;
+}
+
+.member-item.member-offline:hover {
+  opacity: 0.75;
+}
+
 .member-item:hover {
   background-color: var(--bg-tertiary);
 }

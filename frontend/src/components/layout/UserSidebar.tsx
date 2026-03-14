@@ -56,9 +56,10 @@ interface UserSidebarProps {
   currentUserId?: string;
   onViewProfile?: (userId: string) => void;
   onSendMessage?: (userId: string) => void;
+  onlineUserIds?: Set<string>;
 }
 
-const UserSidebar: React.FC<UserSidebarProps> = ({ members, ownerId, currentUserId, onViewProfile, onSendMessage }) => {
+const UserSidebar: React.FC<UserSidebarProps> = ({ members, ownerId, currentUserId, onViewProfile, onSendMessage, onlineUserIds }) => {
   const [contextMenu, setContextMenu] = useState<{ member: ServerMember; position: { top: number; left: number } } | null>(null);
 
   const handleMemberClick = (member: ServerMember, e: React.MouseEvent) => {
@@ -86,10 +87,12 @@ const UserSidebar: React.FC<UserSidebarProps> = ({ members, ownerId, currentUser
   const owners = members.filter(m => m.user_id === ownerId);
   const nonOwners = members.filter(m => m.user_id !== ownerId);
 
-  const renderMember = (member: ServerMember, isOwner: boolean) => (
+  const renderMember = (member: ServerMember, isOwner: boolean) => {
+    const isOnline = onlineUserIds ? onlineUserIds.has(member.user_id) : false;
+    return (
     <div
       key={member.id}
-      className="member-item"
+      className={`member-item ${isOnline ? '' : 'member-offline'}`}
       onClick={(e) => handleMemberClick(member, e)}
       onContextMenu={(e) => handleMemberContextMenu(member, e)}
       title="Click for options"
@@ -98,7 +101,7 @@ const UserSidebar: React.FC<UserSidebarProps> = ({ members, ownerId, currentUser
         <span className="member-avatar-placeholder">
           {member.username.charAt(0).toUpperCase()}
         </span>
-        <span className="member-status" />
+        <span className={`member-status ${isOnline ? 'status-online' : 'status-offline'}`} />
       </div>
       <div className="member-info">
         <div className="member-name">
@@ -108,7 +111,8 @@ const UserSidebar: React.FC<UserSidebarProps> = ({ members, ownerId, currentUser
         {member.nickname && <div className="member-nickname-text">{member.nickname}</div>}
       </div>
     </div>
-  );
+    );
+  };
 
   return (
     <div className="user-sidebar">

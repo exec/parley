@@ -80,6 +80,9 @@ function MainApp() {
   // Unread counts: channelId (or dmChannelId) → unread message count
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
 
+  // Online presence: set of user IDs currently connected via WebSocket
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+
   // Determine current view
   const view: View = activeDmChannel ? 'dm' : activeServer ? 'server' : 'homepage';
 
@@ -218,11 +221,40 @@ function MainApp() {
     channels.filter(c => c.server_id === server.id).map(c => c.id)
   );
 
+  const handleUserOnline = useCallback((userId: string) => {
+    setOnlineUsers(prev => {
+      if (prev.has(userId)) return prev;
+      const next = new Set(prev);
+      next.add(userId);
+      return next;
+    });
+  }, []);
+
+  const handleUserOffline = useCallback((userId: string) => {
+    setOnlineUsers(prev => {
+      if (!prev.has(userId)) return prev;
+      const next = new Set(prev);
+      next.delete(userId);
+      return next;
+    });
+  }, []);
+
+  const handlePresenceSnapshot = useCallback((userIds: string[]) => {
+    setOnlineUsers(prev => {
+      const next = new Set(prev);
+      userIds.forEach(id => next.add(id));
+      return next;
+    });
+  }, []);
+
   const { sendTyping } = useWebSocket({
     onMessage: handleReceiveMessage,
     onDmMessage: handleReceiveDmMessage,
     onServerMemberJoin: handleServerMemberJoin,
     onTyping: handleTyping,
+    onUserOnline: handleUserOnline,
+    onUserOffline: handleUserOffline,
+    onPresenceSnapshot: handlePresenceSnapshot,
     activeChannelId: activeChannel?.id ?? null,
     extraChannelIds: allChannelIds,
   });
@@ -295,6 +327,7 @@ function MainApp() {
       currentUserId={currentUser?.id}
       onViewProfile={handleViewProfile}
       onSendMessage={openDmChannel}
+      onlineUserIds={onlineUsers}
     />
   ) : undefined;
 

@@ -11,11 +11,14 @@ interface UseWebSocketOptions {
   onDmMessage?: (msg: DmMessage) => void;
   onServerMemberJoin?: (serverId: string, userId: string) => void;
   onTyping?: (userId: string, username: string, channelId: string) => void;
+  onUserOnline?: (userId: string) => void;
+  onUserOffline?: (userId: string) => void;
+  onPresenceSnapshot?: (userIds: string[]) => void;
   activeChannelId: string | null;
   extraChannelIds?: string[]; // Additional channels to subscribe to for notifications
 }
 
-export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onTyping, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
+export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const subscribedChannelsRef = useRef<Set<string>>(new Set());
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -28,10 +31,16 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onTyp
   const onDmMessageRef = useRef(onDmMessage);
   const onServerMemberJoinRef = useRef(onServerMemberJoin);
   const onTypingRef = useRef(onTyping);
+  const onUserOnlineRef = useRef(onUserOnline);
+  const onUserOfflineRef = useRef(onUserOffline);
+  const onPresenceSnapshotRef = useRef(onPresenceSnapshot);
   useEffect(() => { onMessageRef.current = onMessage; }, [onMessage]);
   useEffect(() => { onDmMessageRef.current = onDmMessage; }, [onDmMessage]);
   useEffect(() => { onServerMemberJoinRef.current = onServerMemberJoin; }, [onServerMemberJoin]);
   useEffect(() => { onTypingRef.current = onTyping; }, [onTyping]);
+  useEffect(() => { onUserOnlineRef.current = onUserOnline; }, [onUserOnline]);
+  useEffect(() => { onUserOfflineRef.current = onUserOffline; }, [onUserOffline]);
+  useEffect(() => { onPresenceSnapshotRef.current = onPresenceSnapshot; }, [onPresenceSnapshot]);
 
   const sendTyping = useCallback((channelId: string, username: string) => {
     const ws = wsRef.current;
@@ -91,6 +100,21 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onTyp
             if (payload.user_id && payload.channel_id) {
               onTypingRef.current(payload.user_id, payload.username ?? '', payload.channel_id);
             }
+          }
+        } else if (wsMsg.type === 'USER_ONLINE' && onUserOnlineRef.current) {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            const payload = wsMsg.payload as { user_id: string };
+            if (payload.user_id) onUserOnlineRef.current(payload.user_id);
+          }
+        } else if (wsMsg.type === 'USER_OFFLINE' && onUserOfflineRef.current) {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            const payload = wsMsg.payload as { user_id: string };
+            if (payload.user_id) onUserOfflineRef.current(payload.user_id);
+          }
+        } else if (wsMsg.type === 'PRESENCE_SNAPSHOT' && onPresenceSnapshotRef.current) {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            const payload = wsMsg.payload as { user_ids: string[] };
+            if (Array.isArray(payload.user_ids)) onPresenceSnapshotRef.current(payload.user_ids);
           }
         }
       } catch (err) {
