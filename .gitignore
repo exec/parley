@@ -12,7 +12,6 @@ terraform/terraform.tfstate.backup
 *.dylib
 *.test
 *.out
-go.sum
 
 # Frontend
 frontend/node_modules/

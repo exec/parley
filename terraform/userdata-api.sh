@@ -34,18 +34,27 @@ apt-get install -y \
     ufw \
     software-properties-common
 
+# Install Node.js (LTS)
+echo "=== Installing Node.js ==="
+curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
+apt-get install -y nodejs
+
 # Install Go
 echo "=== Installing Go ==="
 if ! command -v go &> /dev/null; then
-    curl -fsSL https://go.dev/dl/go1.21.0.linux-amd64.tar.gz -o /tmp/go.tar.gz
+    curl -fsSL https://go.dev/dl/go1.25.0.linux-amd64.tar.gz -o /tmp/go.tar.gz
     rm -rf /usr/local/go
     tar -C /usr/local -xzf /tmp/go.tar.gz
     rm /tmp/go.tar.gz
 fi
 
-# Add Go to PATH
+# Add Go to PATH and set required env vars
 echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/profile.d/go.sh
 export PATH=$PATH:/usr/local/go/bin
+export HOME=/root
+export GOPATH=/root/go
+export GOMODCACHE=/root/go/pkg/mod
+export GOCACHE=/root/.cache/go-build
 
 # Clone or update Parley repository
 echo "=== Cloning Parley repository ==="
@@ -59,8 +68,16 @@ fi
 # Build the Go application
 echo "=== Building Parley API ==="
 cd /parley
-go mod download
-go build -o /usr/local/bin/parley-api ./cmd/api
+GONOSUMDB=* go mod download
+GONOSUMDB=* go build -mod=mod -o /usr/local/bin/parley-api ./cmd/api
+
+# Build the frontend
+echo "=== Building Parley frontend ==="
+cd /parley/frontend
+npm ci
+npm run build
+mkdir -p /var/www/parley
+cp -r dist/* /var/www/parley/
 
 # Create environment file
 echo "=== Creating environment configuration ==="
@@ -105,21 +122,21 @@ server {
     listen 80;
     server_name _;
 
+    root /var/www/parley;
+    index index.html;
+
     # Health check endpoint
     location /health {
         proxy_pass http://127.0.0.1:${PORT};
         proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_cache_bypass \$http_upgrade;
     }
 
-    # Main API proxy
-    location / {
+    # API and WebSocket proxy
+    location /api {
         proxy_pass http://127.0.0.1:${PORT};
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -129,11 +146,14 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_cache_bypass \$http_upgrade;
-
-        # Timeouts for long-running connections
         proxy_connect_timeout 60s;
         proxy_send_timeout 60s;
         proxy_read_timeout 60s;
+    }
+
+    # Serve frontend - fallback to index.html for SPA routing
+    location / {
+        try_files \$uri \$uri/ /index.html;
     }
 }
 EOF
