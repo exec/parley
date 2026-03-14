@@ -121,7 +121,7 @@ export const Register: React.FC = () => {
             <p className="auth-subtitle">Join the community and start chatting!</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="auth-form">
+          <form onSubmit={handleSubmit} className="auth-form" noValidate>
             {errors.general && (
               <div className="auth-error-banner">{errors.general}</div>
             )}

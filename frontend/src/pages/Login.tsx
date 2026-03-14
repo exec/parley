@@ -98,7 +98,7 @@ export const Login: React.FC = () => {
             <p className="auth-subtitle">We're so excited to see you again!</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="auth-form">
+          <form onSubmit={handleSubmit} className="auth-form" noValidate>
             {errors.general && (
               <div className="auth-error-banner">{errors.general}</div>
             )}
