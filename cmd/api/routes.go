@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	gorillawebsocket "github.com/gorilla/websocket"
@@ -28,16 +29,23 @@ func registerRoutes(
 	messageService *message.MessageService,
 	hub *ws.Hub,
 ) {
+	// Cap request bodies at 64 KB for all routes.
+	router.Use(maxBodyMiddleware(64 * 1024))
+
 	// Health check endpoint
 	router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
 
+	// Rate limiter for auth endpoints: 10 attempts per IP per minute.
+	authLimiter := newRateLimiter(10, time.Minute)
+
 	// Mount API routes
 	router.Route("/api", func(r chi.Router) {
 		// Auth routes (no auth required)
 		r.Route("/auth", func(r chi.Router) {
+			r.Use(rateLimitMiddleware(authLimiter))
 			r.Post("/register", handleAuthRegister(authService))
 			r.Post("/login", handleAuthLogin(authService))
 		})

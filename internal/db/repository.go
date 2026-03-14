@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -948,17 +949,26 @@ func (r *Repository) GetPublicUser(ctx context.Context, userID int64) (*PublicUs
 	return &user, nil
 }
 
+// escapeLike escapes LIKE/ILIKE pattern metacharacters so that user-supplied
+// strings are treated as literals. The ESCAPE clause in the query must match.
+func escapeLike(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `%`, `\%`)
+	s = strings.ReplaceAll(s, `_`, `\_`)
+	return s
+}
+
 // SearchUsers searches users by username prefix
 func (r *Repository) SearchUsers(ctx context.Context, query string, excludeUserID int64) ([]PublicUser, error) {
 	sqlQuery := `
 		SELECT id, username, COALESCE(avatar_url, ''), created_at
 		FROM users
-		WHERE username ILIKE $1 AND id != $2
+		WHERE username ILIKE $1 ESCAPE '\' AND id != $2
 		ORDER BY username
 		LIMIT 20
 	`
 
-	rows, err := r.db.QueryContext(ctx, sqlQuery, query+"%", excludeUserID)
+	rows, err := r.db.QueryContext(ctx, sqlQuery, escapeLike(query)+"%", excludeUserID)
 	if err != nil {
 		return nil, err
 	}
