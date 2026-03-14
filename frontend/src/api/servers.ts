@@ -1,6 +1,14 @@
 import { apiClient } from './client';
 import { Server, ServerMember } from './types';
 
+export interface Invite {
+  id: string;
+  server_id: string;
+  code: string;
+  created_by: string;
+  created_at: string;
+}
+
 export async function getServers(): Promise<Server[]> {
   return apiClient.get<Server[]>('/servers');
 }
@@ -23,7 +31,7 @@ export async function updateServer(
 ): Promise<Server> {
   return apiClient.put<Server>(`/servers/${id}`, {
     name,
-    icon: iconURL,
+    icon_url: iconURL,
   });
 }
 
@@ -58,4 +66,17 @@ export async function updateMemberNickname(
   return apiClient.put<ServerMember>(`/servers/${serverId}/members/${userId}`, {
     nickname,
   });
+}
+
+export async function createInvite(serverId: string): Promise<Invite> {
+  return apiClient.post<Invite>(`/servers/${serverId}/invites`, {});
+}
+
+export async function getInvite(code: string): Promise<{ invite: Invite; server: Server }> {
+  return apiClient.get<{ invite: Invite; server: Server }>(`/invites/${code}`);
+}
+
+export async function joinServerByInvite(code: string): Promise<Server> {
+  const response = await apiClient.get<{ server: Server; message?: string }>(`/invites/${code}`);
+  return response.server;
 }

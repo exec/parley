@@ -45,7 +45,13 @@ func (h *Handler) Router() *chi.Mux {
 		r.Post("/servers/{id}/members", h.AddMember)
 		r.Delete("/servers/{id}/members/{userID}", h.RemoveMember)
 		r.Get("/servers/{id}/members", h.GetMembers)
+
+		// Invite routes
+		r.Post("/servers/{id}/invites", h.CreateInvite)
 	})
+
+	// Public invite route (doesn't require auth, but joins if authenticated)
+	r.Get("/invites/{code}", h.GetInvite)
 
 	return r
 }
@@ -386,4 +392,89 @@ func (h *Handler) GetMembers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	render.JSON(w, r, members)
+}
+
+// CreateInvite handles POST /servers/:id/invites
+func (h *Handler) CreateInvite(w http.ResponseWriter, r *http.Request) {
+	serverID := chi.URLParam(r, "id")
+	if serverID == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		render.JSON(w, r, ErrorResponse{Error: "server ID is required"})
+		return
+	}
+
+	// Verify the user is authenticated
+	userID, ok := r.Context().Value(UserIDKey).(string)
+	if !ok || userID == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+		return
+	}
+
+	// Verify the server exists and user is a member
+	_, err := h.service.GetServer(r.Context(), serverID)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		render.JSON(w, r, ErrorResponse{Error: "server not found"})
+		return
+	}
+
+	invite, err := h.service.CreateInvite(r.Context(), serverID, userID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	render.JSON(w, r, invite)
+}
+
+// GetInvite handles GET /api/invites/:code
+func (h *Handler) GetInvite(w http.ResponseWriter, r *http.Request) {
+	code := chi.URLParam(r, "code")
+	if code == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		render.JSON(w, r, ErrorResponse{Error: "invite code is required"})
+		return
+	}
+
+	// Get user ID from context (optional - may be unauthenticated)
+	userID, ok := r.Context().Value(UserIDKey).(string)
+
+	// If user is authenticated, join the server
+	if ok && userID != "" {
+		server, err := h.service.JoinServerByInvite(r.Context(), code, userID)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			render.JSON(w, r, ErrorResponse{Error: err.Error()})
+			return
+		}
+		render.JSON(w, r, map[string]interface{}{
+			"server":  server,
+			"message": "Successfully joined server",
+		})
+		return
+	}
+
+	// Otherwise just return the invite info
+	invite, err := h.service.GetInviteByCode(r.Context(), code)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		render.JSON(w, r, ErrorResponse{Error: "invite not found"})
+		return
+	}
+
+	// Get server info
+	server, err := h.service.GetServerByInviteCode(r.Context(), code)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		render.JSON(w, r, ErrorResponse{Error: "server not found"})
+		return
+	}
+
+	render.JSON(w, r, map[string]interface{}{
+		"invite": invite,
+		"server": server,
+	})
 }

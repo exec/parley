@@ -1507,3 +1507,195 @@
   color: var(--discord-text-muted);
   padding: 20px;
 }
+
+/* Server Settings Modal */
+.server-settings-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.server-icon-preview {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.server-icon-large {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--discord-accent), #7c3aed);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 32px;
+  font-weight: bold;
+}
+
+.server-settings-section {
+  padding: 16px;
+  background: var(--discord-bg-secondary);
+  border-radius: 8px;
+}
+
+.server-settings-section h4 {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  color: var(--discord-text);
+}
+
+.section-description {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: var(--discord-text-muted);
+}
+
+.invite-link-display {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.invite-link-input {
+  flex: 1;
+  background: var(--discord-bg-tertiary);
+  border: 1px solid var(--discord-border);
+  color: var(--discord-text);
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.danger-zone {
+  border: 1px solid rgba(218, 55, 60, 0.3);
+}
+
+.danger-zone h4 {
+  color: var(--discord-danger);
+}
+
+.delete-confirm {
+  text-align: center;
+}
+
+.delete-confirm p {
+  margin: 0 0 12px 0;
+  color: var(--discord-text-muted);
+}
+
+.delete-confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+/* Channel List - Server Settings Button */
+.server-settings-btn {
+  background: transparent;
+  border: none;
+  color: var(--discord-text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.server-settings-btn:hover {
+  color: var(--discord-text);
+  background: var(--discord-bg-tertiary);
+}
+
+.server-settings-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Server Settings Modal */
+.server-settings-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.server-icon-preview {
+  display: flex;
+  justify-content: center;
+}
+
+.server-icon-large {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: var(--discord-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 32px;
+  font-weight: bold;
+}
+
+.server-settings-section {
+  border-top: 1px solid var(--discord-border);
+  padding-top: 16px;
+}
+
+.server-settings-section h4 {
+  margin: 0 0 8px 0;
+  color: var(--discord-text);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.section-description {
+  color: var(--discord-text-muted);
+  font-size: 13px;
+  margin: 0 0 12px 0;
+}
+
+.invite-link-display {
+  display: flex;
+  gap: 8px;
+}
+
+.invite-link-input {
+  flex: 1;
+  background: var(--discord-dark);
+  border: 1px solid var(--discord-border);
+  color: var(--discord-text);
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.danger-zone {
+  border-color: var(--discord-danger);
+}
+
+.danger-zone h4 {
+  color: var(--discord-danger);
+}
+
+.delete-confirm {
+  background: rgba(218, 55, 60, 0.1);
+  border: 1px solid var(--discord-danger);
+  border-radius: 4px;
+  padding: 12px;
+}
+
+.delete-confirm p {
+  color: var(--discord-danger);
+  margin: 0 0 12px 0;
+  font-size: 13px;
+}
+
+.delete-confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}

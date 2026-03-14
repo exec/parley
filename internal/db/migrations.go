@@ -92,6 +92,19 @@ var Migrations = []string{
 	CREATE INDEX IF NOT EXISTS idx_dm_messages_channel ON dm_messages(dm_channel_id);
 	CREATE INDEX IF NOT EXISTS idx_dm_messages_created ON dm_messages(created_at);
 	`,
+
+	`-- Create invites table
+	CREATE TABLE IF NOT EXISTS invites (
+		id BIGSERIAL PRIMARY KEY,
+		server_id BIGINT NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
+		code VARCHAR(8) NOT NULL UNIQUE,
+		created_by BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		created_at TIMESTAMP NOT NULL DEFAULT NOW()
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_invites_code ON invites(code);
+	CREATE INDEX IF NOT EXISTS idx_invites_server_id ON invites(server_id);
+	`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

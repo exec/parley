@@ -94,3 +94,12 @@ type PublicUser struct {
 	AvatarURL string    `json:"avatar_url" db:"avatar_url"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
+
+// Invite represents an invite code for a server
+type Invite struct {
+	ID        int64     `json:"id" db:"id"`
+	ServerID  int64     `json:"server_id" db:"server_id"`
+	Code      string    `json:"code" db:"code"`
+	CreatedBy int64     `json:"created_by" db:"created_by"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+}

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, KeyboardEvent, ChangeEvent } from 'react';
+import React, { useState, useRef, useCallback, KeyboardEvent, ChangeEvent, useEffect } from 'react';
 import './Chat.css';
 
 interface MessageInputProps {
@@ -6,15 +6,32 @@ interface MessageInputProps {
   onSendMessage: (content: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  initialValue?: string;
 }
 
 export const MessageInput: React.FC<MessageInputProps> = ({
   channelName,
   onSendMessage,
   disabled = false,
+  initialValue = '',
 }) => {
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState(initialValue);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Update message when initialValue changes
+  useEffect(() => {
+    if (initialValue) {
+      setMessage(initialValue);
+      // Focus and set cursor position at end
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+          textareaRef.current.selectionStart = textareaRef.current.value.length;
+          textareaRef.current.selectionEnd = textareaRef.current.value.length;
+        }
+      }, 0);
+    }
+  }, [initialValue]);
 
   const handleSend = useCallback(() => {
     const trimmedMessage = message.trim();

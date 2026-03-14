@@ -35,6 +35,7 @@ interface MainLayoutProps {
   activeServerId: string | null;
   onServerSelect: (serverId: string) => void;
   onCreateServer: () => void;
+  onServerSettings?: () => void;
   channels: Channel[];
   activeChannelId: string | null;
   onChannelSelect: (channelId: string) => void;
@@ -57,6 +58,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
   activeServerId,
   onServerSelect,
   onCreateServer,
+  onServerSettings,
   channels,
   activeChannelId,
   onChannelSelect,
@@ -97,6 +99,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
             currentUser={currentUser}
             onLogout={onLogout}
             onVoiceChannelClick={onVoiceChannelClick}
+            onServerSettings={onServerSettings}
           />
 
           <div className="main-content">

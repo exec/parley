@@ -109,12 +109,16 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background-color: var(--accent);
+  background-color: #23a55a;
   border: 3px solid var(--bg-secondary);
 }
 
-.member-status.offline {
-  background-color: #666666;
+.member-status.status-online {
+  background-color: #23a55a;
+}
+
+.member-status.status-offline {
+  background-color: #80848e;
 }
 
 .member-status.idle {

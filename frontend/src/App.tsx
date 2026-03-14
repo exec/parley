@@ -11,6 +11,7 @@ import { CreateChannelModal } from './components/modals/CreateChannelModal';
 import { ManageRolesModal } from './components/modals/ManageRolesModal';
 import { DmChat } from './components/chat/DmChat';
 import { UserProfileModal } from './components/modals/UserProfileModal';
+import { ServerSettingsModal } from './components/modals/ServerSettingsModal';
 import { Homepage } from './pages/Homepage';
 
 function MainApp() {
@@ -49,6 +50,7 @@ function MainApp() {
   const [showVoiceModal, setShowVoiceModal] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
+  const [showServerSettings, setShowServerSettings] = useState(false);
 
   const [showHomepage, setShowHomepage] = useState(false);
 
@@ -151,6 +153,7 @@ function MainApp() {
         activeServerId={activeServer?.id ?? null}
         onServerSelect={selectServer}
         onCreateServer={() => setShowCreateServer(true)}
+        onServerSettings={() => setShowServerSettings(true)}
         channels={channels}
         activeChannelId={activeChannel?.id ?? null}
         onChannelSelect={selectChannel}
@@ -224,6 +227,20 @@ function MainApp() {
         onClose={() => setShowProfile(false)}
         userId={profileUserId}
         onStartDm={openDmChannel}
+      />
+      <ServerSettingsModal
+        isOpen={showServerSettings}
+        onClose={() => setShowServerSettings(false)}
+        server={activeServer}
+        onUpdate={() => {
+          // Force refresh by reloading the page
+          window.location.reload();
+        }}
+        onDelete={() => {
+          // Navigate to homepage after deleting
+          setShowHomepage(true);
+        }}
+        onCreateInvite={(code) => console.log('Created invite:', code)}
       />
     </>
   );

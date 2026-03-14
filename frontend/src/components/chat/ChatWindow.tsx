@@ -15,6 +15,8 @@ interface ChatWindowProps {
   onReply?: (message: MessageType) => void;
   hasMore?: boolean;
   isLoading?: boolean;
+  replyTo?: MessageType | null;
+  onClearReply?: () => void;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -28,12 +30,19 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onReply,
   hasMore = false,
   isLoading = false,
+  replyTo,
+  onClearReply,
 }) => {
+  const replyValue = replyTo ? `@${replyTo.author_username} ` : '';
+
   const handleSendMessage = useCallback(
     (content: string) => {
       onSendMessage(content);
+      if (onClearReply) {
+        onClearReply();
+      }
     },
-    [onSendMessage]
+    [onSendMessage, onClearReply]
   );
 
   return (
@@ -51,6 +60,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       <MessageInput
         channelName={channel.name}
         onSendMessage={handleSendMessage}
+        initialValue={replyValue}
       />
     </div>
   );

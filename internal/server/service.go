@@ -2,7 +2,9 @@ package server
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"strconv"
 	"time"
@@ -28,6 +30,15 @@ type ServerMember struct {
 	Username string    `json:"username"`
 	Nickname string    `json:"nickname,omitempty"`
 	JoinedAt time.Time `json:"joined_at"`
+}
+
+// Invite represents an invite code
+type Invite struct {
+	ID        string    `json:"id"`
+	ServerID  string    `json:"server_id"`
+	Code      string    `json:"code"`
+	CreatedBy string    `json:"created_by"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // ServerService handles server and member operations
@@ -308,6 +319,156 @@ func (s *ServerService) GetMembers(ctx context.Context, serverID string) ([]*Ser
 	return result, nil
 }
 
+// CreateInvite creates a new invite for a server
+func (s *ServerService) CreateInvite(ctx context.Context, serverID, createdBy string) (*Invite, error) {
+	if serverID == "" {
+		return nil, errors.New("server ID is required")
+	}
+	if createdBy == "" {
+		return nil, errors.New("created by is required")
+	}
+
+	serverIDInt, err := idToInt64(serverID)
+	if err != nil {
+		return nil, errors.New("invalid server ID format")
+	}
+
+	createdByInt, err := idToInt64(createdBy)
+	if err != nil {
+		return nil, errors.New("invalid created by format")
+	}
+
+	// Generate random 8-character code
+	code, err := generateInviteCode()
+	if err != nil {
+		return nil, err
+	}
+
+	invite := &db.Invite{
+		ServerID:  serverIDInt,
+		Code:      code,
+		CreatedBy: createdByInt,
+	}
+
+	err = s.repo.CreateInvite(ctx, invite)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Invite{
+		ID:        int64ToID(invite.ID),
+		ServerID:  int64ToID(invite.ServerID),
+		Code:      invite.Code,
+		CreatedBy: int64ToID(invite.CreatedBy),
+		CreatedAt: invite.CreatedAt,
+	}, nil
+}
+
+// GetInviteByCode retrieves an invite by its code
+func (s *ServerService) GetInviteByCode(ctx context.Context, code string) (*Invite, error) {
+	if code == "" {
+		return nil, errors.New("invite code is required")
+	}
+
+	invite, err := s.repo.GetInviteByCode(ctx, code)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return nil, errors.New("invite not found")
+		}
+		return nil, err
+	}
+
+	return &Invite{
+		ID:        int64ToID(invite.ID),
+		ServerID:  int64ToID(invite.ServerID),
+		Code:      invite.Code,
+		CreatedBy: int64ToID(invite.CreatedBy),
+		CreatedAt: invite.CreatedAt,
+	}, nil
+}
+
+// GetServerByInviteCode retrieves a server by invite code
+func (s *ServerService) GetServerByInviteCode(ctx context.Context, code string) (*Server, error) {
+	if code == "" {
+		return nil, errors.New("invite code is required")
+	}
+
+	server, err := s.repo.GetServerByInviteCode(ctx, code)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return nil, errors.New("invite not found")
+		}
+		return nil, err
+	}
+
+	return &Server{
+		ID:        int64ToID(server.ID),
+		Name:      server.Name,
+		IconURL:   nullStringToString(server.IconURL),
+		OwnerID:   int64ToID(server.OwnerID),
+		CreatedAt: server.CreatedAt,
+		UpdatedAt: server.UpdatedAt,
+	}, nil
+}
+
+// JoinServerByInvite adds the current user to a server via invite code
+func (s *ServerService) JoinServerByInvite(ctx context.Context, code, userID string) (*Server, error) {
+	if code == "" {
+		return nil, errors.New("invite code is required")
+	}
+	if userID == "" {
+		return nil, errors.New("user ID is required")
+	}
+
+	// Get the server by invite code
+	server, err := s.repo.GetServerByInviteCode(ctx, code)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return nil, errors.New("invite not found")
+		}
+		return nil, err
+	}
+
+	userIDInt, err := idToInt64(userID)
+	if err != nil {
+		return nil, errors.New("invalid user ID format")
+	}
+
+	// Add user as member
+	member := &db.ServerMember{
+		ServerID: server.ID,
+		UserID:   userIDInt,
+		Nickname: "",
+	}
+
+	err = s.repo.AddMember(ctx, member)
+	if err != nil {
+		// Check if already a member
+		_, getErr := s.repo.GetMember(ctx, server.ID, userIDInt)
+		if getErr == nil {
+			// Already a member, just return the server
+			return &Server{
+				ID:        int64ToID(server.ID),
+				Name:      server.Name,
+				IconURL:   nullStringToString(server.IconURL),
+				OwnerID:   int64ToID(server.OwnerID),
+				CreatedAt: server.CreatedAt,
+				UpdatedAt: server.UpdatedAt,
+			}, nil
+		}
+		return nil, err
+	}
+
+	return &Server{
+		ID:        int64ToID(server.ID),
+		Name:      server.Name,
+		IconURL:   nullStringToString(server.IconURL),
+		OwnerID:   int64ToID(server.OwnerID),
+		CreatedAt: server.CreatedAt,
+		UpdatedAt: server.UpdatedAt,
+	}, nil
+}
+
 // Helper functions
 
 func nullString(s string) sql.NullString {
@@ -330,4 +491,13 @@ func int64ToID(n int64) string {
 
 func idToInt64(id string) (int64, error) {
 	return strconv.ParseInt(id, 10, 64)
+}
+
+// generateInviteCode generates a random 8-character invite code
+func generateInviteCode() (string, error) {
+	bytes := make([]byte, 4)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(bytes), nil
 }

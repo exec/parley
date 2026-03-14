@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Message as MessageType } from '../../api/types';
 import { Avatar } from '../ui/Avatar';
 import './Chat.css';
@@ -19,6 +19,7 @@ export const Message: React.FC<MessageProps> = ({
   onReply,
 }) => {
   const [showActions, setShowActions] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
   const isOwnMessage = currentUserId && message.author_id === currentUserId;
 
@@ -48,11 +49,49 @@ export const Message: React.FC<MessageProps> = ({
     }
   };
 
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  };
+
+  const closeContextMenu = () => {
+    setContextMenu(null);
+  };
+
+  // Close context menu on click outside
+  useEffect(() => {
+    const handleClick = () => closeContextMenu();
+    if (contextMenu) {
+      document.addEventListener('click', handleClick);
+      return () => document.removeEventListener('click', handleClick);
+    }
+  }, [contextMenu]);
+
+  const handleContextMenuReply = () => {
+    if (onReply) {
+      onReply(message);
+    }
+    closeContextMenu();
+  };
+
+  const handleContextMenuCopy = () => {
+    navigator.clipboard.writeText(message.content);
+    closeContextMenu();
+  };
+
+  const handleContextMenuDelete = () => {
+    if (onDelete) {
+      onDelete(message.id);
+    }
+    closeContextMenu();
+  };
+
   return (
     <div
       className="message"
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
+      onContextMenu={handleContextMenu}
     >
       <div className="message-avatar">
         <Avatar
@@ -95,6 +134,52 @@ export const Message: React.FC<MessageProps> = ({
                 onClick={handleDelete}
                 title="Delete"
               >
+                Delete
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {contextMenu && (
+        <div
+          className="message-context-menu"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button className="context-menu-item" onClick={handleContextMenuReply}>
+            Reply
+          </button>
+          <button className="context-menu-item" onClick={handleContextMenuCopy}>
+            Copy Message
+          </button>
+          {isOwnMessage && (
+            <>
+              <div className="context-menu-divider" />
+              <button className="context-menu-item danger" onClick={handleContextMenuDelete}>
+                Delete
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {contextMenu && (
+        <div
+          className="message-context-menu"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button className="context-menu-item" onClick={handleContextMenuReply}>
+            Reply
+          </button>
+          <button className="context-menu-item" onClick={handleContextMenuCopy}>
+            Copy Message
+          </button>
+          {isOwnMessage && (
+            <>
+              <div className="context-menu-divider" />
+              <button className="context-menu-item danger" onClick={handleContextMenuDelete}>
                 Delete
               </button>
             </>

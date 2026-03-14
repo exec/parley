@@ -290,3 +290,83 @@
   background: #32CD32;
   border-radius: 4px;
 }
+
+/* Message Context Menu */
+.message-context-menu {
+  position: fixed;
+  background-color: #000000;
+  border: 1px solid #32CD32;
+  border-radius: 4px;
+  padding: 4px 0;
+  min-width: 150px;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.context-menu-item {
+  display: block;
+  width: 100%;
+  padding: 8px 16px;
+  background: transparent;
+  border: none;
+  color: #32CD32;
+  text-align: left;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.15s ease;
+}
+
+.context-menu-item:hover {
+  background-color: rgba(50, 205, 50, 0.2);
+}
+
+.context-menu-item.danger {
+  color: #ff4444;
+}
+
+.context-menu-item.danger:hover {
+  background-color: rgba(255, 0, 0, 0.2);
+}
+
+.context-menu-divider {
+  height: 1px;
+  background-color: rgba(50, 205, 50, 0.3);
+  margin: 4px 0;
+}
+
+/* Message Context Menu */
+.message-context-menu {
+  position: fixed;
+  background-color: #000000;
+  border: 1px solid #32CD32;
+  border-radius: 8px;
+  padding: 4px 0;
+  min-width: 160px;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.context-menu-item {
+  display: block;
+  width: 100%;
+  padding: 8px 16px;
+  background: transparent;
+  border: none;
+  color: #32CD32;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.context-menu-item:hover {
+  background-color: rgba(50, 205, 50, 0.2);
+}
+
+.context-menu-item.danger {
+  color: #ff4444;
+}
+
+.context-menu-item.danger:hover {
+  background-color: rgba(255, 68, 68, 0.2);
+}

@@ -980,3 +980,105 @@ func (r *Repository) SearchUsers(ctx context.Context, query string, excludeUserI
 	}
 	return users, nil
 }
+
+// ============ Invite Operations ============
+
+// CreateInvite creates a new invite for a server
+func (r *Repository) CreateInvite(ctx context.Context, invite *Invite) error {
+	query := `
+		INSERT INTO invites (server_id, code, created_by, created_at)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id
+	`
+
+	invite.CreatedAt = time.Now()
+
+	err := r.db.QueryRowContext(ctx, query,
+		invite.ServerID,
+		invite.Code,
+		invite.CreatedBy,
+		invite.CreatedAt,
+	).Scan(&invite.ID)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// GetInviteByCode retrieves an invite by its code
+func (r *Repository) GetInviteByCode(ctx context.Context, code string) (*Invite, error) {
+	query := `
+		SELECT id, server_id, code, created_by, created_at
+		FROM invites
+		WHERE code = $1
+	`
+
+	var invite Invite
+	err := r.db.QueryRowContext(ctx, query, code).Scan(
+		&invite.ID,
+		&invite.ServerID,
+		&invite.Code,
+		&invite.CreatedBy,
+		&invite.CreatedAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return &invite, nil
+}
+
+// GetServerByInviteCode retrieves a server by invite code
+func (r *Repository) GetServerByInviteCode(ctx context.Context, code string) (*Server, error) {
+	query := `
+		SELECT s.id, s.name, s.icon_url, s.owner_id, s.created_at, s.updated_at
+		FROM servers s
+		INNER JOIN invites i ON s.id = i.server_id
+		WHERE i.code = $1
+	`
+
+	var server Server
+	err := r.db.QueryRowContext(ctx, query, code).Scan(
+		&server.ID,
+		&server.Name,
+		&server.IconURL,
+		&server.OwnerID,
+		&server.CreatedAt,
+		&server.UpdatedAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return &server, nil
+}
+
+// DeleteInvite deletes an invite by its code
+func (r *Repository) DeleteInvite(ctx context.Context, code string) error {
+	query := `DELETE FROM invites WHERE code = $1`
+
+	result, err := r.db.ExecContext(ctx, query, code)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
