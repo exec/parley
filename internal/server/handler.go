@@ -431,6 +431,7 @@ func (h *Handler) CreateInvite(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetInvite handles GET /api/invites/:code
+// Works for both regular invite codes and server vanity URLs.
 func (h *Handler) GetInvite(w http.ResponseWriter, r *http.Request) {
 	code := chi.URLParam(r, "code")
 	if code == "" {
@@ -439,42 +440,68 @@ func (h *Handler) GetInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get user ID from context (optional - may be unauthenticated)
 	userID, ok := r.Context().Value(UserIDKey).(string)
+	if !ok || userID == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+		return
+	}
 
-	// If user is authenticated, join the server
-	if ok && userID != "" {
-		server, err := h.service.JoinServerByInvite(r.Context(), code, userID)
+	// First try as a regular invite code, then fall back to vanity URL
+	server, err := h.service.JoinServerByInvite(r.Context(), code, userID)
+	if err != nil {
+		// Try as vanity URL
+		server, err = h.service.JoinServerByVanityURL(r.Context(), code, userID)
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			render.JSON(w, r, ErrorResponse{Error: err.Error()})
+			w.WriteHeader(http.StatusNotFound)
+			render.JSON(w, r, ErrorResponse{Error: "invite not found or invalid"})
 			return
 		}
-		render.JSON(w, r, map[string]interface{}{
-			"server":  server,
-			"message": "Successfully joined server",
-		})
-		return
-	}
-
-	// Otherwise just return the invite info
-	invite, err := h.service.GetInviteByCode(r.Context(), code)
-	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		render.JSON(w, r, ErrorResponse{Error: "invite not found"})
-		return
-	}
-
-	// Get server info
-	server, err := h.service.GetServerByInviteCode(r.Context(), code)
-	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		render.JSON(w, r, ErrorResponse{Error: "server not found"})
-		return
 	}
 
 	render.JSON(w, r, map[string]interface{}{
-		"invite": invite,
-		"server": server,
+		"server":  server,
+		"message": "Successfully joined server",
 	})
+}
+
+// SetVanityURL handles PUT /servers/:id/vanity
+func (h *Handler) SetVanityURL(w http.ResponseWriter, r *http.Request) {
+	serverID := chi.URLParam(r, "id")
+	if serverID == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		render.JSON(w, r, ErrorResponse{Error: "server ID is required"})
+		return
+	}
+
+	userID, ok := r.Context().Value(UserIDKey).(string)
+	if !ok || userID == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+		return
+	}
+
+	var req struct {
+		VanityURL string `json:"vanity_url"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		render.JSON(w, r, ErrorResponse{Error: "invalid request body"})
+		return
+	}
+
+	server, err := h.service.SetVanityURL(r.Context(), serverID, userID, req.VanityURL)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if err.Error() == "only the server owner can set the vanity URL" {
+			status = http.StatusForbidden
+		} else if err.Error() == "server not found" {
+			status = http.StatusNotFound
+		}
+		w.WriteHeader(status)
+		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	render.JSON(w, r, server)
 }

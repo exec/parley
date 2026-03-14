@@ -160,10 +160,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const srv = await serversApi.createServer(name);
     setServers(prev => [...prev, srv]);
     setActiveServer(srv);
-    setChannels([]);
-    setMembers([]);
     setActiveChannel(null);
     setMessages([]);
+    const [chs, mems] = await Promise.all([
+      channelsApi.getChannels(srv.id),
+      serversApi.getMembers(srv.id),
+    ]);
+    setChannels(chs ?? []);
+    setMembers(mems ?? []);
   }, []);
 
   const updateServer = useCallback((updated: Server) => {

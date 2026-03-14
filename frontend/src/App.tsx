@@ -1,5 +1,5 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { useState } from 'react';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { InvitePage } from './pages/InvitePage';
@@ -53,6 +53,10 @@ function MainApp() {
     openDmChannel,
   } = useApp();
 
+  const navigate = useNavigate();
+  const location = useLocation();
+  const didRestoreFromUrl = useRef(false);
+
   const [showCreateServer, setShowCreateServer] = useState(false);
   const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [showManageRoles, setShowManageRoles] = useState(false);
@@ -63,6 +67,42 @@ function MainApp() {
 
   // Determine current view
   const view: View = activeDmChannel ? 'dm' : activeServer ? 'server' : 'homepage';
+
+  // Restore state from URL once servers are loaded
+  useEffect(() => {
+    if (isLoadingServers || didRestoreFromUrl.current || servers.length === 0) return;
+    didRestoreFromUrl.current = true;
+
+    const path = location.pathname;
+    // /channels/@me/:dmId
+    const dmMatch = path.match(/^\/channels\/@me\/([^/]+)$/);
+    if (dmMatch) {
+      selectDmChannel(dmMatch[1]);
+      return;
+    }
+    // /channels/:serverId/:channelId or /channels/:serverId
+    const serverMatch = path.match(/^\/channels\/([^/]+)(?:\/([^/]+))?$/);
+    if (serverMatch) {
+      const [, serverId, channelId] = serverMatch;
+      selectServer(serverId).then(() => {
+        if (channelId) selectChannel(channelId);
+      });
+    }
+  }, [isLoadingServers, servers.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Update URL when active state changes
+  useEffect(() => {
+    if (!didRestoreFromUrl.current) return;
+    if (activeDmChannel) {
+      navigate(`/channels/@me/${activeDmChannel.id}`, { replace: true });
+    } else if (activeServer && activeChannel) {
+      navigate(`/channels/${activeServer.id}/${activeChannel.id}`, { replace: true });
+    } else if (activeServer) {
+      navigate(`/channels/${activeServer.id}`, { replace: true });
+    } else {
+      navigate('/', { replace: true });
+    }
+  }, [activeDmChannel?.id, activeServer?.id, activeChannel?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useWebSocket({
     onMessage: receiveMessage,
@@ -76,7 +116,6 @@ function MainApp() {
   };
 
   const handleGoHome = () => {
-    // Deselect server and DM to return to homepage
     selectServer('__none__');
   };
 
@@ -110,6 +149,7 @@ function MainApp() {
     <UserSidebar
       members={members}
       ownerId={activeServer?.owner_id}
+      currentUserId={currentUser?.id}
       onViewProfile={handleViewProfile}
       onSendMessage={openDmChannel}
     />
@@ -198,6 +238,7 @@ function MainApp() {
         isOpen={showProfile}
         onClose={() => setShowProfile(false)}
         userId={profileUserId}
+        currentUserId={currentUser?.id}
         onStartDm={openDmChannel}
       />
       <ServerSettingsModal
@@ -240,6 +281,14 @@ const AuthRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return <>{children}</>;
 };
 
+const ProtectedApp = (
+  <ProtectedRoute>
+    <AppProvider>
+      <MainApp />
+    </AppProvider>
+  </ProtectedRoute>
+);
+
 function App() {
   return (
     <Routes>
@@ -255,16 +304,9 @@ function App() {
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <AppProvider>
-              <MainApp />
-            </AppProvider>
-          </ProtectedRoute>
-        }
-      />
+      {/* Channel routes — all handled by MainApp which syncs URL with state */}
+      <Route path="/" element={ProtectedApp} />
+      <Route path="/channels/*" element={ProtectedApp} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

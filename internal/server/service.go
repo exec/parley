@@ -18,6 +18,7 @@ type Server struct {
 	Name      string    `json:"name"`
 	IconURL   string    `json:"icon_url,omitempty"`
 	OwnerID   string    `json:"owner_id"`
+	VanityURL string    `json:"vanity_url,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -89,14 +90,7 @@ func (s *ServerService) CreateServer(ctx context.Context, name, iconURL string, 
 		return nil, err
 	}
 
-	return &Server{
-		ID:        int64ToID(server.ID),
-		Name:      server.Name,
-		IconURL:   nullStringToString(server.IconURL),
-		OwnerID:   int64ToID(server.OwnerID),
-		CreatedAt: server.CreatedAt,
-		UpdatedAt: server.UpdatedAt,
-	}, nil
+	return dbServerToService(server), nil
 }
 
 // GetServer retrieves a server by ID
@@ -118,14 +112,7 @@ func (s *ServerService) GetServer(ctx context.Context, id string) (*Server, erro
 		return nil, err
 	}
 
-	return &Server{
-		ID:        int64ToID(server.ID),
-		Name:      server.Name,
-		IconURL:   nullStringToString(server.IconURL),
-		OwnerID:   int64ToID(server.OwnerID),
-		CreatedAt: server.CreatedAt,
-		UpdatedAt: server.UpdatedAt,
-	}, nil
+	return dbServerToService(server), nil
 }
 
 // GetUserServers retrieves all servers a user is a member of
@@ -146,14 +133,7 @@ func (s *ServerService) GetUserServers(ctx context.Context, userID string) ([]*S
 
 	result := make([]*Server, len(servers))
 	for i, server := range servers {
-		result[i] = &Server{
-			ID:        int64ToID(server.ID),
-			Name:      server.Name,
-			IconURL:   nullStringToString(server.IconURL),
-			OwnerID:   int64ToID(server.OwnerID),
-			CreatedAt: server.CreatedAt,
-			UpdatedAt: server.UpdatedAt,
-		}
+		result[i] = dbServerToService(server)
 	}
 
 	return result, nil
@@ -193,14 +173,7 @@ func (s *ServerService) UpdateServer(ctx context.Context, id, name, iconURL stri
 		return nil, err
 	}
 
-	return &Server{
-		ID:        int64ToID(server.ID),
-		Name:      server.Name,
-		IconURL:   nullStringToString(server.IconURL),
-		OwnerID:   int64ToID(server.OwnerID),
-		CreatedAt: server.CreatedAt,
-		UpdatedAt: server.UpdatedAt,
-	}, nil
+	return dbServerToService(server), nil
 }
 
 // DeleteServer deletes a server by ID
@@ -338,10 +311,24 @@ func (s *ServerService) CreateInvite(ctx context.Context, serverID, createdBy st
 		return nil, errors.New("invalid created by format")
 	}
 
-	// Generate random 8-character code
-	code, err := generateInviteCode()
-	if err != nil {
-		return nil, err
+	// Generate random 8-character code, retrying if it collides with invite codes or vanity URLs
+	var code string
+	for attempts := 0; attempts < 10; attempts++ {
+		candidate, genErr := generateInviteCode()
+		if genErr != nil {
+			return nil, genErr
+		}
+		exists, checkErr := s.repo.InviteCodeExists(ctx, candidate)
+		if checkErr != nil {
+			return nil, checkErr
+		}
+		if !exists {
+			code = candidate
+			break
+		}
+	}
+	if code == "" {
+		return nil, errors.New("failed to generate unique invite code")
 	}
 
 	invite := &db.Invite{
@@ -401,14 +388,7 @@ func (s *ServerService) GetServerByInviteCode(ctx context.Context, code string) 
 		return nil, err
 	}
 
-	return &Server{
-		ID:        int64ToID(server.ID),
-		Name:      server.Name,
-		IconURL:   nullStringToString(server.IconURL),
-		OwnerID:   int64ToID(server.OwnerID),
-		CreatedAt: server.CreatedAt,
-		UpdatedAt: server.UpdatedAt,
-	}, nil
+	return dbServerToService(server), nil
 }
 
 // JoinServerByInvite adds the current user to a server via invite code
@@ -447,29 +427,118 @@ func (s *ServerService) JoinServerByInvite(ctx context.Context, code, userID str
 		_, getErr := s.repo.GetMember(ctx, server.ID, userIDInt)
 		if getErr == nil {
 			// Already a member, just return the server
-			return &Server{
-				ID:        int64ToID(server.ID),
-				Name:      server.Name,
-				IconURL:   nullStringToString(server.IconURL),
-				OwnerID:   int64ToID(server.OwnerID),
-				CreatedAt: server.CreatedAt,
-				UpdatedAt: server.UpdatedAt,
-			}, nil
+			return dbServerToService(server), nil
 		}
 		return nil, err
 	}
 
-	return &Server{
-		ID:        int64ToID(server.ID),
-		Name:      server.Name,
-		IconURL:   nullStringToString(server.IconURL),
-		OwnerID:   int64ToID(server.OwnerID),
-		CreatedAt: server.CreatedAt,
-		UpdatedAt: server.UpdatedAt,
-	}, nil
+	return dbServerToService(server), nil
+}
+
+// JoinServerByVanityURL adds a user to a server via its vanity URL
+func (s *ServerService) JoinServerByVanityURL(ctx context.Context, vanityURL, userID string) (*Server, error) {
+	if vanityURL == "" {
+		return nil, errors.New("vanity URL is required")
+	}
+	if userID == "" {
+		return nil, errors.New("user ID is required")
+	}
+
+	server, err := s.repo.GetServerByVanityURL(ctx, vanityURL)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return nil, errors.New("server not found")
+		}
+		return nil, err
+	}
+
+	userIDInt, err := idToInt64(userID)
+	if err != nil {
+		return nil, errors.New("invalid user ID format")
+	}
+
+	member := &db.ServerMember{
+		ServerID: server.ID,
+		UserID:   userIDInt,
+		Nickname: "",
+	}
+	if err = s.repo.AddMember(ctx, member); err != nil {
+		_, getErr := s.repo.GetMember(ctx, server.ID, userIDInt)
+		if getErr == nil {
+			return dbServerToService(server), nil
+		}
+		return nil, err
+	}
+
+	return dbServerToService(server), nil
+}
+
+// SetVanityURL sets or clears the vanity URL for a server
+func (s *ServerService) SetVanityURL(ctx context.Context, serverID, userID, vanityURL string) (*Server, error) {
+	if serverID == "" {
+		return nil, errors.New("server ID is required")
+	}
+	serverIDInt, err := idToInt64(serverID)
+	if err != nil {
+		return nil, errors.New("invalid server ID format")
+	}
+
+	// Verify ownership
+	srv, err := s.repo.GetServerByID(ctx, serverIDInt)
+	if err != nil {
+		return nil, errors.New("server not found")
+	}
+	userIDInt, _ := idToInt64(userID)
+	if srv.OwnerID != userIDInt {
+		return nil, errors.New("only the server owner can set the vanity URL")
+	}
+
+	slug := sql.NullString{}
+	if vanityURL != "" {
+		// Ensure the vanity URL doesn't collide with existing invite codes or another server's vanity URL
+		exists, checkErr := s.repo.InviteCodeExists(ctx, vanityURL, serverIDInt)
+		if checkErr != nil {
+			return nil, checkErr
+		}
+		if exists {
+			return nil, errors.New("that URL is already in use — choose a different one")
+		}
+		slug = sql.NullString{String: vanityURL, Valid: true}
+	}
+
+	if err := s.repo.SetVanityURL(ctx, serverIDInt, slug); err != nil {
+		return nil, err
+	}
+
+	srv.VanityURL = slug
+	return dbServerToService(srv), nil
+}
+
+// GetServerByVanityURL retrieves a server by vanity URL
+func (s *ServerService) GetServerByVanityURL(ctx context.Context, vanityURL string) (*Server, error) {
+	srv, err := s.repo.GetServerByVanityURL(ctx, vanityURL)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return nil, errors.New("server not found")
+		}
+		return nil, err
+	}
+	return dbServerToService(srv), nil
 }
 
 // Helper functions
+
+func dbServerToService(s *db.Server) *Server {
+	return &Server{
+		ID:        int64ToID(s.ID),
+		Name:      s.Name,
+		IconURL:   nullStringToString(s.IconURL),
+		OwnerID:   int64ToID(s.OwnerID),
+		VanityURL: nullStringToString(s.VanityURL),
+		CreatedAt: s.CreatedAt,
+		UpdatedAt: s.UpdatedAt,
+	}
+}
 
 func nullString(s string) sql.NullString {
 	if s == "" {

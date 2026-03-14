@@ -80,3 +80,7 @@ export async function joinServerByInvite(code: string): Promise<Server> {
   const response = await apiClient.get<{ server: Server; message?: string }>(`/invites/${code}`);
   return response.server;
 }
+
+export async function setVanityURL(serverId: string, vanityUrl: string): Promise<Server> {
+  return apiClient.put<Server>(`/servers/${serverId}/vanity`, { vanity_url: vanityUrl });
+}

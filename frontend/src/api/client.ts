@@ -86,4 +86,11 @@ class ApiClient {
 }
 
 export const apiClient = new ApiClient();
+
+// Initialize token synchronously from localStorage so it's available before any useEffect runs
+const _storedToken = localStorage.getItem('token');
+if (_storedToken) {
+  apiClient.setToken(_storedToken);
+}
+
 export default ApiClient;

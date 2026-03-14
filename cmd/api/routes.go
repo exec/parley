@@ -84,6 +84,7 @@ func registerRoutes(
 			// Invite routes
 			r.Post("/servers/{id}/invites", serverHandler.CreateInvite)
 			r.Get("/invites/{code}", serverHandler.GetInvite)
+			r.Put("/servers/{id}/vanity", serverHandler.SetVanityURL)
 
 			// User routes
 			r.Get("/users/search", handleUserSearch(repo))
@@ -216,6 +217,23 @@ func handleWebSocket(hub *ws.Hub) http.HandlerFunc {
 	}
 }
 
+// publicUserResponse is a version of PublicUser with string IDs for frontend compatibility
+type publicUserResponse struct {
+	ID        string `json:"id"`
+	Username  string `json:"username"`
+	AvatarURL string `json:"avatar_url"`
+	CreatedAt string `json:"created_at"`
+}
+
+func toPublicUserResponse(u db.PublicUser) publicUserResponse {
+	return publicUserResponse{
+		ID:        strconv.FormatInt(u.ID, 10),
+		Username:  u.Username,
+		AvatarURL: u.AvatarURL,
+		CreatedAt: u.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+	}
+}
+
 // User search handler - GET /api/users/search?q=<query>
 func handleUserSearch(repo *db.Repository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -243,12 +261,13 @@ func handleUserSearch(repo *db.Repository) http.HandlerFunc {
 			return
 		}
 
-		if users == nil {
-			users = []db.PublicUser{}
+		result := make([]publicUserResponse, len(users))
+		for i, u := range users {
+			result[i] = toPublicUserResponse(u)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(users)
+		json.NewEncoder(w).Encode(result)
 	}
 }
 
@@ -278,6 +297,6 @@ func handleGetUser(repo *db.Repository) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(user)
+		json.NewEncoder(w).Encode(toPublicUserResponse(*user))
 	}
 }

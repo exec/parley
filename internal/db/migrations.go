@@ -105,6 +105,11 @@ var Migrations = []string{
 	CREATE INDEX IF NOT EXISTS idx_invites_code ON invites(code);
 	CREATE INDEX IF NOT EXISTS idx_invites_server_id ON invites(server_id);
 	`,
+
+	`-- Add vanity_url to servers table
+	ALTER TABLE servers ADD COLUMN IF NOT EXISTS vanity_url VARCHAR(64) UNIQUE;
+	CREATE INDEX IF NOT EXISTS idx_servers_vanity_url ON servers(vanity_url) WHERE vanity_url IS NOT NULL;
+	`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

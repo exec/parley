@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Server } from '../../api/types';
-import { updateServer, deleteServer, createInvite } from '../../api/servers';
+import { updateServer, deleteServer, createInvite, setVanityURL } from '../../api/servers';
 
 interface ServerSettingsModalProps {
   isOpen: boolean;
@@ -22,6 +22,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
   onCreateInvite,
 }) => {
   const [name, setName] = useState(server?.name || '');
+  const [vanityUrl, setVanityUrl] = useState(server?.vanity_url || '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -31,6 +32,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
   React.useEffect(() => {
     if (server) {
       setName(server.name);
+      setVanityUrl(server.vanity_url || '');
       setShowDeleteConfirm(false);
       setInviteCode(null);
       setShowInvite(false);
@@ -48,10 +50,17 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
     setError('');
     try {
       const updated = await updateServer(server.id, name.trim(), server.icon_url);
-      onUpdate(updated);
+      // Also save vanity URL if it changed
+      if (vanityUrl.trim() !== (server.vanity_url || '')) {
+        const withVanity = await setVanityURL(server.id, vanityUrl.trim());
+        onUpdate(withVanity);
+      } else {
+        onUpdate(updated);
+      }
       onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update server');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : (err as { message?: string })?.message ?? 'Failed to update server';
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -116,6 +125,22 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
             onChange={(e) => setName(e.target.value)}
             placeholder="Enter server name"
           />
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Vanity URL</label>
+          <div className="vanity-url-input-wrapper">
+            <span className="vanity-url-prefix">{window.location.origin}/invite/</span>
+            <input
+              className="form-input vanity-url-input"
+              type="text"
+              value={vanityUrl}
+              onChange={(e) => setVanityUrl(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+              placeholder="my-server"
+              maxLength={32}
+            />
+          </div>
+          <p className="vanity-url-hint">Letters, numbers, and hyphens only. Leave blank to disable.</p>
         </div>
 
         {error && <div className="modal-error">{error}</div>}

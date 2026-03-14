@@ -30,6 +30,7 @@ type Server struct {
 	Name      string         `json:"name" db:"name"`
 	IconURL   sql.NullString `json:"icon_url" db:"icon_url"`
 	OwnerID   int64          `json:"owner_id" db:"owner_id"`
+	VanityURL sql.NullString `json:"vanity_url" db:"vanity_url"`
 	CreatedAt time.Time      `json:"created_at" db:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at" db:"updated_at"`
 }

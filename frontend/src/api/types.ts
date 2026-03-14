@@ -9,6 +9,7 @@ export interface Server {
   name: string;
   icon_url?: string;
   owner_id: string;
+  vanity_url?: string;
   created_at: string;
   updated_at: string;
 }
