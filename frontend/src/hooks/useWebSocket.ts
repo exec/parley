@@ -42,7 +42,9 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, activ
     ws.onmessage = (event) => {
       try {
         const wsMsg: WSMessage = JSON.parse(event.data);
+        console.log('[WebSocket] Received:', wsMsg.type, wsMsg.payload);
         if (wsMsg.type === 'MESSAGE_CREATE') {
+          console.log('[WebSocket] Calling onMessage for MESSAGE_CREATE');
           onMessage(wsMsg.payload as Message);
         } else if (wsMsg.type === 'dm_message' && onDmMessage) {
           onDmMessage(wsMsg.payload as DmMessage);
@@ -55,8 +57,8 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, activ
             }
           }
         }
-      } catch {
-        // ignore parse errors
+      } catch (err) {
+        console.error('[WebSocket] Failed to parse message:', err);
       }
     };
 
