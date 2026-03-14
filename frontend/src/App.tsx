@@ -70,6 +70,7 @@ function MainApp() {
   const [showCreateServer, setShowCreateServer] = useState(false);
   const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [showManageRoles, setShowManageRoles] = useState(false);
+  const [manageRolesFocusUserId, setManageRolesFocusUserId] = useState<string | undefined>(undefined);
   const [showVoiceModal, setShowVoiceModal] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
@@ -335,6 +336,11 @@ function MainApp() {
       onViewProfile={handleViewProfile}
       onSendMessage={openDmChannel}
       onlineUserIds={onlineUsers}
+      currentUserIsOwner={currentUser?.id === activeServer?.owner_id}
+      onManageRoles={(userId) => {
+        setManageRolesFocusUserId(userId);
+        setShowManageRoles(true);
+      }}
     />
   ) : undefined;
 
@@ -420,8 +426,10 @@ function MainApp() {
       />
       <ManageRolesModal
         isOpen={showManageRoles}
-        onClose={() => setShowManageRoles(false)}
+        onClose={() => { setShowManageRoles(false); setManageRolesFocusUserId(undefined); }}
+        serverId={activeServer?.id ?? ''}
         members={members}
+        focusUserId={manageRolesFocusUserId}
       />
       <UserProfileModal
         isOpen={showProfile}

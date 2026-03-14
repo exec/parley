@@ -33,7 +33,7 @@ interface AppActions {
   leaveServer: (serverId: string) => Promise<void>;
   createChannel: (name: string, type: number) => Promise<void>;
   deleteChannel: (channelId: string) => Promise<void>;
-  sendMessage: (content: string, attachmentUrl?: string) => Promise<void>;
+  sendMessage: (content: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string) => Promise<void>;
   editMessage: (messageId: string, content: string) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
   receiveMessage: (msg: Message) => void;
@@ -45,7 +45,7 @@ interface AppActions {
   loadDmChannels: () => Promise<void>;
   openDmChannel: (userId: string) => Promise<void>;
   selectDmChannel: (channelId: string) => Promise<void>;
-  sendDmMessage: (content: string, attachmentUrl?: string) => Promise<void>;
+  sendDmMessage: (content: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string) => Promise<void>;
   receiveDmMessage: (msg: DmMessage) => void;
   addServer: (server: Server) => void;
   updateCurrentUser: (user: User) => void;
@@ -64,6 +64,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         id: u.id || u.ID || '',
         username: u.username || u.Username || '',
         email: u.email || u.Email || '',
+        avatar_url: u.avatar_url || '',
+        banner_url: u.banner_url || '',
       };
     } catch {
       return null;
@@ -242,7 +244,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [activeChannel]);
 
-  const sendMessage = useCallback(async (content: string, attachmentUrl?: string) => {
+  const sendMessage = useCallback(async (content: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string) => {
     if (!activeChannel || !currentUser) return;
     const nonce = crypto.randomUUID();
 
@@ -260,11 +262,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       reactions: [],
       pending: true,
       attachment_url: attachmentUrl,
+      attachment_name: attachmentName,
+      attachment_type: attachmentType,
     };
     setMessages(prev => [...prev, optimistic]);
 
     try {
-      await messagesApi.sendMessage(activeChannel.id, content, nonce, attachmentUrl);
+      await messagesApi.sendMessage(activeChannel.id, content, nonce, attachmentUrl, attachmentName, attachmentType);
       // Don't add from the HTTP response — the WS broadcast carries the confirmed
       // message back (with the same nonce) and receiveMessage will replace the
       // optimistic entry. If WS is down, fall back to confirming via HTTP below.
@@ -357,9 +361,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [dmChannels]);
 
-  const sendDmMessage = useCallback(async (content: string, attachmentUrl?: string) => {
+  const sendDmMessage = useCallback(async (content: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string) => {
     if (!activeDmChannel) return;
-    const msg = await dmsApi.sendDmMessage(activeDmChannel.id, content, attachmentUrl);
+    const msg = await dmsApi.sendDmMessage(activeDmChannel.id, content, attachmentUrl, attachmentName, attachmentType);
     setDmMessages(prev => [...prev, msg]);
   }, [activeDmChannel]);
 

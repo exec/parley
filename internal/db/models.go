@@ -38,12 +38,13 @@ type Server struct {
 
 // ServerMember represents a member of a server
 type ServerMember struct {
-	ID       int64     `json:"id" db:"id"`
-	ServerID int64     `json:"server_id" db:"server_id"`
-	UserID   int64     `json:"user_id" db:"user_id"`
-	Nickname string    `json:"nickname" db:"nickname"`
-	JoinedAt time.Time `json:"joined_at" db:"joined_at"`
-	Username string    `json:"username" db:"-"`
+	ID       int64        `json:"id" db:"id"`
+	ServerID int64        `json:"server_id" db:"server_id"`
+	UserID   int64        `json:"user_id" db:"user_id"`
+	Nickname string       `json:"nickname" db:"nickname"`
+	JoinedAt time.Time    `json:"joined_at" db:"joined_at"`
+	Username string       `json:"username" db:"-"`
+	Roles    []ServerRole `json:"roles" db:"-"`
 }
 
 // Channel represents a text or voice channel
@@ -119,4 +120,14 @@ type Invite struct {
 	Code      string    `json:"code" db:"code"`
 	CreatedBy int64     `json:"created_by" db:"created_by"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
+}
+
+// ServerRole represents a role within a server
+type ServerRole struct {
+	ID          int64     `json:"id" db:"id"`
+	ServerID    int64     `json:"server_id" db:"server_id"`
+	Name        string    `json:"name" db:"name"`
+	Color       string    `json:"color" db:"color"`
+	Permissions int64     `json:"permissions" db:"permissions"`
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
 }

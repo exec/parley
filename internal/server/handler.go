@@ -380,7 +380,7 @@ func (h *Handler) GetMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	members, err := h.service.GetMembers(r.Context(), serverID)
+	members, err := h.service.GetMembersWithRoles(r.Context(), serverID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		render.JSON(w, r, ErrorResponse{Error: err.Error()})
@@ -463,6 +463,195 @@ func (h *Handler) GetInvite(w http.ResponseWriter, r *http.Request) {
 		"server":  server,
 		"message": "Successfully joined server",
 	})
+}
+
+// GetServerRoles handles GET /servers/:id/roles
+func (h *Handler) GetServerRoles(w http.ResponseWriter, r *http.Request) {
+	serverID := chi.URLParam(r, "id")
+	roles, err := h.service.GetServerRoles(r.Context(), serverID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		return
+	}
+	if roles == nil {
+		roles = []Role{}
+	}
+	render.JSON(w, r, roles)
+}
+
+// CreateServerRole handles POST /servers/:id/roles
+func (h *Handler) CreateServerRole(w http.ResponseWriter, r *http.Request) {
+	serverID := chi.URLParam(r, "id")
+
+	userID, ok := r.Context().Value(UserIDKey).(string)
+	if !ok || userID == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+		return
+	}
+
+	server, err := h.service.GetServer(r.Context(), serverID)
+	if err != nil || server.OwnerID != userID {
+		w.WriteHeader(http.StatusForbidden)
+		render.JSON(w, r, ErrorResponse{Error: "only the server owner can manage roles"})
+		return
+	}
+
+	var req struct {
+		Name        string `json:"name"`
+		Color       string `json:"color"`
+		Permissions int64  `json:"permissions"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		render.JSON(w, r, ErrorResponse{Error: "invalid request body"})
+		return
+	}
+
+	role, err := h.service.CreateServerRole(r.Context(), serverID, req.Name, req.Color, req.Permissions)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	render.JSON(w, r, role)
+}
+
+// DeleteServerRole handles DELETE /servers/:id/roles/:roleId
+func (h *Handler) DeleteServerRole(w http.ResponseWriter, r *http.Request) {
+	serverID := chi.URLParam(r, "id")
+	roleID := chi.URLParam(r, "roleId")
+
+	userID, ok := r.Context().Value(UserIDKey).(string)
+	if !ok || userID == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+		return
+	}
+
+	server, err := h.service.GetServer(r.Context(), serverID)
+	if err != nil || server.OwnerID != userID {
+		w.WriteHeader(http.StatusForbidden)
+		render.JSON(w, r, ErrorResponse{Error: "only the server owner can manage roles"})
+		return
+	}
+
+	if err := h.service.DeleteServerRole(r.Context(), serverID, roleID); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// GetMemberRoles handles GET /servers/:id/members/:userId/roles
+func (h *Handler) GetMemberRoles(w http.ResponseWriter, r *http.Request) {
+	serverID := chi.URLParam(r, "id")
+	targetUserID := chi.URLParam(r, "userID")
+
+	roles, err := h.service.GetMemberRoles(r.Context(), serverID, targetUserID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		return
+	}
+	if roles == nil {
+		roles = []Role{}
+	}
+	render.JSON(w, r, roles)
+}
+
+// AssignRoleToMember handles POST /servers/:id/members/:userId/roles
+func (h *Handler) AssignRoleToMember(w http.ResponseWriter, r *http.Request) {
+	serverID := chi.URLParam(r, "id")
+	targetUserID := chi.URLParam(r, "userID")
+
+	userID, ok := r.Context().Value(UserIDKey).(string)
+	if !ok || userID == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+		return
+	}
+
+	server, err := h.service.GetServer(r.Context(), serverID)
+	if err != nil || server.OwnerID != userID {
+		w.WriteHeader(http.StatusForbidden)
+		render.JSON(w, r, ErrorResponse{Error: "only the server owner can manage roles"})
+		return
+	}
+
+	var req struct {
+		RoleID string `json:"role_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.RoleID == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		render.JSON(w, r, ErrorResponse{Error: "role_id is required"})
+		return
+	}
+
+	if err := h.service.AssignRoleToMember(r.Context(), serverID, targetUserID, req.RoleID); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+}
+
+// RemoveRoleFromMember handles DELETE /servers/:id/members/:userId/roles/:roleId
+func (h *Handler) RemoveRoleFromMember(w http.ResponseWriter, r *http.Request) {
+	serverID := chi.URLParam(r, "id")
+	targetUserID := chi.URLParam(r, "userID")
+	roleID := chi.URLParam(r, "roleId")
+
+	userID, ok := r.Context().Value(UserIDKey).(string)
+	if !ok || userID == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+		return
+	}
+
+	server, err := h.service.GetServer(r.Context(), serverID)
+	if err != nil || server.OwnerID != userID {
+		w.WriteHeader(http.StatusForbidden)
+		render.JSON(w, r, ErrorResponse{Error: "only the server owner can manage roles"})
+		return
+	}
+
+	if err := h.service.RemoveRoleFromMember(r.Context(), serverID, targetUserID, roleID); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// GetMembersWithRoles handles GET /servers/:id/members-with-roles
+func (h *Handler) GetMembersWithRoles(w http.ResponseWriter, r *http.Request) {
+	serverID := chi.URLParam(r, "id")
+
+	_, err := h.service.GetServer(r.Context(), serverID)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		render.JSON(w, r, ErrorResponse{Error: "server not found"})
+		return
+	}
+
+	members, err := h.service.GetMembersWithRoles(r.Context(), serverID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		return
+	}
+	if members == nil {
+		members = []*ServerMember{}
+	}
+	render.JSON(w, r, members)
 }
 
 // SetVanityURL handles PUT /servers/:id/vanity

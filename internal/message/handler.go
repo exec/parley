@@ -67,8 +67,8 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Content == "" {
-		http.Error(w, "content is required", http.StatusBadRequest)
+	if req.Content == "" && req.AttachmentURL == "" {
+		http.Error(w, "content or attachment is required", http.StatusBadRequest)
 		return
 	}
 

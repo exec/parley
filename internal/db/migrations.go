@@ -148,6 +148,30 @@ ALTER TABLE users
     ADD COLUMN IF NOT EXISTS avatar_url TEXT NOT NULL DEFAULT '',
     ADD COLUMN IF NOT EXISTS banner_url TEXT NOT NULL DEFAULT '';
 `,
+
+	`-- Create server roles tables
+CREATE TABLE IF NOT EXISTS server_roles (
+    id BIGSERIAL PRIMARY KEY,
+    server_id BIGINT NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    color VARCHAR(7) NOT NULL DEFAULT '#99aab5',
+    permissions BIGINT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE(server_id, name)
+);
+
+CREATE TABLE IF NOT EXISTS server_member_roles (
+    server_id BIGINT NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role_id BIGINT NOT NULL REFERENCES server_roles(id) ON DELETE CASCADE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (server_id, user_id, role_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_server_roles_server_id ON server_roles(server_id);
+CREATE INDEX IF NOT EXISTS idx_server_member_roles_server_user ON server_member_roles(server_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_server_member_roles_role ON server_member_roles(role_id);
+`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

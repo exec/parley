@@ -6,18 +6,22 @@ interface ServerMember {
   user_id: string;
   username: string;
   nickname?: string;
+  roles?: Array<{ id: string; name: string; color: string }>;
 }
 
 interface UserContextMenuProps {
   member: ServerMember;
   isCurrentUser: boolean;
+  isOwner: boolean;
+  canManageRoles: boolean;
   position: { top: number; left: number };
   onClose: () => void;
   onViewProfile?: (userId: string) => void;
   onSendMessage?: (userId: string) => void;
+  onManageRoles?: () => void;
 }
 
-const UserContextMenu: React.FC<UserContextMenuProps> = ({ member, isCurrentUser, position, onClose, onViewProfile, onSendMessage }) => {
+const UserContextMenu: React.FC<UserContextMenuProps> = ({ member, isCurrentUser, isOwner: _isOwner, canManageRoles, position, onClose, onViewProfile, onSendMessage, onManageRoles }) => {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -31,11 +35,7 @@ const UserContextMenu: React.FC<UserContextMenuProps> = ({ member, isCurrentUser
   }, [onClose]);
 
   return (
-    <div
-      ref={ref}
-      className="user-context-menu"
-      style={{ top: position.top, left: position.left }}
-    >
+    <div ref={ref} className="user-context-menu" style={{ top: position.top, left: position.left }}>
       <div className="user-context-menu-header">{member.username}</div>
       <div className="user-context-menu-divider" />
       <button className="user-context-menu-item" onClick={() => { onViewProfile?.(member.user_id); onClose(); }}>
@@ -44,6 +44,11 @@ const UserContextMenu: React.FC<UserContextMenuProps> = ({ member, isCurrentUser
       {!isCurrentUser && (
         <button className="user-context-menu-item" onClick={() => { onSendMessage?.(member.user_id); onClose(); }}>
           Send Message
+        </button>
+      )}
+      {canManageRoles && (
+        <button className="user-context-menu-item" onClick={() => { onManageRoles?.(); onClose(); }}>
+          Manage Roles
         </button>
       )}
     </div>
@@ -57,9 +62,12 @@ interface UserSidebarProps {
   onViewProfile?: (userId: string) => void;
   onSendMessage?: (userId: string) => void;
   onlineUserIds?: Set<string>;
+  serverId?: string;
+  currentUserIsOwner?: boolean;
+  onManageRoles?: (memberId: string) => void;
 }
 
-const UserSidebar: React.FC<UserSidebarProps> = ({ members, ownerId, currentUserId, onViewProfile, onSendMessage, onlineUserIds }) => {
+const UserSidebar: React.FC<UserSidebarProps> = ({ members, ownerId, currentUserId, onViewProfile, onSendMessage, onlineUserIds, currentUserIsOwner, onManageRoles }) => {
   const [contextMenu, setContextMenu] = useState<{ member: ServerMember; position: { top: number; left: number } } | null>(null);
 
   const handleMemberClick = (member: ServerMember, e: React.MouseEvent) => {
@@ -97,10 +105,12 @@ const UserSidebar: React.FC<UserSidebarProps> = ({ members, ownerId, currentUser
       onContextMenu={(e) => handleMemberContextMenu(member, e)}
       title="Click for options"
     >
-      <div className="member-avatar">
-        <span className="member-avatar-placeholder">
-          {member.username.charAt(0).toUpperCase()}
-        </span>
+      <div className="member-avatar-wrapper">
+        <div className="member-avatar">
+          <span className="member-avatar-placeholder">
+            {member.username.charAt(0).toUpperCase()}
+          </span>
+        </div>
         <span className={`member-status ${isOnline ? 'status-online' : 'status-offline'}`} />
       </div>
       <div className="member-info">
@@ -109,6 +119,15 @@ const UserSidebar: React.FC<UserSidebarProps> = ({ members, ownerId, currentUser
           {isOwner && <span className="role-badge owner">owner</span>}
         </div>
         {member.nickname && <div className="member-nickname-text">{member.nickname}</div>}
+        {member.roles && member.roles.length > 0 && (
+          <div className="member-roles">
+            {member.roles.map(role => (
+              <span key={role.id} className="role-tag" style={{ backgroundColor: role.color + '33', color: role.color }}>
+                {role.name}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     </div>
     );
@@ -141,10 +160,13 @@ const UserSidebar: React.FC<UserSidebarProps> = ({ members, ownerId, currentUser
         <UserContextMenu
           member={contextMenu.member}
           isCurrentUser={contextMenu.member.user_id === currentUserId}
+          isOwner={contextMenu.member.user_id === ownerId}
+          canManageRoles={currentUserIsOwner === true}
           position={contextMenu.position}
           onClose={closeContextMenu}
           onViewProfile={onViewProfile}
           onSendMessage={onSendMessage}
+          onManageRoles={() => onManageRoles?.(contextMenu.member.user_id)}
         />
       )}
     </div>

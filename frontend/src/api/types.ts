@@ -6,6 +6,15 @@ export interface User {
   banner_url?: string;
 }
 
+export interface Role {
+  id: string;
+  server_id: string;
+  name: string;
+  color: string;
+  permissions: number;
+  created_at: string;
+}
+
 export interface Server {
   id: string;
   name: string;
@@ -23,6 +32,7 @@ export interface ServerMember {
   username: string;
   nickname?: string;
   joined_at: string;
+  roles?: Role[];
 }
 
 export interface Channel {

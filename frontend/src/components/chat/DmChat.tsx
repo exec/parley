@@ -8,7 +8,7 @@ interface DmChatProps {
   channel: DmChannel;
   messages: DmMessage[];
   currentUserId?: string;
-  onSendMessage: (content: string, attachmentUrl?: string) => Promise<void>;
+  onSendMessage: (content: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string) => Promise<void>;
   isLoading: boolean;
 }
 
@@ -32,10 +32,14 @@ export function DmChat({ channel, messages, currentUserId, onSendMessage, isLoad
     setIsSending(true);
     try {
       let attachmentUrl: string | undefined;
+      let attachmentName: string | undefined;
+      let attachmentType: string | undefined;
       if (pendingFile) {
         attachmentUrl = await uploadFile(pendingFile);
+        attachmentName = pendingFile.name;
+        attachmentType = pendingFile.type;
       }
-      await onSendMessage(input.trim(), attachmentUrl);
+      await onSendMessage(input.trim(), attachmentUrl, attachmentName, attachmentType);
       setInput('');
       setPendingFile(null);
       if (fileInputRef.current) {

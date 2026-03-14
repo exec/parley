@@ -43,7 +43,11 @@ export function UserProfileModal({ isOpen, onClose, userId, currentUserId, onSta
         ) : user ? (
           <>
             <div className="user-profile-avatar">
-              {user.username.charAt(0).toUpperCase()}
+              {user.avatar_url ? (
+                <img src={user.avatar_url} alt={user.username} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+              ) : (
+                user.username.charAt(0).toUpperCase()
+              )}
             </div>
             <div className="user-profile-body">
               <div className="user-profile-info">

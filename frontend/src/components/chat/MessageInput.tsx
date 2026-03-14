@@ -4,7 +4,7 @@ import './Chat.css';
 
 interface MessageInputProps {
   channelName: string;
-  onSendMessage: (content: string, attachmentUrl?: string) => void;
+  onSendMessage: (content: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string) => void;
   onTyping?: () => void;
   disabled?: boolean;
   placeholder?: string;
@@ -46,11 +46,15 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     setIsUploading(true);
     try {
       let attachmentUrl: string | undefined;
+      let attachmentName: string | undefined;
+      let attachmentType: string | undefined;
       if (pendingFile) {
         attachmentUrl = await uploadFile(pendingFile);
+        attachmentName = pendingFile.name;
+        attachmentType = pendingFile.type;
       }
 
-      onSendMessage(trimmedMessage, attachmentUrl);
+      onSendMessage(trimmedMessage, attachmentUrl, attachmentName, attachmentType);
       setMessage('');
       setPendingFile(null);
       if (fileInputRef.current) {

@@ -4,7 +4,7 @@ import './Sidebar.css';
 interface Server {
   id: string;
   name: string;
-  icon?: string;
+  icon_url?: string;
 }
 
 interface SidebarProps {
@@ -34,8 +34,8 @@ const Sidebar: React.FC<SidebarProps> = ({
         className={`server-icon-container ${isActive ? 'active' : ''}`}
         onClick={() => onServerSelect(server.id)}
       >
-        {server.icon ? (
-          <img src={server.icon} alt={server.name} className="server-icon" />
+        {server.icon_url ? (
+          <img src={server.icon_url} alt={server.name} className="server-icon" />
         ) : (
           <span className="server-icon-placeholder">
             {server.name.charAt(0).toUpperCase()}

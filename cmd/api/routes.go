@@ -84,6 +84,15 @@ func registerRoutes(
 			r.Delete("/servers/{id}/members/{userID}", serverHandler.RemoveMember)
 			r.Get("/servers/{id}/members", serverHandler.GetMembers)
 
+			// Role routes
+			r.Get("/servers/{id}/roles", serverHandler.GetServerRoles)
+			r.Post("/servers/{id}/roles", serverHandler.CreateServerRole)
+			r.Delete("/servers/{id}/roles/{roleId}", serverHandler.DeleteServerRole)
+			r.Get("/servers/{id}/members/{userID}/roles", serverHandler.GetMemberRoles)
+			r.Post("/servers/{id}/members/{userID}/roles", serverHandler.AssignRoleToMember)
+			r.Delete("/servers/{id}/members/{userID}/roles/{roleId}", serverHandler.RemoveRoleFromMember)
+			r.Get("/servers/{id}/members-with-roles", serverHandler.GetMembersWithRoles)
+
 			// Channel routes
 			channelHandler := channel.NewHandler(channelService)
 			r.Post("/servers/{serverID}/channels", channelHandler.CreateChannel)

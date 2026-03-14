@@ -85,6 +85,14 @@
   background-color: var(--bg-tertiary);
 }
 
+.member-avatar-wrapper {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
 .member-avatar {
   position: relative;
   width: 32px;
@@ -94,7 +102,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: 12px;
   overflow: hidden;
 }
 
@@ -387,4 +394,20 @@
   height: 1px;
   background-color: #1a3d1a;
   margin: 4px 0;
+}
+
+.role-tag {
+  display: inline-block;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 600;
+  margin-right: 3px;
+  margin-top: 2px;
+}
+
+.member-roles {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 2px;
 }

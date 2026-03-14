@@ -26,6 +26,16 @@ type Server struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+// Role represents a server role in the API layer
+type Role struct {
+	ID          string    `json:"id"`
+	ServerID    string    `json:"server_id"`
+	Name        string    `json:"name"`
+	Color       string    `json:"color"`
+	Permissions int64     `json:"permissions"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
 // ServerMember represents a member of a server
 type ServerMember struct {
 	ID       string    `json:"id"`
@@ -34,6 +44,7 @@ type ServerMember struct {
 	Username string    `json:"username"`
 	Nickname string    `json:"nickname,omitempty"`
 	JoinedAt time.Time `json:"joined_at"`
+	Roles    []Role    `json:"roles"`
 }
 
 // Invite represents an invite code
@@ -326,6 +337,7 @@ func (s *ServerService) GetMembers(ctx context.Context, serverID string) ([]*Ser
 			Username: member.Username,
 			Nickname: member.Nickname,
 			JoinedAt: member.JoinedAt,
+			Roles:    []Role{},
 		}
 	}
 
@@ -609,4 +621,150 @@ func generateInviteCode() (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(bytes), nil
+}
+
+// dbRoleToRole converts a db.ServerRole to a service Role
+func dbRoleToRole(r db.ServerRole) Role {
+	return Role{
+		ID:          strconv.FormatInt(r.ID, 10),
+		ServerID:    strconv.FormatInt(r.ServerID, 10),
+		Name:        r.Name,
+		Color:       r.Color,
+		Permissions: r.Permissions,
+		CreatedAt:   r.CreatedAt,
+	}
+}
+
+// GetServerRoles returns all roles for a server
+func (s *ServerService) GetServerRoles(ctx context.Context, serverID string) ([]Role, error) {
+	id, err := idToInt64(serverID)
+	if err != nil {
+		return nil, errors.New("invalid server ID")
+	}
+	dbRoles, err := s.repo.GetServerRoles(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	roles := make([]Role, len(dbRoles))
+	for i, r := range dbRoles {
+		roles[i] = dbRoleToRole(r)
+	}
+	return roles, nil
+}
+
+// CreateServerRole creates a new role in a server
+func (s *ServerService) CreateServerRole(ctx context.Context, serverID, name, color string, permissions int64) (*Role, error) {
+	id, err := idToInt64(serverID)
+	if err != nil {
+		return nil, errors.New("invalid server ID")
+	}
+	if name == "" {
+		return nil, errors.New("role name is required")
+	}
+	if color == "" {
+		color = "#99aab5"
+	}
+	dbRole, err := s.repo.CreateServerRole(ctx, id, name, color, permissions)
+	if err != nil {
+		return nil, err
+	}
+	r := dbRoleToRole(*dbRole)
+	return &r, nil
+}
+
+// DeleteServerRole deletes a role from a server
+func (s *ServerService) DeleteServerRole(ctx context.Context, serverID, roleID string) error {
+	sID, err := idToInt64(serverID)
+	if err != nil {
+		return errors.New("invalid server ID")
+	}
+	rID, err := idToInt64(roleID)
+	if err != nil {
+		return errors.New("invalid role ID")
+	}
+	return s.repo.DeleteServerRole(ctx, sID, rID)
+}
+
+// GetMemberRoles returns all roles assigned to a member
+func (s *ServerService) GetMemberRoles(ctx context.Context, serverID, userID string) ([]Role, error) {
+	sID, err := idToInt64(serverID)
+	if err != nil {
+		return nil, errors.New("invalid server ID")
+	}
+	uID, err := idToInt64(userID)
+	if err != nil {
+		return nil, errors.New("invalid user ID")
+	}
+	dbRoles, err := s.repo.GetMemberRoles(ctx, sID, uID)
+	if err != nil {
+		return nil, err
+	}
+	roles := make([]Role, len(dbRoles))
+	for i, r := range dbRoles {
+		roles[i] = dbRoleToRole(r)
+	}
+	return roles, nil
+}
+
+// AssignRoleToMember assigns a role to a member
+func (s *ServerService) AssignRoleToMember(ctx context.Context, serverID, userID, roleID string) error {
+	sID, err := idToInt64(serverID)
+	if err != nil {
+		return errors.New("invalid server ID")
+	}
+	uID, err := idToInt64(userID)
+	if err != nil {
+		return errors.New("invalid user ID")
+	}
+	rID, err := idToInt64(roleID)
+	if err != nil {
+		return errors.New("invalid role ID")
+	}
+	return s.repo.AssignRoleToMember(ctx, sID, uID, rID)
+}
+
+// RemoveRoleFromMember removes a role from a member
+func (s *ServerService) RemoveRoleFromMember(ctx context.Context, serverID, userID, roleID string) error {
+	sID, err := idToInt64(serverID)
+	if err != nil {
+		return errors.New("invalid server ID")
+	}
+	uID, err := idToInt64(userID)
+	if err != nil {
+		return errors.New("invalid user ID")
+	}
+	rID, err := idToInt64(roleID)
+	if err != nil {
+		return errors.New("invalid role ID")
+	}
+	return s.repo.RemoveRoleFromMember(ctx, sID, uID, rID)
+}
+
+// GetMembersWithRoles returns all members of a server with their roles
+func (s *ServerService) GetMembersWithRoles(ctx context.Context, serverID string) ([]*ServerMember, error) {
+	id, err := idToInt64(serverID)
+	if err != nil {
+		return nil, errors.New("invalid server ID")
+	}
+	dbMembers, err := s.repo.GetServerMembersWithRoles(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	members := make([]*ServerMember, len(dbMembers))
+	for i, m := range dbMembers {
+		roles := make([]Role, len(m.Roles))
+		for j, r := range m.Roles {
+			roles[j] = dbRoleToRole(r)
+		}
+		members[i] = &ServerMember{
+			ID:       strconv.FormatInt(m.ID, 10),
+			ServerID: strconv.FormatInt(m.ServerID, 10),
+			UserID:   strconv.FormatInt(m.UserID, 10),
+			Username: m.Username,
+			Nickname: m.Nickname,
+			JoinedAt: m.JoinedAt,
+			Roles:    roles,
+		}
+	}
+	return members, nil
 }
