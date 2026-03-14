@@ -20,6 +20,12 @@ resource "digitalocean_project" "parley_project" {
   environment = "Production"
 }
 
+# SSH key for droplet access
+resource "digitalocean_ssh_key" "parley_key" {
+  name       = "parley-deploy-key"
+  public_key = file(pathexpand(var.ssh_public_key))
+}
+
 # VPC for private networking
 resource "digitalocean_vpc" "parley_vpc" {
   name   = "parley-vpc"
@@ -33,8 +39,11 @@ resource "digitalocean_droplet" "parley_db" {
   size     = var.db_droplet_size
   region   = var.region
   vpc_uuid = digitalocean_vpc.parley_vpc.id
+  ssh_keys = [digitalocean_ssh_key.parley_key.fingerprint]
 
-  user_data = file("${path.module}/userdata-db.sh")
+  user_data = templatefile("${path.module}/userdata-db.sh", {
+    db_password = var.db_password
+  })
 
   tags = ["parley", "database"]
 
@@ -48,15 +57,16 @@ resource "digitalocean_droplet" "parley_db" {
 
 # API droplets
 resource "digitalocean_droplet" "parley_api" {
-  count   = var.api_count
-  image   = "ubuntu-24-04-x64"
-  name    = "parley-api-${count.index + 1}"
-  size    = var.api_droplet_size
-  region  = var.region
+  count    = var.api_count
+  image    = "ubuntu-24-04-x64"
+  name     = "parley-api-${count.index + 1}"
+  size     = var.api_droplet_size
+  region   = var.region
   vpc_uuid = digitalocean_vpc.parley_vpc.id
+  ssh_keys = [digitalocean_ssh_key.parley_key.fingerprint]
 
   user_data = templatefile("${path.module}/userdata-api.sh", {
-    DB_HOST     = digitalocean_droplet.parley_db.ipv4_address
+    DB_HOST     = digitalocean_droplet.parley_db.ipv4_address_private
     DB_PORT     = "5432"
     DB_NAME     = "parley"
     DB_USER     = "parley"
@@ -85,20 +95,13 @@ resource "digitalocean_loadbalancer" "parley_lb" {
 
   # Forwarding rules
   forwarding_rule {
-    entry_port     = 80
-    entry_protocol = "http"
+    entry_port      = 80
+    entry_protocol  = "http"
 
     target_port     = 80
     target_protocol = "http"
   }
 
-  forwarding_rule {
-    entry_port     = 443
-    entry_protocol = "https"
-
-    target_port     = 80
-    target_protocol = "http"
-  }
 
   # Health check
   healthcheck {
@@ -117,30 +120,5 @@ resource "digitalocean_loadbalancer" "parley_lb" {
   vpc_uuid = digitalocean_vpc.parley_vpc.id
 }
 
-# DNS A records for API droplets
-resource "digitalocean_record" "api_records" {
-  count  = var.api_count
-  type   = "A"
-  name   = "api-${count.index + 1}"
-  domain = var.domain_name
-  value  = digitalocean_droplet.parley_api[count.index].ipv4_address
-  ttl    = 300
-}
-
-# DNS A record for load balancer (main domain)
-resource "digitalocean_record" "lb_record" {
-  type   = "A"
-  name   = "@"
-  domain = var.domain_name
-  value  = digitalocean_loadbalancer.parley_lb.ip
-  ttl    = 300
-}
-
-# CNAME for www
-resource "digitalocean_record" "www_record" {
-  type   = "CNAME"
-  name   = "www"
-  domain = var.domain_name
-  value  = digitalocean_loadbalancer.parley_lb.ip
-  ttl    = 300
-}
+# Note: DNS records not managed by Terraform - configure manually at your registrar
+# Point your domain to the load balancer IP after creation

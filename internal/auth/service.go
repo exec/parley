@@ -14,9 +14,9 @@ import (
 
 // User represents an authenticated user
 type User struct {
-	ID       string
-	Username string
-	Email    string
+	ID       string `json:"id"`
+	Username string `json:"username"`
+	Email    string `json:"email"`
 }
 
 // AuthService handles authentication operations

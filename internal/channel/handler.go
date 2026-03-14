@@ -21,9 +21,6 @@ func NewHandler(service *ChannelService) *Handler {
 func (h *Handler) ServerRoutes() http.Handler {
 	r := chi.NewRouter()
 
-	// Apply auth middleware to all routes
-	r.Use(AuthMiddleware)
-
 	r.Post("/", h.CreateChannel)
 	r.Get("/", h.GetServerChannels)
 
@@ -33,9 +30,6 @@ func (h *Handler) ServerRoutes() http.Handler {
 // ChannelRoutes returns the chi router with channel routes mounted at /channels/:id
 func (h *Handler) ChannelRoutes() http.Handler {
 	r := chi.NewRouter()
-
-	// Apply auth middleware to all routes
-	r.Use(AuthMiddleware)
 
 	r.Get("/", h.GetChannel)
 	r.Put("/", h.UpdateChannel)
@@ -157,19 +151,3 @@ func (h *Handler) DeleteChannel(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// AuthMiddleware is a simple authentication middleware
-func AuthMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Check for authorization header
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			http.Error(w, "authorization required", http.StatusUnauthorized)
-			return
-		}
-
-		// In a real implementation, you would validate the token
-		// For now, we just require any authorization header to be present
-
-		next.ServeHTTP(w, r)
-	})
-}

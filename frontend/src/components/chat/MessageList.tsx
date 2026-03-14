@@ -33,7 +33,7 @@ export const MessageList: React.FC<MessageListProps> = ({
       const groups = new Map<string, MessageType[]>();
 
       msgs.forEach((msg) => {
-        const date = new Date(msg.createdAt).toLocaleDateString('en-US', {
+        const date = new Date(msg.created_at).toLocaleDateString('en-US', {
           year: 'numeric',
           month: 'long',
           day: 'numeric',

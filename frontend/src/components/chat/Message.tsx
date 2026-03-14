@@ -20,7 +20,7 @@ export const Message: React.FC<MessageProps> = ({
 }) => {
   const [showActions, setShowActions] = useState(false);
 
-  const isOwnMessage = currentUserId && message.authorId === currentUserId;
+  const isOwnMessage = currentUserId && message.author_id === currentUserId;
 
   const formatTimestamp = (dateString: string): string => {
     const date = new Date(dateString);
@@ -56,7 +56,6 @@ export const Message: React.FC<MessageProps> = ({
     >
       <div className="message-avatar">
         <Avatar
-          src={message.author?.avatar}
           alt={message.author?.username || 'User'}
           fallback={message.author?.username || 'User'}
           size="md"
@@ -68,7 +67,7 @@ export const Message: React.FC<MessageProps> = ({
             {message.author?.username || 'Unknown User'}
           </span>
           <span className="message-timestamp">
-            {formatTimestamp(message.createdAt)}
+            {formatTimestamp(message.created_at)}
           </span>
         </div>
         <div className="message-text">{message.content}</div>

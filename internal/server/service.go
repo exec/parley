@@ -4,9 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strconv"
 	"time"
 
-	"github.com/google/uuid"
 	"parley/internal/db"
 )
 
@@ -48,7 +48,7 @@ func (s *ServerService) CreateServer(ctx context.Context, name, iconURL string, 
 		return nil, errors.New("owner ID is required")
 	}
 
-	ownerIDInt, err := uuidToInt64(ownerID)
+	ownerIDInt, err := idToInt64(ownerID)
 	if err != nil {
 		return nil, errors.New("invalid owner ID format")
 	}
@@ -78,10 +78,10 @@ func (s *ServerService) CreateServer(ctx context.Context, name, iconURL string, 
 	}
 
 	return &Server{
-		ID:        int64ToUUID(server.ID),
+		ID:        int64ToID(server.ID),
 		Name:      server.Name,
 		IconURL:   nullStringToString(server.IconURL),
-		OwnerID:   int64ToUUID(server.OwnerID),
+		OwnerID:   int64ToID(server.OwnerID),
 		CreatedAt: server.CreatedAt,
 		UpdatedAt: server.UpdatedAt,
 	}, nil
@@ -93,7 +93,7 @@ func (s *ServerService) GetServer(ctx context.Context, id string) (*Server, erro
 		return nil, errors.New("server ID is required")
 	}
 
-	serverID, err := uuidToInt64(id)
+	serverID, err := idToInt64(id)
 	if err != nil {
 		return nil, errors.New("invalid server ID format")
 	}
@@ -107,10 +107,10 @@ func (s *ServerService) GetServer(ctx context.Context, id string) (*Server, erro
 	}
 
 	return &Server{
-		ID:        int64ToUUID(server.ID),
+		ID:        int64ToID(server.ID),
 		Name:      server.Name,
 		IconURL:   nullStringToString(server.IconURL),
-		OwnerID:   int64ToUUID(server.OwnerID),
+		OwnerID:   int64ToID(server.OwnerID),
 		CreatedAt: server.CreatedAt,
 		UpdatedAt: server.UpdatedAt,
 	}, nil
@@ -122,7 +122,7 @@ func (s *ServerService) GetUserServers(ctx context.Context, userID string) ([]*S
 		return nil, errors.New("user ID is required")
 	}
 
-	userIDInt, err := uuidToInt64(userID)
+	userIDInt, err := idToInt64(userID)
 	if err != nil {
 		return nil, errors.New("invalid user ID format")
 	}
@@ -135,10 +135,10 @@ func (s *ServerService) GetUserServers(ctx context.Context, userID string) ([]*S
 	result := make([]*Server, len(servers))
 	for i, server := range servers {
 		result[i] = &Server{
-			ID:        int64ToUUID(server.ID),
+			ID:        int64ToID(server.ID),
 			Name:      server.Name,
 			IconURL:   nullStringToString(server.IconURL),
-			OwnerID:   int64ToUUID(server.OwnerID),
+			OwnerID:   int64ToID(server.OwnerID),
 			CreatedAt: server.CreatedAt,
 			UpdatedAt: server.UpdatedAt,
 		}
@@ -156,7 +156,7 @@ func (s *ServerService) UpdateServer(ctx context.Context, id, name, iconURL stri
 		return nil, errors.New("server name is required")
 	}
 
-	serverID, err := uuidToInt64(id)
+	serverID, err := idToInt64(id)
 	if err != nil {
 		return nil, errors.New("invalid server ID format")
 	}
@@ -182,10 +182,10 @@ func (s *ServerService) UpdateServer(ctx context.Context, id, name, iconURL stri
 	}
 
 	return &Server{
-		ID:        int64ToUUID(server.ID),
+		ID:        int64ToID(server.ID),
 		Name:      server.Name,
 		IconURL:   nullStringToString(server.IconURL),
-		OwnerID:   int64ToUUID(server.OwnerID),
+		OwnerID:   int64ToID(server.OwnerID),
 		CreatedAt: server.CreatedAt,
 		UpdatedAt: server.UpdatedAt,
 	}, nil
@@ -197,7 +197,7 @@ func (s *ServerService) DeleteServer(ctx context.Context, id string) error {
 		return errors.New("server ID is required")
 	}
 
-	serverID, err := uuidToInt64(id)
+	serverID, err := idToInt64(id)
 	if err != nil {
 		return errors.New("invalid server ID format")
 	}
@@ -222,12 +222,12 @@ func (s *ServerService) AddMember(ctx context.Context, serverID, userID, nicknam
 		return errors.New("user ID is required")
 	}
 
-	serverIDInt, err := uuidToInt64(serverID)
+	serverIDInt, err := idToInt64(serverID)
 	if err != nil {
 		return errors.New("invalid server ID format")
 	}
 
-	userIDInt, err := uuidToInt64(userID)
+	userIDInt, err := idToInt64(userID)
 	if err != nil {
 		return errors.New("invalid user ID format")
 	}
@@ -255,12 +255,12 @@ func (s *ServerService) RemoveMember(ctx context.Context, serverID, userID strin
 		return errors.New("user ID is required")
 	}
 
-	serverIDInt, err := uuidToInt64(serverID)
+	serverIDInt, err := idToInt64(serverID)
 	if err != nil {
 		return errors.New("invalid server ID format")
 	}
 
-	userIDInt, err := uuidToInt64(userID)
+	userIDInt, err := idToInt64(userID)
 	if err != nil {
 		return errors.New("invalid user ID format")
 	}
@@ -282,7 +282,7 @@ func (s *ServerService) GetMembers(ctx context.Context, serverID string) ([]*Ser
 		return nil, errors.New("server ID is required")
 	}
 
-	serverIDInt, err := uuidToInt64(serverID)
+	serverIDInt, err := idToInt64(serverID)
 	if err != nil {
 		return nil, errors.New("invalid server ID format")
 	}
@@ -295,9 +295,9 @@ func (s *ServerService) GetMembers(ctx context.Context, serverID string) ([]*Ser
 	result := make([]*ServerMember, len(members))
 	for i, member := range members {
 		result[i] = &ServerMember{
-			ID:       int64ToUUID(member.ID),
-			ServerID: int64ToUUID(member.ServerID),
-			UserID:   int64ToUUID(member.UserID),
+			ID:       int64ToID(member.ID),
+			ServerID: int64ToID(member.ServerID),
+			UserID:   int64ToID(member.UserID),
 			Nickname: member.Nickname,
 			JoinedAt: member.JoinedAt,
 		}
@@ -322,28 +322,10 @@ func nullStringToString(ns sql.NullString) string {
 	return ns.String
 }
 
-func int64ToUUID(n int64) string {
-	// Convert int64 to UUID string representation
-	// This creates a valid v4 UUID from the int64 value
-	b := []byte{
-		byte(n >> 56), byte(n >> 48), byte(n >> 40), byte(n >> 32),
-		byte(n >> 24), byte(n >> 16), byte(n >> 8), byte(n),
-		// Add random bytes for UUID v4 format
-		0, 0, 0, 0, 0, 0, 0, 0,
-	}
-	// Set version (4) and variant (RFC 4122)
-	b[6] = (b[6] & 0x0f) | 0x40
-	b[8] = (b[8] & 0x3f) | 0x80
-
-	return uuid.UUID(b).String()
+func int64ToID(n int64) string {
+	return strconv.FormatInt(n, 10)
 }
 
-func uuidToInt64(id string) (int64, error) {
-	u, err := uuid.Parse(id)
-	if err != nil {
-		return 0, err
-	}
-	// Convert UUID bytes to int64 (first 8 bytes)
-	return int64(u[0])<<56 | int64(u[1])<<48 | int64(u[2])<<40 | int64(u[3])<<32 |
-		int64(u[4])<<24 | int64(u[5])<<16 | int64(u[6])<<8 | int64(u[7]), nil
+func idToInt64(id string) (int64, error) {
+	return strconv.ParseInt(id, 10, 64)
 }

@@ -3,10 +3,13 @@ package websocket
 import (
 	"encoding/json"
 	"log"
+	"sync"
 )
 
 // Hub maintains the set of active clients and broadcasts messages
 type Hub struct {
+	mu sync.RWMutex
+
 	// Registered clients
 	clients map[*Client]bool
 
@@ -56,6 +59,9 @@ func (h *Hub) Run() {
 
 // RegisterClient adds a client to the hub
 func (h *Hub) RegisterClient(client *Client) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
 	h.clients[client] = true
 
 	// Add to user map
@@ -69,6 +75,9 @@ func (h *Hub) RegisterClient(client *Client) {
 
 // UnregisterClient removes a client from the hub
 func (h *Hub) UnregisterClient(client *Client) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
 	if _, ok := h.clients[client]; ok {
 		delete(h.clients, client)
 		close(client.send)
@@ -97,6 +106,9 @@ func (h *Hub) UnregisterClient(client *Client) {
 
 // SubscribeToChannel adds a client to a channel's subscriber list
 func (h *Hub) SubscribeToChannel(channelID string, client *Client) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
 	if h.channelSubs[channelID] == nil {
 		h.channelSubs[channelID] = make(map[*Client]bool)
 	}
@@ -106,6 +118,9 @@ func (h *Hub) SubscribeToChannel(channelID string, client *Client) {
 
 // UnsubscribeFromChannel removes a client from a channel's subscriber list
 func (h *Hub) UnsubscribeFromChannel(channelID string, client *Client) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
 	if h.channelSubs[channelID] != nil {
 		delete(h.channelSubs[channelID], client)
 		if len(h.channelSubs[channelID]) == 0 {
@@ -117,6 +132,9 @@ func (h *Hub) UnsubscribeFromChannel(channelID string, client *Client) {
 
 // SendToUser sends a message to a specific user by their userID
 func (h *Hub) SendToUser(userID string, messageType string, payload []byte) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
 	clients := h.userToClient[userID]
 	if clients == nil || len(clients) == 0 {
 		return nil // No clients found for user, not an error
@@ -150,6 +168,9 @@ func (h *Hub) SendToUser(userID string, messageType string, payload []byte) erro
 
 // BroadcastToChannel sends a message to all clients subscribed to a channel
 func (h *Hub) BroadcastToChannel(channelID string, messageType string, payload []byte) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
 	clients := h.channelSubs[channelID]
 	if clients == nil || len(clients) == 0 {
 		return

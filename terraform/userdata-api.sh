@@ -82,8 +82,12 @@ cp -r dist/* /var/www/parley/
 # Create environment file
 echo "=== Creating environment configuration ==="
 mkdir -p /etc/parley
+
+# URL-encode the DB password to handle special characters (/, =, +, etc.)
+DB_PASSWORD_ENCODED=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "${DB_PASSWORD}")
+
 cat > /etc/parley/env <<EOF
-DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=disable
+DATABASE_URL=postgresql://${DB_USER}:$${DB_PASSWORD_ENCODED}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=disable
 JWT_SECRET=${JWT_SECRET}
 PORT=${PORT}
 EOF
@@ -135,8 +139,8 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
-    # API and WebSocket proxy
-    location /api {
+    # WebSocket proxy
+    location /ws {
         proxy_pass http://127.0.0.1:${PORT};
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -145,7 +149,18 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_cache_bypass \$http_upgrade;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+
+    # API proxy
+    location /api {
+        proxy_pass http://127.0.0.1:${PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_connect_timeout 60s;
         proxy_send_timeout 60s;
         proxy_read_timeout 60s;

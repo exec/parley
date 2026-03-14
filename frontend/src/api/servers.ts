@@ -12,7 +12,7 @@ export async function getServer(id: string): Promise<Server> {
 export async function createServer(name: string, iconURL?: string): Promise<Server> {
   return apiClient.post<Server>('/servers', {
     name,
-    icon: iconURL,
+    icon_url: iconURL,
   });
 }
 
@@ -41,7 +41,7 @@ export async function addMember(
   nickname?: string
 ): Promise<void> {
   return apiClient.post<void>(`/servers/${serverId}/members`, {
-    userId,
+    user_id: userId,
     nickname,
   });
 }

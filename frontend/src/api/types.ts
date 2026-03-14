@@ -2,46 +2,42 @@ export interface User {
   id: string;
   username: string;
   email: string;
-  avatar?: string;
-  createdAt: string;
 }
 
 export interface Server {
   id: string;
   name: string;
-  icon?: string;
-  ownerId: string;
-  createdAt: string;
-  updatedAt: string;
+  icon_url?: string;
+  owner_id: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ServerMember {
   id: string;
-  serverId: string;
-  userId: string;
+  server_id: string;
+  user_id: string;
   nickname?: string;
-  role: 'owner' | 'admin' | 'member';
-  joinedAt: string;
+  joined_at: string;
   user?: User;
 }
 
 export interface Channel {
   id: string;
-  serverId: string;
+  server_id: string;
   name: string;
   type: number;
-  position: number;
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Message {
   id: string;
-  channelId: string;
-  authorId: string;
+  channel_id: string;
+  author_id: string;
   content: string;
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
   author?: User;
 }
 

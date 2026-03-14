@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
@@ -42,23 +43,52 @@ func registerRoutes(
 		// Protected routes - require authentication
 		r.Group(func(r chi.Router) {
 			r.Use(auth.AuthMiddleware)
+			// Bridge auth.UserIDKey ("userID") to server.UserIDKey (contextKey "user_id")
+			r.Use(bridgeUserIDMiddleware)
 
-			// Server routes
+			// Server routes - registered directly to avoid double-prefix
 			serverHandler := server.NewHandler(serverService)
-			r.Mount("/servers", serverHandler.Router())
+			r.Post("/servers", serverHandler.CreateServer)
+			r.Get("/servers", serverHandler.GetUserServers)
+			r.Get("/servers/{id}", serverHandler.GetServer)
+			r.Put("/servers/{id}", serverHandler.UpdateServer)
+			r.Delete("/servers/{id}", serverHandler.DeleteServer)
+			r.Post("/servers/{id}/members", serverHandler.AddMember)
+			r.Delete("/servers/{id}/members/{userID}", serverHandler.RemoveMember)
+			r.Get("/servers/{id}/members", serverHandler.GetMembers)
 
 			// Channel routes
 			channelHandler := channel.NewHandler(channelService)
-			r.Mount("/channels", channelHandler.ChannelRoutes())
+			r.Post("/servers/{serverID}/channels", channelHandler.CreateChannel)
+			r.Get("/servers/{serverID}/channels", channelHandler.GetServerChannels)
+			r.Get("/channels/{id}", channelHandler.GetChannel)
+			r.Put("/channels/{id}", channelHandler.UpdateChannel)
+			r.Delete("/channels/{id}", channelHandler.DeleteChannel)
 
 			// Message routes
 			messageHandler := message.NewHandler(messageService)
-			r.Mount("/messages", messageHandler.Routes())
+			r.Get("/channels/{channelID}/messages", messageHandler.GetChannelMessages)
+			r.Post("/channels/{channelID}/messages", messageHandler.SendMessage)
+			r.Put("/messages/{id}", messageHandler.EditMessage)
+			r.Delete("/messages/{id}", messageHandler.DeleteMessage)
 		})
 	})
 
-	// WebSocket route
+	// WebSocket route - accepts token via query param (browser WS can't set headers)
 	router.Get("/ws", handleWebSocket(hub))
+}
+
+// bridgeUserIDMiddleware copies the userID from auth.UserIDKey to server.UserIDKey
+// so server handlers can read it with their own context key type.
+func bridgeUserIDMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userID := auth.GetUserIDFromContext(r)
+		if userID != "" {
+			ctx := context.WithValue(r.Context(), server.UserIDKey, userID)
+			r = r.WithContext(ctx)
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // Auth handlers
@@ -76,7 +106,7 @@ type LoginRequest struct {
 
 type AuthResponse struct {
 	User  auth.User `json:"user"`
-	Token string     `json:"token"`
+	Token string    `json:"token"`
 }
 
 func handleAuthRegister(authService *auth.AuthService) http.HandlerFunc {
@@ -122,18 +152,24 @@ func handleAuthLogin(authService *auth.AuthService) http.HandlerFunc {
 
 func handleWebSocket(hub *ws.Hub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Get user ID from query parameter or Authorization header
-		userID := r.URL.Query().Get("user_id")
-		if userID == "" {
-			// Try to get from Authorization header
-			authHeader := r.Header.Get("Authorization")
-			if len(authHeader) > 7 {
-				userID = authHeader[7:] // Remove "Bearer " prefix
-			}
+		// Accept token from Authorization header OR query param (browser WS can't set headers)
+		tokenString := ""
+		authHeader := r.Header.Get("Authorization")
+		if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+			tokenString = authHeader[7:]
+		} else {
+			tokenString = r.URL.Query().Get("token")
 		}
 
-		if userID == "" {
-			http.Error(w, "user_id is required", http.StatusBadRequest)
+		if tokenString == "" {
+			http.Error(w, "authorization required", http.StatusUnauthorized)
+			return
+		}
+
+		authService := auth.NewAuthService(nil)
+		userID, err := authService.ValidateToken(tokenString)
+		if err != nil {
+			http.Error(w, "invalid or expired token", http.StatusUnauthorized)
 			return
 		}
 

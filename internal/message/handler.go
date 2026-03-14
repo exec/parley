@@ -1,7 +1,6 @@
 package message
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -22,9 +21,6 @@ func NewHandler(service *MessageService) *Handler {
 // Routes returns the chi router with message routes
 func (h *Handler) Routes() http.Handler {
 	r := chi.NewRouter()
-
-	// Apply auth middleware to all routes
-	r.Use(AuthMiddleware)
 
 	// POST /channels/:channelID/messages - send message
 	r.Post("/", h.SendMessage)
@@ -97,6 +93,9 @@ func (h *Handler) GetChannelMessages(w http.ResponseWriter, r *http.Request) {
 
 	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+			if l > 200 {
+				l = 200
+			}
 			limit = l
 		}
 	}
@@ -200,27 +199,3 @@ func (h *Handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// AuthMiddleware is an authentication middleware that extracts user ID from the request
-func AuthMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Check for authorization header
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			http.Error(w, "authorization required", http.StatusUnauthorized)
-			return
-		}
-
-		// In a real implementation, you would validate the token and extract user ID
-		// For now, we'll look for a X-User-ID header that would be set after token validation
-		userID := r.Header.Get("X-User-ID")
-		if userID == "" {
-			http.Error(w, "user ID not found", http.StatusUnauthorized)
-			return
-		}
-
-		// Add user ID to context
-		ctx := r.Context()
-		ctx = context.WithValue(ctx, "userID", userID)
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
-}

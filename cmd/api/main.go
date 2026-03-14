@@ -39,6 +39,7 @@ func DefaultConfig() *Config {
 
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
+		log.Println("WARNING: JWT_SECRET not set, using insecure default — set this in production")
 		jwtSecret = "parley-secret-key-change-in-production"
 	}
 
@@ -166,19 +167,26 @@ func setupRouter(
 	return router
 }
 
+// allowedOrigins lists origins permitted to access the API
+var allowedOrigins = map[string]bool{
+	"https://parley.x86-64.com": true,
+	"http://localhost:5173":      true, // Vite dev server
+	"http://localhost:8080":      true, // local API dev
+}
+
 // corsMiddleware returns a CORS middleware handler
 func corsMiddleware() func(http.Handler) http.Handler {
-	// Use go-chi/cors package
-	// Configure CORS settings
-	corsHandler := func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Set CORS headers
-			w.Header().Set("Access-Control-Allow-Origin", "*")
+			origin := r.Header.Get("Origin")
+			if allowedOrigins[origin] {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Vary", "Origin")
+			}
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 			w.Header().Set("Access-Control-Max-Age", "3600")
 
-			// Handle preflight requests
 			if r.Method == "OPTIONS" {
 				w.WriteHeader(http.StatusNoContent)
 				return
@@ -187,7 +195,6 @@ func corsMiddleware() func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
-	return corsHandler
 }
 
 // HubBroadcaster implements the message.Broadcaster interface using the WebSocket hub

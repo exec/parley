@@ -35,9 +35,15 @@ variable "api_count" {
 }
 
 variable "ssh_private_key" {
-  description = "SSH private key for droplet access"
+  description = "SSH private key path for droplet access"
   type        = string
-  default     = "~/.ssh/id_rsa"
+  default     = "~/.ssh/id_ed25519"
+}
+
+variable "ssh_public_key" {
+  description = "SSH public key to install on droplets"
+  type        = string
+  default     = "~/.ssh/id_ed25519.pub"
 }
 
 variable "db_password" {
