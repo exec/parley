@@ -109,17 +109,23 @@ type AuthResponse struct {
 	Token string    `json:"token"`
 }
 
+func jsonError(w http.ResponseWriter, message string, code int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	json.NewEncoder(w).Encode(map[string]string{"message": message})
+}
+
 func handleAuthRegister(authService *auth.AuthService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req RegisterRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
+			jsonError(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
 
 		user, token, err := authService.Register(r.Context(), req.Username, req.Email, req.Password)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			jsonError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
@@ -133,13 +139,13 @@ func handleAuthLogin(authService *auth.AuthService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req LoginRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
+			jsonError(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
 
 		user, token, err := authService.Login(r.Context(), req.Email, req.Password)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusUnauthorized)
+			jsonError(w, err.Error(), http.StatusUnauthorized)
 			return
 		}
 
