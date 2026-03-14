@@ -92,7 +92,7 @@ func main() {
 	channelService := channel.NewChannelService(repo)
 	messageService := message.NewMessageService(repo)
 
-	// Initialize WebSocket hub
+	// Initialize WebSocket hub first
 	hub := websocket.NewHub()
 
 	// Set up Redis pub/sub for cross-node broadcasting (graceful fallback if unavailable)
@@ -105,9 +105,12 @@ func main() {
 		log.Println("Running in local-only WebSocket mode (no Redis)")
 	}
 
-	// Set up the hub as the broadcaster for messages
+	// Set up hub broadcasting for message service
 	hubBroadcaster := &HubBroadcaster{hub: hub}
 	messageService.SetBroadcaster(hubBroadcaster)
+
+	// Set up hub broadcasting for server service (for member join events)
+	serverService.SetHub(hub)
 
 	// Start hub in a goroutine
 	go hub.Run()

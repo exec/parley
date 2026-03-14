@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { InvitePage } from './pages/InvitePage';
@@ -53,6 +53,7 @@ function MainApp() {
     sendDmMessage,
     openDmChannel,
     updateCurrentUser,
+    loadServers,
   } = useApp();
 
   const navigate = useNavigate();
@@ -107,9 +108,15 @@ function MainApp() {
     }
   }, [activeDmChannel?.id, activeServer?.id, activeChannel?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const handleServerMemberJoin = useCallback((_serverId: string, _userId: string) => {
+    // When a member joins, reload servers to show the new server for the joining user
+    loadServers();
+  }, [loadServers]);
+
   useWebSocket({
     onMessage: receiveMessage,
     onDmMessage: receiveDmMessage,
+    onServerMemberJoin: handleServerMemberJoin,
     activeChannelId: activeChannel?.id ?? null,
   });
 

@@ -43,6 +43,7 @@ interface AppActions {
   receiveDmMessage: (msg: DmMessage) => void;
   addServer: (server: Server) => void;
   updateCurrentUser: (user: User) => void;
+  loadServers: () => Promise<void>;
 }
 
 const AppContext = createContext<(AppState & AppActions) | null>(null);
@@ -95,6 +96,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     dmsApi.getDmChannels()
       .then(data => setDmChannels(data ?? []))
       .catch(console.error);
+  }, [currentUser]);
+
+  const loadServers = useCallback(async () => {
+    if (!currentUser) return;
+    setIsLoadingServers(true);
+    try {
+      const data = await serversApi.getServers();
+      setServers(data ?? []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoadingServers(false);
+    }
   }, [currentUser]);
 
   const selectServer = useCallback(async (serverId: string) => {
@@ -346,6 +360,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       sendDmMessage,
       receiveDmMessage,
       updateCurrentUser,
+      loadServers,
     }}>
       {children}
     </AppContext.Provider>

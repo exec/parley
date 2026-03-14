@@ -5,11 +5,14 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"log"
 	"strconv"
 	"time"
 
 	"parley/internal/db"
+	ws "parley/internal/websocket"
 )
 
 // Server represents a Discord server/guild in the API layer
@@ -44,12 +47,18 @@ type Invite struct {
 
 // ServerService handles server and member operations
 type ServerService struct {
-	repo *db.Repository
+	repo    *db.Repository
+	hub     *ws.Hub
 }
 
 // NewServerService creates a new ServerService
 func NewServerService(repo *db.Repository) *ServerService {
 	return &ServerService{repo: repo}
+}
+
+// SetHub sets the WebSocket hub for broadcasting events
+func (s *ServerService) SetHub(hub *ws.Hub) {
+	s.hub = hub
 }
 
 // CreateServer creates a new server and adds the owner as the first member
@@ -228,7 +237,38 @@ func (s *ServerService) AddMember(ctx context.Context, serverID, userID, nicknam
 		return err
 	}
 
+	// Broadcast to all members of the server that a new member joined
+	s.broadcastMemberJoin(serverID, userID)
+
 	return nil
+}
+
+// broadcastMemberJoin sends a WebSocket event to all members of a server
+// that a new member has joined.
+func (s *ServerService) broadcastMemberJoin(serverID, userID string) {
+	if s.hub == nil {
+		return
+	}
+
+	// Broadcast to the server's channel
+	// Note: The server channel ID is derived from the server ID
+	// In the current implementation, we use the server ID as the channel ID prefix
+	// The actual channel would be something like "server:{serverID}"
+	// For now, we broadcast to a special channel that members subscribe to
+	event := map[string]string{
+		"type":    "server_member_join",
+		"server_id": serverID,
+		"user_id":   userID,
+	}
+
+	payload, err := json.Marshal(event)
+	if err != nil {
+		log.Printf("Failed to marshal member join event: %v", err)
+		return
+	}
+
+	// Broadcast to the server's channel (using a channel ID derived from server ID)
+	s.hub.BroadcastToChannel("server:"+serverID, "server_member_join", payload)
 }
 
 // RemoveMember removes a user from a server

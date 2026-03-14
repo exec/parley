@@ -9,10 +9,11 @@ interface WSMessage {
 interface UseWebSocketOptions {
   onMessage: (msg: Message) => void;
   onDmMessage?: (msg: DmMessage) => void;
+  onServerMemberJoin?: (serverId: string, userId: string) => void;
   activeChannelId: string | null;
 }
 
-export function useWebSocket({ onMessage, onDmMessage, activeChannelId }: UseWebSocketOptions) {
+export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, activeChannelId }: UseWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const subscribedChannelRef = useRef<string | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -45,6 +46,14 @@ export function useWebSocket({ onMessage, onDmMessage, activeChannelId }: UseWeb
           onMessage(wsMsg.payload as Message);
         } else if (wsMsg.type === 'dm_message' && onDmMessage) {
           onDmMessage(wsMsg.payload as DmMessage);
+        } else if (wsMsg.type === 'server_member_join' && onServerMemberJoin) {
+          // Parse server member join event
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            const payload = wsMsg.payload as { server_id: string; user_id: string };
+            if (payload.server_id && payload.user_id) {
+              onServerMemberJoin(payload.server_id, payload.user_id);
+            }
+          }
         }
       } catch {
         // ignore parse errors
