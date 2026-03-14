@@ -56,15 +56,15 @@ export const Message: React.FC<MessageProps> = ({
     >
       <div className="message-avatar">
         <Avatar
-          alt={message.author?.username || 'User'}
-          fallback={message.author?.username || 'User'}
+          alt={message.author_username || 'User'}
+          fallback={message.author_username || 'User'}
           size="md"
         />
       </div>
       <div className="message-content">
         <div className="message-header">
           <span className="message-author">
-            {message.author?.username || 'Unknown User'}
+            {message.author_username || 'Unknown User'}
           </span>
           <span className="message-timestamp">
             {formatTimestamp(message.created_at)}

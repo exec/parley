@@ -17,9 +17,9 @@ export interface ServerMember {
   id: string;
   server_id: string;
   user_id: string;
+  username: string;
   nickname?: string;
   joined_at: string;
-  user?: User;
 }
 
 export interface Channel {
@@ -35,10 +35,10 @@ export interface Message {
   id: string;
   channel_id: string;
   author_id: string;
+  author_username: string;
   content: string;
   created_at: string;
   updated_at: string;
-  author?: User;
 }
 
 export interface AuthResponse {

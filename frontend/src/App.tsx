@@ -19,6 +19,7 @@ function MainApp() {
     activeChannel,
     messages,
     members,
+    isLoadingServers,
     isLoadingMessages,
     selectServer,
     selectChannel,
@@ -33,11 +34,40 @@ function MainApp() {
   const [showCreateServer, setShowCreateServer] = useState(false);
   const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [showManageRoles, setShowManageRoles] = useState(false);
+  const [showVoiceModal, setShowVoiceModal] = useState(false);
 
   useWebSocket({
     onMessage: receiveMessage,
     activeChannelId: activeChannel?.id ?? null,
   });
+
+  if (!isLoadingServers && servers.length === 0) {
+    return (
+      <>
+        <div className="empty-state-layout">
+          <div className="empty-sidebar">
+            <div className="add-server-button-big" onClick={() => setShowCreateServer(true)}>
+              <span>+</span>
+            </div>
+          </div>
+          <div className="empty-state-content">
+            <div className="welcome-screen">
+              <h1 className="welcome-title">Welcome to Parley!</h1>
+              <p className="welcome-subtitle">You're not in any servers yet.</p>
+              <button className="create-server-cta" onClick={() => setShowCreateServer(true)}>
+                Create your first server
+              </button>
+            </div>
+          </div>
+        </div>
+        <CreateServerModal
+          isOpen={showCreateServer}
+          onClose={() => setShowCreateServer(false)}
+          onCreate={createServer}
+        />
+      </>
+    );
+  }
 
   return (
     <>
@@ -57,6 +87,7 @@ function MainApp() {
         currentUser={currentUser ?? undefined}
         ownerId={activeServer?.owner_id}
         onLogout={logout}
+        onVoiceChannelClick={() => setShowVoiceModal(true)}
       >
         {activeChannel ? (
           <ChatWindow
@@ -88,6 +119,24 @@ function MainApp() {
         onClose={() => setShowManageRoles(false)}
         members={members}
       />
+      {showVoiceModal && (
+        <div className="modal-overlay" onClick={() => setShowVoiceModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">Voice Channels</h2>
+              <button className="modal-close" onClick={() => setShowVoiceModal(false)}>&times;</button>
+            </div>
+            <div className="modal-body">
+              <p style={{color: 'var(--discord-text-muted)', textAlign: 'center', padding: '20px 0'}}>
+                Voice channels are coming soon!<br/>
+                <span style={{fontSize: '13px', marginTop: '8px', display: 'block'}}>
+                  We're working on it. Stay tuned.
+                </span>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -23,6 +23,7 @@ interface ChannelListProps {
   onManageRoles: () => void;
   currentUser?: User;
   onLogout?: () => void;
+  onVoiceChannelClick?: () => void;
 }
 
 const ChannelList: React.FC<ChannelListProps> = ({
@@ -35,6 +36,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
   onManageRoles,
   currentUser,
   onLogout,
+  onVoiceChannelClick,
 }) => {
   const [textChannelsCollapsed, setTextChannelsCollapsed] = useState(false);
   const [voiceChannelsCollapsed, setVoiceChannelsCollapsed] = useState(false);
@@ -103,6 +105,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
           <div
             key={channel.id}
             className={`voice-channel-item ${channel.id === activeChannelId ? 'active' : ''}`}
+            onClick={() => onVoiceChannelClick?.()}
             onMouseEnter={() => setHoveredChannel(channel.id)}
             onMouseLeave={() => setHoveredChannel(null)}
           >

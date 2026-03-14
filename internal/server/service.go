@@ -22,11 +22,12 @@ type Server struct {
 
 // ServerMember represents a member of a server
 type ServerMember struct {
-	ID        string    `json:"id"`
-	ServerID  string    `json:"server_id"`
-	UserID    string    `json:"user_id"`
-	Nickname  string    `json:"nickname,omitempty"`
-	JoinedAt  time.Time `json:"joined_at"`
+	ID       string    `json:"id"`
+	ServerID string    `json:"server_id"`
+	UserID   string    `json:"user_id"`
+	Username string    `json:"username"`
+	Nickname string    `json:"nickname,omitempty"`
+	JoinedAt time.Time `json:"joined_at"`
 }
 
 // ServerService handles server and member operations
@@ -298,6 +299,7 @@ func (s *ServerService) GetMembers(ctx context.Context, serverID string) ([]*Ser
 			ID:       int64ToID(member.ID),
 			ServerID: int64ToID(member.ServerID),
 			UserID:   int64ToID(member.UserID),
+			Username: member.Username,
 			Nickname: member.Nickname,
 			JoinedAt: member.JoinedAt,
 		}

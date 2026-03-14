@@ -35,7 +35,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentUser] = useState<User | null>(() => {
     try {
       const stored = localStorage.getItem('user');
-      return stored ? JSON.parse(stored) : null;
+      if (!stored) return null;
+      const u = JSON.parse(stored);
+      // Handle old PascalCase format (stored before JSON tags were added)
+      return {
+        id: u.id || u.ID || '',
+        username: u.username || u.Username || '',
+        email: u.email || u.Email || '',
+      };
     } catch {
       return null;
     }

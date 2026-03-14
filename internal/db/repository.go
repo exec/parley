@@ -424,10 +424,11 @@ func (r *Repository) GetMember(ctx context.Context, serverID, userID int64) (*Se
 // GetServerMembers retrieves all members of a server
 func (r *Repository) GetServerMembers(ctx context.Context, serverID int64) ([]*ServerMember, error) {
 	query := `
-		SELECT id, server_id, user_id, nickname, joined_at
-		FROM server_members
-		WHERE server_id = $1
-		ORDER BY joined_at
+		SELECT sm.id, sm.server_id, sm.user_id, sm.nickname, sm.joined_at, u.username
+		FROM server_members sm
+		JOIN users u ON u.id = sm.user_id
+		WHERE sm.server_id = $1
+		ORDER BY sm.joined_at
 	`
 
 	rows, err := r.db.QueryContext(ctx, query, serverID)
@@ -445,17 +446,16 @@ func (r *Repository) GetServerMembers(ctx context.Context, serverID int64) ([]*S
 			&member.UserID,
 			&member.Nickname,
 			&member.JoinedAt,
+			&member.Username,
 		)
 		if err != nil {
 			return nil, err
 		}
 		members = append(members, &member)
 	}
-
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-
 	return members, nil
 }
 
@@ -666,10 +666,11 @@ func (r *Repository) GetMessageByID(ctx context.Context, id int64) (*Message, er
 // GetChannelMessages retrieves messages for a channel with pagination
 func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, limit, offset int) ([]*Message, error) {
 	query := `
-		SELECT id, channel_id, author_id, content, created_at, updated_at
-		FROM messages
-		WHERE channel_id = $1
-		ORDER BY created_at DESC
+		SELECT m.id, m.channel_id, m.author_id, m.content, m.created_at, m.updated_at, u.username
+		FROM messages m
+		JOIN users u ON u.id = m.author_id
+		WHERE m.channel_id = $1
+		ORDER BY m.created_at ASC
 		LIMIT $2 OFFSET $3
 	`
 
@@ -689,17 +690,16 @@ func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, li
 			&message.Content,
 			&message.CreatedAt,
 			&message.UpdatedAt,
+			&message.AuthorUsername,
 		)
 		if err != nil {
 			return nil, err
 		}
 		messages = append(messages, &message)
 	}
-
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-
 	return messages, nil
 }
 

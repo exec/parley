@@ -25,8 +25,8 @@ interface ServerMember {
   id: string;
   server_id: string;
   user_id: string;
+  username: string;
   nickname?: string;
-  user?: User;
 }
 
 interface MainLayoutProps {
@@ -46,6 +46,7 @@ interface MainLayoutProps {
   currentUser?: User;
   ownerId?: string;
   onLogout?: () => void;
+  onVoiceChannelClick?: () => void;
 }
 
 const MainLayout: React.FC<MainLayoutProps> = ({
@@ -65,6 +66,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
   currentUser,
   ownerId,
   onLogout,
+  onVoiceChannelClick,
 }) => {
   const showChannelList = !!activeServerId;
 
@@ -89,6 +91,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
             onManageRoles={onManageRoles}
             currentUser={currentUser}
             onLogout={onLogout}
+            onVoiceChannelClick={onVoiceChannelClick}
           />
 
           <div className="main-content">

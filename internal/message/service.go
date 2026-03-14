@@ -12,12 +12,13 @@ import (
 
 // Message represents a message in the system
 type Message struct {
-	ID        string    `json:"id"`
-	ChannelID string    `json:"channel_id"`
-	AuthorID  string    `json:"author_id"`
-	Content   string    `json:"content"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID             string    `json:"id"`
+	ChannelID      string    `json:"channel_id"`
+	AuthorID       string    `json:"author_id"`
+	AuthorUsername string    `json:"author_username"`
+	Content        string    `json:"content"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 // MessageService provides message management operations
@@ -80,13 +81,18 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 		return nil, err
 	}
 
+	// Look up author username
+	var authorUsername string
+	s.repo.DB().QueryRowContext(ctx, "SELECT username FROM users WHERE id = $1", authorIDInt).Scan(&authorUsername)
+
 	msg := &Message{
-		ID:        strconv.FormatInt(dbMsg.ID, 10),
-		ChannelID: channelID,
-		AuthorID:  authorID,
-		Content:   content,
-		CreatedAt: dbMsg.CreatedAt,
-		UpdatedAt: dbMsg.UpdatedAt,
+		ID:             strconv.FormatInt(dbMsg.ID, 10),
+		ChannelID:      channelID,
+		AuthorID:       authorID,
+		AuthorUsername: authorUsername,
+		Content:        content,
+		CreatedAt:      dbMsg.CreatedAt,
+		UpdatedAt:      dbMsg.UpdatedAt,
 	}
 
 	// Broadcast the message if a broadcaster is set
@@ -115,13 +121,17 @@ func (s *MessageService) GetMessage(ctx context.Context, id string) (*Message, e
 		return nil, err
 	}
 
+	var authorUsername string
+	s.repo.DB().QueryRowContext(ctx, "SELECT username FROM users WHERE id = $1", dbMsg.AuthorID).Scan(&authorUsername)
+
 	return &Message{
-		ID:        strconv.FormatInt(dbMsg.ID, 10),
-		ChannelID: strconv.FormatInt(dbMsg.ChannelID, 10),
-		AuthorID:  strconv.FormatInt(dbMsg.AuthorID, 10),
-		Content:   dbMsg.Content,
-		CreatedAt: dbMsg.CreatedAt,
-		UpdatedAt: dbMsg.UpdatedAt,
+		ID:             strconv.FormatInt(dbMsg.ID, 10),
+		ChannelID:      strconv.FormatInt(dbMsg.ChannelID, 10),
+		AuthorID:       strconv.FormatInt(dbMsg.AuthorID, 10),
+		AuthorUsername: authorUsername,
+		Content:        dbMsg.Content,
+		CreatedAt:      dbMsg.CreatedAt,
+		UpdatedAt:      dbMsg.UpdatedAt,
 	}, nil
 }
 
@@ -152,12 +162,13 @@ func (s *MessageService) GetChannelMessages(ctx context.Context, channelID strin
 	messages := make([]*Message, 0, len(dbMessages))
 	for _, dbMsg := range dbMessages {
 		messages = append(messages, &Message{
-			ID:        strconv.FormatInt(dbMsg.ID, 10),
-			ChannelID: channelID,
-			AuthorID:  strconv.FormatInt(dbMsg.AuthorID, 10),
-			Content:   dbMsg.Content,
-			CreatedAt: dbMsg.CreatedAt,
-			UpdatedAt: dbMsg.UpdatedAt,
+			ID:             strconv.FormatInt(dbMsg.ID, 10),
+			ChannelID:      channelID,
+			AuthorID:       strconv.FormatInt(dbMsg.AuthorID, 10),
+			AuthorUsername: dbMsg.AuthorUsername,
+			Content:        dbMsg.Content,
+			CreatedAt:      dbMsg.CreatedAt,
+			UpdatedAt:      dbMsg.UpdatedAt,
 		})
 	}
 
@@ -197,13 +208,17 @@ func (s *MessageService) EditMessage(ctx context.Context, id, content string) (*
 		return nil, err
 	}
 
+	var authorUsername string
+	s.repo.DB().QueryRowContext(ctx, "SELECT username FROM users WHERE id = $1", dbMsg.AuthorID).Scan(&authorUsername)
+
 	msg := &Message{
-		ID:        id,
-		ChannelID: strconv.FormatInt(dbMsg.ChannelID, 10),
-		AuthorID:  strconv.FormatInt(dbMsg.AuthorID, 10),
-		Content:   content,
-		CreatedAt: dbMsg.CreatedAt,
-		UpdatedAt: dbMsg.UpdatedAt,
+		ID:             id,
+		ChannelID:      strconv.FormatInt(dbMsg.ChannelID, 10),
+		AuthorID:       strconv.FormatInt(dbMsg.AuthorID, 10),
+		AuthorUsername: authorUsername,
+		Content:        content,
+		CreatedAt:      dbMsg.CreatedAt,
+		UpdatedAt:      dbMsg.UpdatedAt,
 	}
 
 	// Broadcast the update if a broadcaster is set

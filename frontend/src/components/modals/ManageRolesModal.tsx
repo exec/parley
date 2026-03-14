@@ -110,10 +110,10 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({ isOpen, onCl
               {members.map(member => (
                 <div key={member.id} className="member-role-item">
                   <div className="member-avatar-small">
-                    {(member.user?.username || 'U').charAt(0).toUpperCase()}
+                    {(member.username || 'U').charAt(0).toUpperCase()}
                   </div>
                   <span className="member-name-small">
-                    {member.user?.username || member.user_id}
+                    {member.username || member.user_id}
                   </span>
                   <select className="role-select">
                     <option value="">No role</option>
