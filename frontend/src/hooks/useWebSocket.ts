@@ -17,6 +17,7 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, activ
   const wsRef = useRef<WebSocket | null>(null);
   const subscribedChannelRef = useRef<string | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeChannelIdRef = useRef<string | null>(activeChannelId);
 
   const connect = useCallback(() => {
     const token = localStorage.getItem('token');
@@ -30,12 +31,13 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, activ
 
     ws.onopen = () => {
       // Subscribe to active channel if we have one
-      if (activeChannelId) {
+      const currentChannelId = activeChannelIdRef.current;
+      if (currentChannelId) {
         ws.send(JSON.stringify({
           type: 'CHANNEL_SUBSCRIBE',
-          payload: { channel_id: activeChannelId },
+          payload: { channel_id: currentChannelId },
         }));
-        subscribedChannelRef.current = activeChannelId;
+        subscribedChannelRef.current = currentChannelId;
       }
     };
 
@@ -86,6 +88,11 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, activ
       }
     };
   }, [connect]);
+
+  // Update ref when activeChannelId changes
+  useEffect(() => {
+    activeChannelIdRef.current = activeChannelId;
+  }, [activeChannelId]);
 
   // Subscribe/unsubscribe when active channel changes
   useEffect(() => {
