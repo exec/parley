@@ -25,7 +25,7 @@ interface AppState {
 }
 
 interface AppActions {
-  selectServer: (serverId: string) => Promise<void>;
+  selectServer: (serverId: string, channelId?: string) => Promise<void>;
   selectChannel: (channelId: string) => Promise<void>;
   createServer: (name: string) => Promise<void>;
   updateServer: (server: Server) => void;
@@ -67,6 +67,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         avatar_url: u.avatar_url || '',
         banner_url: u.banner_url || '',
         email_verified: u.email_verified ?? undefined,
+        phone_number: u.phone_number || '',
+        phone_verified: u.phone_verified ?? undefined,
       };
     } catch {
       return null;
@@ -120,7 +122,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [currentUser]);
 
-  const selectServer = useCallback(async (serverId: string) => {
+  const selectServer = useCallback(async (serverId: string, channelId?: string) => {
     setActiveDmChannel(null);
     setDmMessages([]);
 
@@ -147,11 +149,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ]);
       setChannels(chs ?? []);
       setMembers(mems ?? []);
-      const firstText = chs?.find(c => c.type === 0);
-      if (firstText) {
-        setActiveChannel(firstText);
+      const target = (channelId && chs?.find(c => c.id === channelId)) || chs?.find(c => c.type === 0);
+      if (target) {
+        setActiveChannel(target);
         setIsLoadingMessages(true);
-        const msgs = await messagesApi.getMessages(firstText.id);
+        const msgs = await messagesApi.getMessages(target.id);
         setMessages(msgs ?? []);
         setIsLoadingMessages(false);
       }
@@ -269,10 +271,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setMessages(prev => [...prev, optimistic]);
 
     try {
-      await messagesApi.sendMessage(activeChannel.id, content, nonce, attachmentUrl, attachmentName, attachmentType);
-      // Don't add from the HTTP response — the WS broadcast carries the confirmed
-      // message back (with the same nonce) and receiveMessage will replace the
-      // optimistic entry. If WS is down, fall back to confirming via HTTP below.
+      const confirmed = await messagesApi.sendMessage(activeChannel.id, content, nonce, attachmentUrl, attachmentName, attachmentType);
+      // Confirm immediately from the HTTP 201 response — don't wait for WS echo.
+      // receiveMessage handles the WS echo as a no-op (nonce already replaced,
+      // duplicate id check prevents double-add).
+      setMessages(prev => {
+        const idx = prev.findIndex(m => m.nonce === nonce);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = confirmed;
+          return next;
+        }
+        // WS echo arrived first — guard against duplicate id
+        if (prev.some(m => m.id === confirmed.id)) return prev;
+        return [...prev, confirmed];
+      });
     } catch (err) {
       // Remove the optimistic message on failure.
       setMessages(prev => prev.filter(m => m.nonce !== nonce));

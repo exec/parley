@@ -9,6 +9,7 @@ import (
 	"log"
 	"mime/multipart"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 	"time"
@@ -124,9 +125,13 @@ func registerRoutes(
 			// User routes
 			r.Get("/users/search", handleUserSearch(repo))
 			r.Get("/users/{id}", handleGetUser(repo))
+			r.Post("/auth/impersonate-token", handleImpersonateToken(authService))
 			r.Put("/auth/profile", handleUpdateProfile(authService))
 			r.Put("/auth/email", handleChangeEmail(authService))
 			r.Post("/auth/resend-verification", handleResendVerification(authService))
+			r.Post("/auth/verify-phone", handleVerifyPhone(authService))
+			r.Post("/auth/resend-phone", handleResendPhone(authService))
+			r.Put("/auth/phone", handleChangePhone(authService))
 
 			// File upload endpoint - 25MB limit (overrides global 64KB cap)
 			r.With(func(next http.Handler) http.Handler {
@@ -181,6 +186,28 @@ func registerRoutes(
 
 	// WebSocket route - accepts token via query param (browser WS can't set headers)
 	router.Get("/ws", handleWebSocket(hub))
+}
+
+func handleImpersonateToken(authService *auth.AuthService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		targetUserID := r.Header.Get("X-Admin-Impersonate")
+		adminSecret := r.Header.Get("X-Admin-Secret")
+
+		expectedSecret := os.Getenv("ADMIN_IMPERSONATE_SECRET")
+		if expectedSecret == "" || adminSecret != expectedSecret {
+			jsonError(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		token, err := authService.GenerateImpersonationToken(targetUserID)
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"token": token})
+	}
 }
 
 // generateID returns a unique string ID based on the current time in nanoseconds.
@@ -255,11 +282,13 @@ func bridgeUserIDMiddleware(next http.Handler) http.Handler {
 type RegisterRequest struct {
 	Username string `json:"username"`
 	Email    string `json:"email"`
+	Phone    string `json:"phone"`
 	Password string `json:"password"`
 }
 
 type LoginRequest struct {
 	Email    string `json:"email"`
+	Phone    string `json:"phone"`
 	Password string `json:"password"`
 }
 
@@ -282,7 +311,7 @@ func handleAuthRegister(authService *auth.AuthService) http.HandlerFunc {
 			return
 		}
 
-		user, token, err := authService.Register(r.Context(), req.Username, req.Email, req.Password)
+		user, token, err := authService.Register(r.Context(), req.Username, req.Email, req.Phone, req.Password)
 		if err != nil {
 			jsonError(w, err.Error(), http.StatusBadRequest)
 			return
@@ -302,7 +331,11 @@ func handleAuthLogin(authService *auth.AuthService) http.HandlerFunc {
 			return
 		}
 
-		user, token, err := authService.Login(r.Context(), req.Email, req.Password)
+		emailOrPhone := req.Email
+		if emailOrPhone == "" {
+			emailOrPhone = req.Phone
+		}
+		user, token, err := authService.Login(r.Context(), emailOrPhone, req.Password)
 		if err != nil {
 			jsonError(w, err.Error(), http.StatusUnauthorized)
 			return
@@ -544,5 +577,69 @@ func handleResendVerification(authService *auth.AuthService) http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"message": "Verification email sent"})
+	}
+}
+
+func handleVerifyPhone(authService *auth.AuthService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userIDStr := auth.GetUserIDFromContext(r)
+		if userIDStr == "" {
+			jsonError(w, "user not authenticated", http.StatusUnauthorized)
+			return
+		}
+		var req struct {
+			Code string `json:"code"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Code == "" {
+			jsonError(w, "code is required", http.StatusBadRequest)
+			return
+		}
+		if err := authService.VerifyPhone(r.Context(), userIDStr, req.Code); err != nil {
+			jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"message": "Phone verified successfully"})
+	}
+}
+
+func handleResendPhone(authService *auth.AuthService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userIDStr := auth.GetUserIDFromContext(r)
+		if userIDStr == "" {
+			jsonError(w, "user not authenticated", http.StatusUnauthorized)
+			return
+		}
+		if err := authService.SendPhoneVerification(r.Context(), userIDStr); err != nil {
+			jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"message": "Verification code sent"})
+	}
+}
+
+func handleChangePhone(authService *auth.AuthService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userIDStr := auth.GetUserIDFromContext(r)
+		if userIDStr == "" {
+			jsonError(w, "user not authenticated", http.StatusUnauthorized)
+			return
+		}
+		var req struct {
+			Phone    string `json:"phone"`
+			Password string `json:"password"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			jsonError(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		user, err := authService.ChangePhone(r.Context(), userIDStr, req.Phone, req.Password)
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(user)
 	}
 }

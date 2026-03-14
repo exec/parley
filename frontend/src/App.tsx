@@ -4,6 +4,7 @@ import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { InvitePage } from './pages/InvitePage';
 import { VerifyEmail } from './pages/VerifyEmail';
+import { Impersonate } from './pages/Impersonate';
 import { AppProvider, useApp } from './context/AppContext';
 import { useWebSocket } from './hooks/useWebSocket';
 import { DmMessage } from './api/types';
@@ -108,9 +109,7 @@ function MainApp() {
     const serverMatch = path.match(/^\/channels\/([^/]+)(?:\/([^/]+))?$/);
     if (serverMatch) {
       const [, serverId, channelId] = serverMatch;
-      selectServer(serverId).then(() => {
-        if (channelId) selectChannel(channelId);
-      });
+      selectServer(serverId, channelId || undefined);
     }
   }, [isLoadingServers, servers.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -243,6 +242,24 @@ function MainApp() {
       next.delete(userId);
       return next;
     });
+    // Clear any typing indicators for this user across all channels
+    setTypingUsers(prev => {
+      let changed = false;
+      const updated: Record<string, { userId: string; username: string }[]> = {};
+      for (const [channelId, users] of Object.entries(prev)) {
+        const filtered = users.filter(u => u.userId !== userId);
+        if (filtered.length !== users.length) changed = true;
+        if (filtered.length > 0) updated[channelId] = filtered;
+      }
+      return changed ? updated : prev;
+    });
+    // Cancel pending typing timeouts for this user
+    for (const [key, timeout] of typingTimeoutsRef.current.entries()) {
+      if (key.endsWith(`:${userId}`)) {
+        clearTimeout(timeout);
+        typingTimeoutsRef.current.delete(key);
+      }
+    }
   }, []);
 
   const handlePresenceSnapshot = useCallback((userIds: string[]) => {
@@ -512,6 +529,7 @@ function App() {
         }
       />
       <Route path="/verify-email" element={<VerifyEmail />} />
+      <Route path="/impersonate" element={<Impersonate />} />
       {/* Channel routes — all handled by MainApp which syncs URL with state */}
       <Route path="/" element={ProtectedApp} />
       <Route path="/channels/*" element={ProtectedApp} />

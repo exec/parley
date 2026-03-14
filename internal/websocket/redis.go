@@ -74,15 +74,17 @@ func (r *RedisHub) Subscribe() {
 			return
 		}
 
-		// Forward to hub's broadcast channel for safe processing in main hub loop
-		msg := &Message{
-			Type:      env.Event,
-			ChannelID: env.ChannelID,
-			Payload:   []byte(env.Data),
+		// Deliver to local clients ONLY — never re-publish to Redis.
+		// Routing through hub.broadcast → BroadcastToChannel would re-publish
+		// the event to Redis, causing every node to echo it back indefinitely.
+		switch env.EventType {
+		case "channel":
+			r.hub.BroadcastLocalToChannel(env.ChannelID, env.Event, []byte(env.Data))
+		case "user":
+			r.hub.SendLocalToUser(env.UserID, env.Event, []byte(env.Data))
+		default:
+			log.Printf("RedisHub: unknown event_type %q, dropping", env.EventType)
 		}
-
-		// Send to broadcast channel (blocking - waits if full)
-		r.hub.broadcast <- msg
 	})
 }
 

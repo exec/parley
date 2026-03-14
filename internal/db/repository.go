@@ -56,8 +56,8 @@ func (r *Repository) DB() *sql.DB {
 // CreateUser creates a new user in the database
 func (r *Repository) CreateUser(ctx context.Context, user *User) error {
 	query := `
-		INSERT INTO users (username, email, password_hash, avatar_url, banner_url, email_verification_token, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, NULLIF($6, ''), $7, $8)
+		INSERT INTO users (username, email, password_hash, avatar_url, banner_url, email_verification_token, phone_number, created_at, updated_at)
+		VALUES ($1, NULLIF($2, ''), $3, $4, $5, NULLIF($6, ''), NULLIF($7, ''), $8, $9)
 		RETURNING id
 	`
 
@@ -72,6 +72,7 @@ func (r *Repository) CreateUser(ctx context.Context, user *User) error {
 		user.AvatarURL,
 		user.BannerURL,
 		user.EmailVerificationToken,
+		user.PhoneNumber,
 		user.CreatedAt,
 		user.UpdatedAt,
 	).Scan(&user.ID)
@@ -86,13 +87,17 @@ func (r *Repository) CreateUser(ctx context.Context, user *User) error {
 // GetUserByID retrieves a user by their ID
 func (r *Repository) GetUserByID(ctx context.Context, id int64) (*User, error) {
 	query := `
-		SELECT id, username, email, password_hash, COALESCE(avatar_url, ''), COALESCE(banner_url, ''),
-		       email_verified, COALESCE(email_verification_token, ''), created_at, updated_at
+		SELECT id, username, COALESCE(email, ''), password_hash, COALESCE(avatar_url, ''), COALESCE(banner_url, ''),
+		       email_verified, COALESCE(email_verification_token, ''),
+		       COALESCE(phone_number, ''), phone_verified,
+		       banned_at, COALESCE(ban_reason, ''), force_logout_at, is_system,
+		       created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
 
 	var user User
+	var bannedAt, forceLogoutAt sql.NullTime
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&user.ID,
 		&user.Username,
@@ -102,6 +107,12 @@ func (r *Repository) GetUserByID(ctx context.Context, id int64) (*User, error) {
 		&user.BannerURL,
 		&user.EmailVerified,
 		&user.EmailVerificationToken,
+		&user.PhoneNumber,
+		&user.PhoneVerified,
+		&bannedAt,
+		&user.BanReason,
+		&forceLogoutAt,
+		&user.IsSystem,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -112,6 +123,12 @@ func (r *Repository) GetUserByID(ctx context.Context, id int64) (*User, error) {
 	if err != nil {
 		return nil, err
 	}
+	if bannedAt.Valid {
+		user.BannedAt = &bannedAt.Time
+	}
+	if forceLogoutAt.Valid {
+		user.ForceLogoutAt = &forceLogoutAt.Time
+	}
 
 	return &user, nil
 }
@@ -119,13 +136,17 @@ func (r *Repository) GetUserByID(ctx context.Context, id int64) (*User, error) {
 // GetUserByEmail retrieves a user by their email
 func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*User, error) {
 	query := `
-		SELECT id, username, email, password_hash, COALESCE(avatar_url, ''), COALESCE(banner_url, ''),
-		       email_verified, COALESCE(email_verification_token, ''), created_at, updated_at
+		SELECT id, username, COALESCE(email, ''), password_hash, COALESCE(avatar_url, ''), COALESCE(banner_url, ''),
+		       email_verified, COALESCE(email_verification_token, ''),
+		       COALESCE(phone_number, ''), phone_verified,
+		       banned_at, COALESCE(ban_reason, ''), force_logout_at, is_system,
+		       created_at, updated_at
 		FROM users
 		WHERE email = $1
 	`
 
 	var user User
+	var bannedAt, forceLogoutAt sql.NullTime
 	err := r.db.QueryRowContext(ctx, query, email).Scan(
 		&user.ID,
 		&user.Username,
@@ -135,6 +156,12 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*User, e
 		&user.BannerURL,
 		&user.EmailVerified,
 		&user.EmailVerificationToken,
+		&user.PhoneNumber,
+		&user.PhoneVerified,
+		&bannedAt,
+		&user.BanReason,
+		&forceLogoutAt,
+		&user.IsSystem,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -145,6 +172,12 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*User, e
 	if err != nil {
 		return nil, err
 	}
+	if bannedAt.Valid {
+		user.BannedAt = &bannedAt.Time
+	}
+	if forceLogoutAt.Valid {
+		user.ForceLogoutAt = &forceLogoutAt.Time
+	}
 
 	return &user, nil
 }
@@ -152,13 +185,17 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*User, e
 // GetUserByUsername retrieves a user by their username
 func (r *Repository) GetUserByUsername(ctx context.Context, username string) (*User, error) {
 	query := `
-		SELECT id, username, email, password_hash, COALESCE(avatar_url, ''), COALESCE(banner_url, ''),
-		       email_verified, COALESCE(email_verification_token, ''), created_at, updated_at
+		SELECT id, username, COALESCE(email, ''), password_hash, COALESCE(avatar_url, ''), COALESCE(banner_url, ''),
+		       email_verified, COALESCE(email_verification_token, ''),
+		       COALESCE(phone_number, ''), phone_verified,
+		       banned_at, COALESCE(ban_reason, ''), force_logout_at, is_system,
+		       created_at, updated_at
 		FROM users
 		WHERE username = $1
 	`
 
 	var user User
+	var bannedAt, forceLogoutAt sql.NullTime
 	err := r.db.QueryRowContext(ctx, query, username).Scan(
 		&user.ID,
 		&user.Username,
@@ -168,6 +205,12 @@ func (r *Repository) GetUserByUsername(ctx context.Context, username string) (*U
 		&user.BannerURL,
 		&user.EmailVerified,
 		&user.EmailVerificationToken,
+		&user.PhoneNumber,
+		&user.PhoneVerified,
+		&bannedAt,
+		&user.BanReason,
+		&forceLogoutAt,
+		&user.IsSystem,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -177,6 +220,12 @@ func (r *Repository) GetUserByUsername(ctx context.Context, username string) (*U
 	}
 	if err != nil {
 		return nil, err
+	}
+	if bannedAt.Valid {
+		user.BannedAt = &bannedAt.Time
+	}
+	if forceLogoutAt.Valid {
+		user.ForceLogoutAt = &forceLogoutAt.Time
 	}
 
 	return &user, nil
@@ -221,13 +270,17 @@ func (r *Repository) UpdateUser(ctx context.Context, user *User) error {
 // GetUserByVerificationToken retrieves a user by their email verification token.
 func (r *Repository) GetUserByVerificationToken(ctx context.Context, token string) (*User, error) {
 	query := `
-		SELECT id, username, email, password_hash, COALESCE(avatar_url, ''), COALESCE(banner_url, ''),
-		       email_verified, COALESCE(email_verification_token, ''), created_at, updated_at
+		SELECT id, username, COALESCE(email, ''), password_hash, COALESCE(avatar_url, ''), COALESCE(banner_url, ''),
+		       email_verified, COALESCE(email_verification_token, ''),
+		       COALESCE(phone_number, ''), phone_verified,
+		       banned_at, COALESCE(ban_reason, ''), force_logout_at, is_system,
+		       created_at, updated_at
 		FROM users
 		WHERE email_verification_token = $1
 	`
 
 	var user User
+	var bannedAt, forceLogoutAt sql.NullTime
 	err := r.db.QueryRowContext(ctx, query, token).Scan(
 		&user.ID,
 		&user.Username,
@@ -237,6 +290,12 @@ func (r *Repository) GetUserByVerificationToken(ctx context.Context, token strin
 		&user.BannerURL,
 		&user.EmailVerified,
 		&user.EmailVerificationToken,
+		&user.PhoneNumber,
+		&user.PhoneVerified,
+		&bannedAt,
+		&user.BanReason,
+		&forceLogoutAt,
+		&user.IsSystem,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -246,6 +305,12 @@ func (r *Repository) GetUserByVerificationToken(ctx context.Context, token strin
 	}
 	if err != nil {
 		return nil, err
+	}
+	if bannedAt.Valid {
+		user.BannedAt = &bannedAt.Time
+	}
+	if forceLogoutAt.Valid {
+		user.ForceLogoutAt = &forceLogoutAt.Time
 	}
 
 	return &user, nil
@@ -322,6 +387,155 @@ func (r *Repository) CheckAndIncrementEmailChange(ctx context.Context, userID in
 	}
 	if rows == 0 {
 		return ErrInvalidOperation
+	}
+	return nil
+}
+
+// GetUserByPhone retrieves a user by their phone number.
+func (r *Repository) GetUserByPhone(ctx context.Context, phone string) (*User, error) {
+	query := `
+		SELECT id, username, COALESCE(email, ''), password_hash, COALESCE(avatar_url, ''), COALESCE(banner_url, ''),
+		       email_verified, COALESCE(email_verification_token, ''),
+		       COALESCE(phone_number, ''), phone_verified,
+		       banned_at, COALESCE(ban_reason, ''), force_logout_at, is_system,
+		       created_at, updated_at
+		FROM users
+		WHERE phone_number = $1
+	`
+	var user User
+	var bannedAt, forceLogoutAt sql.NullTime
+	err := r.db.QueryRowContext(ctx, query, phone).Scan(
+		&user.ID, &user.Username, &user.Email, &user.PasswordHash,
+		&user.AvatarURL, &user.BannerURL,
+		&user.EmailVerified, &user.EmailVerificationToken,
+		&user.PhoneNumber, &user.PhoneVerified,
+		&bannedAt, &user.BanReason, &forceLogoutAt, &user.IsSystem,
+		&user.CreatedAt, &user.UpdatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if bannedAt.Valid {
+		user.BannedAt = &bannedAt.Time
+	}
+	if forceLogoutAt.Valid {
+		user.ForceLogoutAt = &forceLogoutAt.Time
+	}
+	return &user, nil
+}
+
+// SetPhoneVerified marks a user's phone as verified and clears the verification code.
+func (r *Repository) SetPhoneVerified(ctx context.Context, userID int64) error {
+	query := `UPDATE users SET phone_verified = TRUE, phone_verification_code = NULL, phone_code_expires_at = NULL, updated_at = NOW() WHERE id = $1`
+	result, err := r.db.ExecContext(ctx, query, userID)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// SetPhoneVerificationCode stores a 6-digit OTP and its expiry for phone verification.
+func (r *Repository) SetPhoneVerificationCode(ctx context.Context, userID int64, code string, expiresAt time.Time) error {
+	query := `UPDATE users SET phone_verification_code = $2, phone_code_expires_at = $3, updated_at = NOW() WHERE id = $1`
+	result, err := r.db.ExecContext(ctx, query, userID, code, expiresAt)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// CheckPhoneVerificationCode validates the OTP for a user. Returns ErrNotFound if the
+// user has no pending code, ErrInvalidOperation if expired or wrong.
+func (r *Repository) CheckPhoneVerificationCode(ctx context.Context, userID int64, code string) error {
+	var storedCode sql.NullString
+	var expiresAt sql.NullTime
+	query := `SELECT phone_verification_code, phone_code_expires_at FROM users WHERE id = $1`
+	if err := r.db.QueryRowContext(ctx, query, userID).Scan(&storedCode, &expiresAt); err != nil {
+		if err == sql.ErrNoRows {
+			return ErrNotFound
+		}
+		return err
+	}
+	if !storedCode.Valid || storedCode.String == "" {
+		return ErrInvalidOperation
+	}
+	if !expiresAt.Valid || time.Now().After(expiresAt.Time) {
+		return ErrInvalidOperation
+	}
+	if storedCode.String != code {
+		return ErrInvalidOperation
+	}
+	return nil
+}
+
+// CheckAndIncrementSmsResend atomically checks and increments the daily SMS send counter.
+// Max 5 per day. Returns ErrInvalidOperation when the limit is exceeded.
+func (r *Repository) CheckAndIncrementSmsResend(ctx context.Context, userID int64) error {
+	query := `
+		UPDATE users
+		SET
+			sms_resend_count = CASE
+				WHEN sms_resend_date IS NULL OR sms_resend_date < CURRENT_DATE THEN 1
+				ELSE sms_resend_count + 1
+			END,
+			sms_resend_date = CURRENT_DATE
+		WHERE id = $1
+		  AND (sms_resend_date IS NULL OR sms_resend_date < CURRENT_DATE OR sms_resend_count < 5)
+	`
+	result, err := r.db.ExecContext(ctx, query, userID)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrInvalidOperation
+	}
+	return nil
+}
+
+// UpdateUserPhone sets a new phone number, clears phone_verified, resets SMS counters.
+func (r *Repository) UpdateUserPhone(ctx context.Context, userID int64, phone string) error {
+	query := `
+		UPDATE users
+		SET phone_number = NULLIF($2, ''),
+		    phone_verified = FALSE,
+		    phone_verification_code = NULL,
+		    phone_code_expires_at = NULL,
+		    sms_resend_count = 0,
+		    sms_resend_date = NULL,
+		    updated_at = NOW()
+		WHERE id = $1
+	`
+	result, err := r.db.ExecContext(ctx, query, userID, phone)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrNotFound
 	}
 	return nil
 }
@@ -1548,4 +1762,422 @@ func (r *Repository) GetServerMembersWithRoles(ctx context.Context, serverID int
 		}
 	}
 	return members, nil
+}
+
+// ============ Admin Operations ============
+
+// BanUser sets banned_at and ban_reason for a user.
+func (r *Repository) BanUser(ctx context.Context, userID int64, reason string) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE users SET banned_at = NOW(), ban_reason = $2, updated_at = NOW() WHERE id = $1`, userID, reason)
+	return err
+}
+
+// UnbanUser clears banned_at and ban_reason.
+func (r *Repository) UnbanUser(ctx context.Context, userID int64) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE users SET banned_at = NULL, ban_reason = NULL, updated_at = NOW() WHERE id = $1`, userID)
+	return err
+}
+
+// ForceLogoutUser sets force_logout_at to now, invalidating all existing tokens.
+func (r *Repository) ForceLogoutUser(ctx context.Context, userID int64) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE users SET force_logout_at = NOW(), updated_at = NOW() WHERE id = $1`, userID)
+	return err
+}
+
+// GetSystemUser returns the system bot account.
+func (r *Repository) GetSystemUser(ctx context.Context) (*User, error) {
+	return r.GetUserByUsername(ctx, "Parley")
+}
+
+// AdminCreateUser creates an admin user (inactive by default).
+func (r *Repository) AdminCreateUser(ctx context.Context, username, passwordHash string) (*AdminUser, error) {
+	u := &AdminUser{}
+	err := r.db.QueryRowContext(ctx, `
+		INSERT INTO admin_users (username, password_hash, active, created_at)
+		VALUES ($1, $2, FALSE, NOW())
+		RETURNING id, username, password_hash, active, created_at
+	`, username, passwordHash).Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Active, &u.CreatedAt)
+	return u, err
+}
+
+// AdminGetUser fetches an admin user by username.
+func (r *Repository) AdminGetUser(ctx context.Context, username string) (*AdminUser, error) {
+	u := &AdminUser{}
+	err := r.db.QueryRowContext(ctx, `
+		SELECT id, username, password_hash, active, created_at, last_login_at
+		FROM admin_users WHERE username = $1
+	`, username).Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Active, &u.CreatedAt, &u.LastLoginAt)
+	if err == sql.ErrNoRows {
+		return nil, ErrNotFound
+	}
+	return u, err
+}
+
+// AdminListUsers lists all admin users.
+func (r *Repository) AdminListUsers(ctx context.Context) ([]AdminUser, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT id, username, password_hash, active, created_at, last_login_at FROM admin_users ORDER BY created_at`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var users []AdminUser
+	for rows.Next() {
+		var u AdminUser
+		if err := rows.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Active, &u.CreatedAt, &u.LastLoginAt); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
+}
+
+// AdminSetActive sets the active flag for an admin user.
+func (r *Repository) AdminSetActive(ctx context.Context, username string, active bool) error {
+	result, err := r.db.ExecContext(ctx, `UPDATE admin_users SET active = $2 WHERE username = $1`, username, active)
+	if err != nil {
+		return err
+	}
+	n, _ := result.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// AdminUpdateLastLogin updates the last_login_at for an admin user.
+func (r *Repository) AdminUpdateLastLogin(ctx context.Context, id int64) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE admin_users SET last_login_at = NOW() WHERE id = $1`, id)
+	return err
+}
+
+// GetReports returns reports filtered by status (empty = all), paginated.
+func (r *Repository) GetReports(ctx context.Context, status string, limit, offset int) ([]Report, error) {
+	query := `
+		SELECT rp.id, rp.reporter_id, rp.reported_user_id, rp.reported_message_id,
+		       rp.category_id, rc.name, rp.description, rp.status,
+		       rp.resolved_by, COALESCE(rp.resolution_note, ''),
+		       COALESCE(u_reporter.username, ''), COALESCE(u_reported.username, ''),
+		       rp.created_at, rp.updated_at
+		FROM reports rp
+		JOIN report_categories rc ON rc.id = rp.category_id
+		LEFT JOIN users u_reporter ON u_reporter.id = rp.reporter_id
+		LEFT JOIN users u_reported ON u_reported.id = rp.reported_user_id
+	`
+	args := []interface{}{}
+	if status != "" {
+		query += ` WHERE rp.status = $1`
+		args = append(args, status)
+		query += fmt.Sprintf(` ORDER BY rp.created_at DESC LIMIT $%d OFFSET $%d`, len(args)+1, len(args)+2)
+	} else {
+		query += ` ORDER BY rp.created_at DESC LIMIT $1 OFFSET $2`
+	}
+	args = append(args, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var reports []Report
+	for rows.Next() {
+		var rp Report
+		if err := rows.Scan(&rp.ID, &rp.ReporterID, &rp.ReportedUserID, &rp.ReportedMessageID,
+			&rp.CategoryID, &rp.CategoryName, &rp.Description, &rp.Status,
+			&rp.ResolvedBy, &rp.ResolutionNote,
+			&rp.ReporterUsername, &rp.ReportedUsername,
+			&rp.CreatedAt, &rp.UpdatedAt); err != nil {
+			return nil, err
+		}
+		reports = append(reports, rp)
+	}
+	return reports, rows.Err()
+}
+
+// GetReport returns a single report by ID.
+func (r *Repository) GetReport(ctx context.Context, id int64) (*Report, error) {
+	var rp Report
+	err := r.db.QueryRowContext(ctx, `
+		SELECT rp.id, rp.reporter_id, rp.reported_user_id, rp.reported_message_id,
+		       rp.category_id, rc.name, rp.description, rp.status,
+		       rp.resolved_by, COALESCE(rp.resolution_note, ''),
+		       COALESCE(u_reporter.username, ''), COALESCE(u_reported.username, ''),
+		       rp.created_at, rp.updated_at
+		FROM reports rp
+		JOIN report_categories rc ON rc.id = rp.category_id
+		LEFT JOIN users u_reporter ON u_reporter.id = rp.reporter_id
+		LEFT JOIN users u_reported ON u_reported.id = rp.reported_user_id
+		WHERE rp.id = $1
+	`, id).Scan(&rp.ID, &rp.ReporterID, &rp.ReportedUserID, &rp.ReportedMessageID,
+		&rp.CategoryID, &rp.CategoryName, &rp.Description, &rp.Status,
+		&rp.ResolvedBy, &rp.ResolutionNote,
+		&rp.ReporterUsername, &rp.ReportedUsername,
+		&rp.CreatedAt, &rp.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, ErrNotFound
+	}
+	return &rp, err
+}
+
+// ResolveReport updates a report's status and resolution note.
+func (r *Repository) ResolveReport(ctx context.Context, reportID, adminID int64, status, note string) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE reports SET status = $2, resolved_by = $3, resolution_note = $4, updated_at = NOW()
+		WHERE id = $1
+	`, reportID, status, adminID, note)
+	return err
+}
+
+// GetMessageContext returns N messages before and after a given message ID in the same channel.
+func (r *Repository) GetMessageContext(ctx context.Context, messageID int64, before, after int) ([]Message, error) {
+	var channelID int64
+	var createdAt time.Time
+	err := r.db.QueryRowContext(ctx, `SELECT channel_id, created_at FROM messages WHERE id = $1`, messageID).Scan(&channelID, &createdAt)
+	if err != nil {
+		return nil, err
+	}
+
+	query := `
+		(SELECT m.id, m.channel_id, m.author_id, m.content, COALESCE(m.nonce,''),
+		        COALESCE(m.attachment_url,''), COALESCE(m.attachment_name,''), COALESCE(m.attachment_type,''),
+		        m.created_at, m.updated_at, u.username
+		 FROM messages m JOIN users u ON u.id = m.author_id
+		 WHERE m.channel_id = $1 AND m.created_at < $2
+		 ORDER BY m.created_at DESC LIMIT $3)
+		UNION ALL
+		(SELECT m.id, m.channel_id, m.author_id, m.content, COALESCE(m.nonce,''),
+		        COALESCE(m.attachment_url,''), COALESCE(m.attachment_name,''), COALESCE(m.attachment_type,''),
+		        m.created_at, m.updated_at, u.username
+		 FROM messages m JOIN users u ON u.id = m.author_id
+		 WHERE m.channel_id = $1 AND m.created_at >= $2
+		 ORDER BY m.created_at ASC LIMIT $4)
+		ORDER BY created_at ASC
+	`
+	rows, err := r.db.QueryContext(ctx, query, channelID, createdAt, before+1, after+1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var msgs []Message
+	for rows.Next() {
+		var m Message
+		if err := rows.Scan(&m.ID, &m.ChannelID, &m.AuthorID, &m.Content, &m.Nonce,
+			&m.AttachmentURL, &m.AttachmentName, &m.AttachmentType,
+			&m.CreatedAt, &m.UpdatedAt, &m.AuthorUsername); err != nil {
+			return nil, err
+		}
+		msgs = append(msgs, m)
+	}
+	return msgs, rows.Err()
+}
+
+// SearchMessages searches messages by content and/or author username, paginated.
+func (r *Repository) SearchMessages(ctx context.Context, query string, userID int64, limit, offset int) ([]Message, error) {
+	args := []interface{}{}
+	where := []string{}
+	if query != "" {
+		args = append(args, "%"+query+"%")
+		where = append(where, fmt.Sprintf("m.content ILIKE $%d", len(args)))
+	}
+	if userID > 0 {
+		args = append(args, userID)
+		where = append(where, fmt.Sprintf("m.author_id = $%d", len(args)))
+	}
+	sqlStr := `SELECT m.id, m.channel_id, m.author_id, m.content, COALESCE(m.nonce,''),
+	                  COALESCE(m.attachment_url,''), COALESCE(m.attachment_name,''), COALESCE(m.attachment_type,''),
+	                  m.created_at, m.updated_at, u.username
+	           FROM messages m JOIN users u ON u.id = m.author_id`
+	if len(where) > 0 {
+		sqlStr += " WHERE " + strings.Join(where, " AND ")
+	}
+	args = append(args, limit, offset)
+	sqlStr += fmt.Sprintf(` ORDER BY m.created_at DESC LIMIT $%d OFFSET $%d`, len(args)-1, len(args))
+	rows, err := r.db.QueryContext(ctx, sqlStr, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var msgs []Message
+	for rows.Next() {
+		var m Message
+		if err := rows.Scan(&m.ID, &m.ChannelID, &m.AuthorID, &m.Content, &m.Nonce,
+			&m.AttachmentURL, &m.AttachmentName, &m.AttachmentType,
+			&m.CreatedAt, &m.UpdatedAt, &m.AuthorUsername); err != nil {
+			return nil, err
+		}
+		msgs = append(msgs, m)
+	}
+	return msgs, rows.Err()
+}
+
+// AdminSearchUsers searches users by username for the admin panel.
+func (r *Repository) AdminSearchUsers(ctx context.Context, query string, limit, offset int) ([]User, error) {
+	var rows *sql.Rows
+	var err error
+	if query != "" {
+		rows, err = r.db.QueryContext(ctx, `
+			SELECT id, username, COALESCE(email,''), password_hash, COALESCE(avatar_url,''), COALESCE(banner_url,''),
+			       email_verified, COALESCE(email_verification_token,''),
+			       COALESCE(phone_number,''), phone_verified,
+			       banned_at, COALESCE(ban_reason,''), force_logout_at, is_system,
+			       created_at, updated_at
+			FROM users WHERE username ILIKE $1 AND is_system = FALSE
+			ORDER BY created_at DESC LIMIT $2 OFFSET $3
+		`, "%"+query+"%", limit, offset)
+	} else {
+		rows, err = r.db.QueryContext(ctx, `
+			SELECT id, username, COALESCE(email,''), password_hash, COALESCE(avatar_url,''), COALESCE(banner_url,''),
+			       email_verified, COALESCE(email_verification_token,''),
+			       COALESCE(phone_number,''), phone_verified,
+			       banned_at, COALESCE(ban_reason,''), force_logout_at, is_system,
+			       created_at, updated_at
+			FROM users WHERE is_system = FALSE
+			ORDER BY created_at DESC LIMIT $1 OFFSET $2
+		`, limit, offset)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var users []User
+	for rows.Next() {
+		var u User
+		var bannedAt, forceLogoutAt sql.NullTime
+		if err := rows.Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.AvatarURL, &u.BannerURL,
+			&u.EmailVerified, &u.EmailVerificationToken, &u.PhoneNumber, &u.PhoneVerified,
+			&bannedAt, &u.BanReason, &forceLogoutAt, &u.IsSystem,
+			&u.CreatedAt, &u.UpdatedAt); err != nil {
+			return nil, err
+		}
+		if bannedAt.Valid {
+			u.BannedAt = &bannedAt.Time
+		}
+		if forceLogoutAt.Valid {
+			u.ForceLogoutAt = &forceLogoutAt.Time
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
+}
+
+// GetAdminStats returns dashboard statistics.
+func (r *Repository) GetAdminStats(ctx context.Context) (map[string]int64, error) {
+	stats := map[string]int64{}
+	queries := map[string]string{
+		"total_users":     `SELECT COUNT(*) FROM users WHERE is_system = FALSE`,
+		"total_messages":  `SELECT COUNT(*) FROM messages`,
+		"total_servers":   `SELECT COUNT(*) FROM servers`,
+		"open_reports":    `SELECT COUNT(*) FROM reports WHERE status = 'open'`,
+		"banned_users":    `SELECT COUNT(*) FROM users WHERE banned_at IS NOT NULL`,
+		"new_users_today": `SELECT COUNT(*) FROM users WHERE created_at >= CURRENT_DATE AND is_system = FALSE`,
+	}
+	for key, q := range queries {
+		var n int64
+		if err := r.db.QueryRowContext(ctx, q).Scan(&n); err != nil {
+			return nil, err
+		}
+		stats[key] = n
+	}
+	return stats, nil
+}
+
+// GetReportCategories returns all report categories.
+func (r *Repository) GetReportCategories(ctx context.Context) ([]ReportCategory, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT id, name, created_at FROM report_categories ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var cats []ReportCategory
+	for rows.Next() {
+		var c ReportCategory
+		rows.Scan(&c.ID, &c.Name, &c.CreatedAt)
+		cats = append(cats, c)
+	}
+	return cats, rows.Err()
+}
+
+// CreateReportCategory adds a new report category.
+func (r *Repository) CreateReportCategory(ctx context.Context, name string) (*ReportCategory, error) {
+	c := &ReportCategory{}
+	err := r.db.QueryRowContext(ctx, `INSERT INTO report_categories (name) VALUES ($1) RETURNING id, name, created_at`, name).
+		Scan(&c.ID, &c.Name, &c.CreatedAt)
+	return c, err
+}
+
+// DeleteReportCategory removes a category.
+func (r *Repository) DeleteReportCategory(ctx context.Context, id int64) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM report_categories WHERE id = $1`, id)
+	return err
+}
+
+// AdminGetServers returns servers for the admin panel, optionally filtered by name.
+func (r *Repository) AdminGetServers(ctx context.Context, query string, limit, offset int) ([]Server, error) {
+	var rows *sql.Rows
+	var err error
+	if query != "" {
+		rows, err = r.db.QueryContext(ctx, `SELECT id, name, icon_url, owner_id, vanity_url, created_at, updated_at FROM servers WHERE name ILIKE $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`, "%"+query+"%", limit, offset)
+	} else {
+		rows, err = r.db.QueryContext(ctx, `SELECT id, name, icon_url, owner_id, vanity_url, created_at, updated_at FROM servers ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var servers []Server
+	for rows.Next() {
+		var s Server
+		rows.Scan(&s.ID, &s.Name, &s.IconURL, &s.OwnerID, &s.VanityURL, &s.CreatedAt, &s.UpdatedAt)
+		servers = append(servers, s)
+	}
+	return servers, rows.Err()
+}
+
+// GetServerMemberUserIDs returns user IDs of all members in a server.
+func (r *Repository) GetServerMemberUserIDs(ctx context.Context, serverID int64) ([]int64, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT user_id FROM server_members WHERE server_id = $1`, serverID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		rows.Scan(&id)
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// SendSystemDM sends a DM from the system user to a recipient. Creates DM channel if needed.
+func (r *Repository) SendSystemDM(ctx context.Context, systemUserID, recipientID int64, content string) error {
+	var dmChannelID int64
+	err := r.db.QueryRowContext(ctx, `
+		SELECT id FROM dm_channels
+		WHERE (user1_id = $1 AND user2_id = $2) OR (user1_id = $2 AND user2_id = $1)
+	`, systemUserID, recipientID).Scan(&dmChannelID)
+	if err == sql.ErrNoRows {
+		err = r.db.QueryRowContext(ctx, `
+			INSERT INTO dm_channels (user1_id, user2_id, created_at)
+			VALUES ($1, $2, NOW()) RETURNING id
+		`, systemUserID, recipientID).Scan(&dmChannelID)
+	}
+	if err != nil {
+		return err
+	}
+	_, err = r.db.ExecContext(ctx, `
+		INSERT INTO dm_messages (dm_channel_id, author_id, content, created_at, updated_at)
+		VALUES ($1, $2, $3, NOW(), NOW())
+	`, dmChannelID, systemUserID, content)
+	return err
+}
+
+// AdminDeleteMessage hard-deletes a message.
+func (r *Repository) AdminDeleteMessage(ctx context.Context, messageID int64) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM messages WHERE id = $1`, messageID)
+	return err
+}
+
+// AdminDeleteUser hard-deletes a user account and all their data.
+func (r *Repository) AdminDeleteUser(ctx context.Context, userID int64) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, userID)
+	return err
 }

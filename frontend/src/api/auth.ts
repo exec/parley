@@ -52,6 +52,7 @@ export interface UpdateProfileRequest {
   new_password?: string;
   avatar_url?: string;
   banner_url?: string;
+  phone?: string;
 }
 
 export async function updateProfile(req: UpdateProfileRequest): Promise<User> {
@@ -68,4 +69,16 @@ export async function verifyEmail(token: string): Promise<{ message: string }> {
 
 export async function resendVerification(): Promise<{ message: string }> {
   return apiClient.post<{ message: string }>('/auth/resend-verification', {});
+}
+
+export async function verifyPhone(code: string): Promise<{ message: string }> {
+  return apiClient.post<{ message: string }>('/auth/verify-phone', { code });
+}
+
+export async function resendPhone(): Promise<{ message: string }> {
+  return apiClient.post<{ message: string }>('/auth/resend-phone', {});
+}
+
+export async function changePhone(phone: string, password: string): Promise<User> {
+  return apiClient.put<User>('/auth/phone', { phone, password });
 }

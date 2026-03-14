@@ -27,9 +27,7 @@ export const Login: React.FC = () => {
     const newErrors: LoginErrors = {};
 
     if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = 'Invalid email address';
+      newErrors.email = 'Email or phone is required';
     }
 
     if (!formData.password) {
@@ -51,15 +49,18 @@ export const Login: React.FC = () => {
     setLoading(true);
 
     try {
+      const input = formData.email.trim();
+      const isPhone = /^\+?[\d\s\-()]+$/.test(input) && input.replace(/\D/g, '').length >= 8;
+      const body = isPhone
+        ? { phone: input.replace(/[\s\-()]/g, ''), password: formData.password }
+        : { email: input, password: formData.password };
+
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-        }),
+        body: JSON.stringify(body),
       });
 
       const data = await response.json().catch(() => ({}));
@@ -105,16 +106,16 @@ export const Login: React.FC = () => {
 
             <div className="input-wrapper">
               <label htmlFor="email" className="input-label">
-                Email
+                Email or Phone
               </label>
               <input
                 id="email"
                 name="email"
-                type="email"
+                type="text"
                 className={`input ${errors.email ? 'input-error' : ''}`}
                 value={formData.email}
                 onChange={handleChange}
-                placeholder="Enter your email"
+                placeholder="Email or phone number"
                 autoComplete="email"
               />
               {errors.email && (

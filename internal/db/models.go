@@ -15,16 +15,57 @@ const (
 
 // User represents a user in the system
 type User struct {
-	ID                      int64     `json:"id" db:"id"`
-	Username                string    `json:"username" db:"username"`
-	Email                   string    `json:"email" db:"email"`
-	PasswordHash            string    `json:"-" db:"password_hash"`
-	AvatarURL               string    `json:"avatar_url,omitempty" db:"avatar_url"`
-	BannerURL               string    `json:"banner_url,omitempty" db:"banner_url"`
-	EmailVerified           bool      `json:"email_verified" db:"email_verified"`
-	EmailVerificationToken  string    `json:"-" db:"email_verification_token"`
-	CreatedAt               time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt               time.Time `json:"updated_at" db:"updated_at"`
+	ID                      int64      `json:"id" db:"id"`
+	Username                string     `json:"username" db:"username"`
+	Email                   string     `json:"email" db:"email"`
+	PasswordHash            string     `json:"-" db:"password_hash"`
+	AvatarURL               string     `json:"avatar_url,omitempty" db:"avatar_url"`
+	BannerURL               string     `json:"banner_url,omitempty" db:"banner_url"`
+	EmailVerified           bool       `json:"email_verified" db:"email_verified"`
+	EmailVerificationToken  string     `json:"-" db:"email_verification_token"`
+	PhoneNumber             string     `json:"phone_number,omitempty" db:"phone_number"`
+	PhoneVerified           bool       `json:"phone_verified" db:"phone_verified"`
+	BannedAt                *time.Time `json:"banned_at,omitempty" db:"banned_at"`
+	BanReason               string     `json:"ban_reason,omitempty" db:"ban_reason"`
+	ForceLogoutAt           *time.Time `json:"force_logout_at,omitempty" db:"force_logout_at"`
+	IsSystem                bool       `json:"is_system" db:"is_system"`
+	CreatedAt               time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt               time.Time  `json:"updated_at" db:"updated_at"`
+}
+
+// AdminUser represents an admin panel user
+type AdminUser struct {
+	ID           int64      `json:"id" db:"id"`
+	Username     string     `json:"username" db:"username"`
+	PasswordHash string     `json:"-" db:"password_hash"`
+	Active       bool       `json:"active" db:"active"`
+	CreatedAt    time.Time  `json:"created_at" db:"created_at"`
+	LastLoginAt  *time.Time `json:"last_login_at,omitempty" db:"last_login_at"`
+}
+
+// Report represents a user or message report
+type Report struct {
+	ID                int64      `json:"id" db:"id"`
+	ReporterID        *int64     `json:"reporter_id,omitempty" db:"reporter_id"`
+	ReportedUserID    *int64     `json:"reported_user_id,omitempty" db:"reported_user_id"`
+	ReportedMessageID *int64     `json:"reported_message_id,omitempty" db:"reported_message_id"`
+	CategoryID        int64      `json:"category_id" db:"category_id"`
+	CategoryName      string     `json:"category_name" db:"-"`
+	Description       string     `json:"description" db:"description"`
+	Status            string     `json:"status" db:"status"`
+	ResolvedBy        *int64     `json:"resolved_by,omitempty" db:"resolved_by"`
+	ResolutionNote    string     `json:"resolution_note,omitempty" db:"resolution_note"`
+	ReporterUsername  string     `json:"reporter_username,omitempty" db:"-"`
+	ReportedUsername  string     `json:"reported_username,omitempty" db:"-"`
+	CreatedAt         time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at" db:"updated_at"`
+}
+
+// ReportCategory represents a category for reports
+type ReportCategory struct {
+	ID        int64     `json:"id" db:"id"`
+	Name      string    `json:"name" db:"name"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
 
 // Server represents a Discord server/guild

@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { User } from '../../api/types';
-import { updateProfile, resendVerification, changeEmail } from '../../api/auth';
+import { updateProfile, resendVerification, changeEmail, verifyPhone, resendPhone, changePhone } from '../../api/auth';
 import { uploadFile } from '../../api/upload';
 
 interface UserSettingsModalProps {
@@ -36,6 +36,16 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   const [emailPassword, setEmailPassword] = useState('');
   const [emailChangeLoading, setEmailChangeLoading] = useState(false);
   const [emailChangeMessage, setEmailChangeMessage] = useState<{ text: string; ok: boolean } | null>(null);
+  const [showChangePhone, setShowChangePhone] = useState(false);
+  const [newPhone, setNewPhone] = useState('');
+  const [phonePassword, setPhonePassword] = useState('');
+  const [phoneChangeLoading, setPhoneChangeLoading] = useState(false);
+  const [phoneChangeMessage, setPhoneChangeMessage] = useState<{ text: string; ok: boolean } | null>(null);
+  const [phoneVerifyCode, setPhoneVerifyCode] = useState('');
+  const [phoneVerifyLoading, setPhoneVerifyLoading] = useState(false);
+  const [phoneResendLoading, setPhoneResendLoading] = useState(false);
+  const [phoneResendMessage, setPhoneResendMessage] = useState('');
+  const [smsConsent, setSmsConsent] = useState(false);
   const avatarFileInputRef = useRef<HTMLInputElement>(null);
   const bannerFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -54,6 +64,13 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
       setNewEmail('');
       setEmailPassword('');
       setEmailChangeMessage(null);
+      setShowChangePhone(false);
+      setNewPhone('');
+      setPhonePassword('');
+      setPhoneChangeMessage(null);
+      setPhoneVerifyCode('');
+      setSmsConsent(false);
+      setPhoneResendMessage('');
     }
   }, [isOpen, currentUser]);
 
@@ -352,6 +369,166 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
             {/* Show success from email change after form closes */}
             {!showChangeEmail && emailChangeMessage?.ok && (
               <div style={{ marginTop: 8, fontSize: 12, color: '#32CD32' }}>{emailChangeMessage.text}</div>
+            )}
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Phone</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input
+                className="form-input"
+                type="tel"
+                value={currentUser?.phone_number || ''}
+                disabled
+                style={{ flex: 1 }}
+                placeholder="No phone number"
+              />
+              <button
+                type="button"
+                onClick={() => { setShowChangePhone(v => !v); setPhoneChangeMessage(null); setNewPhone(''); setPhonePassword(''); setSmsConsent(false); }}
+                style={{ background: 'none', border: '1px solid #444', color: '#aaa', borderRadius: 4, padding: '6px 12px', cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap' }}
+              >
+                {showChangePhone ? 'Cancel' : currentUser?.phone_number ? 'Change' : 'Add'}
+              </button>
+            </div>
+
+            {/* Phone verification status */}
+            {currentUser?.phone_number && !currentUser.phone_verified && !showChangePhone && (
+              <div style={{ marginTop: 8, padding: '8px 12px', background: '#2a1f00', border: '1px solid #664400', borderRadius: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <span style={{ color: '#ffaa00', fontSize: 13 }}>Phone not verified</span>
+                  <button
+                    type="button"
+                    disabled={phoneResendLoading}
+                    onClick={async () => {
+                      setPhoneResendLoading(true);
+                      setPhoneResendMessage('');
+                      try {
+                        await resendPhone();
+                        setPhoneResendMessage('Code sent!');
+                      } catch (err: unknown) {
+                        setPhoneResendMessage((err as { message?: string })?.message || 'Failed to send');
+                      } finally {
+                        setPhoneResendLoading(false);
+                      }
+                    }}
+                    style={{ background: 'none', border: '1px solid #664400', color: '#ffaa00', borderRadius: 4, padding: '2px 10px', cursor: 'pointer', fontSize: 12 }}
+                  >
+                    {phoneResendLoading ? 'Sending...' : 'Resend code'}
+                  </button>
+                  {phoneResendMessage && <span style={{ fontSize: 12, color: phoneResendMessage.includes('sent') || phoneResendMessage.includes('Code') ? '#32CD32' : '#ff4444' }}>{phoneResendMessage}</span>}
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    className="form-input"
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={phoneVerifyCode}
+                    onChange={e => setPhoneVerifyCode(e.target.value.replace(/\D/g, ''))}
+                    placeholder="Enter 6-digit code"
+                    style={{ flex: 1, letterSpacing: 4 }}
+                  />
+                  <button
+                    type="button"
+                    disabled={phoneVerifyLoading || phoneVerifyCode.length !== 6}
+                    onClick={async () => {
+                      setPhoneVerifyLoading(true);
+                      try {
+                        await verifyPhone(phoneVerifyCode);
+                        onUpdate({ ...currentUser!, phone_verified: true });
+                        const stored = localStorage.getItem('user');
+                        if (stored) localStorage.setItem('user', JSON.stringify({ ...JSON.parse(stored), phone_verified: true }));
+                        setPhoneVerifyCode('');
+                      } catch (err: unknown) {
+                        setPhoneResendMessage((err as { message?: string })?.message || 'Invalid code');
+                      } finally {
+                        setPhoneVerifyLoading(false);
+                      }
+                    }}
+                    style={{ background: '#32CD32', border: 'none', color: '#000', borderRadius: 4, padding: '6px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600, opacity: phoneVerifyLoading || phoneVerifyCode.length !== 6 ? 0.5 : 1 }}
+                  >
+                    {phoneVerifyLoading ? 'Verifying...' : 'Verify'}
+                  </button>
+                </div>
+              </div>
+            )}
+            {currentUser?.phone_number && currentUser.phone_verified && (
+              <div style={{ marginTop: 6, fontSize: 12, color: '#32CD32' }}>✓ Phone verified</div>
+            )}
+
+            {/* Change/add phone form */}
+            {showChangePhone && (
+              <div style={{ marginTop: 10, padding: '12px 14px', background: '#111', border: '1px solid #333', borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 12, color: '#aaa', display: 'block', marginBottom: 4 }}>Phone Number</label>
+                  <input
+                    className="form-input"
+                    type="tel"
+                    value={newPhone}
+                    onChange={e => setNewPhone(e.target.value)}
+                    placeholder="+1 555 000 0000"
+                    autoComplete="tel"
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, color: '#aaa', display: 'block', marginBottom: 4 }}>Current Password</label>
+                  <input
+                    className="form-input"
+                    type="password"
+                    value={phonePassword}
+                    onChange={e => setPhonePassword(e.target.value)}
+                    placeholder="Confirm with your password"
+                    autoComplete="current-password"
+                  />
+                </div>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={smsConsent}
+                    onChange={e => setSmsConsent(e.target.checked)}
+                    style={{ marginTop: 2, flexShrink: 0, accentColor: '#32CD32' }}
+                  />
+                  <span style={{ fontSize: 11, color: '#666', lineHeight: 1.5 }}>
+                    I agree to receive automated transactional SMS messages from Parley (up to 5 msgs/mo). Msg &amp; data rates may apply. Frequency may vary. Reply <strong style={{ color: '#888' }}>STOP</strong> to opt out or <strong style={{ color: '#888' }}>HELP</strong> for assistance. Your mobile number will not be sold or shared for marketing.{' '}
+                    <a href="https://parley.x86-64.com/privacy/" target="_blank" rel="noopener noreferrer" style={{ color: '#32CD32' }}>Terms &amp; Privacy Policy</a>.
+                  </span>
+                </label>
+                {phoneChangeMessage && (
+                  <span style={{ fontSize: 12, color: phoneChangeMessage.ok ? '#32CD32' : '#ff4444' }}>{phoneChangeMessage.text}</span>
+                )}
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <button
+                    type="button"
+                    disabled={phoneChangeLoading || !newPhone.trim() || !phonePassword || !smsConsent}
+                    onClick={async () => {
+                      setPhoneChangeLoading(true);
+                      setPhoneChangeMessage(null);
+                      try {
+                        const updated = await changePhone(newPhone.trim().replace(/[\s\-()]/g, ''), phonePassword);
+                        const stored = localStorage.getItem('user');
+                        if (stored) localStorage.setItem('user', JSON.stringify({ ...JSON.parse(stored), phone_number: updated.phone_number, phone_verified: false }));
+                        onUpdate(updated);
+                        setPhoneChangeMessage({ text: 'Phone updated — enter the code we just sent to verify.', ok: true });
+                        setNewPhone('');
+                        setPhonePassword('');
+                        setShowChangePhone(false);
+                      } catch (err: unknown) {
+                        setPhoneChangeMessage({ text: (err as { message?: string })?.message || 'Failed to change phone', ok: false });
+                      } finally {
+                        setPhoneChangeLoading(false);
+                      }
+                    }}
+                    style={{ background: '#32CD32', border: 'none', color: '#000', borderRadius: 4, padding: '6px 16px', cursor: 'pointer', fontSize: 13, fontWeight: 600, opacity: phoneChangeLoading || !newPhone.trim() || !phonePassword || !smsConsent ? 0.5 : 1 }}
+                  >
+                    {phoneChangeLoading ? 'Saving...' : 'Save Phone'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!showChangePhone && phoneChangeMessage?.ok && (
+              <div style={{ marginTop: 8, fontSize: 12, color: '#32CD32' }}>{phoneChangeMessage.text}</div>
             )}
           </div>
         </div>

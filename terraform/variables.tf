@@ -113,3 +113,17 @@ variable "site_url" {
   type        = string
   default     = "https://parley.x86-64.com"
 }
+
+variable "admin_jwt_secret" {
+  description = "JWT secret for admin panel authentication"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "admin_impersonate_secret" {
+  description = "Shared secret for admin impersonation requests"
+  type        = string
+  sensitive   = true
+  default     = ""
+}

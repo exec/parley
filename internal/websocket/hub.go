@@ -289,6 +289,66 @@ func (h *Hub) SendToUser(userID string, messageType string, payload []byte) erro
 	return nil
 }
 
+// BroadcastLocalToChannel sends to local clients subscribed to a channel ONLY.
+// No Redis publish — use this when delivering events received from Redis to avoid
+// the infinite re-broadcast loop that would occur if we published back to Redis.
+func (h *Hub) BroadcastLocalToChannel(channelID string, messageType string, payload []byte) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	clients := h.channelSubs[channelID]
+	if clients == nil || len(clients) == 0 {
+		return
+	}
+
+	wsMsg := WSMessage{Type: messageType, Payload: payload}
+	msgBytes, err := json.Marshal(wsMsg)
+	if err != nil {
+		log.Printf("BroadcastLocalToChannel: marshal error: %v", err)
+		return
+	}
+
+	for client := range clients {
+		select {
+		case client.send <- msgBytes:
+		default:
+			delete(h.clients, client)
+			client.closeSend()
+			if h.userToClient[client.userID] != nil {
+				delete(h.userToClient[client.userID], client)
+			}
+			delete(h.channelSubs[channelID], client)
+		}
+	}
+}
+
+// SendLocalToUser delivers to local clients for a user ONLY — no Redis publish.
+func (h *Hub) SendLocalToUser(userID string, messageType string, payload []byte) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	clients := h.userToClient[userID]
+	if clients == nil || len(clients) == 0 {
+		return
+	}
+
+	wsMsg := WSMessage{Type: messageType, Payload: payload}
+	msgBytes, err := json.Marshal(wsMsg)
+	if err != nil {
+		return
+	}
+
+	for client := range clients {
+		select {
+		case client.send <- msgBytes:
+		default:
+			delete(h.clients, client)
+			client.closeSend()
+			delete(h.userToClient[userID], client)
+		}
+	}
+}
+
 // BroadcastToChannel sends a message to all clients subscribed to a channel.
 // It also publishes to Redis (if a publisher is set) so other nodes deliver it too.
 func (h *Hub) BroadcastToChannel(channelID string, messageType string, payload []byte) {

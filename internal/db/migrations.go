@@ -185,6 +185,74 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS email_resend_date DATE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email_change_count INT NOT NULL DEFAULT 0;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email_change_date DATE;
 `,
+
+	`-- Add phone verification support and make email optional
+ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_number VARCHAR(20);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verification_code VARCHAR(6);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_code_expires_at TIMESTAMP;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS sms_resend_count INT NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS sms_resend_date DATE;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone ON users(phone_number) WHERE phone_number IS NOT NULL;
+`,
+
+	`-- Admin users table and admin-related user columns
+ALTER TABLE users ADD COLUMN IF NOT EXISTS banned_at TIMESTAMP;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS ban_reason TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS force_logout_at TIMESTAMP;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_system BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Seed system bot user (used for ToS DMs on server disband)
+INSERT INTO users (username, email, password_hash, is_system, created_at, updated_at)
+VALUES ('Parley', NULL, 'SYSTEM_ACCOUNT_NOT_FOR_LOGIN', TRUE, NOW(), NOW())
+ON CONFLICT (username) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS admin_users (
+    id BIGSERIAL PRIMARY KEY,
+    username VARCHAR(64) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    active BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    last_login_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS report_categories (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- Default categories
+INSERT INTO report_categories (name) VALUES
+    ('Spam'),
+    ('Harassment'),
+    ('Hate Speech'),
+    ('NSFW Content'),
+    ('Impersonation'),
+    ('Misinformation'),
+    ('Other')
+ON CONFLICT (name) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS reports (
+    id BIGSERIAL PRIMARY KEY,
+    reporter_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    reported_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    reported_message_id BIGINT REFERENCES messages(id) ON DELETE SET NULL,
+    category_id BIGINT NOT NULL REFERENCES report_categories(id),
+    description TEXT NOT NULL DEFAULT '',
+    status VARCHAR(20) NOT NULL DEFAULT 'open',
+    resolved_by BIGINT REFERENCES admin_users(id) ON DELETE SET NULL,
+    resolution_note TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
+CREATE INDEX IF NOT EXISTS idx_reports_reporter ON reports(reporter_id);
+CREATE INDEX IF NOT EXISTS idx_reports_reported_user ON reports(reported_user_id);
+CREATE INDEX IF NOT EXISTS idx_reports_category ON reports(category_id);
+`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

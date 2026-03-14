@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 )
 
@@ -74,5 +75,37 @@ func (c *Client) SendVerificationEmail(ctx context.Context, toEmail, toName, tok
 		return fmt.Errorf("email: brevo returned status %d", resp.StatusCode)
 	}
 
+	return nil
+}
+
+// SendVerificationSMS sends a 6-digit OTP via Brevo transactional SMS.
+func (c *Client) SendVerificationSMS(ctx context.Context, toPhone, code string) error {
+	payload := map[string]string{
+		"sender":    "Parley",
+		"recipient": toPhone,
+		"content":   fmt.Sprintf("Your Parley verification code is: %s", code),
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal SMS payload: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.brevo.com/v3/transactionalSMS/sms", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("failed to create SMS request: %w", err)
+	}
+	req.Header.Set("api-key", c.apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("SMS request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("Brevo SMS API returned %d: %s", resp.StatusCode, string(respBody))
+	}
 	return nil
 }

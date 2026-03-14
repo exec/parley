@@ -24,6 +24,8 @@ type User struct {
 	AvatarURL     string `json:"avatar_url,omitempty"`
 	BannerURL     string `json:"banner_url,omitempty"`
 	EmailVerified bool   `json:"email_verified"`
+	PhoneNumber   string `json:"phone_number,omitempty"`
+	PhoneVerified bool   `json:"phone_verified"`
 }
 
 // AuthService handles authentication operations
@@ -52,31 +54,45 @@ func (s *AuthService) SetEmailClient(client *email.Client, siteURL string) {
 }
 
 // Register creates a new user and returns a token
-func (s *AuthService) Register(ctx context.Context, username, email_, password string) (User, string, error) {
+func (s *AuthService) Register(ctx context.Context, username, email_, phone, password string) (User, string, error) {
 	// Validate input
-	if username == "" || email_ == "" || password == "" {
-		return User{}, "", errors.New("username, email, and password are required")
+	if username == "" || password == "" {
+		return User{}, "", errors.New("username and password are required")
+	}
+	if email_ == "" && phone == "" {
+		return User{}, "", errors.New("email or phone number is required")
 	}
 	if len(username) > 32 {
 		return User{}, "", errors.New("username must be 32 characters or fewer")
 	}
 
-	// Check if user already exists by email
-	_, err := s.repo.GetUserByEmail(ctx, email_)
-	if err == nil {
-		return User{}, "", errors.New("user with this email already exists")
-	}
-	if err != db.ErrNotFound {
-		return User{}, "", err
-	}
-
 	// Check if user already exists by username
-	_, err = s.repo.GetUserByUsername(ctx, username)
+	_, err := s.repo.GetUserByUsername(ctx, username)
 	if err == nil {
 		return User{}, "", errors.New("user with this username already exists")
 	}
 	if err != db.ErrNotFound {
 		return User{}, "", err
+	}
+
+	if phone != "" {
+		_, err = s.repo.GetUserByPhone(ctx, phone)
+		if err == nil {
+			return User{}, "", errors.New("user with this phone number already exists")
+		}
+		if err != db.ErrNotFound {
+			return User{}, "", err
+		}
+	}
+
+	if email_ != "" {
+		_, err := s.repo.GetUserByEmail(ctx, email_)
+		if err == nil {
+			return User{}, "", errors.New("user with this email already exists")
+		}
+		if err != db.ErrNotFound {
+			return User{}, "", err
+		}
 	}
 
 	// Hash the password
@@ -98,6 +114,7 @@ func (s *AuthService) Register(ctx context.Context, username, email_, password s
 		Email:                  email_,
 		PasswordHash:           hashedPassword,
 		EmailVerificationToken: verificationToken,
+		PhoneNumber:            phone,
 	}
 
 	err = s.repo.CreateUser(ctx, dbUser)
@@ -106,9 +123,21 @@ func (s *AuthService) Register(ctx context.Context, username, email_, password s
 	}
 
 	// Send verification email (fail-open)
-	if s.emailClient != nil && verificationToken != "" {
+	if s.emailClient != nil && email_ != "" && verificationToken != "" {
 		if emailErr := s.emailClient.SendVerificationEmail(ctx, email_, username, verificationToken, s.siteURL); emailErr != nil {
 			log.Printf("Register: failed to send verification email to %s: %v", email_, emailErr)
+		}
+	}
+
+	if s.emailClient != nil && phone != "" {
+		smsCode, codeErr := generateSMSCode()
+		if codeErr == nil {
+			expiresAt := time.Now().Add(15 * time.Minute)
+			if dbErr := s.repo.SetPhoneVerificationCode(ctx, dbUser.ID, smsCode, expiresAt); dbErr == nil {
+				if smsErr := s.emailClient.SendVerificationSMS(ctx, phone, smsCode); smsErr != nil {
+					log.Printf("Register: failed to send SMS to %s: %v", phone, smsErr)
+				}
+			}
 		}
 	}
 
@@ -119,7 +148,9 @@ func (s *AuthService) Register(ctx context.Context, username, email_, password s
 		ID:            userID,
 		Username:      username,
 		Email:         email_,
+		PhoneNumber:   phone,
 		EmailVerified: false,
+		PhoneVerified: false,
 	}
 
 	// Generate JWT token
@@ -132,14 +163,19 @@ func (s *AuthService) Register(ctx context.Context, username, email_, password s
 }
 
 // Login authenticates a user and returns a token
-func (s *AuthService) Login(ctx context.Context, email_, password string) (User, string, error) {
-	// Validate input
-	if email_ == "" || password == "" {
-		return User{}, "", errors.New("email and password are required")
+func (s *AuthService) Login(ctx context.Context, emailOrPhone, password string) (User, string, error) {
+	if emailOrPhone == "" || password == "" {
+		return User{}, "", errors.New("email/phone and password are required")
 	}
 
-	// Look up user by email in database
-	dbUser, err := s.repo.GetUserByEmail(ctx, email_)
+	var dbUser *db.User
+	var err error
+
+	// Try email first, then phone
+	dbUser, err = s.repo.GetUserByEmail(ctx, emailOrPhone)
+	if err == db.ErrNotFound {
+		dbUser, err = s.repo.GetUserByPhone(ctx, emailOrPhone)
+	}
 	if err != nil {
 		if err == db.ErrNotFound {
 			return User{}, "", errors.New("invalid credentials")
@@ -147,14 +183,19 @@ func (s *AuthService) Login(ctx context.Context, email_, password string) (User,
 		return User{}, "", err
 	}
 
-	// Verify password
+	if dbUser.BannedAt != nil {
+		reason := "violation of Terms of Service"
+		if dbUser.BanReason != "" {
+			reason = dbUser.BanReason
+		}
+		return User{}, "", fmt.Errorf("Your account was dissolved in a vat of acid. Reason: %s. Appeals can be submitted to /dev/null.", reason)
+	}
+
 	if !s.CheckPassword(dbUser.PasswordHash, password) {
 		return User{}, "", errors.New("invalid credentials")
 	}
 
-	// Convert int64 ID to string for API
 	userID := fmt.Sprintf("%d", dbUser.ID)
-
 	user := User{
 		ID:            userID,
 		Username:      dbUser.Username,
@@ -162,14 +203,14 @@ func (s *AuthService) Login(ctx context.Context, email_, password string) (User,
 		AvatarURL:     dbUser.AvatarURL,
 		BannerURL:     dbUser.BannerURL,
 		EmailVerified: dbUser.EmailVerified,
+		PhoneNumber:   dbUser.PhoneNumber,
+		PhoneVerified: dbUser.PhoneVerified,
 	}
 
-	// Generate JWT token
 	token, err := s.generateToken(userID)
 	if err != nil {
 		return User{}, "", err
 	}
-
 	return user, token, nil
 }
 
@@ -233,6 +274,8 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername, cu
 		AvatarURL:     dbUser.AvatarURL,
 		BannerURL:     dbUser.BannerURL,
 		EmailVerified: dbUser.EmailVerified,
+		PhoneNumber:   dbUser.PhoneNumber,
+		PhoneVerified: dbUser.PhoneVerified,
 	}, nil
 }
 
@@ -368,6 +411,8 @@ func (s *AuthService) ChangeEmail(ctx context.Context, userID, newEmail, passwor
 		AvatarURL:     dbUser.AvatarURL,
 		BannerURL:     dbUser.BannerURL,
 		EmailVerified: false,
+		PhoneNumber:   dbUser.PhoneNumber,
+		PhoneVerified: dbUser.PhoneVerified,
 	}, nil
 }
 
@@ -429,6 +474,35 @@ func (s *AuthService) ValidateToken(tokenString string) (string, error) {
 	return "", errors.New("invalid token")
 }
 
+// IsForceLoggedOut checks if a token issued at issuedAt should be invalidated due to a force logout.
+func (s *AuthService) IsForceLoggedOut(ctx context.Context, userID string, issuedAt int64) (bool, error) {
+	var id int64
+	fmt.Sscan(userID, &id)
+	dbUser, err := s.repo.GetUserByID(ctx, id)
+	if err != nil {
+		return false, err
+	}
+	if dbUser.ForceLogoutAt != nil && issuedAt <= dbUser.ForceLogoutAt.Unix() {
+		return true, nil
+	}
+	return false, nil
+}
+
+// GenerateImpersonationToken creates a short-lived JWT for admin impersonation of a user.
+func (s *AuthService) GenerateImpersonationToken(userID string) (string, error) {
+	if userID == "" {
+		return "", errors.New("user ID required")
+	}
+	claims := jwt.MapClaims{
+		"user_id":       userID,
+		"impersonation": true,
+		"exp":           time.Now().Add(1 * time.Hour).Unix(),
+		"iat":           time.Now().Unix(),
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(s.config.SecretKey))
+}
+
 // generateToken creates a new JWT token for a user
 func (s *AuthService) generateToken(userID string) (string, error) {
 	claims := jwt.MapClaims{
@@ -453,4 +527,121 @@ func generateToken() (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(b), nil
+}
+
+// generateSMSCode creates a cryptographically random 6-digit numeric OTP.
+func generateSMSCode() (string, error) {
+	b := make([]byte, 4)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	n := (int(b[0])<<24 | int(b[1])<<16 | int(b[2])<<8 | int(b[3])) & 0x7fffffff
+	return fmt.Sprintf("%06d", n%1000000), nil
+}
+
+// SendPhoneVerification generates and sends a new 6-digit OTP to the user's phone.
+func (s *AuthService) SendPhoneVerification(ctx context.Context, userID string) error {
+	var id int64
+	if _, err := fmt.Sscan(userID, &id); err != nil {
+		return errors.New("invalid user ID")
+	}
+	dbUser, err := s.repo.GetUserByID(ctx, id)
+	if err != nil {
+		return errors.New("user not found")
+	}
+	if dbUser.PhoneNumber == "" {
+		return errors.New("no phone number on account")
+	}
+	if dbUser.PhoneVerified {
+		return errors.New("phone is already verified")
+	}
+	if s.emailClient == nil {
+		return errors.New("SMS service is not configured")
+	}
+	if err := s.repo.CheckAndIncrementSmsResend(ctx, id); err != nil {
+		if err == db.ErrInvalidOperation {
+			return errors.New("too many SMS attempts today — please try again tomorrow")
+		}
+		return err
+	}
+	code, err := generateSMSCode()
+	if err != nil {
+		return fmt.Errorf("failed to generate code: %w", err)
+	}
+	expiresAt := time.Now().Add(15 * time.Minute)
+	if err := s.repo.SetPhoneVerificationCode(ctx, id, code, expiresAt); err != nil {
+		return err
+	}
+	return s.emailClient.SendVerificationSMS(ctx, dbUser.PhoneNumber, code)
+}
+
+// VerifyPhone confirms a user's phone number using the OTP they received.
+func (s *AuthService) VerifyPhone(ctx context.Context, userID, code string) error {
+	var id int64
+	if _, err := fmt.Sscan(userID, &id); err != nil {
+		return errors.New("invalid user ID")
+	}
+	if err := s.repo.CheckPhoneVerificationCode(ctx, id, code); err != nil {
+		if err == db.ErrInvalidOperation {
+			return errors.New("invalid or expired verification code")
+		}
+		return err
+	}
+	return s.repo.SetPhoneVerified(ctx, id)
+}
+
+// ChangePhone updates a user's phone number and sends a new OTP.
+func (s *AuthService) ChangePhone(ctx context.Context, userID, newPhone, password string) (User, error) {
+	if newPhone == "" {
+		return User{}, errors.New("phone number is required")
+	}
+	if password == "" {
+		return User{}, errors.New("password is required to change phone")
+	}
+	var id int64
+	if _, err := fmt.Sscan(userID, &id); err != nil {
+		return User{}, errors.New("invalid user ID")
+	}
+	dbUser, err := s.repo.GetUserByID(ctx, id)
+	if err != nil {
+		return User{}, errors.New("user not found")
+	}
+	if !s.CheckPassword(dbUser.PasswordHash, password) {
+		return User{}, errors.New("incorrect password")
+	}
+	if dbUser.PhoneNumber == newPhone {
+		return User{}, errors.New("new phone must be different from current phone")
+	}
+	existing, err := s.repo.GetUserByPhone(ctx, newPhone)
+	if err == nil && existing.ID != id {
+		return User{}, errors.New("phone number is already in use")
+	}
+	if err != nil && err != db.ErrNotFound {
+		return User{}, err
+	}
+	if err := s.repo.UpdateUserPhone(ctx, id, newPhone); err != nil {
+		return User{}, err
+	}
+	// Send verification SMS (fail-open)
+	if s.emailClient != nil {
+		code, codeErr := generateSMSCode()
+		if codeErr == nil {
+			expiresAt := time.Now().Add(15 * time.Minute)
+			if setErr := s.repo.SetPhoneVerificationCode(ctx, id, code, expiresAt); setErr == nil {
+				if smsErr := s.emailClient.SendVerificationSMS(ctx, newPhone, code); smsErr != nil {
+					log.Printf("ChangePhone: failed to send SMS: %v", smsErr)
+				}
+			}
+		}
+	}
+	return User{
+		ID:            userID,
+		Username:      dbUser.Username,
+		Email:         dbUser.Email,
+		AvatarURL:     dbUser.AvatarURL,
+		BannerURL:     dbUser.BannerURL,
+		EmailVerified: dbUser.EmailVerified,
+		PhoneNumber:   newPhone,
+		PhoneVerified: false,
+	}, nil
 }
