@@ -235,9 +235,18 @@
   font-weight: bold;
 }
 
-.role-badge.owner {
-  background-color: rgba(255, 107, 107, 0.2);
-  color: #FF6B6B;
+.owner-hat {
+  cursor: default;
+  line-height: 0;
+}
+
+.owner-hat svg {
+  filter: drop-shadow(0 0 3px rgba(50, 205, 50, 0.5));
+  transition: filter 0.15s ease;
+}
+
+.owner-hat:hover svg {
+  filter: drop-shadow(0 0 6px rgba(50, 205, 50, 0.9));
 }
 
 .role-badge.admin {
