@@ -2,7 +2,8 @@
 set -euo pipefail
 
 REPO_URL="${REPO_URL}"
-DATABASE_URL="${DATABASE_URL}"
+DB_HOST="${DB_HOST}"
+DB_PASSWORD="${DB_PASSWORD}"
 ADMIN_JWT_SECRET="${ADMIN_JWT_SECRET}"
 PARLEY_JWT_SECRET="${PARLEY_JWT_SECRET}"
 ADMIN_IMPERSONATE_SECRET="${ADMIN_IMPERSONATE_SECRET}"
@@ -48,6 +49,10 @@ npm ci
 npm run build
 mkdir -p /var/www/parley-admin
 cp -r dist/* /var/www/parley-admin/
+
+# URL-encode the DB password so special chars don't break the connection string
+DB_PASSWORD_ENCODED=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$${DB_PASSWORD}")
+DATABASE_URL="postgres://parley:$${DB_PASSWORD_ENCODED}@$${DB_HOST}:5432/parley?sslmode=disable"
 
 # Environment file
 mkdir -p /etc/parley
