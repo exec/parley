@@ -92,7 +92,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
 
   const copyInviteLink = () => {
     if (inviteCode) {
-      navigator.clipboard.writeText(`https://parley.x86-64.com/invite/${inviteCode}`);
+      navigator.clipboard.writeText(`${window.location.origin}/invite/${inviteCode}`);
     }
   };
 
@@ -132,7 +132,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                 className="form-input invite-link-input"
                 type="text"
                 readOnly
-                value={`https://parley.x86-64.com/invite/${inviteCode}`}
+                value={`${window.location.origin}/invite/${inviteCode}`}
               />
               <Button variant="secondary" onClick={copyInviteLink}>
                 Copy

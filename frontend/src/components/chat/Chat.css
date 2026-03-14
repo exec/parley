@@ -370,3 +370,60 @@
 .context-menu-item.danger:hover {
   background-color: rgba(255, 68, 68, 0.2);
 }
+/* Inline message editing */
+.message-edited {
+  font-size: 11px;
+  color: #228B22;
+  margin-left: 4px;
+}
+
+.message-edit-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.message-edit-input {
+  width: 100%;
+  padding: 8px 10px;
+  background-color: #0a0a0a;
+  border: 1px solid #32CD32;
+  border-radius: 4px;
+  color: #32CD32;
+  font-family: inherit;
+  font-size: 14px;
+  resize: none;
+  line-height: 1.4;
+}
+
+.message-edit-input:focus {
+  outline: none;
+  border-color: #32CD32;
+  box-shadow: 0 0 0 1px rgba(50, 205, 50, 0.3);
+}
+
+.message-edit-hint {
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  color: #228B22;
+}
+
+.edit-link-btn {
+  background: none;
+  border: none;
+  color: #32CD32;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0;
+  font-family: inherit;
+  text-decoration: underline;
+}
+
+/* Chat window wrapper */
+.chat-window {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}

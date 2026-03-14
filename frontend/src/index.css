@@ -1,17 +1,41 @@
 :root {
-  --discord-bg-primary: #313338;
-  --discord-bg-secondary: #2b2d31;
-  --discord-bg-tertiary: #1e1f22;
-  --discord-text-normal: #dbdee1;
-  --discord-text-muted: #949ba4;
-  --discord-text-link: #00b0f4;
-  --discord-accent: #5865f2;
-  --discord-green: #23a55a;
+  /* === Core theme (green terminal) === */
+  --bg-primary: #000000;
+  --bg-secondary: #0a0a0a;
+  --bg-tertiary: #1a1a1a;
+  --text-primary: #32CD32;
+  --text-secondary: #228B22;
+  --accent: #32CD32;
+  --border: #1a3d1a;
+
+  /* === Aliases used by modal/ui components (styles.css) === */
+  --discord-bg: #000000;
+  --discord-bg-primary: #000000;
+  --discord-bg-secondary: #0a0a0a;
+  --discord-bg-tertiary: #1a1a1a;
+  --discord-bg-hover: #0d1a0d;
+  --discord-dark: #000000;
+  --discord-sidebar: #0a0a0a;
+  --discord-channel-bg: #1a1a1a;
+  --discord-input: #111111;
+  --discord-hover: #0d1a0d;
+  --discord-border: #1a3d1a;
+  --discord-border-light: #1a3d1a;
+  --discord-text: #32CD32;
+  --discord-text-normal: #32CD32;
+  --discord-text-muted: #228B22;
+  --discord-text-dim: #1a5c1a;
+  --discord-text-link: #32CD32;
+  --discord-accent: #32CD32;
+  --discord-accent-hover: #28a428;
+  --discord-blurple: #32CD32;
+  --discord-green: #32CD32;
   --discord-yellow: #f0b232;
-  --discord-red: #da373c;
-  --discord-blurple: #5865f2;
-  --discord-gray: #4e5058;
-  --discord-hover: #3f4147;
+  --discord-red: #f04747;
+  --discord-danger: #f04747;
+  --discord-danger-hover: #c23a3f;
+  --discord-success: #32CD32;
+  --discord-gray: #228B22;
 }
 
 * {

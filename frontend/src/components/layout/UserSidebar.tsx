@@ -14,9 +14,10 @@ interface UserPopoverProps {
   position: { top: number; left: number };
   onClose: () => void;
   onViewProfile?: (userId: string) => void;
+  onSendMessage?: (userId: string) => void;
 }
 
-const UserPopover: React.FC<UserPopoverProps> = ({ member, isOwner, position, onClose, onViewProfile }) => {
+const UserPopover: React.FC<UserPopoverProps> = ({ member, isOwner, position, onClose, onViewProfile, onSendMessage }) => {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -46,8 +47,8 @@ const UserPopover: React.FC<UserPopoverProps> = ({ member, isOwner, position, on
         </div>
       </div>
       <div className="user-popover-divider" />
-      <button className="user-popover-item" disabled>
-        Send Message <span className="coming-soon">soon</span>
+      <button className="user-popover-item" onClick={() => { onSendMessage?.(member.user_id); onClose(); }}>
+        Send Message
       </button>
       <button className="user-popover-item" onClick={() => { onViewProfile?.(member.user_id); onClose(); }}>
         View Profile
@@ -60,9 +61,10 @@ interface UserSidebarProps {
   members: ServerMember[];
   ownerId?: string;
   onViewProfile?: (userId: string) => void;
+  onSendMessage?: (userId: string) => void;
 }
 
-const UserSidebar: React.FC<UserSidebarProps> = ({ members, ownerId, onViewProfile }) => {
+const UserSidebar: React.FC<UserSidebarProps> = ({ members, ownerId, onViewProfile, onSendMessage }) => {
   const [popover, setPopover] = useState<{ member: ServerMember; position: { top: number; left: number } } | null>(null);
 
   const handleMemberClick = (member: ServerMember, e: React.MouseEvent) => {
@@ -129,6 +131,7 @@ const UserSidebar: React.FC<UserSidebarProps> = ({ members, ownerId, onViewProfi
           position={popover.position}
           onClose={() => setPopover(null)}
           onViewProfile={onViewProfile}
+          onSendMessage={onSendMessage}
         />
       )}
     </div>

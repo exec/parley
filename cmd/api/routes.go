@@ -81,6 +81,10 @@ func registerRoutes(
 			r.Get("/dms/{id}/messages", dmHandler.GetDmMessages)
 			r.Post("/dms/{id}/messages", dmHandler.SendDmMessage)
 
+			// Invite routes
+			r.Post("/servers/{id}/invites", serverHandler.CreateInvite)
+			r.Get("/invites/{code}", serverHandler.GetInvite)
+
 			// User routes
 			r.Get("/users/search", handleUserSearch(repo))
 			r.Get("/users/{id}", handleGetUser(repo))
