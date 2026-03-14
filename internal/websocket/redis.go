@@ -70,18 +70,25 @@ func (r *RedisHub) Subscribe() {
 
 		// Skip events we published ourselves to avoid duplicates
 		if env.NodeID == r.nodeID {
+			log.Printf("RedisHub: skipping own event from node %s", env.NodeID)
 			return
 		}
 
-		switch env.EventType {
-		case "channel":
-			r.hub.BroadcastToChannel(env.ChannelID, env.Event, []byte(env.Data))
-		case "user":
-			if err := r.hub.SendToUser(env.UserID, env.Event, []byte(env.Data)); err != nil {
-				log.Printf("RedisHub: SendToUser error: %v", err)
-			}
+		log.Printf("RedisHub: received %s event for %s (channel: %s)", env.EventType, env.Event, env.ChannelID)
+
+		// Forward to hub's broadcast channel for safe processing in main hub loop
+		msg := &Message{
+			Type:      env.Event,
+			ChannelID: env.ChannelID,
+			Payload:   []byte(env.Data),
+		}
+
+		// Send to broadcast channel (non-blocking - drops if full)
+		select {
+		case r.hub.broadcast <- msg:
+			log.Printf("RedisHub: forwarded %s event for channel %s", env.EventType, env.ChannelID)
 		default:
-			log.Printf("RedisHub: unknown event_type: %s", env.EventType)
+			log.Printf("RedisHub: broadcast channel full, dropping message")
 		}
 	})
 }
