@@ -114,6 +114,19 @@ var Migrations = []string{
 	`-- Add updated_at to channels table
 	ALTER TABLE channels ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();
 	`,
+
+	`-- Create message_reactions table
+	CREATE TABLE IF NOT EXISTS message_reactions (
+		id BIGSERIAL PRIMARY KEY,
+		message_id BIGINT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+		user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		emoji VARCHAR(64) NOT NULL,
+		created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+		UNIQUE(message_id, user_id, emoji)
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_message_reactions_message_id ON message_reactions(message_id);
+	`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

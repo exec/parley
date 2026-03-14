@@ -18,6 +18,7 @@ interface ChatWindowProps {
   onLoadMore?: () => void;
   onEdit?: (message: MessageType) => void;
   onDelete?: (messageId: string) => void;
+  onReact?: (messageId: string, emoji: string) => void;
   onReply?: (message: MessageType) => void;
   onViewProfile?: (userId: string, username: string) => void;
   onSendMessageToUser?: (userId: string) => void;
@@ -37,6 +38,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onLoadMore,
   onEdit,
   onDelete,
+  onReact,
   onReply,
   onViewProfile,
   onSendMessageToUser,
@@ -67,6 +69,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         onLoadMore={onLoadMore}
         onEdit={onEdit}
         onDelete={onDelete}
+        onReact={onReact}
         onReply={onReply}
         onViewProfile={onViewProfile}
         onSendMessage={onSendMessageToUser}

@@ -11,28 +11,36 @@ import (
 	"parley/internal/db"
 )
 
+// Reaction represents aggregated emoji reactions for a message.
+type Reaction struct {
+	Emoji   string   `json:"emoji"`
+	Count   int      `json:"count"`
+	UserIDs []string `json:"user_ids"`
+}
+
 // Message represents a message in the system
 type Message struct {
-	ID             string    `json:"id"`
-	ChannelID      string    `json:"channel_id"`
-	AuthorID       string    `json:"author_id"`
-	AuthorUsername string    `json:"author_username"`
-	Content        string    `json:"content"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	ID             string     `json:"id"`
+	ChannelID      string     `json:"channel_id"`
+	AuthorID       string     `json:"author_id"`
+	AuthorUsername string     `json:"author_username"`
+	Content        string     `json:"content"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+	Reactions      []Reaction `json:"reactions"`
 }
 
 // MessageService provides message management operations
 type MessageService struct {
-	mu         sync.RWMutex
-	repo       *db.Repository
+	mu          sync.RWMutex
+	repo        *db.Repository
 	broadcaster Broadcaster
 }
 
 // NewMessageService creates a new MessageService with the given repository
 func NewMessageService(repo *db.Repository) *MessageService {
 	return &MessageService{
-		repo:       repo,
+		repo:        repo,
 		broadcaster: nil,
 	}
 }
@@ -96,6 +104,7 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 		Content:        content,
 		CreatedAt:      dbMsg.CreatedAt,
 		UpdatedAt:      dbMsg.UpdatedAt,
+		Reactions:      []Reaction{},
 	}
 
 	// Broadcast the message if a broadcaster is set
@@ -137,6 +146,7 @@ func (s *MessageService) GetMessage(ctx context.Context, id string) (*Message, e
 		Content:        dbMsg.Content,
 		CreatedAt:      dbMsg.CreatedAt,
 		UpdatedAt:      dbMsg.UpdatedAt,
+		Reactions:      []Reaction{},
 	}, nil
 }
 
@@ -164,8 +174,30 @@ func (s *MessageService) GetChannelMessages(ctx context.Context, channelID strin
 		return nil, err
 	}
 
+	// Collect message IDs for batch reaction fetch
+	messageIDs := make([]int64, len(dbMessages))
+	for i, dbMsg := range dbMessages {
+		messageIDs[i] = dbMsg.ID
+	}
+
+	reactionMap, err := s.repo.GetReactionsForMessages(ctx, messageIDs)
+	if err != nil {
+		log.Printf("GetChannelMessages: failed to fetch reactions: %v", err)
+		reactionMap = map[int64][]db.ReactionGroup{}
+	}
+
 	messages := make([]*Message, 0, len(dbMessages))
 	for _, dbMsg := range dbMessages {
+		reactions := []Reaction{}
+		if groups, ok := reactionMap[dbMsg.ID]; ok {
+			for _, g := range groups {
+				reactions = append(reactions, Reaction{
+					Emoji:   g.Emoji,
+					Count:   g.Count,
+					UserIDs: g.UserIDs,
+				})
+			}
+		}
 		messages = append(messages, &Message{
 			ID:             strconv.FormatInt(dbMsg.ID, 10),
 			ChannelID:      channelID,
@@ -174,6 +206,7 @@ func (s *MessageService) GetChannelMessages(ctx context.Context, channelID strin
 			Content:        dbMsg.Content,
 			CreatedAt:      dbMsg.CreatedAt,
 			UpdatedAt:      dbMsg.UpdatedAt,
+			Reactions:      reactions,
 		})
 	}
 
@@ -205,8 +238,6 @@ func (s *MessageService) EditMessage(ctx context.Context, id, content string) (*
 	dbMsg.Content = content
 	dbMsg.UpdatedAt = time.Now()
 
-	// Update in the database - we need to do this via raw query since there's no UpdateMessage method
-	// Use the repository's DB() to execute custom update
 	query := `UPDATE messages SET content = $1, updated_at = $2 WHERE id = $3`
 	_, err = s.repo.DB().ExecContext(ctx, query, dbMsg.Content, dbMsg.UpdatedAt, dbMsg.ID)
 	if err != nil {
@@ -218,6 +249,15 @@ func (s *MessageService) EditMessage(ctx context.Context, id, content string) (*
 		log.Printf("EditMessage: failed to fetch username for author %d: %v", dbMsg.AuthorID, err)
 	}
 
+	// Fetch current reactions to include in the broadcast
+	reactionMap, _ := s.repo.GetReactionsForMessages(ctx, []int64{dbMsg.ID})
+	reactions := []Reaction{}
+	if groups, ok := reactionMap[dbMsg.ID]; ok {
+		for _, g := range groups {
+			reactions = append(reactions, Reaction{Emoji: g.Emoji, Count: g.Count, UserIDs: g.UserIDs})
+		}
+	}
+
 	msg := &Message{
 		ID:             id,
 		ChannelID:      strconv.FormatInt(dbMsg.ChannelID, 10),
@@ -226,6 +266,7 @@ func (s *MessageService) EditMessage(ctx context.Context, id, content string) (*
 		Content:        content,
 		CreatedAt:      dbMsg.CreatedAt,
 		UpdatedAt:      dbMsg.UpdatedAt,
+		Reactions:      reactions,
 	}
 
 	// Broadcast the update if a broadcaster is set
@@ -265,10 +306,61 @@ func (s *MessageService) DeleteMessage(ctx context.Context, id string) error {
 		return err
 	}
 
-	// Broadcast the deletion if a broadcaster is set
+	// Broadcast the deletion with channel_id so clients can route it correctly
 	s.mu.RLock()
 	if s.broadcaster != nil {
-		s.broadcaster.BroadcastToChannel(channelID, "MESSAGE_DELETE", map[string]string{"id": id})
+		s.broadcaster.BroadcastToChannel(channelID, "MESSAGE_DELETE", map[string]string{
+			"id":         id,
+			"channel_id": channelID,
+		})
+	}
+	s.mu.RUnlock()
+
+	return nil
+}
+
+// ToggleReaction adds or removes a user's reaction on a message and broadcasts the event.
+func (s *MessageService) ToggleReaction(ctx context.Context, messageID, userID, emoji string) error {
+	msgIDInt, err := strconv.ParseInt(messageID, 10, 64)
+	if err != nil {
+		return errors.New("invalid message ID")
+	}
+	userIDInt, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		return errors.New("invalid user ID")
+	}
+	if emoji == "" {
+		return errors.New("emoji is required")
+	}
+
+	// Need the message's channel for broadcasting
+	dbMsg, err := s.repo.GetMessageByID(ctx, msgIDInt)
+	if err != nil {
+		if err == db.ErrNotFound {
+			return errors.New("message not found")
+		}
+		return err
+	}
+
+	added, err := s.repo.ToggleReaction(ctx, msgIDInt, userIDInt, emoji)
+	if err != nil {
+		return err
+	}
+
+	channelID := strconv.FormatInt(dbMsg.ChannelID, 10)
+	eventType := "REACTION_REMOVE"
+	if added {
+		eventType = "REACTION_ADD"
+	}
+
+	s.mu.RLock()
+	if s.broadcaster != nil {
+		s.broadcaster.BroadcastToChannel(channelID, eventType, map[string]string{
+			"message_id": messageID,
+			"channel_id": channelID,
+			"user_id":    userID,
+			"emoji":      emoji,
+		})
 	}
 	s.mu.RUnlock()
 

@@ -52,3 +52,7 @@ export async function deleteMessage(id: string): Promise<void> {
 export async function getMessage(id: string): Promise<Message> {
   return apiClient.get<Message>(`/messages/${id}`);
 }
+
+export async function toggleReaction(messageId: string, emoji: string): Promise<void> {
+  return apiClient.post<void>(`/messages/${messageId}/reactions`, { emoji });
+}

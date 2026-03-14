@@ -1,0 +1,444 @@
+{
+  "version": 4,
+  "terraform_version": "1.5.7",
+  "serial": 106,
+  "lineage": "2557addf-5f68-0f64-beef-71aa0aa8d39d",
+  "outputs": {
+    "api_droplet_ips": {
+      "value": [
+        "134.209.38.222",
+        "45.55.163.193",
+        "167.71.177.136"
+      ],
+      "type": [
+        "tuple",
+        [
+          "string",
+          "string",
+          "string"
+        ]
+      ]
+    },
+    "database_droplet_ip": {
+      "value": "167.71.171.197",
+      "type": "string"
+    },
+    "database_private_ip": {
+      "value": "10.108.16.10",
+      "type": "string"
+    },
+    "domain": {
+      "value": "parley.x86-64.com",
+      "type": "string"
+    },
+    "load_balancer_hostname": {
+      "value": "159.89.243.96",
+      "type": "string"
+    },
+    "load_balancer_ip": {
+      "value": "159.89.243.96",
+      "type": "string"
+    },
+    "project_id": {
+      "value": "66a8599b-5f61-434a-a15c-947fc9baf8fa",
+      "type": "string"
+    },
+    "vpc_id": {
+      "value": "c46d04fb-6d09-4982-86d1-bdbe6842ea04",
+      "type": "string"
+    }
+  },
+  "resources": [
+    {
+      "mode": "managed",
+      "type": "digitalocean_droplet",
+      "name": "parley_api",
+      "provider": "provider[\"registry.terraform.io/digitalocean/digitalocean\"]",
+      "instances": [
+        {
+          "index_key": 0,
+          "schema_version": 1,
+          "attributes": {
+            "backup_policy": [],
+            "backups": false,
+            "created_at": "2026-03-14T14:40:24Z",
+            "disk": 60,
+            "droplet_agent": null,
+            "graceful_shutdown": false,
+            "id": "558239391",
+            "image": "ubuntu-24-04-x64",
+            "ipv4_address": "134.209.38.222",
+            "ipv4_address_private": "10.108.16.9",
+            "ipv6": false,
+            "ipv6_address": "",
+            "locked": false,
+            "memory": 2048,
+            "monitoring": false,
+            "name": "parley-api-1",
+            "price_hourly": 0.02679,
+            "price_monthly": 18,
+            "private_networking": true,
+            "region": "nyc3",
+            "resize_disk": true,
+            "size": "s-2vcpu-2gb",
+            "ssh_keys": [
+              "d6:8b:1b:f4:5d:e3:86:e5:cc:08:ae:c0:7b:a4:b3:45"
+            ],
+            "status": "active",
+            "tags": [
+              "api",
+              "parley"
+            ],
+            "timeouts": null,
+            "urn": "do:droplet:558239391",
+            "user_data": "901fdee92e7f6606c3b3e7e4ccb686cdbc97693e",
+            "vcpus": 2,
+            "volume_ids": [],
+            "vpc_uuid": "c46d04fb-6d09-4982-86d1-bdbe6842ea04"
+          },
+          "sensitive_attributes": [
+            [
+              {
+                "type": "get_attr",
+                "value": "user_data"
+              }
+            ]
+          ],
+          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiY3JlYXRlIjozNjAwMDAwMDAwMDAwLCJkZWxldGUiOjYwMDAwMDAwMDAwLCJ1cGRhdGUiOjM2MDAwMDAwMDAwMDB9LCJzY2hlbWFfdmVyc2lvbiI6IjEifQ==",
+          "dependencies": [
+            "digitalocean_droplet.parley_db",
+            "digitalocean_ssh_key.parley_key",
+            "digitalocean_vpc.parley_vpc"
+          ]
+        },
+        {
+          "index_key": 1,
+          "schema_version": 1,
+          "attributes": {
+            "backup_policy": [],
+            "backups": false,
+            "created_at": "2026-03-14T14:07:18Z",
+            "disk": 60,
+            "droplet_agent": null,
+            "graceful_shutdown": false,
+            "id": "558234862",
+            "image": "ubuntu-24-04-x64",
+            "ipv4_address": "45.55.163.193",
+            "ipv4_address_private": "10.108.16.7",
+            "ipv6": false,
+            "ipv6_address": "",
+            "locked": false,
+            "memory": 2048,
+            "monitoring": false,
+            "name": "parley-api-2",
+            "price_hourly": 0.02679,
+            "price_monthly": 18,
+            "private_networking": true,
+            "region": "nyc3",
+            "resize_disk": true,
+            "size": "s-2vcpu-2gb",
+            "ssh_keys": [
+              "d6:8b:1b:f4:5d:e3:86:e5:cc:08:ae:c0:7b:a4:b3:45"
+            ],
+            "status": "active",
+            "tags": [
+              "api",
+              "parley"
+            ],
+            "timeouts": null,
+            "urn": "do:droplet:558234862",
+            "user_data": "901fdee92e7f6606c3b3e7e4ccb686cdbc97693e",
+            "vcpus": 2,
+            "volume_ids": [],
+            "vpc_uuid": "c46d04fb-6d09-4982-86d1-bdbe6842ea04"
+          },
+          "sensitive_attributes": [
+            [
+              {
+                "type": "get_attr",
+                "value": "user_data"
+              }
+            ]
+          ],
+          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiY3JlYXRlIjozNjAwMDAwMDAwMDAwLCJkZWxldGUiOjYwMDAwMDAwMDAwLCJ1cGRhdGUiOjM2MDAwMDAwMDAwMDB9LCJzY2hlbWFfdmVyc2lvbiI6IjEifQ==",
+          "dependencies": [
+            "digitalocean_droplet.parley_db",
+            "digitalocean_ssh_key.parley_key",
+            "digitalocean_vpc.parley_vpc"
+          ]
+        },
+        {
+          "index_key": 2,
+          "schema_version": 1,
+          "attributes": {
+            "backup_policy": [],
+            "backups": false,
+            "created_at": "2026-03-14T14:07:18Z",
+            "disk": 60,
+            "droplet_agent": null,
+            "graceful_shutdown": false,
+            "id": "558234859",
+            "image": "ubuntu-24-04-x64",
+            "ipv4_address": "167.71.177.136",
+            "ipv4_address_private": "10.108.16.2",
+            "ipv6": false,
+            "ipv6_address": "",
+            "locked": false,
+            "memory": 2048,
+            "monitoring": false,
+            "name": "parley-api-3",
+            "price_hourly": 0.02679,
+            "price_monthly": 18,
+            "private_networking": true,
+            "region": "nyc3",
+            "resize_disk": true,
+            "size": "s-2vcpu-2gb",
+            "ssh_keys": [
+              "d6:8b:1b:f4:5d:e3:86:e5:cc:08:ae:c0:7b:a4:b3:45"
+            ],
+            "status": "active",
+            "tags": [
+              "api",
+              "parley"
+            ],
+            "timeouts": null,
+            "urn": "do:droplet:558234859",
+            "user_data": "901fdee92e7f6606c3b3e7e4ccb686cdbc97693e",
+            "vcpus": 2,
+            "volume_ids": [],
+            "vpc_uuid": "c46d04fb-6d09-4982-86d1-bdbe6842ea04"
+          },
+          "sensitive_attributes": [
+            [
+              {
+                "type": "get_attr",
+                "value": "user_data"
+              }
+            ]
+          ],
+          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiY3JlYXRlIjozNjAwMDAwMDAwMDAwLCJkZWxldGUiOjYwMDAwMDAwMDAwLCJ1cGRhdGUiOjM2MDAwMDAwMDAwMDB9LCJzY2hlbWFfdmVyc2lvbiI6IjEifQ==",
+          "dependencies": [
+            "digitalocean_droplet.parley_db",
+            "digitalocean_ssh_key.parley_key",
+            "digitalocean_vpc.parley_vpc"
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "digitalocean_droplet",
+      "name": "parley_db",
+      "provider": "provider[\"registry.terraform.io/digitalocean/digitalocean\"]",
+      "instances": [
+        {
+          "schema_version": 1,
+          "attributes": {
+            "backup_policy": [],
+            "backups": false,
+            "created_at": "2026-03-14T04:49:45Z",
+            "disk": 80,
+            "droplet_agent": null,
+            "graceful_shutdown": false,
+            "id": "558163116",
+            "image": "ubuntu-24-04-x64",
+            "ipv4_address": "167.71.171.197",
+            "ipv4_address_private": "10.108.16.10",
+            "ipv6": false,
+            "ipv6_address": "",
+            "locked": false,
+            "memory": 4096,
+            "monitoring": false,
+            "name": "parley-db",
+            "price_hourly": 0.03571,
+            "price_monthly": 24,
+            "private_networking": true,
+            "region": "nyc3",
+            "resize_disk": true,
+            "size": "s-2vcpu-4gb",
+            "ssh_keys": [
+              "d6:8b:1b:f4:5d:e3:86:e5:cc:08:ae:c0:7b:a4:b3:45"
+            ],
+            "status": "active",
+            "tags": [
+              "database",
+              "parley"
+            ],
+            "timeouts": null,
+            "urn": "do:droplet:558163116",
+            "user_data": "fcb2364f1115f2416efb7b02d708eee0330f73fd",
+            "vcpus": 2,
+            "volume_ids": [],
+            "vpc_uuid": "c46d04fb-6d09-4982-86d1-bdbe6842ea04"
+          },
+          "sensitive_attributes": [
+            [
+              {
+                "type": "get_attr",
+                "value": "user_data"
+              }
+            ]
+          ],
+          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiY3JlYXRlIjozNjAwMDAwMDAwMDAwLCJkZWxldGUiOjYwMDAwMDAwMDAwLCJ1cGRhdGUiOjM2MDAwMDAwMDAwMDB9LCJzY2hlbWFfdmVyc2lvbiI6IjEifQ==",
+          "dependencies": [
+            "digitalocean_ssh_key.parley_key",
+            "digitalocean_vpc.parley_vpc"
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "digitalocean_loadbalancer",
+      "name": "parley_lb",
+      "provider": "provider[\"registry.terraform.io/digitalocean/digitalocean\"]",
+      "instances": [
+        {
+          "schema_version": 1,
+          "attributes": {
+            "algorithm": "round_robin",
+            "disable_lets_encrypt_dns_records": false,
+            "domains": [],
+            "droplet_ids": [
+              558234859,
+              558234862,
+              558239391
+            ],
+            "droplet_tag": "",
+            "enable_backend_keepalive": false,
+            "enable_proxy_protocol": false,
+            "firewall": [],
+            "forwarding_rule": [
+              {
+                "certificate_id": "",
+                "certificate_name": "",
+                "entry_port": 80,
+                "entry_protocol": "http",
+                "target_port": 80,
+                "target_protocol": "http",
+                "tls_passthrough": false
+              }
+            ],
+            "glb_settings": [],
+            "healthcheck": [
+              {
+                "check_interval_seconds": 10,
+                "healthy_threshold": 3,
+                "path": "/health",
+                "port": 80,
+                "protocol": "http",
+                "response_timeout_seconds": 5,
+                "unhealthy_threshold": 3
+              }
+            ],
+            "http_idle_timeout_seconds": 60,
+            "id": "68d0d39f-89e0-4525-a336-65502c268fd0",
+            "ip": "159.89.243.96",
+            "ipv6": "2604:a880:800:14:0:2:a9b0:5000",
+            "name": "parley-lb",
+            "network": null,
+            "network_stack": null,
+            "project_id": "fd0e894e-f38b-4f4d-8064-8ce8961afe0a",
+            "redirect_http_to_https": false,
+            "region": "nyc3",
+            "size": null,
+            "size_unit": 1,
+            "status": "active",
+            "sticky_sessions": [
+              {
+                "cookie_name": "",
+                "cookie_ttl_seconds": 0,
+                "type": "none"
+              }
+            ],
+            "target_load_balancer_ids": [],
+            "tls_cipher_policy": null,
+            "type": "REGIONAL",
+            "urn": "do:loadbalancer:68d0d39f-89e0-4525-a336-65502c268fd0",
+            "vpc_uuid": "c46d04fb-6d09-4982-86d1-bdbe6842ea04"
+          },
+          "sensitive_attributes": [],
+          "private": "eyJzY2hlbWFfdmVyc2lvbiI6IjEifQ==",
+          "dependencies": [
+            "digitalocean_droplet.parley_api",
+            "digitalocean_droplet.parley_db",
+            "digitalocean_ssh_key.parley_key",
+            "digitalocean_vpc.parley_vpc"
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "digitalocean_project",
+      "name": "parley_project",
+      "provider": "provider[\"registry.terraform.io/digitalocean/digitalocean\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "created_at": "2026-03-14T04:24:25Z",
+            "description": "Parley Discord clone infrastructure",
+            "environment": "Production",
+            "id": "66a8599b-5f61-434a-a15c-947fc9baf8fa",
+            "is_default": false,
+            "name": "parley-infrastructure",
+            "owner_id": 26753592,
+            "owner_uuid": "02bf3f16-3d31-4d2a-9c5d-09dbd3e79459",
+            "purpose": "Web Application",
+            "resources": [],
+            "timeouts": null,
+            "updated_at": "2026-03-14T04:24:25Z"
+          },
+          "sensitive_attributes": [],
+          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiZGVsZXRlIjoxODAwMDAwMDAwMDB9fQ=="
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "digitalocean_ssh_key",
+      "name": "parley_key",
+      "provider": "provider[\"registry.terraform.io/digitalocean/digitalocean\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "fingerprint": "d6:8b:1b:f4:5d:e3:86:e5:cc:08:ae:c0:7b:a4:b3:45",
+            "id": "54882797",
+            "name": "parley-deploy-key",
+            "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK/Z//TQMSHkXim4Y0vN32/agWv6xnj9Dxme7qlMzXjx dylan@fishbowl\n",
+            "timeouts": null
+          },
+          "sensitive_attributes": [],
+          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiY3JlYXRlIjoxMjAwMDAwMDAwMDB9fQ=="
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "digitalocean_vpc",
+      "name": "parley_vpc",
+      "provider": "provider[\"registry.terraform.io/digitalocean/digitalocean\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "created_at": "2026-03-14 04:24:26 +0000 UTC",
+            "default": false,
+            "description": "",
+            "id": "c46d04fb-6d09-4982-86d1-bdbe6842ea04",
+            "ip_range": "10.108.16.0/20",
+            "name": "parley-vpc",
+            "region": "nyc3",
+            "timeouts": null,
+            "urn": "do:vpc:c46d04fb-6d09-4982-86d1-bdbe6842ea04"
+          },
+          "sensitive_attributes": [],
+          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiZGVsZXRlIjoxMjAwMDAwMDAwMDB9fQ=="
+        }
+      ]
+    }
+  ],
+  "check_results": null
+}

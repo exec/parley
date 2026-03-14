@@ -1,10 +1,11 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { User, Server, Channel, Message, ServerMember, DmChannel, DmMessage } from '../api/types';
+import { User, Server, Channel, Message, ServerMember, DmChannel, DmMessage, Reaction } from '../api/types';
 import { apiClient } from '../api/client';
 import * as serversApi from '../api/servers';
 import * as channelsApi from '../api/channels';
 import * as messagesApi from '../api/messages';
 import * as dmsApi from '../api/dms';
+import { ReactionUpdate } from '../hooks/useWebSocket';
 
 interface AppState {
   currentUser: User | null;
@@ -36,6 +37,10 @@ interface AppActions {
   editMessage: (messageId: string, content: string) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
   receiveMessage: (msg: Message) => void;
+  receiveMessageUpdate: (msg: Message) => void;
+  receiveMessageDelete: (messageId: string, channelId: string) => void;
+  toggleReaction: (messageId: string, emoji: string) => Promise<void>;
+  applyReactionUpdate: (update: ReactionUpdate) => void;
   logout: () => void;
   loadDmChannels: () => Promise<void>;
   openDmChannel: (userId: string) => Promise<void>;
@@ -342,6 +347,46 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('user', JSON.stringify(user));
   }, []);
 
+  const receiveMessageUpdate = useCallback((msg: Message) => {
+    setMessages(prev => prev.map(m => m.id === msg.id ? { ...msg, reactions: m.reactions } : m));
+  }, []);
+
+  const receiveMessageDelete = useCallback((messageId: string, _channelId: string) => {
+    setMessages(prev => prev.filter(m => m.id !== messageId));
+  }, []);
+
+  const applyReactionUpdate = useCallback((update: ReactionUpdate) => {
+    setMessages(prev => prev.map(msg => {
+      if (msg.id !== update.message_id) return msg;
+      const reactions: Reaction[] = [...(msg.reactions ?? [])];
+      const idx = reactions.findIndex(r => r.emoji === update.emoji);
+      if (update.added) {
+        if (idx >= 0) {
+          const r = reactions[idx];
+          if (!r.user_ids.includes(update.user_id)) {
+            reactions[idx] = { ...r, count: r.count + 1, user_ids: [...r.user_ids, update.user_id] };
+          }
+        } else {
+          reactions.push({ emoji: update.emoji, count: 1, user_ids: [update.user_id] });
+        }
+      } else {
+        if (idx >= 0) {
+          const newUserIds = reactions[idx].user_ids.filter(uid => uid !== update.user_id);
+          if (newUserIds.length === 0) {
+            reactions.splice(idx, 1);
+          } else {
+            reactions[idx] = { ...reactions[idx], count: newUserIds.length, user_ids: newUserIds };
+          }
+        }
+      }
+      return { ...msg, reactions };
+    }));
+  }, []);
+
+  const toggleReaction = useCallback(async (messageId: string, emoji: string) => {
+    await messagesApi.toggleReaction(messageId, emoji);
+  }, []);
+
   return (
     <AppContext.Provider value={{
       currentUser,
@@ -371,6 +416,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       editMessage,
       deleteMessage,
       receiveMessage,
+      receiveMessageUpdate,
+      receiveMessageDelete,
+      toggleReaction,
+      applyReactionUpdate,
       logout,
       loadDmChannels,
       openDmChannel,

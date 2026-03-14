@@ -6,6 +6,14 @@ interface WSMessage {
   payload: unknown;
 }
 
+export interface ReactionUpdate {
+  message_id: string;
+  channel_id: string;
+  user_id: string;
+  emoji: string;
+  added: boolean;
+}
+
 interface UseWebSocketOptions {
   onMessage: (msg: Message) => void;
   onDmMessage?: (msg: DmMessage) => void;
@@ -14,11 +22,14 @@ interface UseWebSocketOptions {
   onUserOnline?: (userId: string) => void;
   onUserOffline?: (userId: string) => void;
   onPresenceSnapshot?: (userIds: string[]) => void;
+  onMessageUpdate?: (msg: Message) => void;
+  onMessageDelete?: (messageId: string, channelId: string) => void;
+  onReactionUpdate?: (update: ReactionUpdate) => void;
   activeChannelId: string | null;
   extraChannelIds?: string[]; // Additional channels to subscribe to for notifications
 }
 
-export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
+export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const subscribedChannelsRef = useRef<Set<string>>(new Set());
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -34,6 +45,9 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onTyp
   const onUserOnlineRef = useRef(onUserOnline);
   const onUserOfflineRef = useRef(onUserOffline);
   const onPresenceSnapshotRef = useRef(onPresenceSnapshot);
+  const onMessageUpdateRef = useRef(onMessageUpdate);
+  const onMessageDeleteRef = useRef(onMessageDelete);
+  const onReactionUpdateRef = useRef(onReactionUpdate);
   useEffect(() => { onMessageRef.current = onMessage; }, [onMessage]);
   useEffect(() => { onDmMessageRef.current = onDmMessage; }, [onDmMessage]);
   useEffect(() => { onServerMemberJoinRef.current = onServerMemberJoin; }, [onServerMemberJoin]);
@@ -41,6 +55,9 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onTyp
   useEffect(() => { onUserOnlineRef.current = onUserOnline; }, [onUserOnline]);
   useEffect(() => { onUserOfflineRef.current = onUserOffline; }, [onUserOffline]);
   useEffect(() => { onPresenceSnapshotRef.current = onPresenceSnapshot; }, [onPresenceSnapshot]);
+  useEffect(() => { onMessageUpdateRef.current = onMessageUpdate; }, [onMessageUpdate]);
+  useEffect(() => { onMessageDeleteRef.current = onMessageDelete; }, [onMessageDelete]);
+  useEffect(() => { onReactionUpdateRef.current = onReactionUpdate; }, [onReactionUpdate]);
 
   const sendTyping = useCallback((channelId: string, username: string) => {
     const ws = wsRef.current;
@@ -115,6 +132,20 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onTyp
           if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
             const payload = wsMsg.payload as { user_ids: string[] };
             if (Array.isArray(payload.user_ids)) onPresenceSnapshotRef.current(payload.user_ids);
+          }
+        } else if (wsMsg.type === 'MESSAGE_UPDATE' && onMessageUpdateRef.current) {
+          onMessageUpdateRef.current(wsMsg.payload as Message);
+        } else if (wsMsg.type === 'MESSAGE_DELETE' && onMessageDeleteRef.current) {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            const payload = wsMsg.payload as { id: string; channel_id: string };
+            if (payload.id) onMessageDeleteRef.current(payload.id, payload.channel_id ?? '');
+          }
+        } else if ((wsMsg.type === 'REACTION_ADD' || wsMsg.type === 'REACTION_REMOVE') && onReactionUpdateRef.current) {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            const payload = wsMsg.payload as { message_id: string; channel_id: string; user_id: string; emoji: string };
+            if (payload.message_id && payload.emoji) {
+              onReactionUpdateRef.current({ ...payload, added: wsMsg.type === 'REACTION_ADD' });
+            }
           }
         }
       } catch (err) {

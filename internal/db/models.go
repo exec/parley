@@ -97,6 +97,13 @@ type PublicUser struct {
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
 
+// ReactionGroup represents aggregated reactions for a message, grouped by emoji
+type ReactionGroup struct {
+	Emoji   string   `json:"emoji"`
+	Count   int      `json:"count"`
+	UserIDs []string `json:"user_ids"`
+}
+
 // Invite represents an invite code for a server
 type Invite struct {
 	ID        int64     `json:"id" db:"id"`

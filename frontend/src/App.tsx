@@ -46,6 +46,10 @@ function MainApp() {
     editMessage,
     deleteMessage,
     receiveMessage,
+    receiveMessageUpdate,
+    receiveMessageDelete,
+    toggleReaction,
+    applyReactionUpdate,
     receiveDmMessage,
     logout,
     dmChannels,
@@ -255,6 +259,9 @@ function MainApp() {
     onUserOnline: handleUserOnline,
     onUserOffline: handleUserOffline,
     onPresenceSnapshot: handlePresenceSnapshot,
+    onMessageUpdate: receiveMessageUpdate,
+    onMessageDelete: receiveMessageDelete,
+    onReactionUpdate: applyReactionUpdate,
     activeChannelId: activeChannel?.id ?? null,
     extraChannelIds: allChannelIds,
   });
@@ -360,6 +367,7 @@ function MainApp() {
         onSendMessage={sendMessage}
         onEdit={(msg) => editMessage(msg.id, msg.content)}
         onDelete={deleteMessage}
+        onReact={toggleReaction}
         onViewProfile={handleViewProfile}
         onSendMessageToUser={(userId) => openDmChannel(userId)}
         isLoading={isLoadingMessages}

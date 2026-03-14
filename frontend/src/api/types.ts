@@ -32,6 +32,12 @@ export interface Channel {
   updated_at: string;
 }
 
+export interface Reaction {
+  emoji: string;
+  count: number;
+  user_ids: string[];
+}
+
 export interface Message {
   id: string;
   channel_id: string;
@@ -40,6 +46,7 @@ export interface Message {
   content: string;
   created_at: string;
   updated_at: string;
+  reactions?: Reaction[];
 }
 
 export interface AuthResponse {

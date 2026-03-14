@@ -199,3 +199,40 @@ func (h *Handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// ToggleReactionRequest is the body for POST /messages/:id/reactions
+type ToggleReactionRequest struct {
+	Emoji string `json:"emoji"`
+}
+
+// ToggleReaction handles POST /messages/:id/reactions — adds or removes a reaction.
+func (h *Handler) ToggleReaction(w http.ResponseWriter, r *http.Request) {
+	messageID := chi.URLParam(r, "id")
+	if messageID == "" {
+		http.Error(w, "message ID is required", http.StatusBadRequest)
+		return
+	}
+
+	userID := r.Context().Value("userID")
+	if userID == nil {
+		http.Error(w, "user not authenticated", http.StatusUnauthorized)
+		return
+	}
+
+	var req ToggleReactionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Emoji == "" {
+		http.Error(w, "emoji is required", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.service.ToggleReaction(r.Context(), messageID, userID.(string), req.Emoji); err != nil {
+		if err.Error() == "message not found" {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+

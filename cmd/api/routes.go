@@ -81,6 +81,7 @@ func registerRoutes(
 			r.Post("/channels/{channelID}/messages", messageHandler.SendMessage)
 			r.Put("/messages/{id}", messageHandler.EditMessage)
 			r.Delete("/messages/{id}", messageHandler.DeleteMessage)
+			r.Post("/messages/{id}/reactions", messageHandler.ToggleReaction)
 
 			// DM routes
 			dmHandler := dm.NewHandler(repo, hub)

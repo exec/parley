@@ -3,11 +3,14 @@ import { Message as MessageType } from '../../api/types';
 import { Avatar } from '../ui/Avatar';
 import './Chat.css';
 
+const COMMON_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡', '🎉', '🔥', '👀', '✅', '💯', '🚀'];
+
 interface MessageProps {
   message: MessageType;
   currentUserId?: string;
   onEdit?: (message: MessageType) => void;
   onDelete?: (messageId: string) => void;
+  onReact?: (messageId: string, emoji: string) => void;
   onReply?: (message: MessageType) => void;
   onViewProfile?: (userId: string, username: string) => void;
   onSendMessage?: (userId: string) => void;
@@ -18,6 +21,7 @@ export const Message: React.FC<MessageProps> = ({
   currentUserId,
   onEdit,
   onDelete,
+  onReact,
   onReply,
   onViewProfile,
   onSendMessage,
@@ -25,9 +29,11 @@ export const Message: React.FC<MessageProps> = ({
   const [showActions, setShowActions] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [userContextMenu, setUserContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(message.content);
   const editRef = useRef<HTMLTextAreaElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
 
   const isOwnMessage = currentUserId && message.author_id === currentUserId;
 
@@ -130,6 +136,23 @@ export const Message: React.FC<MessageProps> = ({
     closeContextMenu();
   };
 
+  const handleReact = (emoji: string) => {
+    onReact?.(message.id, emoji);
+    setShowEmojiPicker(false);
+  };
+
+  // Close emoji picker when clicking outside
+  useEffect(() => {
+    if (!showEmojiPicker) return;
+    const handleClick = (e: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showEmojiPicker]);
+
   const wasEdited = message.updated_at !== message.created_at;
 
   return (
@@ -185,17 +208,43 @@ export const Message: React.FC<MessageProps> = ({
         ) : (
           <div className="message-text">{message.content}</div>
         )}
+
+        {(message.reactions?.length ?? 0) > 0 && (
+          <div className="message-reactions">
+            {message.reactions!.map(reaction => (
+              <button
+                key={reaction.emoji}
+                className={`reaction-pill${reaction.user_ids.includes(currentUserId ?? '') ? ' reacted' : ''}`}
+                onClick={() => handleReact(reaction.emoji)}
+                title={reaction.user_ids.length <= 5 ? reaction.user_ids.join(', ') : `${reaction.count} reactions`}
+              >
+                {reaction.emoji} {reaction.count}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {showActions && !isEditing && (
         <div className="message-actions">
           <button className="message-action-btn" onClick={handleReply} title="Reply">↩</button>
+          <button className="message-action-btn" onClick={(e) => { e.stopPropagation(); setShowEmojiPicker(p => !p); }} title="Add reaction">😊</button>
           {isOwnMessage && (
             <>
               <button className="message-action-btn" onClick={handleEdit} title="Edit">✎</button>
               <button className="message-action-btn delete" onClick={handleDelete} title="Delete">🗑</button>
             </>
           )}
+        </div>
+      )}
+
+      {showEmojiPicker && (
+        <div ref={emojiPickerRef} className="emoji-picker">
+          {COMMON_EMOJIS.map(emoji => (
+            <button key={emoji} className="emoji-picker-btn" onClick={() => handleReact(emoji)}>
+              {emoji}
+            </button>
+          ))}
         </div>
       )}
 
