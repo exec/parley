@@ -33,10 +33,11 @@ export async function getMessages(
   return apiClient.get<Message[]>(endpoint);
 }
 
-export async function sendMessage(channelId: string, content: string, nonce?: string): Promise<Message> {
+export async function sendMessage(channelId: string, content: string, nonce?: string, attachmentUrl?: string): Promise<Message> {
   return apiClient.post<Message>(`/channels/${channelId}/messages`, {
     content,
     nonce,
+    attachment_url: attachmentUrl || '',
   });
 }
 

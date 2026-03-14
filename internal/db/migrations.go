@@ -132,6 +132,22 @@ var Migrations = []string{
 	ALTER TABLE messages ADD COLUMN IF NOT EXISTS nonce VARCHAR(64);
 	CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_nonce ON messages(nonce) WHERE nonce IS NOT NULL AND nonce != '';
 	`,
+
+	`-- Add file attachment support
+ALTER TABLE messages
+    ADD COLUMN IF NOT EXISTS attachment_url  TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS attachment_name TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS attachment_type TEXT NOT NULL DEFAULT '';
+
+ALTER TABLE dm_messages
+    ADD COLUMN IF NOT EXISTS attachment_url  TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS attachment_name TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS attachment_type TEXT NOT NULL DEFAULT '';
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS avatar_url TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS banner_url TEXT NOT NULL DEFAULT '';
+`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

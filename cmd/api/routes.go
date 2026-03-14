@@ -1,10 +1,17 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"mime/multipart"
 	"net/http"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -16,6 +23,7 @@ import (
 	"parley/internal/dm"
 	"parley/internal/message"
 	"parley/internal/server"
+	"parley/internal/spaces"
 	ws "parley/internal/websocket"
 )
 
@@ -28,6 +36,7 @@ func registerRoutes(
 	channelService *channel.ChannelService,
 	messageService *message.MessageService,
 	hub *ws.Hub,
+	spacesClient *spaces.Client,
 ) {
 	// Cap request bodies at 64 KB for all routes.
 	router.Use(maxBodyMiddleware(64 * 1024))
@@ -99,11 +108,122 @@ func registerRoutes(
 			r.Get("/users/search", handleUserSearch(repo))
 			r.Get("/users/{id}", handleGetUser(repo))
 			r.Put("/auth/profile", handleUpdateProfile(authService))
+
+			// File upload endpoint - 25MB limit (overrides global 64KB cap)
+			r.With(func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					r.Body = http.MaxBytesReader(w, r.Body, 25*1024*1024)
+					next.ServeHTTP(w, r)
+				})
+			}).Post("/upload", func(w http.ResponseWriter, r *http.Request) {
+				if spacesClient == nil {
+					http.Error(w, "file upload not configured", http.StatusServiceUnavailable)
+					return
+				}
+
+				if err := r.ParseMultipartForm(10 << 20); err != nil {
+					http.Error(w, "request too large", http.StatusRequestEntityTooLarge)
+					return
+				}
+
+				file, header, err := r.FormFile("file")
+				if err != nil {
+					http.Error(w, "missing file field", http.StatusBadRequest)
+					return
+				}
+				defer file.Close()
+
+				// Buffer file so we can both NSFW-check and upload it
+				data, err := io.ReadAll(file)
+				if err != nil {
+					http.Error(w, "failed to read file", http.StatusInternalServerError)
+					return
+				}
+
+				// NSFW check for images — fail open if sidecar is unavailable
+				contentType := header.Header.Get("Content-Type")
+				if strings.HasPrefix(contentType, "image/") {
+					isNSFW, err := checkNSFW(r.Context(), data, contentType)
+					if err != nil {
+						log.Printf("NSFW check error (allowing upload): %v", err)
+					} else if isNSFW {
+						http.Error(w, "content rejected by moderation", http.StatusUnprocessableEntity)
+						return
+					}
+				}
+
+				ext := filepath.Ext(header.Filename)
+				key := fmt.Sprintf("uploads/%s%s", generateID(), ext)
+
+				url, err := spacesClient.Upload(r.Context(), key, bytes.NewReader(data), int64(len(data)))
+				if err != nil {
+					log.Printf("upload error: %v", err)
+					http.Error(w, "upload failed", http.StatusInternalServerError)
+					return
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(map[string]string{"url": url})
+			})
 		})
 	})
 
 	// WebSocket route - accepts token via query param (browser WS can't set headers)
 	router.Get("/ws", handleWebSocket(hub))
+}
+
+// generateID returns a unique string ID based on the current time in nanoseconds.
+func generateID() string {
+	return fmt.Sprintf("%d", time.Now().UnixNano())
+}
+
+// checkNSFW sends an image to the local NSFW sidecar and returns true if it should be blocked.
+// Fails open (returns false) if the sidecar is unavailable, so uploads are never hard-blocked by infra issues.
+func checkNSFW(ctx context.Context, data []byte, _ string) (bool, error) {
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("file", "upload")
+	if err != nil {
+		return false, err
+	}
+	if _, err := part.Write(data); err != nil {
+		return false, err
+	}
+	writer.Close()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://127.0.0.1:8081/check", body)
+	if err != nil {
+		return false, err
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return false, err // sidecar down — fail open
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("nsfw sidecar returned %d", resp.StatusCode)
+	}
+
+	var result struct {
+		Predictions []struct {
+			ClassName   string  `json:"className"`
+			Probability float64 `json:"probability"`
+		} `json:"predictions"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return false, err
+	}
+
+	for _, p := range result.Predictions {
+		if (p.ClassName == "Porn" || p.ClassName == "Hentai") && p.Probability > 0.6 {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // bridgeUserIDMiddleware copies the userID from auth.UserIDKey to server.UserIDKey

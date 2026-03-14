@@ -33,7 +33,7 @@ interface AppActions {
   leaveServer: (serverId: string) => Promise<void>;
   createChannel: (name: string, type: number) => Promise<void>;
   deleteChannel: (channelId: string) => Promise<void>;
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (content: string, attachmentUrl?: string) => Promise<void>;
   editMessage: (messageId: string, content: string) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
   receiveMessage: (msg: Message) => void;
@@ -45,7 +45,7 @@ interface AppActions {
   loadDmChannels: () => Promise<void>;
   openDmChannel: (userId: string) => Promise<void>;
   selectDmChannel: (channelId: string) => Promise<void>;
-  sendDmMessage: (content: string) => Promise<void>;
+  sendDmMessage: (content: string, attachmentUrl?: string) => Promise<void>;
   receiveDmMessage: (msg: DmMessage) => void;
   addServer: (server: Server) => void;
   updateCurrentUser: (user: User) => void;
@@ -242,7 +242,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [activeChannel]);
 
-  const sendMessage = useCallback(async (content: string) => {
+  const sendMessage = useCallback(async (content: string, attachmentUrl?: string) => {
     if (!activeChannel || !currentUser) return;
     const nonce = crypto.randomUUID();
 
@@ -259,11 +259,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updated_at: new Date().toISOString(),
       reactions: [],
       pending: true,
+      attachment_url: attachmentUrl,
     };
     setMessages(prev => [...prev, optimistic]);
 
     try {
-      await messagesApi.sendMessage(activeChannel.id, content, nonce);
+      await messagesApi.sendMessage(activeChannel.id, content, nonce, attachmentUrl);
       // Don't add from the HTTP response — the WS broadcast carries the confirmed
       // message back (with the same nonce) and receiveMessage will replace the
       // optimistic entry. If WS is down, fall back to confirming via HTTP below.
@@ -356,9 +357,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [dmChannels]);
 
-  const sendDmMessage = useCallback(async (content: string) => {
+  const sendDmMessage = useCallback(async (content: string, attachmentUrl?: string) => {
     if (!activeDmChannel) return;
-    const msg = await dmsApi.sendDmMessage(activeDmChannel.id, content);
+    const msg = await dmsApi.sendDmMessage(activeDmChannel.id, content, attachmentUrl);
     setDmMessages(prev => [...prev, msg]);
   }, [activeDmChannel]);
 

@@ -20,9 +20,11 @@ export async function getDmMessages(
 
 export async function sendDmMessage(
   dmChannelId: string,
-  content: string
+  content: string,
+  attachmentUrl?: string
 ): Promise<DmMessage> {
   return apiClient.post<DmMessage>(`/dms/${dmChannelId}/messages`, {
     content,
+    attachment_url: attachmentUrl || '',
   });
 }

@@ -2,6 +2,8 @@ export interface User {
   id: string;
   username: string;
   email: string;
+  avatar_url?: string;
+  banner_url?: string;
 }
 
 export interface Server {
@@ -49,6 +51,9 @@ export interface Message {
   updated_at: string;
   reactions?: Reaction[];
   pending?: boolean; // optimistic: true until confirmed by WS event
+  attachment_url?: string;
+  attachment_name?: string;
+  attachment_type?: string;
 }
 
 export interface AuthResponse {
@@ -78,6 +83,9 @@ export interface DmMessage {
   content: string;
   created_at: string;
   updated_at: string;
+  attachment_url?: string;
+  attachment_name?: string;
+  attachment_type?: string;
 }
 
 export interface PublicUser {

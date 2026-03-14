@@ -56,8 +56,8 @@ func (r *Repository) DB() *sql.DB {
 // CreateUser creates a new user in the database
 func (r *Repository) CreateUser(ctx context.Context, user *User) error {
 	query := `
-		INSERT INTO users (username, email, password_hash, avatar_url, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO users (username, email, password_hash, avatar_url, banner_url, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id
 	`
 
@@ -70,6 +70,7 @@ func (r *Repository) CreateUser(ctx context.Context, user *User) error {
 		user.Email,
 		user.PasswordHash,
 		user.AvatarURL,
+		user.BannerURL,
 		user.CreatedAt,
 		user.UpdatedAt,
 	).Scan(&user.ID)
@@ -84,7 +85,7 @@ func (r *Repository) CreateUser(ctx context.Context, user *User) error {
 // GetUserByID retrieves a user by their ID
 func (r *Repository) GetUserByID(ctx context.Context, id int64) (*User, error) {
 	query := `
-		SELECT id, username, email, password_hash, avatar_url, created_at, updated_at
+		SELECT id, username, email, password_hash, COALESCE(avatar_url, ''), COALESCE(banner_url, ''), created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
@@ -96,6 +97,7 @@ func (r *Repository) GetUserByID(ctx context.Context, id int64) (*User, error) {
 		&user.Email,
 		&user.PasswordHash,
 		&user.AvatarURL,
+		&user.BannerURL,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -113,7 +115,7 @@ func (r *Repository) GetUserByID(ctx context.Context, id int64) (*User, error) {
 // GetUserByEmail retrieves a user by their email
 func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*User, error) {
 	query := `
-		SELECT id, username, email, password_hash, avatar_url, created_at, updated_at
+		SELECT id, username, email, password_hash, COALESCE(avatar_url, ''), COALESCE(banner_url, ''), created_at, updated_at
 		FROM users
 		WHERE email = $1
 	`
@@ -125,6 +127,7 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*User, e
 		&user.Email,
 		&user.PasswordHash,
 		&user.AvatarURL,
+		&user.BannerURL,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -142,7 +145,7 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*User, e
 // GetUserByUsername retrieves a user by their username
 func (r *Repository) GetUserByUsername(ctx context.Context, username string) (*User, error) {
 	query := `
-		SELECT id, username, email, password_hash, avatar_url, created_at, updated_at
+		SELECT id, username, email, password_hash, COALESCE(avatar_url, ''), COALESCE(banner_url, ''), created_at, updated_at
 		FROM users
 		WHERE username = $1
 	`
@@ -154,6 +157,7 @@ func (r *Repository) GetUserByUsername(ctx context.Context, username string) (*U
 		&user.Email,
 		&user.PasswordHash,
 		&user.AvatarURL,
+		&user.BannerURL,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -172,8 +176,8 @@ func (r *Repository) GetUserByUsername(ctx context.Context, username string) (*U
 func (r *Repository) UpdateUser(ctx context.Context, user *User) error {
 	query := `
 		UPDATE users
-		SET username = $1, email = $2, password_hash = $3, avatar_url = $4, updated_at = $5
-		WHERE id = $6
+		SET username = $1, email = $2, password_hash = $3, avatar_url = $4, banner_url = $5, updated_at = $6
+		WHERE id = $7
 	`
 
 	user.UpdatedAt = time.Now()
@@ -183,6 +187,7 @@ func (r *Repository) UpdateUser(ctx context.Context, user *User) error {
 		user.Email,
 		user.PasswordHash,
 		user.AvatarURL,
+		user.BannerURL,
 		user.UpdatedAt,
 		user.ID,
 	)
@@ -617,29 +622,48 @@ func (r *Repository) DeleteChannel(ctx context.Context, id int64) error {
 
 // CreateMessage creates a new message in the database.
 // If a nonce is set, duplicate submissions (retries) return the existing message instead of inserting.
-func (r *Repository) CreateMessage(ctx context.Context, message *Message) error {
+func (r *Repository) CreateMessage(ctx context.Context, channelID, authorID int64, content, nonce, attachmentURL, attachmentName, attachmentType string) (*Message, error) {
 	now := time.Now()
+
+	query := `
+		INSERT INTO messages (channel_id, author_id, content, nonce, attachment_url, attachment_name, attachment_type, created_at, updated_at)
+		VALUES ($1, $2, $3, NULLIF($4, ''), $5, $6, $7, $8, $9)
+		ON CONFLICT (nonce) WHERE nonce IS NOT NULL AND nonce != ''
+		DO UPDATE SET updated_at = messages.updated_at
+		RETURNING id, created_at, updated_at, COALESCE(nonce, ''), attachment_url, attachment_name, attachment_type
+	`
+
+	var message Message
+	message.ChannelID = channelID
+	message.AuthorID = authorID
+	message.Content = content
 	message.CreatedAt = now
 	message.UpdatedAt = now
 
-	query := `
-		INSERT INTO messages (channel_id, author_id, content, nonce, created_at, updated_at)
-		VALUES ($1, $2, $3, NULLIF($4, ''), $5, $6)
-		ON CONFLICT (nonce) WHERE nonce IS NOT NULL AND nonce != ''
-		DO UPDATE SET updated_at = messages.updated_at
-		RETURNING id, created_at, updated_at, COALESCE(nonce, '')
-	`
-
 	err := r.db.QueryRowContext(ctx, query,
-		message.ChannelID,
-		message.AuthorID,
-		message.Content,
-		message.Nonce,
-		message.CreatedAt,
-		message.UpdatedAt,
-	).Scan(&message.ID, &message.CreatedAt, &message.UpdatedAt, &message.Nonce)
+		channelID,
+		authorID,
+		content,
+		nonce,
+		attachmentURL,
+		attachmentName,
+		attachmentType,
+		now,
+		now,
+	).Scan(
+		&message.ID,
+		&message.CreatedAt,
+		&message.UpdatedAt,
+		&message.Nonce,
+		&message.AttachmentURL,
+		&message.AttachmentName,
+		&message.AttachmentType,
+	)
+	if err != nil {
+		return nil, err
+	}
 
-	return err
+	return &message, nil
 }
 
 // GetMessageByID retrieves a message by its ID
@@ -674,7 +698,9 @@ func (r *Repository) GetMessageByID(ctx context.Context, id int64) (*Message, er
 // GetChannelMessages retrieves messages for a channel with pagination
 func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, limit, offset int) ([]*Message, error) {
 	query := `
-		SELECT m.id, m.channel_id, m.author_id, m.content, COALESCE(m.nonce, ''), m.created_at, m.updated_at, u.username
+		SELECT m.id, m.channel_id, m.author_id, m.content, COALESCE(m.nonce, ''), m.created_at, m.updated_at,
+		       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
+		       u.username
 		FROM messages m
 		JOIN users u ON u.id = m.author_id
 		WHERE m.channel_id = $1
@@ -699,6 +725,9 @@ func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, li
 			&message.Nonce,
 			&message.CreatedAt,
 			&message.UpdatedAt,
+			&message.AttachmentURL,
+			&message.AttachmentName,
+			&message.AttachmentType,
 			&message.AuthorUsername,
 		)
 		if err != nil {
@@ -860,19 +889,22 @@ func (r *Repository) GetDmChannelByID(ctx context.Context, id int64) (*DmChannel
 // ============ DM Message Operations ============
 
 // CreateDmMessage creates a new DM message
-func (r *Repository) CreateDmMessage(ctx context.Context, dmChannelID, authorID int64, content string) (*DmMessage, error) {
+func (r *Repository) CreateDmMessage(ctx context.Context, dmChannelID, authorID int64, content, attachmentURL, attachmentName, attachmentType string) (*DmMessage, error) {
 	query := `
-		INSERT INTO dm_messages (dm_channel_id, author_id, content, created_at, updated_at)
-		VALUES ($1, $2, $3, NOW(), NOW())
-		RETURNING id, dm_channel_id, author_id, content, created_at, updated_at
+		INSERT INTO dm_messages (dm_channel_id, author_id, content, attachment_url, attachment_name, attachment_type, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+		RETURNING id, dm_channel_id, author_id, content, attachment_url, attachment_name, attachment_type, created_at, updated_at
 	`
 
 	var msg DmMessage
-	err := r.db.QueryRowContext(ctx, query, dmChannelID, authorID, content).Scan(
+	err := r.db.QueryRowContext(ctx, query, dmChannelID, authorID, content, attachmentURL, attachmentName, attachmentType).Scan(
 		&msg.ID,
 		&msg.DmChannelID,
 		&msg.AuthorID,
 		&msg.Content,
+		&msg.AttachmentURL,
+		&msg.AttachmentName,
+		&msg.AttachmentType,
 		&msg.CreatedAt,
 		&msg.UpdatedAt,
 	)
@@ -891,7 +923,9 @@ func (r *Repository) CreateDmMessage(ctx context.Context, dmChannelID, authorID 
 // GetDmMessages retrieves messages for a DM channel
 func (r *Repository) GetDmMessages(ctx context.Context, dmChannelID int64, limit, offset int) ([]DmMessage, error) {
 	query := `
-		SELECT m.id, m.dm_channel_id, m.author_id, m.content, m.created_at, m.updated_at, u.username
+		SELECT m.id, m.dm_channel_id, m.author_id, m.content,
+		       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
+		       m.created_at, m.updated_at, u.username
 		FROM dm_messages m
 		JOIN users u ON u.id = m.author_id
 		WHERE m.dm_channel_id = $1
@@ -913,6 +947,9 @@ func (r *Repository) GetDmMessages(ctx context.Context, dmChannelID int64, limit
 			&msg.DmChannelID,
 			&msg.AuthorID,
 			&msg.Content,
+			&msg.AttachmentURL,
+			&msg.AttachmentName,
+			&msg.AttachmentType,
 			&msg.CreatedAt,
 			&msg.UpdatedAt,
 			&msg.AuthorUsername,

@@ -177,7 +177,10 @@ func (h *Handler) GetDmMessages(w http.ResponseWriter, r *http.Request) {
 
 // SendDmMessageRequest represents the request to send a DM
 type SendDmMessageRequest struct {
-	Content string `json:"content"`
+	Content        string `json:"content"`
+	AttachmentURL  string `json:"attachment_url"`
+	AttachmentName string `json:"attachment_name"`
+	AttachmentType string `json:"attachment_type"`
 }
 
 // SendDmMessage handles POST /dms/{id}/messages
@@ -229,7 +232,7 @@ func (h *Handler) SendDmMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg, err := h.repo.CreateDmMessage(r.Context(), dmChannelID, currentUserID, req.Content)
+	msg, err := h.repo.CreateDmMessage(r.Context(), dmChannelID, currentUserID, req.Content, req.AttachmentURL, req.AttachmentName, req.AttachmentType)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return

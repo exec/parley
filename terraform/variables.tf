@@ -65,3 +65,32 @@ variable "repo_url" {
   type        = string
   default     = "https://github.com/yourusername/parley.git"
 }
+
+variable "spaces_access_key" {
+  description = "DigitalOcean Spaces access key"
+  type        = string
+  sensitive   = true
+}
+
+variable "spaces_secret_key" {
+  description = "DigitalOcean Spaces secret key"
+  type        = string
+  sensitive   = true
+}
+
+variable "spaces_bucket" {
+  description = "DigitalOcean Spaces bucket name"
+  type        = string
+  default     = "parley-prod"
+}
+
+variable "spaces_endpoint" {
+  description = "DigitalOcean Spaces S3-compatible endpoint URL"
+  type        = string
+  default     = "https://nyc3.digitaloceanspaces.com"
+}
+
+variable "spaces_cdn_url" {
+  description = "Base URL for serving uploaded files (CDN or direct)"
+  type        = string
+}

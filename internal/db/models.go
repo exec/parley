@@ -15,13 +15,14 @@ const (
 
 // User represents a user in the system
 type User struct {
-	ID           int64          `json:"id" db:"id"`
-	Username     string         `json:"username" db:"username"`
-	Email        string         `json:"email" db:"email"`
-	PasswordHash string         `json:"-" db:"password_hash"`
-	AvatarURL    sql.NullString `json:"avatar_url" db:"avatar_url"`
-	CreatedAt    time.Time      `json:"created_at" db:"created_at"`
-	UpdatedAt    time.Time      `json:"updated_at" db:"updated_at"`
+	ID           int64     `json:"id" db:"id"`
+	Username     string    `json:"username" db:"username"`
+	Email        string    `json:"email" db:"email"`
+	PasswordHash string    `json:"-" db:"password_hash"`
+	AvatarURL    string    `json:"avatar_url,omitempty" db:"avatar_url"`
+	BannerURL    string    `json:"banner_url,omitempty" db:"banner_url"`
+	CreatedAt    time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at" db:"updated_at"`
 }
 
 // Server represents a Discord server/guild
@@ -64,6 +65,9 @@ type Message struct {
 	AuthorID       int64     `json:"author_id" db:"author_id"`
 	Content        string    `json:"content" db:"content"`
 	Nonce          string    `json:"nonce" db:"nonce"`
+	AttachmentURL  string    `json:"attachment_url,omitempty" db:"attachment_url"`
+	AttachmentName string    `json:"attachment_name,omitempty" db:"attachment_name"`
+	AttachmentType string    `json:"attachment_type,omitempty" db:"attachment_type"`
 	CreatedAt      time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at" db:"updated_at"`
 	AuthorUsername string    `json:"author_username" db:"-"`
@@ -85,6 +89,9 @@ type DmMessage struct {
 	DmChannelID    int64     `json:"dm_channel_id" db:"dm_channel_id"`
 	AuthorID       int64     `json:"author_id" db:"author_id"`
 	Content        string    `json:"content" db:"content"`
+	AttachmentURL  string    `json:"attachment_url,omitempty" db:"attachment_url"`
+	AttachmentName string    `json:"attachment_name,omitempty" db:"attachment_name"`
+	AttachmentType string    `json:"attachment_type,omitempty" db:"attachment_type"`
 	CreatedAt      time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at" db:"updated_at"`
 	AuthorUsername string    `json:"author_username" db:"-"`

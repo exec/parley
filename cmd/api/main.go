@@ -20,6 +20,7 @@ import (
 	"parley/internal/db"
 	"parley/internal/message"
 	"parley/internal/server"
+	"parley/internal/spaces"
 	"parley/internal/websocket"
 )
 
@@ -115,8 +116,25 @@ func main() {
 	go hub.Run()
 	log.Println("WebSocket hub started")
 
+	// Initialize Spaces client
+	var spacesClient *spaces.Client
+	spacesAccessKey := os.Getenv("SPACES_ACCESS_KEY")
+	spacesSecretKey := os.Getenv("SPACES_SECRET_KEY")
+	spacesBucket    := os.Getenv("SPACES_BUCKET")
+	spacesRegion    := os.Getenv("SPACES_REGION")
+	spacesEndpoint  := os.Getenv("SPACES_ENDPOINT")
+	spacesCDNURL    := os.Getenv("SPACES_CDN_URL")
+	if spacesAccessKey != "" && spacesSecretKey != "" {
+		sc, err := spaces.NewClient(spacesAccessKey, spacesSecretKey, spacesBucket, spacesRegion, spacesEndpoint, spacesCDNURL)
+		if err != nil {
+			log.Printf("Warning: failed to init Spaces client: %v", err)
+		} else {
+			spacesClient = sc
+		}
+	}
+
 	// Setup chi router
-	router := setupRouter(config, repo, authService, serverService, channelService, messageService, hub)
+	router := setupRouter(config, repo, authService, serverService, channelService, messageService, hub, spacesClient)
 
 	// Create HTTP server
 	srv := &http.Server{
@@ -161,6 +179,7 @@ func setupRouter(
 	channelService *channel.ChannelService,
 	messageService *message.MessageService,
 	hub *websocket.Hub,
+	spacesClient *spaces.Client,
 ) *chi.Mux {
 	router := chi.NewRouter()
 
@@ -174,7 +193,7 @@ func setupRouter(
 	router.Use(corsMiddleware())
 
 	// Mount routes
-	registerRoutes(router, repo, authService, serverService, channelService, messageService, hub)
+	registerRoutes(router, repo, authService, serverService, channelService, messageService, hub, spacesClient)
 
 	return router
 }

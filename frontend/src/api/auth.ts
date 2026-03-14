@@ -50,6 +50,8 @@ export interface UpdateProfileRequest {
   username?: string;
   current_password?: string;
   new_password?: string;
+  avatar_url?: string;
+  banner_url?: string;
 }
 
 export async function updateProfile(req: UpdateProfileRequest): Promise<User> {

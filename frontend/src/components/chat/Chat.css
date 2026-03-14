@@ -565,3 +565,141 @@
 .emoji-picker-btn:hover {
   background: #1a3d1a;
 }
+
+/* File Attachments */
+.message-attachment {
+  margin-top: 4px;
+}
+
+.message-attachment-image {
+  display: block;
+  max-width: 400px;
+  max-height: 300px;
+  border-radius: 4px;
+  border: 1px solid rgba(50, 205, 50, 0.3);
+}
+
+.message-attachment-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(50, 205, 50, 0.1);
+  border: 1px solid rgba(50, 205, 50, 0.3);
+  border-radius: 4px;
+  color: #32CD32;
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.message-attachment-file:hover {
+  background: rgba(50, 205, 50, 0.2);
+}
+
+/* File upload button in message input */
+.attach-button {
+  background: transparent;
+  border: none;
+  color: #32CD32;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 18px;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.attach-button:hover {
+  opacity: 1;
+}
+
+.attach-button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.attachment-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: rgba(50, 205, 50, 0.1);
+  border: 1px solid rgba(50, 205, 50, 0.3);
+  border-radius: 4px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: #32CD32;
+}
+
+.attachment-preview-remove {
+  background: none;
+  border: none;
+  color: #ff4444;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 4px;
+  margin-left: auto;
+}
+
+/* Avatar/Icon upload in settings */
+.avatar-upload-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.avatar-preview {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background-color: rgba(50, 205, 50, 0.2);
+  border: 2px solid #32CD32;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.avatar-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.banner-preview {
+  width: 100%;
+  height: 80px;
+  background-color: rgba(50, 205, 50, 0.1);
+  border: 1px solid rgba(50, 205, 50, 0.3);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.banner-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.upload-btn {
+  background: transparent;
+  border: 1px solid #32CD32;
+  color: #32CD32;
+  padding: 6px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background-color 0.15s;
+}
+
+.upload-btn:hover {
+  background: rgba(50, 205, 50, 0.15);
+}
+
+.upload-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

@@ -106,6 +106,34 @@ run_with_retry "npm run build"
 mkdir -p /var/www/parley
 cp -r dist/* /var/www/parley/
 
+# Install and start NSFW moderation sidecar
+echo "=== Setting up NSFW moderation service ==="
+cd /parley/nsfw-service
+run_with_retry "npm install --omit=dev"
+
+cat > /etc/systemd/system/parley-nsfw.service <<EOF
+[Unit]
+Description=Parley NSFW Moderation Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/parley/nsfw-service
+ExecStart=/usr/bin/node index.js
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable parley-nsfw.service
+systemctl start parley-nsfw.service
+
 # Create environment file
 echo "=== Creating environment configuration ==="
 mkdir -p /etc/parley
@@ -120,6 +148,12 @@ JWT_SECRET=${JWT_SECRET}
 PORT=${PORT}
 REDIS_URL=redis://${REDIS_HOST}:6379
 PATH=/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+SPACES_ACCESS_KEY=${SPACES_ACCESS_KEY}
+SPACES_SECRET_KEY=${SPACES_SECRET_KEY}
+SPACES_BUCKET=${SPACES_BUCKET}
+SPACES_REGION=${SPACES_REGION}
+SPACES_ENDPOINT=${SPACES_ENDPOINT}
+SPACES_CDN_URL=${SPACES_CDN_URL}
 EOF
 
 # Set proper permissions

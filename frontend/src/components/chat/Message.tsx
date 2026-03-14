@@ -206,7 +206,30 @@ export const Message: React.FC<MessageProps> = ({
             </div>
           </div>
         ) : (
-          <div className="message-text">{message.content}</div>
+          <>
+            <div className="message-text">{message.content}</div>
+            {message.attachment_url && (
+              <div className="message-attachment">
+                {message.attachment_type?.startsWith('image/') ? (
+                  <img
+                    src={message.attachment_url}
+                    alt={message.attachment_name || 'attachment'}
+                    className="message-attachment-image"
+                    style={{ maxWidth: '400px', maxHeight: '300px', borderRadius: '4px', marginTop: '4px' }}
+                  />
+                ) : (
+                  <a
+                    href={message.attachment_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="message-attachment-file"
+                  >
+                    📎 {message.attachment_name || 'attachment'}
+                  </a>
+                )}
+              </div>
+            )}
+          </>
         )}
 
         {(message.reactions?.length ?? 0) > 0 && (

@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Server } from '../../api/types';
 import { updateServer, deleteServer, createInvite, setVanityURL } from '../../api/servers';
+import { uploadFile } from '../../api/upload';
 
 interface ServerSettingsModalProps {
   isOpen: boolean;
@@ -23,22 +24,43 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
 }) => {
   const [name, setName] = useState(server?.name || '');
   const [vanityUrl, setVanityUrl] = useState(server?.vanity_url || '');
+  const [iconUrl, setIconUrl] = useState(server?.icon_url || '');
+  const [iconUploading, setIconUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [showInvite, setShowInvite] = useState(false);
+  const iconFileInputRef = useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     if (server) {
       setName(server.name);
       setVanityUrl(server.vanity_url || '');
+      setIconUrl(server.icon_url || '');
       setShowDeleteConfirm(false);
       setInviteCode(null);
       setShowInvite(false);
       setError('');
     }
   }, [server, isOpen]);
+
+  const handleIconFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIconUploading(true);
+    setError('');
+    try {
+      const url = await uploadFile(file);
+      setIconUrl(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to upload icon');
+    } finally {
+      setIconUploading(false);
+      // Reset input so the same file can be selected again if needed
+      if (iconFileInputRef.current) iconFileInputRef.current.value = '';
+    }
+  };
 
   const handleSave = async () => {
     if (!server || !name.trim()) {
@@ -49,7 +71,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
     setLoading(true);
     setError('');
     try {
-      const updated = await updateServer(server.id, name.trim(), server.icon_url);
+      const updated = await updateServer(server.id, name.trim(), iconUrl || undefined);
       // Also save vanity URL if it changed
       if (vanityUrl.trim() !== (server.vanity_url || '')) {
         const withVanity = await setVanityURL(server.id, vanityUrl.trim());
@@ -110,9 +132,32 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Server Settings">
       <div className="server-settings-modal">
-        <div className="server-icon-preview">
-          <div className="server-icon-large">
-            {server.name.charAt(0).toUpperCase()}
+        <div className="avatar-upload-section">
+          <div className="avatar-preview">
+            {iconUrl ? (
+              <img src={iconUrl} alt="Server icon" />
+            ) : (
+              <span style={{ fontSize: 32, color: '#32CD32', fontWeight: 'bold' }}>
+                {server.name.charAt(0).toUpperCase()}
+              </span>
+            )}
+          </div>
+          <div>
+            <input
+              type="file"
+              accept="image/*"
+              ref={iconFileInputRef}
+              style={{ display: 'none' }}
+              onChange={handleIconFileChange}
+            />
+            <button
+              className="upload-btn"
+              type="button"
+              disabled={iconUploading || loading}
+              onClick={() => iconFileInputRef.current?.click()}
+            >
+              {iconUploading ? 'Uploading...' : 'Change Icon'}
+            </button>
           </div>
         </div>
 

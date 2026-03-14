@@ -14,7 +14,7 @@ interface ChatWindowProps {
   channel: Channel;
   messages: MessageType[];
   currentUserId?: string;
-  onSendMessage: (content: string) => void;
+  onSendMessage: (content: string, attachmentUrl?: string) => void;
   onLoadMore?: () => void;
   onEdit?: (message: MessageType) => void;
   onDelete?: (messageId: string) => void;
@@ -52,8 +52,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const replyValue = replyTo ? `@${replyTo.author_username} ` : '';
 
   const handleSendMessage = useCallback(
-    (content: string) => {
-      onSendMessage(content);
+    (content: string, attachmentUrl?: string) => {
+      onSendMessage(content, attachmentUrl);
       if (onClearReply) {
         onClearReply();
       }

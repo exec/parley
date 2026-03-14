@@ -37,3 +37,8 @@ output "project_id" {
   description = "DigitalOcean Project ID"
   value       = digitalocean_project.parley_project.id
 }
+
+output "spaces_bucket_domain" {
+  description = "DigitalOcean Spaces bucket domain"
+  value       = digitalocean_spaces_bucket.parley_uploads.bucket_domain_name
+}

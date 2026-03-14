@@ -1,9 +1,10 @@
 import React, { useState, useRef, useCallback, KeyboardEvent, ChangeEvent, useEffect } from 'react';
+import { uploadFile } from '../../api/upload';
 import './Chat.css';
 
 interface MessageInputProps {
   channelName: string;
-  onSendMessage: (content: string) => void;
+  onSendMessage: (content: string, attachmentUrl?: string) => void;
   onTyping?: () => void;
   disabled?: boolean;
   placeholder?: string;
@@ -18,7 +19,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   initialValue = '',
 }) => {
   const [message, setMessage] = useState(initialValue);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Update message when initialValue changes
   useEffect(() => {
@@ -35,18 +39,34 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
   }, [initialValue]);
 
-  const handleSend = useCallback(() => {
+  const handleSend = useCallback(async () => {
     const trimmedMessage = message.trim();
-    if (trimmedMessage) {
-      onSendMessage(trimmedMessage);
+    if (!trimmedMessage && !pendingFile) return;
+
+    setIsUploading(true);
+    try {
+      let attachmentUrl: string | undefined;
+      if (pendingFile) {
+        attachmentUrl = await uploadFile(pendingFile);
+      }
+
+      onSendMessage(trimmedMessage, attachmentUrl);
       setMessage('');
+      setPendingFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
 
       // Reset textarea height
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
       }
+    } catch (err) {
+      console.error('Failed to send message:', err);
+    } finally {
+      setIsUploading(false);
     }
-  }, [message, onSendMessage]);
+  }, [message, pendingFile, onSendMessage]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -75,11 +95,59 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     [onTyping]
   );
 
+  const handleFileChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setPendingFile(file);
+    }
+  }, []);
+
+  const handleAttachClick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleRemoveFile = useCallback(() => {
+    setPendingFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, []);
+
   const defaultPlaceholder = `Message #${channelName}`;
+  const isBusy = disabled || isUploading;
 
   return (
     <div className="message-input-container">
+      {pendingFile && (
+        <div className="attachment-preview">
+          <span>📎 {pendingFile.name}</span>
+          <button
+            type="button"
+            className="attachment-preview-remove"
+            onClick={handleRemoveFile}
+            title="Remove attachment"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       <div className="message-input-wrapper">
+        <input
+          ref={fileInputRef}
+          type="file"
+          style={{ display: 'none' }}
+          onChange={handleFileChange}
+          disabled={isBusy}
+        />
+        <button
+          type="button"
+          className="attach-button"
+          onClick={handleAttachClick}
+          disabled={isBusy}
+          title="Attach file"
+        >
+          📎
+        </button>
         <textarea
           ref={textareaRef}
           className="message-textarea"
@@ -87,15 +155,15 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           placeholder={defaultPlaceholder}
-          disabled={disabled}
+          disabled={isBusy}
           rows={1}
         />
         <button
           className="send-button"
           onClick={handleSend}
-          disabled={disabled || !message.trim()}
+          disabled={isBusy || (!message.trim() && !pendingFile)}
         >
-          Send
+          {isUploading ? '...' : 'Send'}
         </button>
       </div>
     </div>

@@ -26,6 +26,9 @@ type Message struct {
 	AuthorUsername string     `json:"author_username"`
 	Content        string     `json:"content"`
 	Nonce          string     `json:"nonce,omitempty"`
+	AttachmentURL  string     `json:"attachment_url,omitempty"`
+	AttachmentName string     `json:"attachment_name,omitempty"`
+	AttachmentType string     `json:"attachment_type,omitempty"`
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
 	Reactions      []Reaction `json:"reactions"`
@@ -55,7 +58,7 @@ func (s *MessageService) SetBroadcaster(b Broadcaster) {
 
 // SendMessage creates a new message in a channel.
 // nonce is a client-generated UUID used for deduplication; pass "" if not provided.
-func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, content, nonce string) (*Message, error) {
+func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, content, nonce, attachmentURL, attachmentName, attachmentType string) (*Message, error) {
 	if channelID == "" {
 		return nil, errors.New("channel ID is required")
 	}
@@ -78,17 +81,7 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 		return nil, errors.New("invalid author ID")
 	}
 
-	now := time.Now()
-	dbMsg := &db.Message{
-		ChannelID: channelIDInt,
-		AuthorID:  authorIDInt,
-		Content:   content,
-		Nonce:     nonce,
-		CreatedAt: now,
-		UpdatedAt: now,
-	}
-
-	err = s.repo.CreateMessage(ctx, dbMsg)
+	dbMsg, err := s.repo.CreateMessage(ctx, channelIDInt, authorIDInt, content, nonce, attachmentURL, attachmentName, attachmentType)
 	if err != nil {
 		return nil, err
 	}
@@ -106,6 +99,9 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 		AuthorUsername: authorUsername,
 		Content:        content,
 		Nonce:          dbMsg.Nonce,
+		AttachmentURL:  dbMsg.AttachmentURL,
+		AttachmentName: dbMsg.AttachmentName,
+		AttachmentType: dbMsg.AttachmentType,
 		CreatedAt:      dbMsg.CreatedAt,
 		UpdatedAt:      dbMsg.UpdatedAt,
 		Reactions:      []Reaction{},
