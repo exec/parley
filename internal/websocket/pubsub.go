@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"sync"
 	"time"
@@ -92,8 +91,6 @@ func (r *RedisPubSub) StartSubscriber(channel string, handler func(message []byt
 		pubsub := r.Subscribe(channel)
 		ch := pubsub.Channel()
 
-		log.Printf("Started Redis subscriber for channel: %s", channel)
-
 		for msg := range ch {
 			if msg == nil {
 				continue
@@ -101,8 +98,6 @@ func (r *RedisPubSub) StartSubscriber(channel string, handler func(message []byt
 
 			handler([]byte(msg.Payload))
 		}
-
-		log.Printf("Redis subscriber stopped for channel: %s", channel)
 	}()
 }
 

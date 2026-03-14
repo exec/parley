@@ -70,11 +70,8 @@ func (r *RedisHub) Subscribe() {
 
 		// Skip events we published ourselves to avoid duplicates
 		if env.NodeID == r.nodeID {
-			log.Printf("RedisHub: skipping own event from node %s", env.NodeID)
 			return
 		}
-
-		log.Printf("RedisHub: received %s event for %s (channel: %s)", env.EventType, env.Event, env.ChannelID)
 
 		// Forward to hub's broadcast channel for safe processing in main hub loop
 		msg := &Message{
@@ -85,7 +82,6 @@ func (r *RedisHub) Subscribe() {
 
 		// Send to broadcast channel (blocking - waits if full)
 		r.hub.broadcast <- msg
-		log.Printf("RedisHub: forwarded %s event for channel %s", env.EventType, env.ChannelID)
 	})
 }
 
