@@ -129,6 +129,9 @@ func main() {
 	// Set up hub broadcasting for server service (for member join events)
 	serverService.SetHub(hub)
 
+	// Set up hub broadcasting for channel service
+	channelService.SetHub(hub)
+
 	// Start hub in a goroutine
 	go hub.Run()
 	log.Println("WebSocket hub started")

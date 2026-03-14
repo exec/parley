@@ -5,7 +5,7 @@ import * as serversApi from '../api/servers';
 import * as channelsApi from '../api/channels';
 import * as messagesApi from '../api/messages';
 import * as dmsApi from '../api/dms';
-import { ReactionUpdate } from '../hooks/useWebSocket';
+import { ReactionUpdate, MemberRoleUpdate, UserUpdate } from '../hooks/useWebSocket';
 
 interface AppState {
   currentUser: User | null;
@@ -50,6 +50,14 @@ interface AppActions {
   addServer: (server: Server) => void;
   updateCurrentUser: (user: User) => void;
   loadServers: () => Promise<void>;
+  // WS event handlers for server structure changes
+  receiveChannelCreate: (channel: Channel) => void;
+  receiveChannelUpdate: (channel: Channel) => void;
+  receiveChannelDelete: (channelId: string, serverId: string) => void;
+  receiveMemberLeave: (serverId: string, userId: string) => void;
+  receiveMemberRemoved: (serverId: string, userId: string) => void; // for kick or ban of current user
+  receiveMemberRoleUpdate: (update: MemberRoleUpdate) => void;
+  receiveUserUpdate: (update: UserUpdate) => void;
 }
 
 const AppContext = createContext<(AppState & AppActions) | null>(null);
@@ -442,6 +450,59 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await messagesApi.toggleReaction(messageId, emoji);
   }, []);
 
+  const receiveChannelCreate = useCallback((channel: Channel) => {
+    setChannels(prev => {
+      if (prev.some(c => c.id === channel.id)) return prev;
+      return [...prev, channel];
+    });
+  }, []);
+
+  const receiveChannelUpdate = useCallback((channel: Channel) => {
+    setChannels(prev => prev.map(c => c.id === channel.id ? channel : c));
+  }, []);
+
+  const receiveChannelDelete = useCallback((channelId: string, _serverId: string) => {
+    setChannels(prev => prev.filter(c => c.id !== channelId));
+    setActiveChannel(prev => prev?.id === channelId ? null : prev);
+    setMessages(prev => prev.filter(() => true)); // keep messages, UI handles null channel
+  }, []);
+
+  const receiveMemberLeave = useCallback((serverId: string, userId: string) => {
+    // Update members list if the user is in the active server
+    setMembers(prev => prev.filter(m => !(m.server_id === serverId && m.user_id === userId)));
+  }, []);
+
+  // Called when the current user is kicked or banned
+  const receiveMemberRemoved = useCallback((serverId: string, userId: string) => {
+    setMembers(prev => prev.filter(m => !(m.server_id === serverId && m.user_id === userId)));
+    setServers(prev => prev.filter(s => s.id !== serverId));
+    setActiveServer(prev => {
+      if (prev?.id === serverId) {
+        setChannels([]);
+        setMembers([]);
+        setActiveChannel(null);
+        setMessages([]);
+      }
+      return prev?.id === serverId ? null : prev;
+    });
+  }, []);
+
+  const receiveMemberRoleUpdate = useCallback((update: MemberRoleUpdate) => {
+    setMembers(prev => prev.map(m =>
+      m.user_id === update.user_id && m.server_id === update.server_id
+        ? { ...m, roles: update.roles }
+        : m
+    ));
+  }, []);
+
+  const receiveUserUpdate = useCallback((update: UserUpdate) => {
+    setMembers(prev => prev.map(m =>
+      m.user_id === update.user_id
+        ? { ...m, username: update.username }
+        : m
+    ));
+  }, []);
+
   return (
     <AppContext.Provider value={{
       currentUser,
@@ -483,6 +544,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       receiveDmMessage,
       updateCurrentUser,
       loadServers,
+      receiveChannelCreate,
+      receiveChannelUpdate,
+      receiveChannelDelete,
+      receiveMemberLeave,
+      receiveMemberRemoved,
+      receiveMemberRoleUpdate,
+      receiveUserUpdate,
     }}>
       {children}
     </AppContext.Provider>

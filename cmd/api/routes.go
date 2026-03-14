@@ -84,6 +84,9 @@ func registerRoutes(
 			r.Post("/servers/{id}/members", serverHandler.AddMember)
 			r.Delete("/servers/{id}/members/{userID}", serverHandler.RemoveMember)
 			r.Get("/servers/{id}/members", serverHandler.GetMembers)
+			r.Delete("/servers/{id}/leave", serverHandler.LeaveServer)
+			r.Post("/servers/{id}/members/{userID}/kick", serverHandler.KickMember)
+			r.Post("/servers/{id}/members/{userID}/ban", serverHandler.BanMember)
 
 			// Role routes
 			r.Get("/servers/{id}/roles", serverHandler.GetServerRoles)
@@ -127,7 +130,7 @@ func registerRoutes(
 			r.Get("/users/{id}", handleGetUser(repo))
 			r.Get("/auth/me", handleGetMe(repo))
 			r.Post("/auth/impersonate-token", handleImpersonateToken(authService))
-			r.Put("/auth/profile", handleUpdateProfile(authService))
+			r.Put("/auth/profile", handleUpdateProfile(authService, repo, hub))
 			r.Put("/auth/email", handleChangeEmail(authService))
 			r.Post("/auth/resend-verification", handleResendVerification(authService))
 			r.Post("/auth/verify-phone", handleVerifyPhone(authService))
@@ -507,7 +510,7 @@ func handleGetUser(repo *db.Repository) http.HandlerFunc {
 }
 
 // Update profile handler - PUT /api/auth/profile
-func handleUpdateProfile(authService *auth.AuthService) http.HandlerFunc {
+func handleUpdateProfile(authService *auth.AuthService, repo *db.Repository, hub *ws.Hub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userIDStr := auth.GetUserIDFromContext(r)
 		if userIDStr == "" {
@@ -531,6 +534,26 @@ func handleUpdateProfile(authService *auth.AuthService) http.HandlerFunc {
 		if err != nil {
 			jsonError(w, err.Error(), http.StatusBadRequest)
 			return
+		}
+
+		// Broadcast USER_UPDATE to all servers the user is a member of
+		if hub != nil {
+			userID, parseErr := strconv.ParseInt(userIDStr, 10, 64)
+			if parseErr == nil {
+				servers, serversErr := repo.GetServersByUserID(r.Context(), userID)
+				if serversErr == nil {
+					payload, marshalErr := json.Marshal(map[string]string{
+						"user_id":    userIDStr,
+						"username":   user.Username,
+						"avatar_url": user.AvatarURL,
+					})
+					if marshalErr == nil {
+						for _, srv := range servers {
+							hub.BroadcastToChannel(fmt.Sprintf("server:%d", srv.ID), ws.EventUserUpdate, payload)
+						}
+					}
+				}
+			}
 		}
 
 		w.Header().Set("Content-Type", "application/json")

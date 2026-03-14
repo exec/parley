@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { Message, DmMessage } from '../api/types';
+import { Message, DmMessage, Channel, Server, Role } from '../api/types';
 
 interface WSMessage {
   type: string;
@@ -14,10 +14,25 @@ export interface ReactionUpdate {
   added: boolean;
 }
 
+export interface MemberRoleUpdate {
+  server_id: string;
+  user_id: string;
+  roles: Role[];
+}
+
+export interface UserUpdate {
+  user_id: string;
+  username: string;
+  avatar_url: string;
+}
+
 interface UseWebSocketOptions {
   onMessage: (msg: Message) => void;
   onDmMessage?: (msg: DmMessage) => void;
   onServerMemberJoin?: (serverId: string, userId: string) => void;
+  onServerMemberLeave?: (serverId: string, userId: string) => void;
+  onServerMemberKick?: (serverId: string, userId: string) => void;
+  onServerMemberBan?: (serverId: string, userId: string) => void;
   onTyping?: (userId: string, username: string, channelId: string) => void;
   onUserOnline?: (userId: string) => void;
   onUserOffline?: (userId: string) => void;
@@ -25,11 +40,18 @@ interface UseWebSocketOptions {
   onMessageUpdate?: (msg: Message) => void;
   onMessageDelete?: (messageId: string, channelId: string) => void;
   onReactionUpdate?: (update: ReactionUpdate) => void;
+  onChannelCreate?: (channel: Channel) => void;
+  onChannelUpdate?: (channel: Channel) => void;
+  onChannelDelete?: (channelId: string, serverId: string) => void;
+  onServerUpdate?: (server: Server) => void;
+  onServerDelete?: (serverId: string) => void;
+  onMemberRoleUpdate?: (update: MemberRoleUpdate) => void;
+  onUserUpdate?: (update: UserUpdate) => void;
   activeChannelId: string | null;
   extraChannelIds?: string[]; // Additional channels to subscribe to for notifications
 }
 
-export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
+export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onServerMemberLeave, onServerMemberKick, onServerMemberBan, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, onChannelCreate, onChannelUpdate, onChannelDelete, onServerUpdate, onServerDelete, onMemberRoleUpdate, onUserUpdate, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const subscribedChannelsRef = useRef<Set<string>>(new Set());
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -41,6 +63,9 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onTyp
   const onMessageRef = useRef(onMessage);
   const onDmMessageRef = useRef(onDmMessage);
   const onServerMemberJoinRef = useRef(onServerMemberJoin);
+  const onServerMemberLeaveRef = useRef(onServerMemberLeave);
+  const onServerMemberKickRef = useRef(onServerMemberKick);
+  const onServerMemberBanRef = useRef(onServerMemberBan);
   const onTypingRef = useRef(onTyping);
   const onUserOnlineRef = useRef(onUserOnline);
   const onUserOfflineRef = useRef(onUserOffline);
@@ -48,9 +73,19 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onTyp
   const onMessageUpdateRef = useRef(onMessageUpdate);
   const onMessageDeleteRef = useRef(onMessageDelete);
   const onReactionUpdateRef = useRef(onReactionUpdate);
+  const onChannelCreateRef = useRef(onChannelCreate);
+  const onChannelUpdateRef = useRef(onChannelUpdate);
+  const onChannelDeleteRef = useRef(onChannelDelete);
+  const onServerUpdateRef = useRef(onServerUpdate);
+  const onServerDeleteRef = useRef(onServerDelete);
+  const onMemberRoleUpdateRef = useRef(onMemberRoleUpdate);
+  const onUserUpdateRef = useRef(onUserUpdate);
   useEffect(() => { onMessageRef.current = onMessage; }, [onMessage]);
   useEffect(() => { onDmMessageRef.current = onDmMessage; }, [onDmMessage]);
   useEffect(() => { onServerMemberJoinRef.current = onServerMemberJoin; }, [onServerMemberJoin]);
+  useEffect(() => { onServerMemberLeaveRef.current = onServerMemberLeave; }, [onServerMemberLeave]);
+  useEffect(() => { onServerMemberKickRef.current = onServerMemberKick; }, [onServerMemberKick]);
+  useEffect(() => { onServerMemberBanRef.current = onServerMemberBan; }, [onServerMemberBan]);
   useEffect(() => { onTypingRef.current = onTyping; }, [onTyping]);
   useEffect(() => { onUserOnlineRef.current = onUserOnline; }, [onUserOnline]);
   useEffect(() => { onUserOfflineRef.current = onUserOffline; }, [onUserOffline]);
@@ -58,6 +93,13 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onTyp
   useEffect(() => { onMessageUpdateRef.current = onMessageUpdate; }, [onMessageUpdate]);
   useEffect(() => { onMessageDeleteRef.current = onMessageDelete; }, [onMessageDelete]);
   useEffect(() => { onReactionUpdateRef.current = onReactionUpdate; }, [onReactionUpdate]);
+  useEffect(() => { onChannelCreateRef.current = onChannelCreate; }, [onChannelCreate]);
+  useEffect(() => { onChannelUpdateRef.current = onChannelUpdate; }, [onChannelUpdate]);
+  useEffect(() => { onChannelDeleteRef.current = onChannelDelete; }, [onChannelDelete]);
+  useEffect(() => { onServerUpdateRef.current = onServerUpdate; }, [onServerUpdate]);
+  useEffect(() => { onServerDeleteRef.current = onServerDelete; }, [onServerDelete]);
+  useEffect(() => { onMemberRoleUpdateRef.current = onMemberRoleUpdate; }, [onMemberRoleUpdate]);
+  useEffect(() => { onUserUpdateRef.current = onUserUpdate; }, [onUserUpdate]);
 
   const sendTyping = useCallback((channelId: string, username: string) => {
     const ws = wsRef.current;
@@ -146,6 +188,45 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onTyp
             if (payload.message_id && payload.emoji) {
               onReactionUpdateRef.current({ ...payload, added: wsMsg.type === 'REACTION_ADD' });
             }
+          }
+        } else if (wsMsg.type === 'SERVER_MEMBER_LEAVE' && onServerMemberLeaveRef.current) {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            const p = wsMsg.payload as { server_id: string; user_id: string };
+            if (p.server_id && p.user_id) onServerMemberLeaveRef.current(p.server_id, p.user_id);
+          }
+        } else if (wsMsg.type === 'SERVER_MEMBER_KICK' && onServerMemberKickRef.current) {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            const p = wsMsg.payload as { server_id: string; user_id: string };
+            if (p.server_id && p.user_id) onServerMemberKickRef.current(p.server_id, p.user_id);
+          }
+        } else if (wsMsg.type === 'SERVER_MEMBER_BAN' && onServerMemberBanRef.current) {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            const p = wsMsg.payload as { server_id: string; user_id: string };
+            if (p.server_id && p.user_id) onServerMemberBanRef.current(p.server_id, p.user_id);
+          }
+        } else if (wsMsg.type === 'CHANNEL_CREATE' && onChannelCreateRef.current) {
+          onChannelCreateRef.current(wsMsg.payload as Channel);
+        } else if (wsMsg.type === 'CHANNEL_UPDATE' && onChannelUpdateRef.current) {
+          onChannelUpdateRef.current(wsMsg.payload as Channel);
+        } else if (wsMsg.type === 'CHANNEL_DELETE' && onChannelDeleteRef.current) {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            const p = wsMsg.payload as { channel_id: string; server_id: string };
+            if (p.channel_id) onChannelDeleteRef.current(p.channel_id, p.server_id ?? '');
+          }
+        } else if (wsMsg.type === 'SERVER_UPDATE' && onServerUpdateRef.current) {
+          onServerUpdateRef.current(wsMsg.payload as Server);
+        } else if (wsMsg.type === 'SERVER_DELETE' && onServerDeleteRef.current) {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            const p = wsMsg.payload as { server_id: string };
+            if (p.server_id) onServerDeleteRef.current(p.server_id);
+          }
+        } else if (wsMsg.type === 'MEMBER_ROLE_UPDATE' && onMemberRoleUpdateRef.current) {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            onMemberRoleUpdateRef.current(wsMsg.payload as MemberRoleUpdate);
+          }
+        } else if (wsMsg.type === 'USER_UPDATE' && onUserUpdateRef.current) {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            onUserUpdateRef.current(wsMsg.payload as UserUpdate);
           }
         }
       } catch (err) {

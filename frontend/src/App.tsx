@@ -6,8 +6,9 @@ import { InvitePage } from './pages/InvitePage';
 import { VerifyEmail } from './pages/VerifyEmail';
 import { Impersonate } from './pages/Impersonate';
 import { AppProvider, useApp } from './context/AppContext';
-import { useWebSocket } from './hooks/useWebSocket';
+import { useWebSocket, MemberRoleUpdate, UserUpdate } from './hooks/useWebSocket';
 import { DmMessage } from './api/types';
+import * as serversApi from './api/servers';
 import MainLayout from './components/layout/MainLayout';
 import ChannelList from './components/layout/ChannelList';
 import DmPanel from './components/layout/DmPanel';
@@ -63,6 +64,13 @@ function MainApp() {
     openDmChannel,
     updateCurrentUser,
     loadServers,
+    receiveChannelCreate,
+    receiveChannelUpdate,
+    receiveChannelDelete,
+    receiveMemberLeave,
+    receiveMemberRemoved,
+    receiveMemberRoleUpdate,
+    receiveUserUpdate,
   } = useApp();
 
   const navigate = useNavigate();
@@ -153,6 +161,43 @@ function MainApp() {
     loadServers();
   }, [loadServers]);
 
+  const handleMemberLeave = useCallback((serverId: string, userId: string) => {
+    receiveMemberLeave(serverId, userId);
+  }, [receiveMemberLeave]);
+
+  const handleMemberKick = useCallback((serverId: string, userId: string) => {
+    if (currentUser && userId === currentUser.id) {
+      // Current user was kicked — remove server from state
+      receiveMemberRemoved(serverId, userId);
+    } else {
+      receiveMemberLeave(serverId, userId);
+    }
+  }, [currentUser, receiveMemberRemoved, receiveMemberLeave]);
+
+  const handleMemberBan = useCallback((serverId: string, userId: string) => {
+    if (currentUser && userId === currentUser.id) {
+      receiveMemberRemoved(serverId, userId);
+    } else {
+      receiveMemberLeave(serverId, userId);
+    }
+  }, [currentUser, receiveMemberRemoved, receiveMemberLeave]);
+
+  const handleServerUpdate = useCallback((server: Parameters<typeof updateServer>[0]) => {
+    updateServer(server);
+  }, [updateServer]);
+
+  const handleServerDelete = useCallback((serverId: string) => {
+    deleteServer(serverId);
+  }, [deleteServer]);
+
+  const handleMemberRoleUpdate = useCallback((update: MemberRoleUpdate) => {
+    receiveMemberRoleUpdate(update);
+  }, [receiveMemberRoleUpdate]);
+
+  const handleUserUpdate = useCallback((update: UserUpdate) => {
+    receiveUserUpdate(update);
+  }, [receiveUserUpdate]);
+
   const clearTypingUser = useCallback((channelId: string, userId: string) => {
     const key = `${channelId}:${userId}`;
     const existing = typingTimeoutsRef.current.get(key);
@@ -221,10 +266,17 @@ function MainApp() {
     }
   }, [receiveDmMessage, activeDmChannel?.id]);
 
-  // Get all channel IDs from all servers to subscribe to for notifications
-  const allChannelIds = servers.flatMap(server =>
-    channels.filter(c => c.server_id === server.id).map(c => c.id)
-  );
+  // Channel IDs for the active server (for unread notifications)
+  const allChannelIds = channels.map(c => c.id);
+
+  // Virtual server channels for server-level events (membership, channels, etc.)
+  const serverVirtualChannelIds = useMemo(() =>
+    servers.map(s => `server:${s.id}`),
+  [servers]);
+
+  const extraChannelIds = useMemo(() =>
+    [...allChannelIds, ...serverVirtualChannelIds],
+  [allChannelIds, serverVirtualChannelIds]);
 
   const handleUserOnline = useCallback((userId: string) => {
     setOnlineUsers(prev => {
@@ -274,6 +326,9 @@ function MainApp() {
     onMessage: handleReceiveMessage,
     onDmMessage: handleReceiveDmMessage,
     onServerMemberJoin: handleServerMemberJoin,
+    onServerMemberLeave: handleMemberLeave,
+    onServerMemberKick: handleMemberKick,
+    onServerMemberBan: handleMemberBan,
     onTyping: handleTyping,
     onUserOnline: handleUserOnline,
     onUserOffline: handleUserOffline,
@@ -281,8 +336,15 @@ function MainApp() {
     onMessageUpdate: receiveMessageUpdate,
     onMessageDelete: receiveMessageDelete,
     onReactionUpdate: applyReactionUpdate,
+    onChannelCreate: receiveChannelCreate,
+    onChannelUpdate: receiveChannelUpdate,
+    onChannelDelete: receiveChannelDelete,
+    onServerUpdate: handleServerUpdate,
+    onServerDelete: handleServerDelete,
+    onMemberRoleUpdate: handleMemberRoleUpdate,
+    onUserUpdate: handleUserUpdate,
     activeChannelId: activeChannel?.id ?? null,
-    extraChannelIds: allChannelIds,
+    extraChannelIds,
   });
 
   const handleSendTyping = useCallback(() => {
@@ -359,6 +421,12 @@ function MainApp() {
         setManageRolesFocusUserId(userId);
         setShowManageRoles(true);
       }}
+      onKick={activeServer ? (userId) => {
+        serversApi.kickMember(activeServer.id, userId).catch(console.error);
+      } : undefined}
+      onBan={activeServer ? (userId) => {
+        serversApi.banMember(activeServer.id, userId).catch(console.error);
+      } : undefined}
     />
   ) : undefined;
 

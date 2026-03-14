@@ -3,11 +3,14 @@ package channel
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
+	"log"
 	"strconv"
 	"time"
 
 	"parley/internal/db"
+	ws "parley/internal/websocket"
 )
 
 // ChannelType represents the type of channel
@@ -32,6 +35,7 @@ type Channel struct {
 // ChannelService provides channel management operations
 type ChannelService struct {
 	repo *db.Repository
+	hub  *ws.Hub
 }
 
 // NewChannelService creates a new ChannelService with the given repository
@@ -39,6 +43,11 @@ func NewChannelService(repo *db.Repository) *ChannelService {
 	return &ChannelService{
 		repo: repo,
 	}
+}
+
+// SetHub sets the WebSocket hub for broadcasting channel events
+func (s *ChannelService) SetHub(hub *ws.Hub) {
+	s.hub = hub
 }
 
 const maxChannelNameLen = 100
@@ -78,7 +87,15 @@ func (s *ChannelService) CreateChannel(ctx context.Context, serverID, name strin
 		return nil, err
 	}
 
-	return dbChannelToChannel(dbChannel), nil
+	ch := dbChannelToChannel(dbChannel)
+	if s.hub != nil {
+		if payload, err := json.Marshal(ch); err == nil {
+			s.hub.BroadcastToChannel("server:"+serverID, ws.EventChannelCreate, payload)
+		} else {
+			log.Printf("Failed to marshal CHANNEL_CREATE event: %v", err)
+		}
+	}
+	return ch, nil
 }
 
 // GetChannel retrieves a channel by ID
@@ -148,7 +165,15 @@ func (s *ChannelService) UpdateChannel(ctx context.Context, id, name string) (*C
 		return nil, err
 	}
 
-	return dbChannelToChannel(channel), nil
+	ch := dbChannelToChannel(channel)
+	if s.hub != nil {
+		if payload, err := json.Marshal(ch); err == nil {
+			s.hub.BroadcastToChannel("server:"+ch.ServerID, ws.EventChannelUpdate, payload)
+		} else {
+			log.Printf("Failed to marshal CHANNEL_UPDATE event: %v", err)
+		}
+	}
+	return ch, nil
 }
 
 // DeleteChannel deletes a channel by ID. Only the server owner may delete channels.
@@ -179,6 +204,8 @@ func (s *ChannelService) DeleteChannel(ctx context.Context, id string, userID st
 		return errors.New("forbidden")
 	}
 
+	serverID := strconv.FormatInt(ch.ServerID, 10)
+
 	err = s.repo.DeleteChannel(ctx, idInt)
 	if err != nil {
 		if err == db.ErrNotFound {
@@ -187,6 +214,10 @@ func (s *ChannelService) DeleteChannel(ctx context.Context, id string, userID st
 		return err
 	}
 
+	if s.hub != nil {
+		payload, _ := json.Marshal(map[string]string{"channel_id": id, "server_id": serverID})
+		s.hub.BroadcastToChannel("server:"+serverID, ws.EventChannelDelete, payload)
+	}
 	return nil
 }
 

@@ -2181,3 +2181,23 @@ func (r *Repository) AdminDeleteUser(ctx context.Context, userID int64) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, userID)
 	return err
 }
+
+// AddServerBan adds a server-level ban for a user.
+func (r *Repository) AddServerBan(ctx context.Context, serverID, userID, bannedByID int64, reason string) error {
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO server_bans (server_id, user_id, banned_by, reason) VALUES ($1, $2, $3, $4)
+		 ON CONFLICT (server_id, user_id) DO UPDATE SET reason = EXCLUDED.reason, banned_by = EXCLUDED.banned_by`,
+		serverID, userID, bannedByID, reason,
+	)
+	return err
+}
+
+// IsServerBanned returns true if the user is banned from the server.
+func (r *Repository) IsServerBanned(ctx context.Context, serverID, userID int64) (bool, error) {
+	var count int
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM server_bans WHERE server_id = $1 AND user_id = $2`,
+		serverID, userID,
+	).Scan(&count)
+	return count > 0, err
+}

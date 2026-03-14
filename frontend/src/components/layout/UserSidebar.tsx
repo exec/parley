@@ -19,9 +19,11 @@ interface UserContextMenuProps {
   onViewProfile?: (userId: string) => void;
   onSendMessage?: (userId: string) => void;
   onManageRoles?: () => void;
+  onKick?: (userId: string) => void;
+  onBan?: (userId: string) => void;
 }
 
-const UserContextMenu: React.FC<UserContextMenuProps> = ({ member, isCurrentUser, isOwner: _isOwner, canManageRoles, position, onClose, onViewProfile, onSendMessage, onManageRoles }) => {
+const UserContextMenu: React.FC<UserContextMenuProps> = ({ member, isCurrentUser, isOwner, canManageRoles, position, onClose, onViewProfile, onSendMessage, onManageRoles, onKick, onBan }) => {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -51,6 +53,17 @@ const UserContextMenu: React.FC<UserContextMenuProps> = ({ member, isCurrentUser
           Manage Roles
         </button>
       )}
+      {canManageRoles && !isCurrentUser && !isOwner && (
+        <>
+          <div className="user-context-menu-divider" />
+          <button className="user-context-menu-item" style={{ color: '#FFB347' }} onClick={() => { onKick?.(member.user_id); onClose(); }}>
+            Kick Member
+          </button>
+          <button className="user-context-menu-item" style={{ color: '#FF4444' }} onClick={() => { onBan?.(member.user_id); onClose(); }}>
+            Ban Member
+          </button>
+        </>
+      )}
     </div>
   );
 };
@@ -65,9 +78,11 @@ interface UserSidebarProps {
   serverId?: string;
   currentUserIsOwner?: boolean;
   onManageRoles?: (memberId: string) => void;
+  onKick?: (userId: string) => void;
+  onBan?: (userId: string) => void;
 }
 
-const UserSidebar: React.FC<UserSidebarProps> = ({ members, ownerId, currentUserId, onViewProfile, onSendMessage, onlineUserIds, currentUserIsOwner, onManageRoles }) => {
+const UserSidebar: React.FC<UserSidebarProps> = ({ members, ownerId, currentUserId, onViewProfile, onSendMessage, onlineUserIds, currentUserIsOwner, onManageRoles, onKick, onBan }) => {
   const [contextMenu, setContextMenu] = useState<{ member: ServerMember; position: { top: number; left: number } } | null>(null);
 
   const handleMemberClick = (member: ServerMember, e: React.MouseEvent) => {
@@ -180,6 +195,8 @@ const UserSidebar: React.FC<UserSidebarProps> = ({ members, ownerId, currentUser
           onViewProfile={onViewProfile}
           onSendMessage={onSendMessage}
           onManageRoles={() => onManageRoles?.(contextMenu.member.user_id)}
+          onKick={onKick}
+          onBan={onBan}
         />
       )}
     </div>

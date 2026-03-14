@@ -253,6 +253,20 @@ CREATE INDEX IF NOT EXISTS idx_reports_reporter ON reports(reporter_id);
 CREATE INDEX IF NOT EXISTS idx_reports_reported_user ON reports(reported_user_id);
 CREATE INDEX IF NOT EXISTS idx_reports_category ON reports(category_id);
 `,
+
+	`-- Server-level bans table
+CREATE TABLE IF NOT EXISTS server_bans (
+    id BIGSERIAL PRIMARY KEY,
+    server_id BIGINT NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    banned_by BIGINT NOT NULL REFERENCES users(id),
+    reason TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE(server_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_server_bans_server_id ON server_bans(server_id);
+CREATE INDEX IF NOT EXISTS idx_server_bans_user_id ON server_bans(user_id);
+`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

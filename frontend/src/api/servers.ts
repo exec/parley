@@ -88,3 +88,11 @@ export async function joinServerByInvite(code: string): Promise<Server> {
 export async function setVanityURL(serverId: string, vanityUrl: string): Promise<Server> {
   return apiClient.put<Server>(`/servers/${serverId}/vanity`, { vanity_url: vanityUrl });
 }
+
+export async function kickMember(serverId: string, userId: string): Promise<void> {
+  return apiClient.post<void>(`/servers/${serverId}/members/${userId}/kick`, {});
+}
+
+export async function banMember(serverId: string, userId: string, reason?: string): Promise<void> {
+  return apiClient.post<void>(`/servers/${serverId}/members/${userId}/ban`, { reason: reason ?? '' });
+}

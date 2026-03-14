@@ -193,7 +193,13 @@ func (s *ServerService) UpdateServer(ctx context.Context, id, name, iconURL stri
 		return nil, err
 	}
 
-	return dbServerToService(server), nil
+	srv := dbServerToService(server)
+	if s.hub != nil {
+		if payload, err := json.Marshal(srv); err == nil {
+			s.hub.BroadcastToChannel("server:"+id, ws.EventServerUpdate, payload)
+		}
+	}
+	return srv, nil
 }
 
 // DeleteServer deletes a server by ID
@@ -205,6 +211,11 @@ func (s *ServerService) DeleteServer(ctx context.Context, id string) error {
 	serverID, err := idToInt64(id)
 	if err != nil {
 		return errors.New("invalid server ID format")
+	}
+
+	if s.hub != nil {
+		payload, _ := json.Marshal(map[string]string{"server_id": id})
+		s.hub.BroadcastToChannel("server:"+id, ws.EventServerDelete, payload)
 	}
 
 	err = s.repo.DeleteServer(ctx, serverID)
@@ -250,36 +261,20 @@ func (s *ServerService) AddMember(ctx context.Context, serverID, userID, nicknam
 
 	// Broadcast to all members of the server that a new member joined
 	s.broadcastMemberJoin(serverID, userID)
-
 	return nil
 }
 
-// broadcastMemberJoin sends a WebSocket event to all members of a server
-// that a new member has joined.
+// broadcastMemberJoin sends a WebSocket event to all members of a server that a new member has joined.
 func (s *ServerService) broadcastMemberJoin(serverID, userID string) {
 	if s.hub == nil {
 		return
 	}
-
-	// Broadcast to the server's channel
-	// Note: The server channel ID is derived from the server ID
-	// In the current implementation, we use the server ID as the channel ID prefix
-	// The actual channel would be something like "server:{serverID}"
-	// For now, we broadcast to a special channel that members subscribe to
-	event := map[string]string{
-		"type":    "server_member_join",
-		"server_id": serverID,
-		"user_id":   userID,
-	}
-
-	payload, err := json.Marshal(event)
+	payload, err := json.Marshal(map[string]string{"server_id": serverID, "user_id": userID})
 	if err != nil {
 		log.Printf("Failed to marshal member join event: %v", err)
 		return
 	}
-
-	// Broadcast to the server's channel (using a channel ID derived from server ID)
-	s.hub.BroadcastToChannel("server:"+serverID, "server_member_join", payload)
+	s.hub.BroadcastToChannel("server:"+serverID, ws.EventMemberJoin, payload)
 }
 
 // RemoveMember removes a user from a server
@@ -309,6 +304,82 @@ func (s *ServerService) RemoveMember(ctx context.Context, serverID, userID strin
 		return err
 	}
 
+	if s.hub != nil {
+		payload, _ := json.Marshal(map[string]string{"server_id": serverID, "user_id": userID})
+		s.hub.BroadcastToChannel("server:"+serverID, ws.EventMemberLeave, payload)
+	}
+	return nil
+}
+
+// KickMember removes a member from a server and notifies them via WebSocket.
+func (s *ServerService) KickMember(ctx context.Context, serverID, userID string) error {
+	if serverID == "" {
+		return errors.New("server ID is required")
+	}
+	if userID == "" {
+		return errors.New("user ID is required")
+	}
+
+	serverIDInt, err := idToInt64(serverID)
+	if err != nil {
+		return errors.New("invalid server ID format")
+	}
+	userIDInt, err := idToInt64(userID)
+	if err != nil {
+		return errors.New("invalid user ID format")
+	}
+
+	err = s.repo.RemoveMember(ctx, serverIDInt, userIDInt)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return errors.New("member not found")
+		}
+		return err
+	}
+
+	if s.hub != nil {
+		payload, _ := json.Marshal(map[string]string{"server_id": serverID, "user_id": userID})
+		s.hub.BroadcastToChannel("server:"+serverID, ws.EventMemberKick, payload)
+		// Also send directly to the kicked user so they navigate away immediately
+		s.hub.SendToUser(userID, ws.EventMemberKick, payload)
+	}
+	return nil
+}
+
+// BanMember bans a user from a server, removes them, and notifies them via WebSocket.
+func (s *ServerService) BanMember(ctx context.Context, serverID, userID, bannedByID, reason string) error {
+	if serverID == "" {
+		return errors.New("server ID is required")
+	}
+	if userID == "" {
+		return errors.New("user ID is required")
+	}
+
+	serverIDInt, err := idToInt64(serverID)
+	if err != nil {
+		return errors.New("invalid server ID format")
+	}
+	userIDInt, err := idToInt64(userID)
+	if err != nil {
+		return errors.New("invalid user ID format")
+	}
+	bannedByIDInt, err := idToInt64(bannedByID)
+	if err != nil {
+		return errors.New("invalid banned_by ID format")
+	}
+
+	if err := s.repo.AddServerBan(ctx, serverIDInt, userIDInt, bannedByIDInt, reason); err != nil {
+		return err
+	}
+
+	// Remove from server (may already not be a member, which is fine)
+	_ = s.repo.RemoveMember(ctx, serverIDInt, userIDInt)
+
+	if s.hub != nil {
+		payload, _ := json.Marshal(map[string]string{"server_id": serverID, "user_id": userID})
+		s.hub.BroadcastToChannel("server:"+serverID, ws.EventMemberBan, payload)
+		s.hub.SendToUser(userID, ws.EventMemberBan, payload)
+	}
 	return nil
 }
 
@@ -720,7 +791,11 @@ func (s *ServerService) AssignRoleToMember(ctx context.Context, serverID, userID
 	if err != nil {
 		return errors.New("invalid role ID")
 	}
-	return s.repo.AssignRoleToMember(ctx, sID, uID, rID)
+	if err := s.repo.AssignRoleToMember(ctx, sID, uID, rID); err != nil {
+		return err
+	}
+	s.broadcastRoleUpdate(ctx, serverID, userID, sID, uID)
+	return nil
 }
 
 // RemoveRoleFromMember removes a role from a member
@@ -737,7 +812,35 @@ func (s *ServerService) RemoveRoleFromMember(ctx context.Context, serverID, user
 	if err != nil {
 		return errors.New("invalid role ID")
 	}
-	return s.repo.RemoveRoleFromMember(ctx, sID, uID, rID)
+	if err := s.repo.RemoveRoleFromMember(ctx, sID, uID, rID); err != nil {
+		return err
+	}
+	s.broadcastRoleUpdate(ctx, serverID, userID, sID, uID)
+	return nil
+}
+
+// broadcastRoleUpdate sends a MEMBER_ROLE_UPDATE event with the user's current roles.
+func (s *ServerService) broadcastRoleUpdate(ctx context.Context, serverID, userID string, sID, uID int64) {
+	if s.hub == nil {
+		return
+	}
+	dbRoles, err := s.repo.GetMemberRoles(ctx, sID, uID)
+	if err != nil {
+		return
+	}
+	roles := make([]Role, len(dbRoles))
+	for i, r := range dbRoles {
+		roles[i] = dbRoleToRole(r)
+	}
+	payload, err := json.Marshal(map[string]interface{}{
+		"server_id": serverID,
+		"user_id":   userID,
+		"roles":     roles,
+	})
+	if err != nil {
+		return
+	}
+	s.hub.BroadcastToChannel("server:"+serverID, ws.EventMemberRoleUpdate, payload)
 }
 
 // GetMembersWithRoles returns all members of a server with their roles

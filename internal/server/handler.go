@@ -654,6 +654,121 @@ func (h *Handler) GetMembersWithRoles(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, members)
 }
 
+// LeaveServer handles DELETE /servers/:id/leave — allows the current user to leave a server
+func (h *Handler) LeaveServer(w http.ResponseWriter, r *http.Request) {
+	serverID := chi.URLParam(r, "id")
+	if serverID == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		render.JSON(w, r, ErrorResponse{Error: "server ID is required"})
+		return
+	}
+
+	currentUserID, ok := r.Context().Value(UserIDKey).(string)
+	if !ok || currentUserID == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+		return
+	}
+
+	server, err := h.service.GetServer(r.Context(), serverID)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		render.JSON(w, r, ErrorResponse{Error: "server not found"})
+		return
+	}
+	if server.OwnerID == currentUserID {
+		w.WriteHeader(http.StatusForbidden)
+		render.JSON(w, r, ErrorResponse{Error: "server owner cannot leave; delete the server instead"})
+		return
+	}
+
+	if err := h.service.RemoveMember(r.Context(), serverID, currentUserID); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// KickMember handles POST /servers/:id/members/:userID/kick
+func (h *Handler) KickMember(w http.ResponseWriter, r *http.Request) {
+	serverID := chi.URLParam(r, "id")
+	targetUserID := chi.URLParam(r, "userID")
+
+	currentUserID, ok := r.Context().Value(UserIDKey).(string)
+	if !ok || currentUserID == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+		return
+	}
+
+	server, err := h.service.GetServer(r.Context(), serverID)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		render.JSON(w, r, ErrorResponse{Error: "server not found"})
+		return
+	}
+	if server.OwnerID != currentUserID {
+		w.WriteHeader(http.StatusForbidden)
+		render.JSON(w, r, ErrorResponse{Error: "only the server owner can kick members"})
+		return
+	}
+	if targetUserID == server.OwnerID {
+		w.WriteHeader(http.StatusForbidden)
+		render.JSON(w, r, ErrorResponse{Error: "cannot kick the server owner"})
+		return
+	}
+
+	if err := h.service.KickMember(r.Context(), serverID, targetUserID); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// BanMember handles POST /servers/:id/members/:userID/ban
+func (h *Handler) BanMember(w http.ResponseWriter, r *http.Request) {
+	serverID := chi.URLParam(r, "id")
+	targetUserID := chi.URLParam(r, "userID")
+
+	currentUserID, ok := r.Context().Value(UserIDKey).(string)
+	if !ok || currentUserID == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+		return
+	}
+
+	server, err := h.service.GetServer(r.Context(), serverID)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		render.JSON(w, r, ErrorResponse{Error: "server not found"})
+		return
+	}
+	if server.OwnerID != currentUserID {
+		w.WriteHeader(http.StatusForbidden)
+		render.JSON(w, r, ErrorResponse{Error: "only the server owner can ban members"})
+		return
+	}
+	if targetUserID == server.OwnerID {
+		w.WriteHeader(http.StatusForbidden)
+		render.JSON(w, r, ErrorResponse{Error: "cannot ban the server owner"})
+		return
+	}
+
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+
+	if err := h.service.BanMember(r.Context(), serverID, targetUserID, currentUserID, req.Reason); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // SetVanityURL handles PUT /servers/:id/vanity
 func (h *Handler) SetVanityURL(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "id")
