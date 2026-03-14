@@ -1,6 +1,4 @@
 #!/bin/bash
-set -e
-
 # Cloud-init script for Parley API droplets
 # This script sets up the environment and runs the Go API service
 
@@ -16,70 +14,101 @@ REPO_URL="${REPO_URL}"
 
 echo "=== Starting Parley API setup ==="
 
-# Update system
+# Function to run commands with retry logic
+run_with_retry() {
+    local max_retries=3
+    local retry_delay=5
+    local attempt=1
+    local cmd="$@"
+
+    while [ $attempt -le $max_retries ]; do
+        echo "Attempt $attempt of $max_retries: $cmd"
+        if eval "$cmd"; then
+            return 0
+        fi
+        echo "Failed, retrying in ${retry_delay}s..."
+        sleep $retry_delay
+        attempt=$((attempt + 1))
+    done
+
+    echo "Command failed after $max_retries attempts: $cmd"
+    return 1
+}
+
+# Update system with retry
 echo "=== Updating system packages ==="
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -y
-apt-get upgrade -y
+run_with_retry "apt-get update -y" || true
+run_with_retry "apt-get upgrade -y" || true
 
-# Install required packages
+# Install required packages with retry
 echo "=== Installing required packages ==="
-apt-get install -y \
-    git \
-    curl \
-    build-essential \
-    nginx \
-    certbot \
-    python3-certbot-nginx \
-    ufw \
-    software-properties-common
+run_with_retry "apt-get install -y git curl build-essential nginx certbot python3-certbot-nginx ufw software-properties-common"
 
 # Install Node.js (LTS)
 echo "=== Installing Node.js ==="
 curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
-apt-get install -y nodejs
+run_with_retry "apt-get install -y nodejs"
 
 # Install Go
 echo "=== Installing Go ==="
 if ! command -v go &> /dev/null; then
-    curl -fsSL https://go.dev/dl/go1.25.0.linux-amd64.tar.gz -o /tmp/go.tar.gz
+    run_with_retry "curl -fsSL https://go.dev/dl/go1.25.0.linux-amd64.tar.gz -o /tmp/go.tar.gz"
     rm -rf /usr/local/go
     tar -C /usr/local -xzf /tmp/go.tar.gz
     rm /tmp/go.tar.gz
 fi
 
-# Install Redis
-echo "=== Installing Redis ==="
-apt-get install -y redis-server
+# Verify Go installation
+if ! command -v go &> /dev/null; then
+    echo "ERROR: Go installation failed"
+    exit 1
+fi
 
-# Add Go to PATH and set required env vars
-echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/profile.d/go.sh
+# Install Redis with retry
+echo "=== Installing Redis ==="
+run_with_retry "apt-get install -y redis-server"
+
+# Add Go to PATH for all shells
+echo "=== Configuring Go PATH ==="
+echo 'export PATH=$PATH:/usr/local/go/bin' > /etc/profile.d/go.sh
+
+# Set Go environment variables
 export PATH=$PATH:/usr/local/go/bin
 export HOME=/root
 export GOPATH=/root/go
 export GOMODCACHE=/root/go/pkg/mod
 export GOCACHE=/root/.cache/go-build
 
-# Clone or update Parley repository
+# Clone or update Parley repository with retry
 echo "=== Cloning Parley repository ==="
 if [ -d "/parley" ]; then
     cd /parley
-    git pull origin main 2>/dev/null || git pull origin master 2>/dev/null || true
+    echo "Updating existing repository..."
+    run_with_retry "git pull origin main 2>/dev/null || git pull origin master 2>/dev/null || true"
 else
-    git clone --depth 1 "${REPO_URL}" /parley
+    echo "Cloning repository..."
+    run_with_retry "git clone --depth 1 ${REPO_URL} /parley"
+    cd /parley
 fi
 
 # Build the Go application
 echo "=== Building Parley API ==="
 cd /parley
-GONOSUMDB=* go mod download
-GONOSUMDB=* go build -mod=mod -o /usr/local/bin/parley-api ./cmd/api
+run_with_retry "GONOSUMDB=* go mod download"
+run_with_retry "GONOSUMDB=* go build -mod=mod -o /usr/local/bin/parley-api ./cmd/api"
+
+# Verify binary was created
+if [ ! -f "/usr/local/bin/parley-api" ]; then
+    echo "ERROR: API binary not created"
+    exit 1
+fi
 
 # Build the frontend
 echo "=== Building Parley frontend ==="
 cd /parley/frontend
-npm ci
-npm run build
+run_with_retry "npm ci"
+run_with_retry "npm run build"
 mkdir -p /var/www/parley
 cp -r dist/* /var/www/parley/
 
@@ -87,14 +116,16 @@ cp -r dist/* /var/www/parley/
 echo "=== Creating environment configuration ==="
 mkdir -p /etc/parley
 
-# URL-encode the DB password to handle special characters (/, =, +, etc.)
+# URL-encode the DB password to handle special characters
 DB_PASSWORD_ENCODED=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "${DB_PASSWORD}")
 
+# Create environment file with PATH for Go
 cat > /etc/parley/env <<EOF
-DATABASE_URL=postgresql://${DB_USER}:$${DB_PASSWORD_ENCODED}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=disable
+DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD_ENCODED}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=disable
 JWT_SECRET=${JWT_SECRET}
 PORT=${PORT}
 REDIS_URL=redis://localhost:6379
+PATH=/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 EOF
 
 # Set proper permissions
@@ -102,25 +133,29 @@ chmod 600 /etc/parley/env
 
 # Configure Redis to bind to localhost only (secure default)
 echo "=== Configuring Redis ==="
-cat > /etc/redis/redis.conf.bak <<REDISEOF
-# Backup current redis.conf if it exists
 cp /etc/redis/redis.conf /etc/redis/redis.conf.bak 2>/dev/null || true
-REDISEOF
 
 # Ensure Redis binds to localhost for security
-sed -i "s/^bind 127.0.0.1/bind 127.0.0.1/" /etc/redis/redis.conf 2>/dev/null || true
-sed -i "s/^# bind 127.0.0.1/bind 127.0.0.1/" /etc/redis/redis.conf 2>/dev/null || true
+sed -i "s/^bind .*/bind 127.0.0.1/" /etc/redis/redis.conf 2>/dev/null || true
 
-# Start Redis service
-systemctl restart redis-server
-systemctl enable redis-server
+# Start Redis service with retry
+echo "=== Starting Redis ==="
+run_with_retry "systemctl restart redis-server"
+run_with_retry "systemctl enable redis-server"
+
+# Verify Redis is responding
+if ! redis-cli ping | grep -q "PONG"; then
+    echo "ERROR: Redis not responding"
+    exit 1
+fi
 
 # Create systemd service
 echo "=== Creating systemd service ==="
 cat > /etc/systemd/system/parley-api.service <<EOF
 [Unit]
 Description=Parley API Service
-After=network.target
+After=network.target redis.service
+Wants=redis.service
 
 [Service]
 Type=simple
@@ -130,6 +165,8 @@ EnvironmentFile=/etc/parley/env
 ExecStart=/usr/local/bin/parley-api
 Restart=always
 RestartSec=10
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
@@ -198,11 +235,15 @@ rm -f /etc/nginx/sites-enabled/default
 ln -sf /etc/nginx/sites-available/parley-api /etc/nginx/sites-enabled/
 
 # Test nginx configuration
-nginx -t
+if ! nginx -t 2>&1 | grep -q "syntax is ok"; then
+    echo "ERROR: Nginx configuration failed"
+    nginx -t 2>&1 || true
+    exit 1
+fi
 
-# Restart nginx
-systemctl restart nginx
-systemctl enable nginx
+# Restart nginx with retry
+run_with_retry "systemctl restart nginx"
+run_with_retry "systemctl enable nginx"
 
 # Configure firewall
 echo "=== Configuring firewall ==="
@@ -211,26 +252,31 @@ ufw allow 80/tcp    # HTTP
 ufw allow 443/tcp   # HTTPS
 ufw --force enable
 
-# Start the API service
+# Start the API service with retry
 echo "=== Starting Parley API service ==="
-systemctl start parley-api.service
+run_with_retry "systemctl start parley-api.service"
 
 # Wait a moment for the service to start
 sleep 3
 
-# Check service status
+# Verify the API service is running
 if systemctl is-active --quiet parley-api.service; then
     echo "=== Parley API service started successfully ==="
 else
     echo "=== Warning: Parley API service may have failed to start ==="
-    systemctl status parley-api.service || true
+    systemctl status parley-api.service --no-pager || true
 fi
 
 # Verify nginx is running
 systemctl status nginx --no-pager || true
 
-# Verify Redis is running
-echo "=== Verifying Redis status ==="
-systemctl status redis-server --no-pager || true
+# Final health check
+echo "=== Verifying health endpoint ==="
+sleep 2
+if curl -sf http://localhost:${PORT}/health > /dev/null 2>&1; then
+    echo "=== API health check passed ==="
+else
+    echo "=== Warning: Health check failed ==="
+fi
 
 echo "=== API droplet setup complete ==="
