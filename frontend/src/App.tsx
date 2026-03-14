@@ -37,6 +37,7 @@ function MainApp() {
     createServer,
     updateServer,
     deleteServer,
+    leaveServer,
     createChannel,
     deleteChannel,
     sendMessage,
@@ -140,6 +141,8 @@ function MainApp() {
       onDeleteChannel={deleteChannel}
       onManageRoles={() => setShowManageRoles(true)}
       onServerSettings={() => setShowServerSettings(true)}
+      onLeaveServer={() => leaveServer(activeServer?.id ?? '')}
+      owner_id={activeServer?.owner_id}
       currentUser={currentUser ?? undefined}
       onLogout={logout}
       onOpenSettings={() => setShowUserSettings(true)}

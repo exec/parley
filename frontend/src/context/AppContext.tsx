@@ -29,6 +29,7 @@ interface AppActions {
   createServer: (name: string) => Promise<void>;
   updateServer: (server: Server) => void;
   deleteServer: (serverId: string) => void;
+  leaveServer: (serverId: string) => Promise<void>;
   createChannel: (name: string, type: number) => Promise<void>;
   deleteChannel: (channelId: string) => Promise<void>;
   sendMessage: (content: string) => Promise<void>;
@@ -199,6 +200,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setMessages([]);
   }, []);
 
+  const leaveServer = useCallback(async (serverId: string) => {
+    // Call the leave server API
+    await serversApi.leaveServer(serverId);
+    // Remove the server from local state
+    setServers(prev => prev.filter(s => s.id !== serverId));
+    // If we're in the left server, go home
+    if (activeServer?.id === serverId) {
+      setActiveServer(null);
+      setChannels([]);
+      setMembers([]);
+      setActiveChannel(null);
+      setMessages([]);
+    }
+  }, [activeServer]);
+
   const addServer = useCallback((srv: Server) => {
     setServers(prev => {
       if (prev.find(s => s.id === srv.id)) return prev;
@@ -346,6 +362,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       createServer,
       updateServer,
       deleteServer,
+      leaveServer,
       addServer,
       createChannel,
       deleteChannel,

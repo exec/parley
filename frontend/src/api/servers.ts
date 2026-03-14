@@ -39,6 +39,10 @@ export async function deleteServer(id: string): Promise<void> {
   return apiClient.delete<void>(`/servers/${id}`);
 }
 
+export async function leaveServer(serverId: string): Promise<void> {
+  return apiClient.delete<void>(`/servers/${serverId}/leave`);
+}
+
 export async function getMembers(serverId: string): Promise<ServerMember[]> {
   return apiClient.get<ServerMember[]>(`/servers/${serverId}/members`);
 }

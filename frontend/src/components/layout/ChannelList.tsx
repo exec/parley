@@ -38,6 +38,51 @@ const UserContextMenu: React.FC<UserContextMenuProps> = ({ position, onClose, on
   );
 };
 
+interface ServerContextMenuProps {
+  position: { top: number; left: number };
+  serverName: string;
+  isOwner: boolean;
+  onClose: () => void;
+  onLeave?: () => void;
+  onSettings?: () => void;
+}
+
+const ServerContextMenu: React.FC<ServerContextMenuProps> = ({ position, onClose, onLeave, onSettings }) => {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={ref}
+      className="cl-server-context-menu"
+      style={{ top: position.top, left: position.left }}
+    >
+      {onSettings && (
+        <button className="cl-server-context-item" onClick={() => { onSettings(); onClose(); }}>
+          Server Settings
+        </button>
+      )}
+      {onLeave && (
+        <>
+          <div className="cl-server-context-divider" />
+          <button className="cl-server-context-item danger" onClick={() => { onLeave(); onClose(); }}>
+            Leave Server
+          </button>
+        </>
+      )}
+    </div>
+  );
+};
+
 interface Channel {
   id: string;
   name: string;
@@ -59,6 +104,8 @@ interface ChannelListProps {
   onDeleteChannel: (channelId: string) => void;
   onManageRoles: () => void;
   onServerSettings?: () => void;
+  onLeaveServer?: () => void;
+  owner_id?: string;
   currentUser?: User;
   onLogout?: () => void;
   onOpenSettings?: () => void;
@@ -74,6 +121,8 @@ const ChannelList: React.FC<ChannelListProps> = ({
   onDeleteChannel,
   onManageRoles,
   onServerSettings,
+  onLeaveServer,
+  owner_id,
   currentUser,
   onLogout,
   onOpenSettings,
@@ -82,11 +131,17 @@ const ChannelList: React.FC<ChannelListProps> = ({
   const [textChannelsCollapsed, setTextChannelsCollapsed] = useState(false);
   const [voiceChannelsCollapsed, setVoiceChannelsCollapsed] = useState(false);
   const [hoveredChannel, setHoveredChannel] = useState<string | null>(null);
-  const [contextMenu, setContextMenu] = useState<{ top: number; left: number } | null>(null);
+  const [userContextMenu, setUserContextMenu] = useState<{ top: number; left: number } | null>(null);
+  const [serverContextMenu, setServerContextMenu] = useState<{ top: number; left: number } | null>(null);
 
   const handleUserAreaClick = (e: React.MouseEvent) => {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setContextMenu({ top: rect.top, left: rect.left });
+    setUserContextMenu({ top: rect.top, left: rect.left });
+  };
+
+  const handleServerHeaderClick = (e: React.MouseEvent) => {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setServerContextMenu({ top: rect.top, left: rect.left });
   };
 
   const textChannels = channels.filter(ch => ch.type === 0);
@@ -94,19 +149,29 @@ const ChannelList: React.FC<ChannelListProps> = ({
 
   return (
     <div className="channel-list">
-      <div className="server-header">
+      <div
+        className="server-header clickable"
+        onClick={handleServerHeaderClick}
+      >
         <span className="server-name">{serverName}</span>
-        {onServerSettings && (
-          <button
-            className="server-settings-btn"
-            onClick={onServerSettings}
-            title="Server Settings"
-          >
-            <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
-              <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
+        <div className="server-header-actions">
+          {onServerSettings && (
+            <button
+              className="server-settings-btn"
+              onClick={(e) => { e.stopPropagation(); onServerSettings(); }}
+              title="Server Settings"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
+              </svg>
+            </button>
+          )}
+          <div className="server-menu-icon" title="Server options">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+              <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
             </svg>
-          </button>
-        )}
+          </div>
+        </div>
       </div>
 
       <div className="channels-container">
@@ -210,12 +275,23 @@ const ChannelList: React.FC<ChannelListProps> = ({
         </div>
       </div>
 
-      {contextMenu && (
+      {userContextMenu && (
         <UserContextMenu
-          position={contextMenu}
-          onClose={() => setContextMenu(null)}
+          position={userContextMenu}
+          onClose={() => setUserContextMenu(null)}
           onSettings={() => onOpenSettings?.()}
           onLogout={() => onLogout?.()}
+        />
+      )}
+
+      {serverContextMenu && (
+        <ServerContextMenu
+          position={serverContextMenu}
+          serverName={serverName}
+          isOwner={owner_id === currentUser?.id}
+          onClose={() => setServerContextMenu(null)}
+          onLeave={onLeaveServer}
+          onSettings={onServerSettings}
         />
       )}
     </div>

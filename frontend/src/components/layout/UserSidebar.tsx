@@ -8,9 +8,8 @@ interface ServerMember {
   nickname?: string;
 }
 
-interface UserPopoverProps {
+interface UserContextMenuProps {
   member: ServerMember;
-  isOwner: boolean;
   isCurrentUser: boolean;
   position: { top: number; left: number };
   onClose: () => void;
@@ -18,7 +17,7 @@ interface UserPopoverProps {
   onSendMessage?: (userId: string) => void;
 }
 
-const UserPopover: React.FC<UserPopoverProps> = ({ member, isOwner, isCurrentUser, position, onClose, onViewProfile, onSendMessage }) => {
+const UserContextMenu: React.FC<UserContextMenuProps> = ({ member, isCurrentUser, position, onClose, onViewProfile, onSendMessage }) => {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -34,26 +33,15 @@ const UserPopover: React.FC<UserPopoverProps> = ({ member, isOwner, isCurrentUse
   return (
     <div
       ref={ref}
-      className="user-popover"
+      className="user-context-menu"
       style={{ top: position.top, left: position.left }}
     >
-      <div className="user-popover-header">
-        <div className="user-popover-avatar">
-          {member.username.charAt(0).toUpperCase()}
-        </div>
-        <div>
-          <div className="user-popover-name">{member.username}</div>
-          {member.nickname && <div className="user-popover-nick">{member.nickname}</div>}
-          {isOwner && <div className="user-popover-role">Owner</div>}
-        </div>
-      </div>
-      <div className="user-popover-divider" />
       {!isCurrentUser && (
-        <button className="user-popover-item" onClick={() => { onSendMessage?.(member.user_id); onClose(); }}>
+        <button className="user-context-menu-item" onClick={() => { onSendMessage?.(member.user_id); onClose(); }}>
           Send Message
         </button>
       )}
-      <button className="user-popover-item" onClick={() => { onViewProfile?.(member.user_id); onClose(); }}>
+      <button className="user-context-menu-item" onClick={() => { onViewProfile?.(member.user_id); onClose(); }}>
         View Profile
       </button>
     </div>
@@ -69,15 +57,24 @@ interface UserSidebarProps {
 }
 
 const UserSidebar: React.FC<UserSidebarProps> = ({ members, ownerId, currentUserId, onViewProfile, onSendMessage }) => {
-  const [popover, setPopover] = useState<{ member: ServerMember; position: { top: number; left: number } } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ member: ServerMember; position: { top: number; left: number } } | null>(null);
 
   const handleMemberClick = (member: ServerMember, e: React.MouseEvent) => {
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setPopover({
-      member,
-      position: { top: rect.top, left: rect.left - 200 },
-    });
+    e.stopPropagation();
+    // Left-click shows mini profile popup, right-click shows context menu
+    if (e.button === 2) {
+      // Right-click
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      setContextMenu({
+        member,
+        position: { top: rect.top, left: rect.left - 200 },
+      });
+    } else {
+      // Left-click - do nothing (mini profile popup is handled by click handler in channel)
+    }
   };
+
+  const closeContextMenu = () => setContextMenu(null);
 
   const owners = members.filter(m => m.user_id === ownerId);
   const nonOwners = members.filter(m => m.user_id !== ownerId);
@@ -87,7 +84,8 @@ const UserSidebar: React.FC<UserSidebarProps> = ({ members, ownerId, currentUser
       key={member.id}
       className="member-item"
       onClick={(e) => handleMemberClick(member, e)}
-      title="Click for options"
+      onContextMenu={(e) => handleMemberClick(member, e)}
+      title="Click for profile, right-click for options"
     >
       <div className="member-avatar">
         <span className="member-avatar-placeholder">
@@ -128,13 +126,12 @@ const UserSidebar: React.FC<UserSidebarProps> = ({ members, ownerId, currentUser
           </>
         )}
       </div>
-      {popover && (
-        <UserPopover
-          member={popover.member}
-          isOwner={popover.member.user_id === ownerId}
-          isCurrentUser={popover.member.user_id === currentUserId}
-          position={popover.position}
-          onClose={() => setPopover(null)}
+      {contextMenu && (
+        <UserContextMenu
+          member={contextMenu.member}
+          isCurrentUser={contextMenu.member.user_id === currentUserId}
+          position={contextMenu.position}
+          onClose={closeContextMenu}
           onViewProfile={onViewProfile}
           onSendMessage={onSendMessage}
         />

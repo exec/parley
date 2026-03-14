@@ -332,3 +332,35 @@
 .member-item {
   cursor: pointer;
 }
+
+/* User context menu */
+.user-context-menu {
+  position: fixed;
+  background-color: #111;
+  border: 1px solid #1a3d1a;
+  border-radius: 4px;
+  padding: 4px;
+  min-width: 180px;
+  z-index: 1000;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+}
+
+.user-context-menu-item {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 8px 12px;
+  text-align: left;
+  font-size: 13px;
+  color: #228B22;
+  cursor: pointer;
+  border-radius: 3px;
+  font-family: inherit;
+  transition: all 0.1s ease;
+}
+
+.user-context-menu-item:hover {
+  background-color: #32CD32;
+  color: #000;
+}
