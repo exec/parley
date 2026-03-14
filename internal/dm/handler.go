@@ -2,6 +2,7 @@ package dm
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -244,13 +245,15 @@ func (h *Handler) SendDmMessage(w http.ResponseWriter, r *http.Request) {
 			recipientID = channel.User1ID
 		}
 
-		// Send DM message event to recipient
-		event := map[string]interface{}{
-			"type": "dm_message",
-			"data": msg,
+		// Send DM message event to recipient.
+		// The hub wraps the payload in WSMessage{type, payload}, so we only
+		// marshal the message itself — not an extra event envelope.
+		msgJSON, err := json.Marshal(msg)
+		if err != nil {
+			log.Printf("SendDmMessage: failed to marshal message for broadcast: %v", err)
+		} else {
+			h.hub.SendToUser(strconv.FormatInt(recipientID, 10), "dm_message", msgJSON)
 		}
-		eventJSON, _ := json.Marshal(event)
-		h.hub.SendToUser(strconv.FormatInt(recipientID, 10), "dm_message", eventJSON)
 	}
 
 	w.Header().Set("Content-Type", "application/json")

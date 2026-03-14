@@ -3,6 +3,7 @@ package message
 import (
 	"context"
 	"errors"
+	"log"
 	"strconv"
 	"sync"
 	"time"
@@ -83,7 +84,9 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 
 	// Look up author username
 	var authorUsername string
-	s.repo.DB().QueryRowContext(ctx, "SELECT username FROM users WHERE id = $1", authorIDInt).Scan(&authorUsername)
+	if err := s.repo.DB().QueryRowContext(ctx, "SELECT username FROM users WHERE id = $1", authorIDInt).Scan(&authorUsername); err != nil {
+		log.Printf("SendMessage: failed to fetch username for author %d: %v", authorIDInt, err)
+	}
 
 	msg := &Message{
 		ID:             strconv.FormatInt(dbMsg.ID, 10),
@@ -122,7 +125,9 @@ func (s *MessageService) GetMessage(ctx context.Context, id string) (*Message, e
 	}
 
 	var authorUsername string
-	s.repo.DB().QueryRowContext(ctx, "SELECT username FROM users WHERE id = $1", dbMsg.AuthorID).Scan(&authorUsername)
+	if err := s.repo.DB().QueryRowContext(ctx, "SELECT username FROM users WHERE id = $1", dbMsg.AuthorID).Scan(&authorUsername); err != nil {
+		log.Printf("GetMessage: failed to fetch username for author %d: %v", dbMsg.AuthorID, err)
+	}
 
 	return &Message{
 		ID:             strconv.FormatInt(dbMsg.ID, 10),
@@ -209,7 +214,9 @@ func (s *MessageService) EditMessage(ctx context.Context, id, content string) (*
 	}
 
 	var authorUsername string
-	s.repo.DB().QueryRowContext(ctx, "SELECT username FROM users WHERE id = $1", dbMsg.AuthorID).Scan(&authorUsername)
+	if err := s.repo.DB().QueryRowContext(ctx, "SELECT username FROM users WHERE id = $1", dbMsg.AuthorID).Scan(&authorUsername); err != nil {
+		log.Printf("EditMessage: failed to fetch username for author %d: %v", dbMsg.AuthorID, err)
+	}
 
 	msg := &Message{
 		ID:             id,

@@ -200,7 +200,13 @@ func handleWebSocket(hub *ws.Hub) http.HandlerFunc {
 
 		// Upgrade HTTP connection to WebSocket using gorilla/websocket
 		upgrader := gorillawebsocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool { return true },
+			CheckOrigin: func(r *http.Request) bool {
+				origin := r.Header.Get("Origin")
+				if origin == "" {
+					return true // native clients / same-origin requests have no Origin
+				}
+				return allowedOrigins[origin]
+			},
 		}
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
