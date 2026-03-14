@@ -48,6 +48,10 @@ if ! command -v go &> /dev/null; then
     rm /tmp/go.tar.gz
 fi
 
+# Install Redis
+echo "=== Installing Redis ==="
+apt-get install -y redis-server
+
 # Add Go to PATH and set required env vars
 echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/profile.d/go.sh
 export PATH=$PATH:/usr/local/go/bin
@@ -90,10 +94,26 @@ cat > /etc/parley/env <<EOF
 DATABASE_URL=postgresql://${DB_USER}:$${DB_PASSWORD_ENCODED}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=disable
 JWT_SECRET=${JWT_SECRET}
 PORT=${PORT}
+REDIS_URL=redis://localhost:6379
 EOF
 
 # Set proper permissions
 chmod 600 /etc/parley/env
+
+# Configure Redis to bind to localhost only (secure default)
+echo "=== Configuring Redis ==="
+cat > /etc/redis/redis.conf.bak <<REDISEOF
+# Backup current redis.conf if it exists
+cp /etc/redis/redis.conf /etc/redis/redis.conf.bak 2>/dev/null || true
+REDISEOF
+
+# Ensure Redis binds to localhost for security
+sed -i "s/^bind 127.0.0.1/bind 127.0.0.1/" /etc/redis/redis.conf 2>/dev/null || true
+sed -i "s/^# bind 127.0.0.1/bind 127.0.0.1/" /etc/redis/redis.conf 2>/dev/null || true
+
+# Start Redis service
+systemctl restart redis-server
+systemctl enable redis-server
 
 # Create systemd service
 echo "=== Creating systemd service ==="
@@ -208,5 +228,9 @@ fi
 
 # Verify nginx is running
 systemctl status nginx --no-pager || true
+
+# Verify Redis is running
+echo "=== Verifying Redis status ==="
+systemctl status redis-server --no-pager || true
 
 echo "=== API droplet setup complete ==="
