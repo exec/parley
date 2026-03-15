@@ -58,12 +58,12 @@ These can be overridden per-category, per-channel, or per-member.
 
 | Bit | Constant | Description |
 |-----|----------|-------------|
-| 32 | `Connect` | Connect to voice channels |
-| 33 | `Speak` | Speak in voice channels |
-| 34 | `MuteMembers` | Server-mute others in voice |
-| 35 | `DeafenMembers` | Server-deafen others in voice |
-| 36 | `MoveMembers` | Move members between voice channels |
-| 37 | `UseVAD` | Use voice activity detection vs push-to-talk |
+| 32 | `Connect` | Connect to voice channels (enforced at voice join) |
+| 33 | `Speak` | Speak in voice channels (enforced at voice join) |
+| 34 | `MuteMembers` | Server-mute others in voice (future enforcement) |
+| 35 | `DeafenMembers` | Server-deafen others in voice (future enforcement) |
+| 36 | `MoveMembers` | Move members between voice channels (future enforcement) |
+| 37 | `UseVAD` | Use voice activity detection vs push-to-talk (future enforcement) |
 | 38 | `PrioritySpeaker` | Priority speaker in voice (future) |
 | 39 | `Stream` | Share screen / go live (future) |
 | 40 | `UseSoundboard` | Use soundboard sounds (future) |
@@ -82,13 +82,13 @@ Bits 42–63 reserved for future use.
 ### @everyone Role
 
 Every server has an immutable `@everyone` role:
-- **ID equals the server's ID** (matching Discord convention, simplifies queries)
+- **Identified by `is_everyone = true`** column on `server_roles` (avoids BIGSERIAL ID conflicts). One per server, enforced by a partial unique index.
 - **Position = 0** (always the lowest role)
 - Cannot be deleted or renamed
-- Not explicitly assigned — every member has it implicitly
+- Not explicitly assigned via `server_member_roles` — every member has it implicitly. The permission computation fetches the `@everyone` role separately via `WHERE server_id = $1 AND is_everyone = true`, then ORs in the member's explicitly assigned roles from the join table.
 - Permissions editable by server owner / users with ManageServer
 - Created automatically when a server is created
-- **Migration**: seed `@everyone` for all existing servers with `DEFAULT_EVERYONE_PERMISSIONS`
+- **Migration**: add `is_everyone BOOLEAN NOT NULL DEFAULT FALSE` column to `server_roles`. Seed an `@everyone` role for every existing server that doesn't have one. Rename any existing roles named `@everyone` to `everyone` before seeding to avoid the UNIQUE(server_id, name) constraint.
 
 ### Role Hierarchy
 
@@ -193,8 +193,9 @@ Enforced in computation, not in storage:
 
 ### Category Sync
 
-Channels in a category have a `synced` boolean (default `true`):
-- **Synced**: Channel's overwrites mirror the parent category's overwrites exactly. When category overwrites change, all synced children are updated automatically.
+Channels in a category have a `synced` boolean (default `true`). Sync is **write-time only** — synced channels always have a physical copy of the category's overwrites in the `permission_overwrites` table. The permission computation algorithm does not need category awareness; it only reads the channel's own overwrites.
+
+- **Synced**: Channel's overwrites mirror the parent category's overwrites exactly. When category overwrites change, all synced children have their overwrites replaced with the category's current set (write-time propagation).
 - **Desynced**: Channel has independently modified overwrites. Category changes do not propagate.
 - A channel desyncs automatically when its overwrites are directly modified.
 - A desynced channel can be resynced by setting `synced: true` via the API — this replaces its overwrites with the category's current overwrites.
@@ -232,7 +233,14 @@ CREATE INDEX IF NOT EXISTS idx_perm_overwrites_target ON permission_overwrites(t
 ALTER TABLE channels ADD COLUMN IF NOT EXISTS synced BOOLEAN NOT NULL DEFAULT TRUE;
 ```
 
-**`server_roles`** — no schema change (already `BIGINT` for permissions). Seed `@everyone` role per server.
+**`server_roles`** — add `is_everyone` flag:
+```sql
+ALTER TABLE server_roles ADD COLUMN IF NOT EXISTS is_everyone BOOLEAN NOT NULL DEFAULT FALSE;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_server_roles_everyone ON server_roles(server_id) WHERE is_everyone = TRUE;
+```
+The partial unique index ensures at most one `@everyone` role per server. Permissions column is already `BIGINT`, no change needed.
+
+**`Channel` struct** — add `Synced bool` field to the Go model and include it in API responses for `GET /servers/{serverID}/channels`.
 
 ### Migration: Remap Permission Bits
 
@@ -271,7 +279,7 @@ For every existing server, INSERT a role with `id = server_id`, `name = '@everyo
 - `POST /servers/{id}/members/{userID}/roles` — can only assign roles below own highest position.
 - `DELETE /servers/{id}/members/{userID}/roles/{roleId}` — same constraint.
 
-**Kick/Ban** — now enforces role hierarchy. Actor's highest role must be above target's highest role.
+**Kick/Ban** — now enforces role hierarchy. Actor's highest role must be above target's highest role. The `CanKickBan` method in `server_members.go` is updated to fetch both actor's and target's highest role positions and compare them, returning 403 if the target outranks the actor.
 
 ### New Endpoints
 
@@ -399,7 +407,7 @@ The server owner always has all permissions everywhere. They cannot be kicked, b
 
 ### Deleted Roles
 
-When a role is deleted, all overwrites referencing that role are deleted (CASCADE or application-level cleanup). Members who had that role lose any permissions it granted.
+When a role is deleted, all overwrites referencing that role must be cleaned up at the application level (since `target_id` has no FK constraint — it can reference either roles or users). The role deletion service method must `DELETE FROM permission_overwrites WHERE target_type = 0 AND target_id = $role_id` as part of the delete operation. Members who had that role lose any permissions it granted.
 
 ### @everyone Overwrite
 
