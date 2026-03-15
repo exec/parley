@@ -1,0 +1,168 @@
+/* =========================================================
+   CodeBlock — syntax-highlighted code display
+   Green terminal theme: #32CD32 on #0a0a0a
+   ========================================================= */
+
+.code-block {
+  background: #0a0a0a;
+  border: 1px solid #1e3a1e;
+  border-radius: 6px;
+  font-family: 'Fira Mono', 'Consolas', 'Menlo', 'Monaco', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow: hidden;
+  margin: 6px 0;
+}
+
+/* ---- Header ---- */
+
+.code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: #0d150d;
+  border-bottom: 1px solid #1e3a1e;
+  gap: 8px;
+  min-height: 32px;
+}
+
+.code-block-filename {
+  color: #32CD32;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: 'Fira Mono', 'Consolas', monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.code-block-lang {
+  color: #555;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.code-block-toggle {
+  background: none;
+  border: none;
+  color: #555;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  transition: color 0.15s, background 0.15s;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+
+.code-block-toggle:hover {
+  color: #32CD32;
+  background: rgba(50, 205, 50, 0.08);
+}
+
+/* ---- Body ---- */
+
+.code-block-body {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 600px;
+}
+
+.code-block-collapsed .code-block-body {
+  display: none;
+}
+
+/* ---- Shiki output (no line numbers) ---- */
+
+.code-block-body .shiki {
+  margin: 0;
+  padding: 12px 14px;
+  background: #0a0a0a !important;
+  overflow-x: auto;
+}
+
+.code-block-body .shiki code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+  font-family: inherit;
+  line-height: inherit;
+}
+
+/* ---- Line number mode ---- */
+
+.code-block-lines {
+  padding: 8px 0;
+}
+
+.code-block-line {
+  display: flex;
+  align-items: flex-start;
+  min-height: 1.5em;
+}
+
+.code-block-line:hover {
+  background: rgba(50, 205, 50, 0.04);
+}
+
+.code-block-line-number {
+  display: inline-block;
+  min-width: 40px;
+  padding: 0 10px 0 6px;
+  text-align: right;
+  color: #333;
+  font-size: 11px;
+  line-height: 1.5;
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+  border-right: 1px solid #1a1a1a;
+  margin-right: 10px;
+  transition: color 0.1s;
+}
+
+.code-block-line-number:hover {
+  color: #32CD32;
+}
+
+.code-block-line--highlighted .code-block-line-number {
+  color: #32CD32;
+  border-right-color: #32CD32;
+}
+
+.code-block-line--highlighted {
+  background: rgba(50, 205, 50, 0.08);
+}
+
+.code-block-line-content {
+  flex: 1;
+  overflow-x: visible;
+  white-space: pre;
+  color: #e0e0e0;
+  line-height: 1.5;
+  padding-right: 14px;
+}
+
+/* ---- Loading / plain text fallback ---- */
+
+.code-block-plain {
+  padding: 12px 14px;
+  color: #e0e0e0;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+/* ---- Collapsible ---- */
+
+.code-block-collapsible .code-block-header {
+  cursor: pointer;
+}
+
+.code-block-collapsible .code-block-header:hover {
+  background: #111a11;
+}
