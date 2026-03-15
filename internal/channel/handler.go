@@ -109,7 +109,12 @@ func (h *Handler) GetServerChannels(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	channels, err := h.service.GetServerChannels(r.Context(), serverID)
+	userID := auth.GetUserIDFromContext(r)
+	// ownerID is resolved inside the service via the server record; we pass userID and let the service look up ownerID.
+	// To do the filtering we need the ownerID here — fetch it from the service.
+	ownerID := h.service.GetServerOwnerID(r.Context(), serverID)
+
+	channels, err := h.service.GetServerChannels(r.Context(), serverID, userID, ownerID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

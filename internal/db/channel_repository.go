@@ -32,7 +32,7 @@ func (r *Repository) CreateChannel(ctx context.Context, channel *Channel) error 
 
 func (r *Repository) GetChannelByID(ctx context.Context, id int64) (*Channel, error) {
 	query := `
-		SELECT id, server_id, name, channel_type, position, parent_id, topic, created_at, updated_at
+		SELECT id, server_id, name, channel_type, position, parent_id, topic, synced, created_at, updated_at
 		FROM channels
 		WHERE id = $1
 	`
@@ -46,6 +46,7 @@ func (r *Repository) GetChannelByID(ctx context.Context, id int64) (*Channel, er
 		&channel.Position,
 		&channel.ParentID,
 		&channel.Topic,
+		&channel.Synced,
 		&channel.CreatedAt,
 		&channel.UpdatedAt,
 	)
@@ -62,7 +63,7 @@ func (r *Repository) GetChannelByID(ctx context.Context, id int64) (*Channel, er
 
 func (r *Repository) GetChannelsByServerID(ctx context.Context, serverID int64) ([]*Channel, error) {
 	query := `
-		SELECT id, server_id, name, channel_type, position, parent_id, topic, created_at, updated_at
+		SELECT id, server_id, name, channel_type, position, parent_id, topic, synced, created_at, updated_at
 		FROM channels
 		WHERE server_id = $1
 		ORDER BY position, name
@@ -85,6 +86,7 @@ func (r *Repository) GetChannelsByServerID(ctx context.Context, serverID int64) 
 			&channel.Position,
 			&channel.ParentID,
 			&channel.Topic,
+			&channel.Synced,
 			&channel.CreatedAt,
 			&channel.UpdatedAt,
 		)

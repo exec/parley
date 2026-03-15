@@ -33,6 +33,7 @@ type Channel struct {
 	Position  int         `json:"position"`
 	ParentID  *string     `json:"parent_id,omitempty"`
 	Topic     string      `json:"topic,omitempty"`
+	Synced    bool        `json:"synced"`
 	CreatedAt string      `json:"created_at"`
 	UpdatedAt string      `json:"updated_at"`
 }
@@ -109,6 +110,13 @@ func (s *ChannelService) CreateChannel(ctx context.Context, serverID, name strin
 		return nil, err
 	}
 
+	// If channel was created inside a category, copy the category's overwrites.
+	if parentIDInt != nil {
+		if copyErr := s.repo.CopyOverwrites(ctx, *parentIDInt, dbChannel.ID); copyErr != nil {
+			log.Printf("CreateChannel: failed to copy overwrites from category %d: %v", *parentIDInt, copyErr)
+		}
+	}
+
 	ch := dbChannelToChannel(dbChannel)
 	if s.hub != nil {
 		if payload, err := json.Marshal(ch); err == nil {
@@ -138,8 +146,9 @@ func (s *ChannelService) GetChannel(ctx context.Context, id string) (*Channel, e
 	return dbChannelToChannel(channel), nil
 }
 
-// GetServerChannels retrieves all channels for a server
-func (s *ChannelService) GetServerChannels(ctx context.Context, serverID string) ([]*Channel, error) {
+// GetServerChannels retrieves all channels for a server, filtered by ViewChannel permission.
+// userID and ownerID are used to compute per-channel permissions. Pass "" for both to skip filtering.
+func (s *ChannelService) GetServerChannels(ctx context.Context, serverID, userID, ownerID string) ([]*Channel, error) {
 	serverIDInt, err := strconv.ParseInt(serverID, 10, 64)
 	if err != nil {
 		return nil, errors.New("invalid server ID")
@@ -150,11 +159,67 @@ func (s *ChannelService) GetServerChannels(ctx context.Context, serverID string)
 		return nil, err
 	}
 
-	result := make([]*Channel, len(channels))
-	for i, ch := range channels {
-		result[i] = dbChannelToChannel(ch)
+	// If no userID provided, return all channels (e.g. internal/admin calls).
+	if userID == "" {
+		result := make([]*Channel, len(channels))
+		for i, ch := range channels {
+			result[i] = dbChannelToChannel(ch)
+		}
+		return result, nil
 	}
 
+	userIDInt, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		return nil, errors.New("invalid user ID")
+	}
+	ownerIDInt, err := strconv.ParseInt(ownerID, 10, 64)
+	if err != nil {
+		return nil, errors.New("invalid owner ID")
+	}
+
+	// Build a set of visible channel IDs.
+	visibleIDs := make(map[string]bool, len(channels))
+	for _, ch := range channels {
+		chIDStr := strconv.FormatInt(ch.ID, 10)
+		canView, err := permissions.HasChannelPermission(ctx, s.repo, serverIDInt, userIDInt, ownerIDInt, ch.ID, permissions.PermViewChannel)
+		if err != nil {
+			// On error, default to visible.
+			visibleIDs[chIDStr] = true
+			continue
+		}
+		visibleIDs[chIDStr] = canView
+	}
+
+	// Filter out invisible non-category channels; filter out categories with no visible children.
+	var result []*Channel
+	for _, ch := range channels {
+		chIDStr := strconv.FormatInt(ch.ID, 10)
+		chType := ChannelType(ch.ChannelType)
+		if chType == ChannelTypeCategory {
+			// Include category only if at least one child is visible.
+			hasVisibleChild := false
+			for _, child := range channels {
+				if child.ParentID.Valid && child.ParentID.Int64 == ch.ID {
+					childIDStr := strconv.FormatInt(child.ID, 10)
+					if visibleIDs[childIDStr] {
+						hasVisibleChild = true
+						break
+					}
+				}
+			}
+			if hasVisibleChild {
+				result = append(result, dbChannelToChannel(ch))
+			}
+		} else {
+			if visibleIDs[chIDStr] {
+				result = append(result, dbChannelToChannel(ch))
+			}
+		}
+	}
+
+	if result == nil {
+		result = []*Channel{}
+	}
 	return result, nil
 }
 
@@ -273,6 +338,7 @@ func dbChannelToChannel(dbCh *db.Channel) *Channel {
 		Type:      ChannelType(dbCh.ChannelType),
 		Position:  dbCh.Position,
 		Topic:     dbCh.Topic,
+		Synced:    dbCh.Synced,
 		CreatedAt: dbCh.CreatedAt.Format(time.RFC3339),
 		UpdatedAt: dbCh.UpdatedAt.Format(time.RFC3339),
 	}
@@ -352,6 +418,19 @@ func (s *ChannelService) ReorderChannels(ctx context.Context, serverID string, o
 	}
 
 	return channels, nil
+}
+
+// GetServerOwnerID returns the server owner's ID as a string, or "" on error.
+func (s *ChannelService) GetServerOwnerID(ctx context.Context, serverID string) string {
+	id, err := strconv.ParseInt(serverID, 10, 64)
+	if err != nil {
+		return ""
+	}
+	srv, err := s.repo.GetServerByID(ctx, id)
+	if err != nil {
+		return ""
+	}
+	return strconv.FormatInt(srv.OwnerID, 10)
 }
 
 // int64ToNullInt64 converts *int64 to sql.NullInt64
