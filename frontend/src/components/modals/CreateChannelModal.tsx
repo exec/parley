@@ -63,6 +63,16 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({ isOpen, 
                 <div className="channel-type-desc">Hang out together with voice</div>
               </div>
             </div>
+            <div
+              className={`channel-type-option ${type === 2 ? 'selected' : ''}`}
+              onClick={() => setType(2)}
+            >
+              <span className="channel-type-icon">&lt;/&gt;</span>
+              <div>
+                <div className="channel-type-name">Bin Channel</div>
+                <div className="channel-type-desc">Code sharing &amp; discussion</div>
+              </div>
+            </div>
           </div>
         </div>
         <div className="form-group">
@@ -72,7 +82,7 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({ isOpen, 
             type="text"
             value={name}
             onChange={e => setName(e.target.value)}
-            placeholder={type === 0 ? 'new-channel' : 'General'}
+            placeholder={type === 0 ? 'new-channel' : type === 1 ? 'General' : 'code-sharing'}
             autoFocus
           />
         </div>

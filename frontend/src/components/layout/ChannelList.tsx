@@ -197,6 +197,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
 }) => {
   const [textChannelsCollapsed, setTextChannelsCollapsed] = useState(false);
   const [voiceChannelsCollapsed, setVoiceChannelsCollapsed] = useState(false);
+  const [binChannelsCollapsed, setBinChannelsCollapsed] = useState(false);
   const [hoveredChannel, setHoveredChannel] = useState<string | null>(null);
   const [userContextMenu, setUserContextMenu] = useState<{ top: number; left: number } | null>(null);
   const [serverContextMenu, setServerContextMenu] = useState<{ top: number; left: number } | null>(null);
@@ -230,7 +231,8 @@ const ChannelList: React.FC<ChannelListProps> = ({
   };
 
   const textChannels = channels.filter(ch => ch.type === 0);
-  const voiceChannels = channels.filter(ch => ch.type === 1 || ch.type === 2);
+  const voiceChannels = channels.filter(ch => ch.type === 1);
+  const binChannels = channels.filter(ch => ch.type === 2);
 
   return (
     <div className="channel-list">
@@ -376,6 +378,64 @@ const ChannelList: React.FC<ChannelListProps> = ({
                     </div>
                   ))}
                 </div>
+              )}
+            </div>
+          );
+        })}
+
+        <div className="category-row">
+          <div
+            className={`category-header ${binChannelsCollapsed ? 'collapsed' : ''}`}
+            onClick={() => setBinChannelsCollapsed(!binChannelsCollapsed)}
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M7 10l5 5 5-5z" />
+            </svg>
+            Bin Channels
+          </div>
+        </div>
+
+        {!binChannelsCollapsed && binChannels.map(channel => {
+          const unread = channelUnreadCounts[channel.id] ?? 0;
+          const isActive = channel.id === activeChannelId;
+          const isRenaming = renamingChannelId === channel.id;
+          return (
+            <div
+              key={channel.id}
+              className={`channel-item ${isActive ? 'active' : ''} ${unread > 0 && !isActive ? 'unread' : ''}`}
+              onClick={() => !isRenaming && onChannelSelect(channel.id)}
+              onContextMenu={e => { e.preventDefault(); setChannelContextMenu({ channel, top: e.clientY, left: e.clientX }); }}
+              onMouseEnter={() => setHoveredChannel(channel.id)}
+              onMouseLeave={() => setHoveredChannel(null)}
+            >
+              <span className="channel-icon">&lt;/&gt;</span>
+              {isRenaming ? (
+                <input
+                  ref={renameInputRef}
+                  className="channel-rename-input"
+                  value={renameValue}
+                  onChange={e => setRenameValue(e.target.value)}
+                  onBlur={() => commitRename(channel.id)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') { e.preventDefault(); commitRename(channel.id); }
+                    if (e.key === 'Escape') setRenamingChannelId(null);
+                  }}
+                  onClick={e => e.stopPropagation()}
+                />
+              ) : (
+                <span className="channel-name">{channel.name}</span>
+              )}
+              {unread > 0 && !isActive && !isRenaming && (
+                <span className="channel-unread-badge">{unread > 99 ? '99+' : unread}</span>
+              )}
+              {canManageChannels && hoveredChannel === channel.id && !isRenaming && (
+                <button
+                  className="delete-channel-btn"
+                  onClick={e => { e.stopPropagation(); onDeleteChannel(channel.id); }}
+                  title="Delete channel"
+                >
+                  ×
+                </button>
               )}
             </div>
           );
