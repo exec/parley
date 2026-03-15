@@ -4,6 +4,7 @@ export interface User {
   email: string;
   avatar_url?: string;
   banner_url?: string;
+  bio?: string;
   email_verified?: boolean;
   phone_number?: string;
   phone_verified?: boolean;
@@ -110,4 +111,5 @@ export interface PublicUser {
   avatar_url: string;
   created_at: string;
   banner_url?: string;
+  bio?: string;
 }

@@ -369,6 +369,7 @@ func handleGetMe(repo *db.Repository) http.HandlerFunc {
 			Email:         user.Email,
 			AvatarURL:     user.AvatarURL,
 			BannerURL:     user.BannerURL,
+			Bio:           user.Bio,
 			EmailVerified: user.EmailVerified,
 			PhoneNumber:   user.PhoneNumber,
 			PhoneVerified: user.PhoneVerified,
@@ -526,13 +527,14 @@ func handleUpdateProfile(authService *auth.AuthService, repo *db.Repository, hub
 			NewPassword     string `json:"new_password"`
 			AvatarURL       string `json:"avatar_url"`
 			BannerURL       string `json:"banner_url"`
+			Bio             string `json:"bio"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			jsonError(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
 
-		user, err := authService.UpdateProfile(r.Context(), userIDStr, req.Username, req.CurrentPassword, req.NewPassword, req.AvatarURL, req.BannerURL)
+		user, err := authService.UpdateProfile(r.Context(), userIDStr, req.Username, req.CurrentPassword, req.NewPassword, req.AvatarURL, req.BannerURL, req.Bio)
 		if err != nil {
 			jsonError(w, err.Error(), http.StatusBadRequest)
 			return

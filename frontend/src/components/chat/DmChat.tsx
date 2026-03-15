@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, ChangeEvent } from 're
 import { DmChannel, DmMessage } from '../../api/types';
 import { Spinner } from '../ui/Spinner';
 import { uploadFile } from '../../api/upload';
+import MarkdownRenderer from '../ui/MarkdownRenderer';
 import './Chat.css';
 
 interface DmChatProps {
@@ -141,7 +142,7 @@ export function DmChat({ channel, messages, currentUserId, onSendMessage, isLoad
                             <span className="message-time">{formatTime(msg.created_at)}</span>
                           </div>
                         )}
-                        <div className="message-content">{msg.content}</div>
+                        <div className="message-content"><MarkdownRenderer content={msg.content} mode="chat" /></div>
                         {msg.attachment_url && (
                           <div className="message-attachment">
                             {msg.attachment_type?.startsWith('image/') ? (

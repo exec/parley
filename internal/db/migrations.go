@@ -321,6 +321,10 @@ CREATE TABLE IF NOT EXISTS server_bans (
 CREATE INDEX IF NOT EXISTS idx_server_bans_server_id ON server_bans(server_id);
 CREATE INDEX IF NOT EXISTS idx_server_bans_user_id ON server_bans(user_id);
 `,
+
+	`-- Add bio field to users
+ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT NOT NULL DEFAULT '';
+`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

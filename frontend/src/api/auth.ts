@@ -52,6 +52,7 @@ export interface UpdateProfileRequest {
   new_password?: string;
   avatar_url?: string;
   banner_url?: string;
+  bio?: string;
   phone?: string;
 }
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Message as MessageType } from '../../api/types';
 import { Avatar } from '../ui/Avatar';
 import { EmojiPicker } from './EmojiPicker';
+import MarkdownRenderer from '../ui/MarkdownRenderer';
 import './Chat.css';
 
 interface MessageProps {
@@ -209,7 +210,7 @@ export const Message: React.FC<MessageProps> = ({
           </div>
         ) : (
           <>
-            <div className="message-text">{message.content}</div>
+            <div className="message-text"><MarkdownRenderer content={message.content} mode="chat" /></div>
             {message.attachment_url && (
               <div className="message-attachment">
                 {message.attachment_type?.startsWith('image/') ? (

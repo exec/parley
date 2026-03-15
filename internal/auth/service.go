@@ -14,6 +14,7 @@ import (
 
 	"parley/internal/db"
 	"parley/internal/email"
+	"parley/internal/validation"
 )
 
 // User represents an authenticated user
@@ -23,6 +24,7 @@ type User struct {
 	Email         string `json:"email"`
 	AvatarURL     string `json:"avatar_url,omitempty"`
 	BannerURL     string `json:"banner_url,omitempty"`
+	Bio           string `json:"bio,omitempty"`
 	EmailVerified bool   `json:"email_verified"`
 	PhoneNumber   string `json:"phone_number,omitempty"`
 	PhoneVerified bool   `json:"phone_verified"`
@@ -202,6 +204,7 @@ func (s *AuthService) Login(ctx context.Context, emailOrPhone, password string) 
 		Email:         dbUser.Email,
 		AvatarURL:     dbUser.AvatarURL,
 		BannerURL:     dbUser.BannerURL,
+		Bio:           dbUser.Bio,
 		EmailVerified: dbUser.EmailVerified,
 		PhoneNumber:   dbUser.PhoneNumber,
 		PhoneVerified: dbUser.PhoneVerified,
@@ -215,7 +218,7 @@ func (s *AuthService) Login(ctx context.Context, emailOrPhone, password string) 
 }
 
 // UpdateProfile updates a user's profile fields
-func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername, currentPassword, newPassword, avatarURL, bannerURL string) (User, error) {
+func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername, currentPassword, newPassword, avatarURL, bannerURL, bio string) (User, error) {
 	id, err := fmt.Sscanf(userID, "%d", new(int64))
 	_ = id
 	if err != nil {
@@ -262,6 +265,10 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername, cu
 	if bannerURL != "" {
 		dbUser.BannerURL = bannerURL
 	}
+	dbUser.Bio = bio
+	if validation.HasSpoofedLink(bio) {
+		return User{}, errors.New("bio contains a spoofed link")
+	}
 
 	if err := s.repo.UpdateUser(ctx, dbUser); err != nil {
 		return User{}, err
@@ -273,6 +280,7 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername, cu
 		Email:         dbUser.Email,
 		AvatarURL:     dbUser.AvatarURL,
 		BannerURL:     dbUser.BannerURL,
+		Bio:           dbUser.Bio,
 		EmailVerified: dbUser.EmailVerified,
 		PhoneNumber:   dbUser.PhoneNumber,
 		PhoneVerified: dbUser.PhoneVerified,
@@ -410,6 +418,7 @@ func (s *AuthService) ChangeEmail(ctx context.Context, userID, newEmail, passwor
 		Email:         newEmail,
 		AvatarURL:     dbUser.AvatarURL,
 		BannerURL:     dbUser.BannerURL,
+		Bio:           dbUser.Bio,
 		EmailVerified: false,
 		PhoneNumber:   dbUser.PhoneNumber,
 		PhoneVerified: dbUser.PhoneVerified,
@@ -674,6 +683,7 @@ func (s *AuthService) ChangePhone(ctx context.Context, userID, newPhone, passwor
 		Email:         dbUser.Email,
 		AvatarURL:     dbUser.AvatarURL,
 		BannerURL:     dbUser.BannerURL,
+		Bio:           dbUser.Bio,
 		EmailVerified: dbUser.EmailVerified,
 		PhoneNumber:   newPhone,
 		PhoneVerified: false,

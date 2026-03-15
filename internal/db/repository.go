@@ -88,6 +88,7 @@ func (r *Repository) CreateUser(ctx context.Context, user *User) error {
 func (r *Repository) GetUserByID(ctx context.Context, id int64) (*User, error) {
 	query := `
 		SELECT id, username, COALESCE(email, ''), password_hash, COALESCE(avatar_url, ''), COALESCE(banner_url, ''),
+		       COALESCE(bio, ''),
 		       email_verified, COALESCE(email_verification_token, ''),
 		       COALESCE(phone_number, ''), phone_verified,
 		       banned_at, COALESCE(ban_reason, ''), force_logout_at, is_system,
@@ -105,6 +106,7 @@ func (r *Repository) GetUserByID(ctx context.Context, id int64) (*User, error) {
 		&user.PasswordHash,
 		&user.AvatarURL,
 		&user.BannerURL,
+		&user.Bio,
 		&user.EmailVerified,
 		&user.EmailVerificationToken,
 		&user.PhoneNumber,
@@ -137,6 +139,7 @@ func (r *Repository) GetUserByID(ctx context.Context, id int64) (*User, error) {
 func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*User, error) {
 	query := `
 		SELECT id, username, COALESCE(email, ''), password_hash, COALESCE(avatar_url, ''), COALESCE(banner_url, ''),
+		       COALESCE(bio, ''),
 		       email_verified, COALESCE(email_verification_token, ''),
 		       COALESCE(phone_number, ''), phone_verified,
 		       banned_at, COALESCE(ban_reason, ''), force_logout_at, is_system,
@@ -154,6 +157,7 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*User, e
 		&user.PasswordHash,
 		&user.AvatarURL,
 		&user.BannerURL,
+		&user.Bio,
 		&user.EmailVerified,
 		&user.EmailVerificationToken,
 		&user.PhoneNumber,
@@ -186,6 +190,7 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*User, e
 func (r *Repository) GetUserByUsername(ctx context.Context, username string) (*User, error) {
 	query := `
 		SELECT id, username, COALESCE(email, ''), password_hash, COALESCE(avatar_url, ''), COALESCE(banner_url, ''),
+		       COALESCE(bio, ''),
 		       email_verified, COALESCE(email_verification_token, ''),
 		       COALESCE(phone_number, ''), phone_verified,
 		       banned_at, COALESCE(ban_reason, ''), force_logout_at, is_system,
@@ -203,6 +208,7 @@ func (r *Repository) GetUserByUsername(ctx context.Context, username string) (*U
 		&user.PasswordHash,
 		&user.AvatarURL,
 		&user.BannerURL,
+		&user.Bio,
 		&user.EmailVerified,
 		&user.EmailVerificationToken,
 		&user.PhoneNumber,
@@ -236,8 +242,8 @@ func (r *Repository) UpdateUser(ctx context.Context, user *User) error {
 	query := `
 		UPDATE users
 		SET username = $1, email = $2, password_hash = $3, avatar_url = $4, banner_url = $5,
-		    email_verification_token = NULLIF($6, ''), updated_at = $7
-		WHERE id = $8
+		    email_verification_token = NULLIF($6, ''), bio = $7, updated_at = $8
+		WHERE id = $9
 	`
 
 	user.UpdatedAt = time.Now()
@@ -249,6 +255,7 @@ func (r *Repository) UpdateUser(ctx context.Context, user *User) error {
 		user.AvatarURL,
 		user.BannerURL,
 		user.EmailVerificationToken,
+		user.Bio,
 		user.UpdatedAt,
 		user.ID,
 	)
@@ -271,6 +278,7 @@ func (r *Repository) UpdateUser(ctx context.Context, user *User) error {
 func (r *Repository) GetUserByVerificationToken(ctx context.Context, token string) (*User, error) {
 	query := `
 		SELECT id, username, COALESCE(email, ''), password_hash, COALESCE(avatar_url, ''), COALESCE(banner_url, ''),
+		       COALESCE(bio, ''),
 		       email_verified, COALESCE(email_verification_token, ''),
 		       COALESCE(phone_number, ''), phone_verified,
 		       banned_at, COALESCE(ban_reason, ''), force_logout_at, is_system,
@@ -288,6 +296,7 @@ func (r *Repository) GetUserByVerificationToken(ctx context.Context, token strin
 		&user.PasswordHash,
 		&user.AvatarURL,
 		&user.BannerURL,
+		&user.Bio,
 		&user.EmailVerified,
 		&user.EmailVerificationToken,
 		&user.PhoneNumber,
@@ -395,6 +404,7 @@ func (r *Repository) CheckAndIncrementEmailChange(ctx context.Context, userID in
 func (r *Repository) GetUserByPhone(ctx context.Context, phone string) (*User, error) {
 	query := `
 		SELECT id, username, COALESCE(email, ''), password_hash, COALESCE(avatar_url, ''), COALESCE(banner_url, ''),
+		       COALESCE(bio, ''),
 		       email_verified, COALESCE(email_verification_token, ''),
 		       COALESCE(phone_number, ''), phone_verified,
 		       banned_at, COALESCE(ban_reason, ''), force_logout_at, is_system,
@@ -406,7 +416,7 @@ func (r *Repository) GetUserByPhone(ctx context.Context, phone string) (*User, e
 	var bannedAt, forceLogoutAt sql.NullTime
 	err := r.db.QueryRowContext(ctx, query, phone).Scan(
 		&user.ID, &user.Username, &user.Email, &user.PasswordHash,
-		&user.AvatarURL, &user.BannerURL,
+		&user.AvatarURL, &user.BannerURL, &user.Bio,
 		&user.EmailVerified, &user.EmailVerificationToken,
 		&user.PhoneNumber, &user.PhoneVerified,
 		&bannedAt, &user.BanReason, &forceLogoutAt, &user.IsSystem,
@@ -1337,7 +1347,7 @@ func (r *Repository) GetDmMessages(ctx context.Context, dmChannelID int64, limit
 // GetPublicUser returns public profile info for a user
 func (r *Repository) GetPublicUser(ctx context.Context, userID int64) (*PublicUser, error) {
 	query := `
-		SELECT id, username, COALESCE(avatar_url, ''), COALESCE(banner_url, ''), created_at
+		SELECT id, username, COALESCE(avatar_url, ''), COALESCE(banner_url, ''), COALESCE(bio, ''), created_at
 		FROM users
 		WHERE id = $1
 	`
@@ -1348,6 +1358,7 @@ func (r *Repository) GetPublicUser(ctx context.Context, userID int64) (*PublicUs
 		&user.Username,
 		&user.AvatarURL,
 		&user.BannerURL,
+		&user.Bio,
 		&user.CreatedAt,
 	)
 	if err == sql.ErrNoRows {

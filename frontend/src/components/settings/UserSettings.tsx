@@ -20,6 +20,7 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
   const [username, setUsername] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [bannerUrl, setBannerUrl] = useState('');
+  const [bio, setBio] = useState('');
 
   // Password fields
   const [currentPassword, setCurrentPassword] = useState('');
@@ -66,6 +67,7 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
       setUsername(currentUser.username || '');
       setAvatarUrl(currentUser.avatar_url || '');
       setBannerUrl(currentUser.banner_url || '');
+      setBio(currentUser.bio || '');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -104,6 +106,7 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
       username !== currentUser.username ||
       avatarUrl !== (currentUser.avatar_url || '') ||
       bannerUrl !== (currentUser.banner_url || '') ||
+      bio !== (currentUser.bio || '') ||
       !!newPassword
     );
   }, [currentUser, username, avatarUrl, bannerUrl, newPassword]);
@@ -160,6 +163,7 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
     if (newPassword) { req.current_password = currentPassword; req.new_password = newPassword; }
     if (avatarUrl !== (currentUser?.avatar_url || '')) req.avatar_url = avatarUrl || undefined;
     if (bannerUrl !== (currentUser?.banner_url || '')) req.banner_url = bannerUrl || undefined;
+    if (bio !== (currentUser?.bio || '')) req.bio = bio;
 
     if (Object.keys(req).length === 0) { onClose(); return; }
 
@@ -169,7 +173,7 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
       const stored = localStorage.getItem('user');
       if (stored) {
         const parsed = JSON.parse(stored);
-        localStorage.setItem('user', JSON.stringify({ ...parsed, username: updated.username, avatar_url: updated.avatar_url, banner_url: updated.banner_url }));
+        localStorage.setItem('user', JSON.stringify({ ...parsed, username: updated.username, avatar_url: updated.avatar_url, banner_url: updated.banner_url, bio: updated.bio }));
       }
       onUpdate(updated);
       setSuccess('Profile updated successfully');
@@ -244,6 +248,7 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
             currentUser={currentUser}
             avatarUrl={avatarUrl} setAvatarUrl={setAvatarUrl}
             bannerUrl={bannerUrl} setBannerUrl={setBannerUrl}
+            bio={bio} setBio={setBio}
             avatarUploading={avatarUploading}
             bannerUploading={bannerUploading}
             avatarInputRef={avatarInputRef}
@@ -568,6 +573,7 @@ interface ProfileTabProps {
   currentUser: User | null;
   avatarUrl: string; setAvatarUrl: (v: string) => void;
   bannerUrl: string; setBannerUrl: (v: string) => void;
+  bio: string; setBio: (v: string) => void;
   avatarUploading: boolean;
   bannerUploading: boolean;
   avatarInputRef: React.RefObject<HTMLInputElement>;
@@ -581,6 +587,8 @@ interface ProfileTabProps {
   onSave: () => void;
 }
 
+const BIO_MAX = 1000;
+
 const ProfileTab: React.FC<ProfileTabProps> = (p) => {
   return (
     <>
@@ -591,6 +599,21 @@ const ProfileTab: React.FC<ProfileTabProps> = (p) => {
 
       <div className="settings-profile-split">
         <div className="settings-profile-form">
+          <div className="settings-section">
+            <div className="settings-section-title">About Me</div>
+            <textarea
+              className="settings-form-input settings-bio-input"
+              value={p.bio}
+              onChange={e => p.setBio(e.target.value.slice(0, BIO_MAX))}
+              placeholder="Tell people a bit about yourself... (markdown supported)"
+              rows={4}
+              disabled={p.loading}
+            />
+            <div className="settings-form-hint" style={{ textAlign: 'right', marginTop: 4 }}>
+              {p.bio.length} / {BIO_MAX}
+            </div>
+          </div>
+
           <div className="settings-section">
             <div className="settings-section-title">Avatar</div>
             <div className="settings-upload-row">

@@ -10,6 +10,7 @@ import (
 
 	"parley/internal/auth"
 	"parley/internal/db"
+	"parley/internal/validation"
 	ws "parley/internal/websocket"
 )
 
@@ -229,6 +230,10 @@ func (h *Handler) SendDmMessage(w http.ResponseWriter, r *http.Request) {
 
 	if req.Content == "" && req.AttachmentURL == "" {
 		jsonError(w, "content or attachment is required", http.StatusBadRequest)
+		return
+	}
+	if validation.HasSpoofedLink(req.Content) {
+		jsonError(w, "message contains a spoofed link", http.StatusBadRequest)
 		return
 	}
 

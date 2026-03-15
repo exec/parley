@@ -21,6 +21,7 @@ type User struct {
 	PasswordHash            string     `json:"-" db:"password_hash"`
 	AvatarURL               string     `json:"avatar_url,omitempty" db:"avatar_url"`
 	BannerURL               string     `json:"banner_url,omitempty" db:"banner_url"`
+	Bio                     string     `json:"bio,omitempty" db:"bio"`
 	EmailVerified           bool       `json:"email_verified" db:"email_verified"`
 	EmailVerificationToken  string     `json:"-" db:"email_verification_token"`
 	PhoneNumber             string     `json:"phone_number,omitempty" db:"phone_number"`
@@ -150,6 +151,7 @@ type PublicUser struct {
 	Username  string    `json:"username" db:"username"`
 	AvatarURL string    `json:"avatar_url" db:"avatar_url"`
 	BannerURL string    `json:"banner_url" db:"banner_url"`
+	Bio       string    `json:"bio,omitempty" db:"bio"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
 

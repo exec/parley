@@ -10,6 +10,7 @@ import (
 
 	"parley/internal/db"
 	"parley/internal/permissions"
+	"parley/internal/validation"
 )
 
 // Reaction represents aggregated emoji reactions for a message.
@@ -69,6 +70,9 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 	}
 	if content == "" && attachmentURL == "" {
 		return nil, errors.New("content or attachment is required")
+	}
+	if validation.HasSpoofedLink(content) {
+		return nil, errors.New("message contains a spoofed link")
 	}
 
 	// Convert channelID from string to int64
@@ -225,6 +229,9 @@ func (s *MessageService) GetChannelMessages(ctx context.Context, channelID strin
 func (s *MessageService) EditMessage(ctx context.Context, id, content string) (*Message, error) {
 	if content == "" {
 		return nil, errors.New("content is required")
+	}
+	if validation.HasSpoofedLink(content) {
+		return nil, errors.New("message contains a spoofed link")
 	}
 
 	// Convert id from string to int64

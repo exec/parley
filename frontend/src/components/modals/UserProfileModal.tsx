@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { PublicUser } from '../../api/types';
 import { getUser } from '../../api/users';
 import { Spinner } from '../ui/Spinner';
+import MarkdownRenderer from '../ui/MarkdownRenderer';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -68,6 +69,15 @@ export function UserProfileModal({ isOpen, onClose, userId, currentUserId, onSta
             <div className="user-profile-body">
               <h2 className="user-profile-username">{user.username}</h2>
               <p className="user-profile-tag">@{user.username.toLowerCase()}</p>
+
+              {user.bio && (
+                <>
+                  <div className="user-profile-divider" />
+                  <div className="user-profile-bio">
+                    <MarkdownRenderer content={user.bio} mode="bio" />
+                  </div>
+                </>
+              )}
 
               <div className="user-profile-divider" />
 
