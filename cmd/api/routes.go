@@ -105,6 +105,7 @@ func registerRoutes(
 			r.Put("/messages/{id}", messageHandler.EditMessage)
 			r.Delete("/messages/{id}", messageHandler.DeleteMessage)
 			r.Post("/messages/{id}/reactions", messageHandler.ToggleReaction)
+			r.Get("/messages/{id}/versions", messageHandler.GetMessageVersions)
 
 			// Voice routes
 			voiceHandler := voice.NewHandler(voiceSvc, repo, hub)

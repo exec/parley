@@ -3,6 +3,7 @@ package message
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"strconv"
 	"sync"
@@ -377,6 +378,15 @@ func (s *MessageService) ToggleReaction(ctx context.Context, messageID, userID, 
 	s.mu.RUnlock()
 
 	return nil
+}
+
+// GetMessageVersions returns the edit history for a message.
+func (s *MessageService) GetMessageVersions(ctx context.Context, messageID string) ([]db.MessageVersion, error) {
+	id, err := strconv.ParseInt(messageID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid message ID")
+	}
+	return s.repo.GetMessageVersions(ctx, id)
 }
 
 // CanManageMessage returns true if the given user has permission to delete/manage the message.

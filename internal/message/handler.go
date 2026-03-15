@@ -6,6 +6,8 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+
+	"parley/internal/db"
 )
 
 // Handler handles HTTP requests for messages
@@ -204,6 +206,21 @@ func (h *Handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// GetMessageVersions handles GET /messages/:id/versions
+func (h *Handler) GetMessageVersions(w http.ResponseWriter, r *http.Request) {
+	messageID := chi.URLParam(r, "id")
+	versions, err := h.service.GetMessageVersions(r.Context(), messageID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if versions == nil {
+		versions = []db.MessageVersion{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(versions)
 }
 
 // ToggleReactionRequest is the body for POST /messages/:id/reactions
