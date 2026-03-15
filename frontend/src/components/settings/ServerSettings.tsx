@@ -510,8 +510,11 @@ export const ServerSettings: React.FC<Props> = ({
                             </div>
                             <div className="roles-perms-grid">
                               {cat.permissions.map(p => {
-                                const isOn = hasPerm(newRolePerms, p.bit);
-                                const canToggle = hasPerm(myPerms, PERM_ADMINISTRATOR) || hasPerm(myPerms, p.bit);
+                                const adminOn = hasPerm(newRolePerms, PERM_ADMINISTRATOR);
+                                const isAdminPerm = p.bit === PERM_ADMINISTRATOR;
+                                const isOn = adminOn && !isAdminPerm ? true : hasPerm(newRolePerms, p.bit);
+                                const adminLocked = adminOn && !isAdminPerm;
+                                const canToggle = !adminLocked && (hasPerm(myPerms, PERM_ADMINISTRATOR) || hasPerm(myPerms, p.bit));
                                 return (
                                   <div key={String(p.bit)} className="roles-perm-row">
                                     <div>
@@ -524,7 +527,7 @@ export const ServerSettings: React.FC<Props> = ({
                                       onClick={() => canToggle && setNewRolePerms(prev => prev ^ p.bit)}
                                       aria-pressed={isOn}
                                       disabled={!canToggle}
-                                      title={!canToggle ? 'You lack this permission yourself' : undefined}
+                                      title={adminLocked ? 'Granted by Administrator' : !canToggle ? 'You lack this permission yourself' : undefined}
                                     />
                                   </div>
                                 );
@@ -608,8 +611,11 @@ export const ServerSettings: React.FC<Props> = ({
                             </div>
                             <div className="roles-perms-grid">
                               {cat.permissions.map(p => {
-                                const isOn = hasPerm(editRolePerms, p.bit);
-                                const canToggle = hasPerm(myPerms, PERM_ADMINISTRATOR) || hasPerm(myPerms, p.bit);
+                                const adminOn = hasPerm(editRolePerms, PERM_ADMINISTRATOR);
+                                const isAdminPerm = p.bit === PERM_ADMINISTRATOR;
+                                const isOn = adminOn && !isAdminPerm ? true : hasPerm(editRolePerms, p.bit);
+                                const adminLocked = adminOn && !isAdminPerm;
+                                const canToggle = !adminLocked && (hasPerm(myPerms, PERM_ADMINISTRATOR) || hasPerm(myPerms, p.bit));
                                 return (
                                   <div key={String(p.bit)} className="roles-perm-row">
                                     <div>
@@ -622,7 +628,7 @@ export const ServerSettings: React.FC<Props> = ({
                                       onClick={() => canToggle && setEditRolePerms(prev => prev ^ p.bit)}
                                       aria-pressed={isOn}
                                       disabled={!canToggle}
-                                      title={!canToggle ? 'You lack this permission yourself' : undefined}
+                                      title={adminLocked ? 'Granted by Administrator' : !canToggle ? 'You lack this permission yourself' : undefined}
                                     />
                                   </div>
                                 );
