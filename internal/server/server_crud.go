@@ -31,6 +31,10 @@ func (s *ServerService) CreateServer(ctx context.Context, name, iconURL string, 
 		return nil, err
 	}
 
+	if err = s.repo.CreateEveryoneRole(ctx, server.ID); err != nil {
+		return nil, err
+	}
+
 	member := &db.ServerMember{
 		ServerID: server.ID,
 		UserID:   ownerIDInt,

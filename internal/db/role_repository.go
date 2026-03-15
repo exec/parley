@@ -4,11 +4,19 @@ import (
 	"context"
 )
 
+// permDefaultEveryone mirrors permissions.PermDefaultEveryone.
+// = PermViewChannel | PermSendMessages | PermReadMessageHistory | PermAddReactions |
+//   PermEmbedLinks | PermAttachFiles | PermConnect | PermSpeak | PermUseVAD |
+//   PermChangeNickname | PermCreateInvite | PermCreatePosts
+const permDefaultEveryone int64 = (1 << 16) | (1 << 17) | (1 << 23) | (1 << 20) |
+	(1 << 18) | (1 << 19) | (1 << 32) | (1 << 33) | (1 << 37) |
+	(1 << 7) | (1 << 8) | (1 << 29)
+
 // ============ Role Operations ============
 
 func (r *Repository) GetServerRoles(ctx context.Context, serverID int64) ([]ServerRole, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, server_id, name, color, permissions, hoist, position, created_at
+		`SELECT id, server_id, name, color, permissions, hoist, position, is_everyone, created_at
          FROM server_roles WHERE server_id = $1 ORDER BY position ASC, created_at ASC`,
 		serverID)
 	if err != nil {
@@ -18,7 +26,7 @@ func (r *Repository) GetServerRoles(ctx context.Context, serverID int64) ([]Serv
 	var roles []ServerRole
 	for rows.Next() {
 		var role ServerRole
-		if err := rows.Scan(&role.ID, &role.ServerID, &role.Name, &role.Color, &role.Permissions, &role.Hoist, &role.Position, &role.CreatedAt); err != nil {
+		if err := rows.Scan(&role.ID, &role.ServerID, &role.Name, &role.Color, &role.Permissions, &role.Hoist, &role.Position, &role.IsEveryone, &role.CreatedAt); err != nil {
 			return nil, err
 		}
 		roles = append(roles, role)
@@ -31,9 +39,9 @@ func (r *Repository) CreateServerRole(ctx context.Context, serverID int64, name,
 	err := r.db.QueryRowContext(ctx,
 		`INSERT INTO server_roles (server_id, name, color, permissions)
          VALUES ($1, $2, $3, $4)
-         RETURNING id, server_id, name, color, permissions, hoist, position, created_at`,
+         RETURNING id, server_id, name, color, permissions, hoist, position, is_everyone, created_at`,
 		serverID, name, color, permissions,
-	).Scan(&role.ID, &role.ServerID, &role.Name, &role.Color, &role.Permissions, &role.Hoist, &role.Position, &role.CreatedAt)
+	).Scan(&role.ID, &role.ServerID, &role.Name, &role.Color, &role.Permissions, &role.Hoist, &role.Position, &role.IsEveryone, &role.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -59,9 +67,9 @@ func (r *Repository) UpdateServerRole(ctx context.Context, serverID, roleID int6
 	err := r.db.QueryRowContext(ctx,
 		`UPDATE server_roles SET name = $1, color = $2, permissions = $3, hoist = $4, position = $5
 		 WHERE id = $6 AND server_id = $7
-		 RETURNING id, server_id, name, color, permissions, hoist, position, created_at`,
+		 RETURNING id, server_id, name, color, permissions, hoist, position, is_everyone, created_at`,
 		name, color, permissions, hoist, position, roleID, serverID,
-	).Scan(&role.ID, &role.ServerID, &role.Name, &role.Color, &role.Permissions, &role.Hoist, &role.Position, &role.CreatedAt)
+	).Scan(&role.ID, &role.ServerID, &role.Name, &role.Color, &role.Permissions, &role.Hoist, &role.Position, &role.IsEveryone, &role.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +78,7 @@ func (r *Repository) UpdateServerRole(ctx context.Context, serverID, roleID int6
 
 func (r *Repository) GetMemberRoles(ctx context.Context, serverID, userID int64) ([]ServerRole, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT sr.id, sr.server_id, sr.name, sr.color, sr.permissions, sr.hoist, sr.position, sr.created_at
+		`SELECT sr.id, sr.server_id, sr.name, sr.color, sr.permissions, sr.hoist, sr.position, sr.is_everyone, sr.created_at
          FROM server_roles sr
          JOIN server_member_roles smr ON smr.role_id = sr.id
          WHERE smr.server_id = $1 AND smr.user_id = $2
@@ -83,7 +91,7 @@ func (r *Repository) GetMemberRoles(ctx context.Context, serverID, userID int64)
 	var roles []ServerRole
 	for rows.Next() {
 		var role ServerRole
-		if err := rows.Scan(&role.ID, &role.ServerID, &role.Name, &role.Color, &role.Permissions, &role.Hoist, &role.Position, &role.CreatedAt); err != nil {
+		if err := rows.Scan(&role.ID, &role.ServerID, &role.Name, &role.Color, &role.Permissions, &role.Hoist, &role.Position, &role.IsEveryone, &role.CreatedAt); err != nil {
 			return nil, err
 		}
 		roles = append(roles, role)
@@ -107,6 +115,38 @@ func (r *Repository) RemoveRoleFromMember(ctx context.Context, serverID, userID,
 	return err
 }
 
+// GetEveryoneRole returns the @everyone role for a server.
+func (r *Repository) GetEveryoneRole(ctx context.Context, serverID int64) (*ServerRole, error) {
+	var role ServerRole
+	err := r.db.QueryRowContext(ctx,
+		`SELECT id, server_id, name, color, permissions, hoist, position, is_everyone, created_at
+         FROM server_roles WHERE server_id = $1 AND is_everyone = TRUE`, serverID).
+		Scan(&role.ID, &role.ServerID, &role.Name, &role.Color, &role.Permissions, &role.Hoist, &role.Position, &role.IsEveryone, &role.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &role, nil
+}
+
+// CreateEveryoneRole inserts the @everyone role for a new server with default permissions.
+func (r *Repository) CreateEveryoneRole(ctx context.Context, serverID int64) error {
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO server_roles (server_id, name, color, permissions, hoist, position, is_everyone, created_at)
+         VALUES ($1, '@everyone', '#99aab5', $2, FALSE, 0, TRUE, NOW())`,
+		serverID, permDefaultEveryone)
+	return err
+}
+
+// GetHighestRolePosition returns the highest position among the user's assigned roles in a server.
+func (r *Repository) GetHighestRolePosition(ctx context.Context, serverID, userID int64) (int, error) {
+	var pos int
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COALESCE(MAX(sr.position), 0) FROM server_member_roles smr
+         JOIN server_roles sr ON sr.id = smr.role_id
+         WHERE smr.server_id = $1 AND smr.user_id = $2`, serverID, userID).Scan(&pos)
+	return pos, err
+}
+
 func (r *Repository) GetServerMembersWithRoles(ctx context.Context, serverID int64) ([]*ServerMember, error) {
 	members, err := r.GetServerMembers(ctx, serverID)
 	if err != nil {
@@ -117,7 +157,7 @@ func (r *Repository) GetServerMembersWithRoles(ctx context.Context, serverID int
 	}
 
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT smr.user_id, sr.id, sr.server_id, sr.name, sr.color, sr.permissions, sr.hoist, sr.position, sr.created_at
+		`SELECT smr.user_id, sr.id, sr.server_id, sr.name, sr.color, sr.permissions, sr.hoist, sr.position, sr.is_everyone, sr.created_at
          FROM server_member_roles smr
          JOIN server_roles sr ON sr.id = smr.role_id
          WHERE smr.server_id = $1
@@ -132,7 +172,7 @@ func (r *Repository) GetServerMembersWithRoles(ctx context.Context, serverID int
 	for rows.Next() {
 		var userID int64
 		var role ServerRole
-		if err := rows.Scan(&userID, &role.ID, &role.ServerID, &role.Name, &role.Color, &role.Permissions, &role.Hoist, &role.Position, &role.CreatedAt); err != nil {
+		if err := rows.Scan(&userID, &role.ID, &role.ServerID, &role.Name, &role.Color, &role.Permissions, &role.Hoist, &role.Position, &role.IsEveryone, &role.CreatedAt); err != nil {
 			continue
 		}
 		rolesByUser[userID] = append(rolesByUser[userID], role)
