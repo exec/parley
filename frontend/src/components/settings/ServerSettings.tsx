@@ -358,7 +358,7 @@ export const ServerSettings: React.FC<Props> = ({
 
       {/* Content */}
       <div className="settings-main">
-        <div className="settings-content">
+        <div className={`settings-content${activeTab === 'roles' ? ' settings-content--wide' : ''}`}>
           {activeTab === 'overview' && (
             <>
               <h2 className="settings-page-title">Server Overview</h2>

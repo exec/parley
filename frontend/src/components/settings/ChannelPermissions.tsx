@@ -317,6 +317,7 @@ export const ChannelPermissions: React.FC<Props> = ({ channelId, serverId, paren
               {CHANNEL_PERMISSION_CATEGORIES.map(cat => (
                 <div key={cat.label} className="cp-perm-category">
                   <div className="cp-perm-category-label">{cat.label}</div>
+                  <div className="cp-perms-grid">
                   {cat.permissions.map(p => {
                     const state = getPermState(selectedOw, p.bit);
                     return (
@@ -336,6 +337,7 @@ export const ChannelPermissions: React.FC<Props> = ({ channelId, serverId, paren
                       </div>
                     );
                   })}
+                  </div>
                 </div>
               ))}
             </>

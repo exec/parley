@@ -105,6 +105,11 @@
   padding: 56px 40px 80px;
 }
 
+.settings-content--wide {
+  max-width: none;
+  padding: 56px 40px 80px;
+}
+
 .settings-page-title {
   font-size: 20px;
   font-weight: 700;
@@ -801,8 +806,8 @@
 }
 
 .roles-perms-grid {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
   margin-top: 12px;
 }
