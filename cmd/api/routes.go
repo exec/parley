@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"parley/internal/auth"
+	"parley/internal/bin"
 	"parley/internal/channel"
 	"parley/internal/db"
 	"parley/internal/dm"
@@ -30,6 +31,7 @@ func registerRoutes(
 	hub *ws.Hub,
 	spacesClient *spaces.Client,
 	voiceSvc *voice.Service,
+	binService *bin.Service,
 ) {
 	// Cap request bodies at 64 KB for all routes except /api/upload,
 	// which applies its own 50 MB limit inside the handler.
@@ -120,6 +122,23 @@ func registerRoutes(
 			r.Post("/dms", dmHandler.OpenDmChannel)
 			r.Get("/dms/{id}/messages", dmHandler.GetDmMessages)
 			r.Post("/dms/{id}/messages", dmHandler.SendDmMessage)
+
+			// Bin routes
+			binHandler := bin.NewHandler(binService)
+			r.Post("/channels/{channelID}/posts", binHandler.CreatePost)
+			r.Get("/channels/{channelID}/posts", binHandler.ListPosts)
+			r.Get("/posts/{postID}", binHandler.GetPost)
+			r.Put("/posts/{postID}", binHandler.EditPost)
+			r.Delete("/posts/{postID}", binHandler.DeletePost)
+			r.Get("/posts/{postID}/versions", binHandler.GetVersions)
+			r.Get("/posts/{postID}/versions/{versionID}", binHandler.GetVersion)
+			r.Post("/posts/{postID}/line-comments", binHandler.CreateLineComment)
+			r.Get("/posts/{postID}/line-comments", binHandler.GetLineComments)
+			r.Put("/line-comments/{id}", binHandler.UpdateLineComment)
+			r.Delete("/line-comments/{id}", binHandler.DeleteLineComment)
+			r.Get("/channels/{channelID}/tags", binHandler.GetTags)
+			r.Post("/channels/{channelID}/tags", binHandler.CreateTag)
+			r.Delete("/channels/{channelID}/tags/{tagID}", binHandler.DeleteTag)
 
 			// Invite routes
 			r.Post("/servers/{id}/invites", serverHandler.CreateInvite)

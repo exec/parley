@@ -16,6 +16,7 @@ import (
 	_ "github.com/lib/pq"
 
 	"parley/internal/auth"
+	"parley/internal/bin"
 	"parley/internal/channel"
 	"parley/internal/db"
 	"parley/internal/email"
@@ -132,6 +133,10 @@ func main() {
 	// Set up hub broadcasting for channel service
 	channelService.SetHub(hub)
 
+	// Initialize bin service
+	binService := bin.NewService(repo)
+	binService.SetHub(hub)
+
 	// Start hub in a goroutine
 	go hub.Run()
 	log.Println("WebSocket hub started")
@@ -167,7 +172,7 @@ func main() {
 	}
 
 	// Setup chi router
-	router := setupRouter(config, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc)
+	router := setupRouter(config, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService)
 
 	// Start version purge goroutine
 	go func() {
@@ -177,6 +182,11 @@ func main() {
 		} else if n > 0 {
 			log.Printf("purged %d old message versions", n)
 		}
+		if n, err := repo.PurgeOldBinPostVersions(context.Background()); err != nil {
+			log.Printf("bin version purge error: %v", err)
+		} else if n > 0 {
+			log.Printf("purged %d old bin post versions", n)
+		}
 
 		ticker := time.NewTicker(24 * time.Hour)
 		defer ticker.Stop()
@@ -185,6 +195,11 @@ func main() {
 				log.Printf("version purge error: %v", err)
 			} else if n > 0 {
 				log.Printf("purged %d old message versions", n)
+			}
+			if n, err := repo.PurgeOldBinPostVersions(context.Background()); err != nil {
+				log.Printf("bin version purge error: %v", err)
+			} else if n > 0 {
+				log.Printf("purged %d old bin post versions", n)
 			}
 		}
 	}()
@@ -234,6 +249,7 @@ func setupRouter(
 	hub *websocket.Hub,
 	spacesClient *spaces.Client,
 	voiceSvc *voice.Service,
+	binService *bin.Service,
 ) *chi.Mux {
 	router := chi.NewRouter()
 
@@ -247,7 +263,7 @@ func setupRouter(
 	router.Use(corsMiddleware())
 
 	// Mount routes
-	registerRoutes(router, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc)
+	registerRoutes(router, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService)
 
 	return router
 }
