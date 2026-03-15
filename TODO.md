@@ -116,7 +116,7 @@ These are growing-pains issues identified from a structural inspection — not b
 
 - [x] **`cmd/api/routes.go` (929 lines)** — Split into `routes.go` (pure registration, ~140 lines) + `auth_handlers.go`, `user_handlers.go`, `developer_handlers.go`, `websocket_handler.go`, `upload_handler.go`, `helpers.go`.
 - [x] **`internal/server/service.go` (957 lines)** — Split into `service.go` (types + helpers), `server_crud.go`, `server_members.go`, `server_invites.go`, `server_roles.go`.
-- [ ] **`cmd/admin/main.go` (765 lines)** — A CLI binary entry point that also boots a full HTTP admin dashboard server. Two separate responsibilities; should be split into separate binaries or clearly separated sections.
+- [x] **`cmd/admin/main.go` (765 lines)** — Split into `main.go` (CLI + globals), `server.go` (HTTP bootstrap + routes), `middleware.go` (JWT auth), `handlers.go` (all HTTP handlers), `helpers.go` (jsonOK/jsonError/queryInt).
 
 ### Frontend
 
