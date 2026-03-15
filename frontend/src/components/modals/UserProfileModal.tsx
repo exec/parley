@@ -11,19 +11,29 @@ interface UserProfileModalProps {
   onStartDm: (userId: string) => void;
 }
 
+function formatMemberSince(dateStr: string) {
+  return new Date(dateStr).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+
 export function UserProfileModal({ isOpen, onClose, userId, currentUserId, onStartDm }: UserProfileModalProps) {
   const [user, setUser] = useState<PublicUser | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (!isOpen || !userId) return;
-
     setIsLoading(true);
     getUser(userId)
       .then(setUser)
       .catch(console.error)
       .finally(() => setIsLoading(false));
   }, [isOpen, userId]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -32,49 +42,50 @@ export function UserProfileModal({ isOpen, onClose, userId, currentUserId, onSta
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content user-profile-modal" onClick={e => e.stopPropagation()}>
-        <div className="user-profile-header">
-          <button className="modal-close profile-close" onClick={onClose}>&times;</button>
+
+        {/* Banner */}
+        <div
+          className="user-profile-header"
+          style={user?.banner_url
+            ? { backgroundImage: `url(${user.banner_url})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+            : undefined}
+        >
+          <button className="profile-close" onClick={onClose}>&times;</button>
         </div>
 
         {isLoading ? (
-          <div className="profile-loading">
-            <Spinner />
-          </div>
+          <div className="profile-loading"><Spinner /></div>
         ) : user ? (
           <>
-            <div
-              className="profile-banner"
-              style={{
-                height: 120,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-                backgroundColor: '#1a2a1a',
-                backgroundImage: user.banner_url ? `url(${user.banner_url})` : undefined,
-                borderRadius: '4px 4px 0 0',
-                marginBottom: 0,
-              }}
-            />
-            <div className="user-profile-avatar" style={{ marginTop: -40, position: 'relative', zIndex: 1 }}>
-              {user.avatar_url ? (
-                <img src={user.avatar_url} alt={user.username} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-              ) : (
-                user.username.charAt(0).toUpperCase()
-              )}
+            {/* Avatar — absolutely positioned straddling banner/body seam */}
+            <div className="user-profile-avatar">
+              {user.avatar_url
+                ? <img src={user.avatar_url} alt={user.username} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                : user.username.charAt(0).toUpperCase()
+              }
             </div>
+
             <div className="user-profile-body">
-              <div className="user-profile-info">
-                <h2 className="user-profile-username">{user.username}</h2>
-                <p className="user-profile-tag">@{user.username}</p>
+              <h2 className="user-profile-username">{user.username}</h2>
+              <p className="user-profile-tag">@{user.username.toLowerCase()}</p>
+
+              <div className="user-profile-divider" />
+
+              <div className="user-profile-since">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, opacity: 0.5 }}>
+                  <rect x="1" y="3" width="14" height="12" rx="2" stroke="#888" strokeWidth="1.5"/>
+                  <path d="M1 7h14" stroke="#888" strokeWidth="1.5"/>
+                  <path d="M5 1v4M11 1v4" stroke="#888" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+                <span className="user-profile-since-label">Member since</span>
+                <span className="user-profile-since-value">{formatMemberSince(user.created_at)}</span>
               </div>
 
               {!isOwnProfile && (
                 <div className="user-profile-actions">
                   <button
                     className="profile-action-btn primary"
-                    onClick={() => {
-                      onStartDm(user.id);
-                      onClose();
-                    }}
+                    onClick={() => { onStartDm(user.id); onClose(); }}
                   >
                     Message
                   </button>

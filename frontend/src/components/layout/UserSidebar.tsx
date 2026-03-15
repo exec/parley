@@ -203,6 +203,8 @@ const UserSidebar: React.FC<UserSidebarProps> = ({
           onClose={() => setMiniProfile(null)}
           onSendMessage={onSendMessage}
           onViewProfile={onViewProfile}
+          canManageRoles={(currentUserIsOwner === true || canKickMembers === true) && miniProfile.member.user_id !== currentUserId}
+          onManageRoles={() => { onManageRoles?.(miniProfile.member.user_id); setMiniProfile(null); }}
         />
       )}
 
