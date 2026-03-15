@@ -95,6 +95,7 @@ func registerRoutes(
 			// Channel routes
 			channelHandler := channel.NewHandler(channelService)
 			r.Post("/servers/{serverID}/channels", channelHandler.CreateChannel)
+			r.Patch("/servers/{serverID}/channels/reorder", channelHandler.ReorderChannels)
 			r.Get("/servers/{serverID}/channels", channelHandler.GetServerChannels)
 			r.Get("/channels/{id}", channelHandler.GetChannel)
 			r.Put("/channels/{id}", channelHandler.UpdateChannel)
