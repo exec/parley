@@ -156,6 +156,14 @@ interface ChannelListProps {
   canManageChannels?: boolean;
   onRenameChannel?: (channelId: string, newName: string) => void;
   onMarkChannelRead?: (channelId: string) => void;
+  // Voice bar
+  vcConnected?: boolean;
+  vcMuted?: boolean;
+  vcDeafened?: boolean;
+  onVcMuteToggle?: () => void;
+  onVcDeafenToggle?: () => void;
+  onVcLeave?: () => void;
+  onVcNavigate?: () => void;
 }
 
 const ChannelList: React.FC<ChannelListProps> = ({
@@ -179,6 +187,13 @@ const ChannelList: React.FC<ChannelListProps> = ({
   canManageChannels = false,
   onRenameChannel,
   onMarkChannelRead,
+  vcConnected,
+  vcMuted,
+  vcDeafened,
+  onVcMuteToggle,
+  onVcDeafenToggle,
+  onVcLeave,
+  onVcNavigate,
 }) => {
   const [textChannelsCollapsed, setTextChannelsCollapsed] = useState(false);
   const [voiceChannelsCollapsed, setVoiceChannelsCollapsed] = useState(false);
@@ -373,6 +388,34 @@ const ChannelList: React.FC<ChannelListProps> = ({
           </div>
         )}
       </div>
+
+      {activeVoiceChannelId && (
+        <div className="voice-bar">
+          <div className="voice-bar-status">
+            <div className={`voice-bar-dot${vcConnected ? '' : ' connecting'}`} />
+            <span className="voice-bar-label">{vcConnected ? 'Voice Connected' : 'Connecting…'}</span>
+          </div>
+          {(() => {
+            const vcCh = channels.find(c => c.id === activeVoiceChannelId);
+            return vcCh ? (
+              <div className="voice-bar-channel" onClick={onVcNavigate} title="Go to voice channel">
+                🔊 {vcCh.name}
+              </div>
+            ) : null;
+          })()}
+          <div className="voice-bar-controls">
+            <button className={`voice-bar-btn${vcMuted ? ' active' : ''}`} onClick={onVcMuteToggle} title={vcMuted ? 'Unmute' : 'Mute'}>
+              {vcMuted ? '🔇' : '🎙'}
+            </button>
+            <button className={`voice-bar-btn${vcDeafened ? ' active' : ''}`} onClick={onVcDeafenToggle} title={vcDeafened ? 'Undeafen' : 'Deafen'}>
+              {vcDeafened ? '🔕' : '🔔'}
+            </button>
+            <button className="voice-bar-btn leave" onClick={onVcLeave} title="Leave voice">
+              ✕ Leave
+            </button>
+          </div>
+        </div>
+      )}
 
       <div
         className="user-area clickable"

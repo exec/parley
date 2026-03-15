@@ -1,6 +1,7 @@
 export interface User {
   id: string;
   username: string;
+  display_name?: string;
   email: string;
   avatar_url?: string;
   banner_url?: string;
@@ -67,6 +68,7 @@ export interface Message {
   channel_id: string;
   author_id: string;
   author_username: string;
+  author_display_name?: string;
   author_avatar_url?: string;
   author_is_bot?: boolean;
   via_api?: boolean;
@@ -118,6 +120,7 @@ export interface DmMessage {
 export interface PublicUser {
   id: string;
   username: string;
+  display_name?: string;
   avatar_url: string;
   created_at: string;
   banner_url?: string;

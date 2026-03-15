@@ -22,6 +22,7 @@ type User struct {
 	AvatarURL               string     `json:"avatar_url,omitempty" db:"avatar_url"`
 	BannerURL               string     `json:"banner_url,omitempty" db:"banner_url"`
 	Bio                     string     `json:"bio,omitempty" db:"bio"`
+	DisplayName             string     `json:"display_name" db:"display_name"`
 	EmailVerified           bool       `json:"email_verified" db:"email_verified"`
 	EmailVerificationToken  string     `json:"-" db:"email_verification_token"`
 	PhoneNumber             string     `json:"phone_number,omitempty" db:"phone_number"`
@@ -121,9 +122,10 @@ type Message struct {
 	AttachmentType  string    `json:"attachment_type,omitempty" db:"attachment_type"`
 	CreatedAt       time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at" db:"updated_at"`
-	AuthorUsername  string    `json:"author_username" db:"-"`
-	AuthorAvatarURL string    `json:"author_avatar_url,omitempty" db:"-"`
-	AuthorIsBot     bool      `json:"author_is_bot,omitempty"`
+	AuthorUsername     string    `json:"author_username" db:"-"`
+	AuthorDisplayName  string    `json:"author_display_name" db:"-"`
+	AuthorAvatarURL    string    `json:"author_avatar_url,omitempty" db:"-"`
+	AuthorIsBot        bool      `json:"author_is_bot,omitempty"`
 	ViaApi          bool      `json:"via_api,omitempty"`
 }
 
@@ -149,8 +151,9 @@ type DmMessage struct {
 	AttachmentType string    `json:"attachment_type,omitempty" db:"attachment_type"`
 	CreatedAt      time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at" db:"updated_at"`
-	AuthorUsername  string    `json:"author_username" db:"-"`
-	AuthorAvatarURL string    `json:"author_avatar_url,omitempty" db:"-"`
+	AuthorUsername    string    `json:"author_username" db:"-"`
+	AuthorDisplayName string    `json:"author_display_name" db:"-"`
+	AuthorAvatarURL   string    `json:"author_avatar_url,omitempty" db:"-"`
 }
 
 // PublicUser represents public user profile info

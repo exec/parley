@@ -27,6 +27,7 @@ import { UserSettings } from './components/settings/UserSettings';
 import { ServerSettings } from './components/settings/ServerSettings';
 import { NotificationSettingsModal, getNotifPref } from './components/modals/NotificationSettingsModal';
 import { useNotifications } from './hooks/useNotifications';
+import { useVoiceConnection } from './hooks/useVoiceConnection';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 type View = 'homepage' | 'server' | 'dm';
@@ -111,6 +112,28 @@ function MainApp() {
   // Voice state: channelId → list of participants
   const [voiceParticipants, setVoiceParticipants] = useState<Record<string, { user_id: string; username: string; avatar_url?: string }[]>>({});
   const [activeVoiceChannel, setActiveVoiceChannel] = useState<string | null>(null);
+
+  const handleVcLeave = useCallback(() => {
+    if (currentUser && activeVoiceChannel) {
+      setVoiceParticipants(prev => {
+        const filtered = (prev[activeVoiceChannel] ?? []).filter(p => p.user_id !== currentUser.id);
+        return { ...prev, [activeVoiceChannel]: filtered };
+      });
+    }
+    setActiveVoiceChannel(null);
+  }, [currentUser, activeVoiceChannel]);
+
+  const {
+    connected: vcConnected,
+    connecting: vcConnecting,
+    error: vcError,
+    muted: vcMuted,
+    deafened: vcDeafened,
+    toggleMute: vcToggleMute,
+    toggleDeafen: vcToggleDeafen,
+    disconnect: vcDisconnect,
+    retry: vcRetry,
+  } = useVoiceConnection(activeVoiceChannel, handleVcLeave);
 
   // Typing indicators: channelId → list of typing users
   const [typingUsers, setTypingUsers] = useState<Record<string, { userId: string; username: string }[]>>({});
@@ -484,6 +507,7 @@ function MainApp() {
       onOpenSettings={() => setShowUserSettings(true)}
       onVoiceChannelClick={(channelId) => {
         setActiveVoiceChannel(channelId);
+        selectChannel(channelId); // load messages for the VC chat panel
         if (currentUser) {
           setVoiceParticipants(prev => {
             const list = prev[channelId] ?? [];
@@ -503,6 +527,13 @@ function MainApp() {
         receiveChannelUpdate(updated);
       }}
       onMarkChannelRead={(channelId) => setUnreadCounts(prev => ({ ...prev, [channelId]: 0 }))}
+      vcConnected={vcConnected}
+      vcMuted={vcMuted}
+      vcDeafened={vcDeafened}
+      onVcMuteToggle={vcToggleMute}
+      onVcDeafenToggle={vcToggleDeafen}
+      onVcLeave={vcDisconnect}
+      onVcNavigate={() => { if (activeVoiceChannel) selectChannel(activeVoiceChannel); }}
     />
   ) : (
     <DmPanel
@@ -543,30 +574,55 @@ function MainApp() {
     />
   ) : undefined;
 
+  // VC channel - is the user currently viewing the voice channel page?
+  const vcChannel = activeVoiceChannel ? channels.find(c => c.id === activeVoiceChannel) ?? null : null;
+  const isViewingVC = !!(vcChannel && activeChannel?.id === activeVoiceChannel && !activeDmChannel);
+
   // Build main content
   let mainContent: React.ReactNode;
-  if (activeVoiceChannel && currentUser) {
-    const vc = channels.find(c => c.id === activeVoiceChannel);
-    if (vc) {
-      mainContent = (
-        <VoiceChannel
-          channel={vc}
-          currentUserId={currentUser.id}
-          currentUsername={currentUser.username}
-          currentAvatarUrl={currentUser.avatar_url}
-          participants={voiceParticipants[activeVoiceChannel] ?? []}
-          onLeave={() => {
-            if (currentUser && activeVoiceChannel) {
-              setVoiceParticipants(prev => {
-                const filtered = (prev[activeVoiceChannel] ?? []).filter(p => p.user_id !== currentUser.id);
-                return { ...prev, [activeVoiceChannel]: filtered };
-              });
-            }
-            setActiveVoiceChannel(null);
-          }}
-        />
-      );
-    }
+  if (isViewingVC && vcChannel && currentUser) {
+    mainContent = (
+      <div className="vc-layout">
+        <div className="vc-participants-panel">
+          <VoiceChannel
+            channel={vcChannel}
+            currentUserId={currentUser.id}
+            currentUsername={currentUser.username}
+            currentAvatarUrl={currentUser.avatar_url}
+            participants={voiceParticipants[activeVoiceChannel!] ?? []}
+            connected={vcConnected}
+            connecting={vcConnecting}
+            error={vcError}
+            muted={vcMuted}
+            deafened={vcDeafened}
+            onToggleMute={vcToggleMute}
+            onToggleDeafen={vcToggleDeafen}
+            onLeave={vcDisconnect}
+            onRetry={vcRetry}
+          />
+        </div>
+        <div className="vc-chat-panel">
+          <ChatWindow
+            channel={vcChannel}
+            messages={messages}
+            currentUserId={currentUser.id}
+            members={members}
+            memberMap={memberMap}
+            onSendMessage={sendMessage}
+            onEdit={(msg) => editMessage(msg.id, msg.content)}
+            onDelete={deleteMessage}
+            onReact={toggleReaction}
+            onViewProfile={handleViewProfile}
+            onSendMessageToUser={(userId) => openDmChannel(userId)}
+            onLoadMore={loadMoreMessages}
+            hasMore={hasMoreMessages}
+            isLoading={isLoadingMessages}
+            typingUsers={typingUsers[vcChannel.id] ?? []}
+            onTyping={handleSendTyping}
+          />
+        </div>
+      </div>
+    );
   } else if (view === 'homepage') {
     mainContent = (
       <Homepage

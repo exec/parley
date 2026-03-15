@@ -19,6 +19,7 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
 
   // Profile fields
   const [username, setUsername] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [bannerUrl, setBannerUrl] = useState('');
   const [bio, setBio] = useState('');
@@ -66,6 +67,7 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
   useEffect(() => {
     if (isOpen && currentUser) {
       setUsername(currentUser.username || '');
+      setDisplayName(currentUser.display_name || '');
       setAvatarUrl(currentUser.avatar_url || '');
       setBannerUrl(currentUser.banner_url || '');
       setBio(currentUser.bio || '');
@@ -105,16 +107,18 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
     if (!currentUser) return false;
     return (
       username !== currentUser.username ||
+      displayName !== (currentUser.display_name || '') ||
       avatarUrl !== (currentUser.avatar_url || '') ||
       bannerUrl !== (currentUser.banner_url || '') ||
       bio !== (currentUser.bio || '') ||
       !!newPassword
     );
-  }, [currentUser, username, avatarUrl, bannerUrl, newPassword]);
+  }, [currentUser, username, displayName, avatarUrl, bannerUrl, bio, newPassword]);
 
   const handleReset = useCallback(() => {
     if (!currentUser) return;
     setUsername(currentUser.username || '');
+    setDisplayName(currentUser.display_name || '');
     setAvatarUrl(currentUser.avatar_url || '');
     setBannerUrl(currentUser.banner_url || '');
     setBio(currentUser.bio || '');
@@ -174,6 +178,7 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
 
     const req: Record<string, string | undefined> = {};
     if (username.trim() !== currentUser?.username) req.username = username.trim();
+    if (displayName !== (currentUser?.display_name || '')) req.display_name = displayName;
     if (newPassword) { req.current_password = currentPassword; req.new_password = newPassword; }
     if (avatarUrl !== (currentUser?.avatar_url || '')) req.avatar_url = avatarUrl || undefined;
     if (bannerUrl !== (currentUser?.banner_url || '')) req.banner_url = bannerUrl || undefined;
@@ -187,7 +192,7 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
       const stored = localStorage.getItem('user');
       if (stored) {
         const parsed = JSON.parse(stored);
-        localStorage.setItem('user', JSON.stringify({ ...parsed, username: updated.username, avatar_url: updated.avatar_url, banner_url: updated.banner_url, bio: updated.bio }));
+        localStorage.setItem('user', JSON.stringify({ ...parsed, username: updated.username, display_name: updated.display_name, avatar_url: updated.avatar_url, banner_url: updated.banner_url, bio: updated.bio }));
       }
       onUpdate(updated);
       setSuccess('Profile updated successfully');
@@ -263,6 +268,7 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
           />}
           {activeTab === 'profile' && <ProfileTab
             currentUser={currentUser}
+            displayName={displayName} setDisplayName={setDisplayName}
             avatarUrl={avatarUrl} setAvatarUrl={setAvatarUrl}
             bannerUrl={bannerUrl} setBannerUrl={setBannerUrl}
             bio={bio} setBio={setBio}
@@ -589,6 +595,7 @@ const AccountTab: React.FC<AccountTabProps> = (p) => {
 
 interface ProfileTabProps {
   currentUser: User | null;
+  displayName: string; setDisplayName: (v: string) => void;
   avatarUrl: string; setAvatarUrl: (v: string) => void;
   bannerUrl: string; setBannerUrl: (v: string) => void;
   bio: string; setBio: (v: string) => void;
@@ -619,6 +626,20 @@ const ProfileTab: React.FC<ProfileTabProps> = (p) => {
 
       <div className="settings-profile-split">
         <div className="settings-profile-form">
+          <div className="settings-section">
+            <div className="settings-section-title">Display Name</div>
+            <input
+              className="settings-form-input"
+              type="text"
+              value={p.displayName}
+              onChange={e => p.setDisplayName(e.target.value.slice(0, 100))}
+              placeholder={`${p.currentUser?.username || 'username'} (leave blank to use username)`}
+              maxLength={100}
+              disabled={p.loading}
+            />
+            <div className="settings-form-hint">This is the name shown in chat. Your username is still used for @mentions and your profile tag.</div>
+          </div>
+
           <div className="settings-section">
             <div className="settings-section-title">About Me</div>
             <textarea

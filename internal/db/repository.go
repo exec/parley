@@ -89,7 +89,7 @@ func (r *Repository) CreateUser(ctx context.Context, user *User) error {
 func (r *Repository) GetUserByID(ctx context.Context, id int64) (*User, error) {
 	query := `
 		SELECT id, username, COALESCE(email, ''), password_hash, COALESCE(avatar_url, ''), COALESCE(banner_url, ''),
-		       COALESCE(bio, ''),
+		       COALESCE(bio, ''), COALESCE(display_name, ''),
 		       email_verified, COALESCE(email_verification_token, ''),
 		       COALESCE(phone_number, ''), phone_verified,
 		       banned_at, COALESCE(ban_reason, ''), force_logout_at, is_system, badges,
@@ -108,6 +108,7 @@ func (r *Repository) GetUserByID(ctx context.Context, id int64) (*User, error) {
 		&user.AvatarURL,
 		&user.BannerURL,
 		&user.Bio,
+		&user.DisplayName,
 		&user.EmailVerified,
 		&user.EmailVerificationToken,
 		&user.PhoneNumber,
@@ -244,8 +245,8 @@ func (r *Repository) UpdateUser(ctx context.Context, user *User) error {
 	query := `
 		UPDATE users
 		SET username = $1, email = $2, password_hash = $3, avatar_url = $4, banner_url = $5,
-		    email_verification_token = NULLIF($6, ''), bio = $7, updated_at = $8
-		WHERE id = $9
+		    email_verification_token = NULLIF($6, ''), bio = $7, display_name = $8, updated_at = $9
+		WHERE id = $10
 	`
 
 	user.UpdatedAt = time.Now()
@@ -258,6 +259,7 @@ func (r *Repository) UpdateUser(ctx context.Context, user *User) error {
 		user.BannerURL,
 		user.EmailVerificationToken,
 		user.Bio,
+		user.DisplayName,
 		user.UpdatedAt,
 		user.ID,
 	)
@@ -1092,7 +1094,7 @@ func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, li
 			SELECT * FROM (
 				SELECT m.id, m.channel_id, m.author_id, m.content, COALESCE(m.nonce, ''), m.created_at, m.updated_at,
 				       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
-				       u.username, COALESCE(u.avatar_url, ''), u.is_bot
+				       u.username, COALESCE(u.avatar_url, ''), u.is_bot, COALESCE(u.display_name, '')
 				FROM messages m
 				JOIN users u ON u.id = m.author_id
 				WHERE m.channel_id = $1 AND m.id < $3
@@ -1107,7 +1109,7 @@ func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, li
 			SELECT * FROM (
 				SELECT m.id, m.channel_id, m.author_id, m.content, COALESCE(m.nonce, ''), m.created_at, m.updated_at,
 				       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
-				       u.username, COALESCE(u.avatar_url, ''), u.is_bot
+				       u.username, COALESCE(u.avatar_url, ''), u.is_bot, COALESCE(u.display_name, '')
 				FROM messages m
 				JOIN users u ON u.id = m.author_id
 				WHERE m.channel_id = $1
@@ -1140,6 +1142,7 @@ func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, li
 			&message.AuthorUsername,
 			&message.AuthorAvatarURL,
 			&message.AuthorIsBot,
+			&message.AuthorDisplayName,
 		)
 		if err != nil {
 			return nil, err
@@ -1348,7 +1351,7 @@ func (r *Repository) GetDmMessages(ctx context.Context, dmChannelID int64, limit
 			SELECT * FROM (
 				SELECT m.id, m.dm_channel_id, m.author_id, m.content,
 				       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
-				       m.created_at, m.updated_at, u.username, COALESCE(u.avatar_url, '')
+				       m.created_at, m.updated_at, u.username, COALESCE(u.avatar_url, ''), COALESCE(u.display_name, '')
 				FROM dm_messages m
 				JOIN users u ON u.id = m.author_id
 				WHERE m.dm_channel_id = $1 AND m.id < $3
@@ -1363,7 +1366,7 @@ func (r *Repository) GetDmMessages(ctx context.Context, dmChannelID int64, limit
 			SELECT * FROM (
 				SELECT m.id, m.dm_channel_id, m.author_id, m.content,
 				       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
-				       m.created_at, m.updated_at, u.username, COALESCE(u.avatar_url, '')
+				       m.created_at, m.updated_at, u.username, COALESCE(u.avatar_url, ''), COALESCE(u.display_name, '')
 				FROM dm_messages m
 				JOIN users u ON u.id = m.author_id
 				WHERE m.dm_channel_id = $1
@@ -1394,6 +1397,7 @@ func (r *Repository) GetDmMessages(ctx context.Context, dmChannelID int64, limit
 			&msg.UpdatedAt,
 			&msg.AuthorUsername,
 			&msg.AuthorAvatarURL,
+			&msg.AuthorDisplayName,
 		)
 		if err != nil {
 			return nil, err

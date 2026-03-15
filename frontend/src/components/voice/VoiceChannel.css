@@ -193,3 +193,29 @@
   color: #e05555;
   background: rgba(224,85,85,0.1);
 }
+
+/* ── VC split layout (participants + chat) ─────────────────────────────────── */
+.vc-layout {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+.vc-participants-panel {
+  width: 280px;
+  min-width: 220px;
+  flex-shrink: 0;
+  border-right: 1px solid rgba(50,205,50,0.12);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.vc-chat-panel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}

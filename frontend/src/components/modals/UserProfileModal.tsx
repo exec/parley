@@ -75,7 +75,7 @@ export function UserProfileModal({ isOpen, onClose, userId, currentUserId, onSta
 
             <div className="user-profile-body">
               <div className="user-profile-name-row">
-                <h2 className="user-profile-username">{user.username}</h2>
+                <h2 className="user-profile-username">{user.display_name || user.username}</h2>
                 {isOnline !== undefined && (
                   <span className={`profile-status-dot ${isOnline ? 'online' : 'offline'}`} title={isOnline ? 'Online' : 'Offline'} />
                 )}

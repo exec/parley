@@ -19,18 +19,17 @@ interface MessageProps {
   onSendMessage?: (userId: string) => void;
 }
 
-/** Returns the number of grapheme clusters if the text is 1–5 emoji only, else null. */
+/** Returns the number of emoji if the text is 1–5 emoji only, else null. */
 function getEmojiOnlyCount(text: string): number | null {
   const t = text.trim();
   if (!t) return null;
-  try {
-    const segs = [...new Intl.Segmenter().segment(t)].map(s => s.segment);
-    if (segs.length < 1 || segs.length > 5) return null;
-    const emojiRe = /\p{Extended_Pictographic}/u;
-    return segs.every(s => emojiRe.test(s)) ? segs.length : null;
-  } catch {
-    return null;
-  }
+  // Strip all emoji-related codepoints; if anything non-whitespace remains, not emoji-only
+  const stripped = t.replace(/\p{Extended_Pictographic}|\p{Emoji_Modifier}|\uFE0F|\uFE0E|\u200D/gu, '').trim();
+  if (stripped.length > 0) return null;
+  // Count distinct emoji sequences
+  const matches = t.match(/\p{Extended_Pictographic}[\p{Emoji_Modifier}\uFE0F\uFE0E\u200D\p{Extended_Pictographic}]*/gu);
+  if (!matches || matches.length < 1 || matches.length > 5) return null;
+  return matches.length;
 }
 
 const FileIcon = () => (
@@ -220,7 +219,7 @@ export const Message: React.FC<MessageProps> = ({
             onContextMenu={handleUsernameContextMenu}
             title="Left-click to view profile · Right-click for options"
           >
-            {message.author_username || 'Unknown User'}
+            {message.author_display_name || message.author_username || 'Unknown User'}
           </span>
           {message.author_is_bot && (
             <span className="msg-badge bot" title="Bot">BOT</span>
@@ -250,7 +249,10 @@ export const Message: React.FC<MessageProps> = ({
           </div>
         ) : (
           <>
-            <div className={`message-text${getEmojiOnlyCount(message.content) ? ' message-text--jumbo' : ''}`}><MarkdownRenderer content={message.content} mode="chat" memberMap={memberMap} /></div>
+            {getEmojiOnlyCount(message.content)
+              ? <div className="message-text message-text--jumbo">{message.content}</div>
+              : <div className="message-text"><MarkdownRenderer content={message.content} mode="chat" memberMap={memberMap} /></div>
+            }
             {message.attachment_url && (() => {
               const isVoice = message.attachment_name?.startsWith('voice_message_');
               const isAudio = !isVoice && (

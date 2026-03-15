@@ -587,13 +587,14 @@ func handleUpdateProfile(authService *auth.AuthService, repo *db.Repository, hub
 			AvatarURL       string `json:"avatar_url"`
 			BannerURL       string `json:"banner_url"`
 			Bio             string `json:"bio"`
+			DisplayName     string `json:"display_name"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			jsonError(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
 
-		user, err := authService.UpdateProfile(r.Context(), userIDStr, req.Username, req.CurrentPassword, req.NewPassword, req.AvatarURL, req.BannerURL, req.Bio)
+		user, err := authService.UpdateProfile(r.Context(), userIDStr, req.Username, req.CurrentPassword, req.NewPassword, req.AvatarURL, req.BannerURL, req.Bio, req.DisplayName)
 		if err != nil {
 			jsonError(w, err.Error(), http.StatusBadRequest)
 			return

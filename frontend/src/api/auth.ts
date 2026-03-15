@@ -48,6 +48,7 @@ export function clearAuthToken(): void {
 
 export interface UpdateProfileRequest {
   username?: string;
+  display_name?: string;
   current_password?: string;
   new_password?: string;
   avatar_url?: string;

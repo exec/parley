@@ -358,6 +358,10 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS badges INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE server_roles ADD COLUMN IF NOT EXISTS hoist BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE server_roles ADD COLUMN IF NOT EXISTS position INTEGER NOT NULL DEFAULT 0;
 `,
+
+	`-- Add display_name to users
+ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name VARCHAR(100) NOT NULL DEFAULT '';
+`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

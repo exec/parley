@@ -25,6 +25,7 @@ type User struct {
 	AvatarURL     string `json:"avatar_url,omitempty"`
 	BannerURL     string `json:"banner_url,omitempty"`
 	Bio           string `json:"bio,omitempty"`
+	DisplayName   string `json:"display_name,omitempty"`
 	Badges        int    `json:"badges"`
 	EmailVerified bool   `json:"email_verified"`
 	PhoneNumber   string `json:"phone_number,omitempty"`
@@ -206,6 +207,7 @@ func (s *AuthService) Login(ctx context.Context, emailOrPhone, password string) 
 		AvatarURL:     dbUser.AvatarURL,
 		BannerURL:     dbUser.BannerURL,
 		Bio:           dbUser.Bio,
+		DisplayName:   dbUser.DisplayName,
 		Badges:        dbUser.Badges,
 		EmailVerified: dbUser.EmailVerified,
 		PhoneNumber:   dbUser.PhoneNumber,
@@ -220,7 +222,7 @@ func (s *AuthService) Login(ctx context.Context, emailOrPhone, password string) 
 }
 
 // UpdateProfile updates a user's profile fields
-func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername, currentPassword, newPassword, avatarURL, bannerURL, bio string) (User, error) {
+func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername, currentPassword, newPassword, avatarURL, bannerURL, bio, displayName string) (User, error) {
 	id, err := fmt.Sscanf(userID, "%d", new(int64))
 	_ = id
 	if err != nil {
@@ -271,6 +273,7 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername, cu
 	if validation.HasSpoofedLink(bio) {
 		return User{}, errors.New("bio contains a spoofed link")
 	}
+	dbUser.DisplayName = displayName
 
 	if err := s.repo.UpdateUser(ctx, dbUser); err != nil {
 		return User{}, err
@@ -283,6 +286,7 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername, cu
 		AvatarURL:     dbUser.AvatarURL,
 		BannerURL:     dbUser.BannerURL,
 		Bio:           dbUser.Bio,
+		DisplayName:   dbUser.DisplayName,
 		Badges:        dbUser.Badges,
 		EmailVerified: dbUser.EmailVerified,
 		PhoneNumber:   dbUser.PhoneNumber,

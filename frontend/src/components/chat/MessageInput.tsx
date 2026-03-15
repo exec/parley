@@ -227,6 +227,17 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     if (file) { setPendingFile(file); setVoiceBlob(null); }
   }, []);
 
+  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = Array.from(e.clipboardData.items);
+    const fileItem = items.find(i => i.kind === 'file');
+    if (!fileItem) return;
+    const file = fileItem.getAsFile();
+    if (!file) return;
+    e.preventDefault();
+    setPendingFile(file);
+    setVoiceBlob(null);
+  }, []);
+
   const handleAttachClick = useCallback(() => { fileInputRef.current?.click(); }, []);
 
   const handleRemoveFile = useCallback(() => {
@@ -372,6 +383,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             onKeyDown={handleKeyDown}
             onSelect={e => setCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? 0)}
             onClick={e => setCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? 0)}
+            onPaste={handlePaste}
             placeholder={isRecording ? 'Recording…' : defaultPlaceholder}
             disabled={isBusy}
             rows={1}
