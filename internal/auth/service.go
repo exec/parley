@@ -222,7 +222,7 @@ func (s *AuthService) Login(ctx context.Context, emailOrPhone, password string) 
 }
 
 // UpdateProfile updates a user's profile fields
-func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername, currentPassword, newPassword, avatarURL, bannerURL, bio, displayName string) (User, error) {
+func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername, currentPassword, newPassword, avatarURL, bannerURL string, bio, displayName *string) (User, error) {
 	id, err := fmt.Sscanf(userID, "%d", new(int64))
 	_ = id
 	if err != nil {
@@ -269,14 +269,14 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername, cu
 	if bannerURL != "" {
 		dbUser.BannerURL = bannerURL
 	}
-	if bio != "" {
-		if validation.HasSpoofedLink(bio) {
+	if bio != nil {
+		if validation.HasSpoofedLink(*bio) {
 			return User{}, errors.New("bio contains a spoofed link")
 		}
-		dbUser.Bio = bio
+		dbUser.Bio = *bio
 	}
-	if displayName != "" {
-		dbUser.DisplayName = displayName
+	if displayName != nil {
+		dbUser.DisplayName = *displayName
 	}
 
 	if err := s.repo.UpdateUser(ctx, dbUser); err != nil {

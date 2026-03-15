@@ -113,13 +113,13 @@ func handleUpdateProfile(authService *auth.AuthService, repo *db.Repository, hub
 		}
 
 		var req struct {
-			Username        string `json:"username"`
-			CurrentPassword string `json:"current_password"`
-			NewPassword     string `json:"new_password"`
-			AvatarURL       string `json:"avatar_url"`
-			BannerURL       string `json:"banner_url"`
-			Bio             string `json:"bio"`
-			DisplayName     string `json:"display_name"`
+			Username        string  `json:"username"`
+			CurrentPassword string  `json:"current_password"`
+			NewPassword     string  `json:"new_password"`
+			AvatarURL       string  `json:"avatar_url"`
+			BannerURL       string  `json:"banner_url"`
+			Bio             *string `json:"bio"`
+			DisplayName     *string `json:"display_name"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			jsonError(w, "invalid request body", http.StatusBadRequest)
