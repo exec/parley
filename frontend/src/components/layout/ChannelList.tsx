@@ -1,9 +1,25 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import './ChannelList.css';
 import { ChannelOrder } from '../../api/channels';
 
-// ---- local type mirrors (avoid circular import) ----
+// ---- local types ----
 interface Channel {
   id: string;
   name: string;
@@ -22,14 +38,12 @@ interface User {
 
 // ---- context menus ----
 
-interface UserContextMenuProps {
+const UserContextMenu: React.FC<{
   position: { top: number; left: number };
   onClose: () => void;
   onSettings: () => void;
   onLogout: () => void;
-}
-
-const UserContextMenu: React.FC<UserContextMenuProps> = ({ position, onClose, onSettings, onLogout }) => {
+}> = ({ position, onClose, onSettings, onLogout }) => {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const handle = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose(); };
@@ -45,14 +59,12 @@ const UserContextMenu: React.FC<UserContextMenuProps> = ({ position, onClose, on
   );
 };
 
-interface ServerContextMenuProps {
+const ServerContextMenu: React.FC<{
   position: { top: number; left: number };
   onClose: () => void;
   onLeave?: () => void;
   onSettings?: () => void;
-}
-
-const ServerContextMenu: React.FC<ServerContextMenuProps> = ({ position, onClose, onLeave, onSettings }) => {
+}> = ({ position, onClose, onLeave, onSettings }) => {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const handle = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose(); };
@@ -72,7 +84,7 @@ const ServerContextMenu: React.FC<ServerContextMenuProps> = ({ position, onClose
   );
 };
 
-interface ChannelContextMenuProps {
+const ChannelContextMenu: React.FC<{
   channel: Channel;
   position: { top: number; left: number };
   canManageChannels: boolean;
@@ -80,9 +92,7 @@ interface ChannelContextMenuProps {
   onRename: () => void;
   onDelete: () => void;
   onMarkAsRead: () => void;
-}
-
-const ChannelContextMenu: React.FC<ChannelContextMenuProps> = ({ channel, position, canManageChannels, onClose, onRename, onDelete, onMarkAsRead }) => {
+}> = ({ channel, position, canManageChannels, onClose, onRename, onDelete, onMarkAsRead }) => {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const handle = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose(); };
@@ -103,6 +113,177 @@ const ChannelContextMenu: React.FC<ChannelContextMenuProps> = ({ channel, positi
           <button className="cl-server-context-item danger" onClick={() => { onDelete(); onClose(); }}>Delete</button>
         </>
       )}
+    </div>
+  );
+};
+
+// ---- sortable channel item ----
+
+function channelIcon(type: number) {
+  if (type === 1) return '🔊';
+  if (type === 2) return '</>';
+  return '#';
+}
+
+const SortableChannelItem: React.FC<{
+  channel: Channel;
+  isActive: boolean;
+  unread: number;
+  isRenaming: boolean;
+  renameValue: string;
+  renameInputRef: React.RefObject<HTMLInputElement>;
+  hoveredChannel: string | null;
+  canManageChannels: boolean;
+  activeVoiceChannelId: string | null;
+  voiceParticipants: Record<string, { user_id: string; username: string; avatar_url?: string }[]>;
+  onSelect: () => void;
+  onContextMenu: (e: React.MouseEvent) => void;
+  onMouseEnter: () => void;
+  onMouseLeave: () => void;
+  onDelete: () => void;
+  onVoiceClick?: () => void;
+  onRenameChange: (v: string) => void;
+  onRenameBlur: () => void;
+  onRenameKeyDown: (e: React.KeyboardEvent) => void;
+  isDragging?: boolean;
+}> = ({
+  channel, isActive, unread, isRenaming, renameValue, renameInputRef,
+  hoveredChannel, canManageChannels, activeVoiceChannelId, voiceParticipants,
+  onSelect, onContextMenu, onMouseEnter, onMouseLeave, onDelete, onVoiceClick,
+  onRenameChange, onRenameBlur, onRenameKeyDown, isDragging,
+}) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging: sortableDragging } = useSortable({ id: channel.id, disabled: !canManageChannels });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging || sortableDragging ? 0.5 : 1,
+  };
+
+  if (channel.type === 1) {
+    const participants = voiceParticipants[channel.id] ?? [];
+    const isVoiceActive = channel.id === activeVoiceChannelId;
+    return (
+      <div ref={setNodeRef} style={style} {...attributes} {...(canManageChannels ? listeners : {})}>
+        <div
+          className={`voice-channel-item${isVoiceActive ? ' active' : ''}`}
+          onClick={onVoiceClick}
+          onContextMenu={onContextMenu}
+          onMouseEnter={onMouseEnter}
+          onMouseLeave={onMouseLeave}
+        >
+          <span className="voice-icon">🔊</span>
+          <span className="channel-name">{channel.name}</span>
+          {participants.length > 0 && <span className="voice-count">{participants.length}</span>}
+          {canManageChannels && hoveredChannel === channel.id && (
+            <button className="delete-channel-btn" onClick={e => { e.stopPropagation(); onDelete(); }} title="Delete">×</button>
+          )}
+        </div>
+        {participants.length > 0 && (
+          <div className="voice-participants-list">
+            {participants.map(p => (
+              <div key={p.user_id} className="voice-participant-row">
+                <div className="voice-participant-avatar">
+                  {p.avatar_url ? <img src={p.avatar_url} alt={p.username} /> : p.username.charAt(0).toUpperCase()}
+                </div>
+                <span>{p.username}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...(canManageChannels ? listeners : {})}>
+      <div
+        className={`channel-item${isActive ? ' active' : ''}${unread > 0 && !isActive ? ' unread' : ''}`}
+        onClick={() => !isRenaming && onSelect()}
+        onContextMenu={onContextMenu}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
+      >
+        <span className="channel-icon">{channelIcon(channel.type)}</span>
+        {isRenaming ? (
+          <input
+            ref={renameInputRef}
+            className="channel-rename-input"
+            value={renameValue}
+            onChange={e => onRenameChange(e.target.value)}
+            onBlur={onRenameBlur}
+            onKeyDown={onRenameKeyDown}
+            onClick={e => e.stopPropagation()}
+          />
+        ) : (
+          <span className="channel-name">{channel.name}</span>
+        )}
+        {unread > 0 && !isActive && !isRenaming && (
+          <span className="channel-unread-badge">{unread > 99 ? '99+' : unread}</span>
+        )}
+        {canManageChannels && hoveredChannel === channel.id && !isRenaming && (
+          <button className="delete-channel-btn" onClick={e => { e.stopPropagation(); onDelete(); }} title="Delete">×</button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ---- sortable category ----
+
+const SortableCategoryHeader: React.FC<{
+  category: Channel;
+  isCollapsed: boolean;
+  isRenaming: boolean;
+  renameValue: string;
+  renameInputRef: React.RefObject<HTMLInputElement>;
+  canManageChannels: boolean;
+  onToggle: () => void;
+  onCreateChannel: () => void;
+  onContextMenu: (e: React.MouseEvent) => void;
+  onRenameChange: (v: string) => void;
+  onRenameBlur: () => void;
+  onRenameKeyDown: (e: React.KeyboardEvent) => void;
+}> = ({
+  category, isCollapsed, isRenaming, renameValue, renameInputRef,
+  canManageChannels, onToggle, onCreateChannel, onContextMenu,
+  onRenameChange, onRenameBlur, onRenameKeyDown,
+}) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: category.id, disabled: !canManageChannels });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+  return (
+    <div ref={setNodeRef} style={style}>
+      <div className="category-row">
+        <div
+          className={`category-header${isCollapsed ? ' collapsed' : ''}`}
+          onClick={onToggle}
+          onContextMenu={onContextMenu}
+          {...(canManageChannels ? { ...attributes, ...listeners } : {})}
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M7 10l5 5 5-5z" />
+          </svg>
+          {isRenaming ? (
+            <input
+              ref={renameInputRef}
+              className="channel-rename-input"
+              value={renameValue}
+              onChange={e => onRenameChange(e.target.value)}
+              onBlur={onRenameBlur}
+              onKeyDown={onRenameKeyDown}
+              onClick={e => e.stopPropagation()}
+            />
+          ) : (
+            category.name.toUpperCase()
+          )}
+        </div>
+        {canManageChannels && (
+          <button className="add-channel-btn" onClick={onCreateChannel} title="Create channel">+</button>
+        )}
+      </div>
     </div>
   );
 };
@@ -131,7 +312,6 @@ interface ChannelListProps {
   onRenameChannel?: (channelId: string, newName: string) => void;
   onMarkChannelRead?: (channelId: string) => void;
   onReorderChannels?: (orders: ChannelOrder[]) => void;
-  // Voice bar
   vcConnected?: boolean;
   vcMuted?: boolean;
   vcDeafened?: boolean;
@@ -141,42 +321,15 @@ interface ChannelListProps {
   onVcNavigate?: () => void;
 }
 
-// ---- channel icon helper ----
-function channelIcon(type: number) {
-  if (type === 1) return '🔊';
-  if (type === 2) return '</>';
-  return '#';
-}
+// ---- main component ----
 
 const ChannelList: React.FC<ChannelListProps> = ({
-  serverName,
-  channels,
-  activeChannelId,
-  onChannelSelect,
-  onCreateChannel,
-  onDeleteChannel,
-  onManageRoles,
-  onServerSettings,
-  onLeaveServer,
-  owner_id,
-  currentUser,
-  onLogout,
-  onOpenSettings,
-  onVoiceChannelClick,
-  voiceParticipants = {},
-  activeVoiceChannelId = null,
-  channelUnreadCounts = {},
-  canManageChannels = false,
-  onRenameChannel,
-  onMarkChannelRead,
-  onReorderChannels,
-  vcConnected,
-  vcMuted,
-  vcDeafened,
-  onVcMuteToggle,
-  onVcDeafenToggle,
-  onVcLeave,
-  onVcNavigate,
+  serverName, channels, activeChannelId, onChannelSelect, onCreateChannel,
+  onDeleteChannel, onManageRoles, onServerSettings, onLeaveServer,
+  owner_id, currentUser, onLogout, onOpenSettings, onVoiceChannelClick,
+  voiceParticipants = {}, activeVoiceChannelId = null, channelUnreadCounts = {},
+  canManageChannels = false, onRenameChannel, onMarkChannelRead, onReorderChannels,
+  vcConnected, vcMuted, vcDeafened, onVcMuteToggle, onVcDeafenToggle, onVcLeave, onVcNavigate,
 }) => {
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [hoveredChannel, setHoveredChannel] = useState<string | null>(null);
@@ -186,6 +339,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
   const [renamingChannelId, setRenamingChannelId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
 
   useEffect(() => { if (renamingChannelId) renameInputRef.current?.focus(); }, [renamingChannelId]);
 
@@ -194,164 +348,112 @@ const ChannelList: React.FC<ChannelListProps> = ({
     if (renameValue.trim()) onRenameChannel?.(channelId, renameValue.trim());
     setRenamingChannelId(null);
   };
-
-  const toggleCategory = (catId: string) => {
-    setCollapsedCategories(prev => {
-      const next = new Set(prev);
-      if (next.has(catId)) next.delete(catId); else next.add(catId);
-      return next;
-    });
+  const renameKeyDown = (channelId: string) => (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') { e.preventDefault(); commitRename(channelId); }
+    if (e.key === 'Escape') setRenamingChannelId(null);
   };
 
-  // Build ordered structure: categories sorted by position, channels sorted by position
   const sorted = [...channels].sort((a, b) => a.position - b.position || a.name.localeCompare(b.name));
   const categories = sorted.filter(c => c.type === 3);
   const uncategorized = sorted.filter(c => c.type !== 3 && !c.parent_id);
-  const childrenOf = (catId: string) => sorted.filter(c => c.type !== 3 && c.parent_id === catId);
 
-  // ---- drag and drop ----
-  const handleDragEnd = (result: DropResult) => {
-    if (!result.destination || !onReorderChannels) return;
-    const { source, destination, draggableId, type } = result;
-    if (source.droppableId === destination.droppableId && source.index === destination.index) return;
+  const childrenOf = useCallback((catId: string) =>
+    sorted.filter(c => c.type !== 3 && c.parent_id === catId),
+  [sorted]);
 
-    // Build a mutable sorted list we can mutate
-    const allSorted = [...sorted];
+  // dnd-kit sensors — require 8px movement to start drag (prevents click hijacking)
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
-    if (type === 'CATEGORY') {
-      // Reorder categories among themselves
-      const cats = categories.filter(c => c.id !== draggableId);
-      cats.splice(destination.index, 0, categories[source.index]);
-      const orders: ChannelOrder[] = cats.map((c, i) => ({ id: c.id, position: i * 10, parent_id: null }));
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(String(event.active.id));
+  };
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    setActiveId(null);
+    if (!onReorderChannels) return;
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const activeChannel = channels.find(c => c.id === active.id);
+    const overChannel = channels.find(c => c.id === over.id);
+    if (!activeChannel || !overChannel) return;
+
+    const isCategory = activeChannel.type === 3;
+
+    if (isCategory) {
+      // Reorder categories
+      const catIds = categories.map(c => c.id);
+      const oldIdx = catIds.indexOf(String(active.id));
+      const newIdx = catIds.indexOf(String(over.id));
+      if (oldIdx === -1 || newIdx === -1) return;
+      const reordered = arrayMove(categories, oldIdx, newIdx);
+      const orders: ChannelOrder[] = reordered.map((c, i) => ({ id: c.id, position: i * 10, parent_id: null }));
       onReorderChannels(orders);
     } else {
-      // type === 'CHANNEL' — reorder within or between category droppables
-      const srcCatId = source.droppableId === 'uncategorized' ? null : source.droppableId.replace('cat-', '');
-      const dstCatId = destination.droppableId === 'uncategorized' ? null : destination.droppableId.replace('cat-', '');
+      // Reorder channels
+      const srcParent = activeChannel.parent_id ?? null;
+      const dstParent = overChannel.type === 3 ? overChannel.id : (overChannel.parent_id ?? null);
 
-      const srcList = srcCatId
-        ? allSorted.filter(c => c.type !== 3 && c.parent_id === srcCatId)
-        : allSorted.filter(c => c.type !== 3 && !c.parent_id);
-
-      const moved = srcList[source.index];
-      if (!moved) return;
-
-      if (srcCatId === dstCatId) {
-        // Same category: just reorder
-        const list = [...srcList];
-        list.splice(source.index, 1);
-        list.splice(destination.index, 0, moved);
-        const orders: ChannelOrder[] = list.map((c, i) => ({ id: c.id, position: i * 10, parent_id: dstCatId }));
+      if (srcParent === dstParent) {
+        // Same container — reorder within
+        const list = dstParent ? childrenOf(dstParent) : uncategorized;
+        const oldIdx = list.findIndex(c => c.id === active.id);
+        const newIdx = list.findIndex(c => c.id === over.id);
+        if (oldIdx === -1 || newIdx === -1) return;
+        const reordered = arrayMove(list, oldIdx, newIdx);
+        const orders: ChannelOrder[] = reordered.map((c, i) => ({ id: c.id, position: i * 10, parent_id: dstParent }));
         onReorderChannels(orders);
       } else {
-        // Moving between categories — update source list and destination list
-        const dstList = dstCatId
-          ? allSorted.filter(c => c.type !== 3 && c.parent_id === dstCatId)
-          : allSorted.filter(c => c.type !== 3 && !c.parent_id);
-
-        const newSrc = srcList.filter(c => c.id !== moved.id);
+        // Cross-container move
+        const srcList = srcParent ? childrenOf(srcParent) : uncategorized;
+        const dstList = dstParent ? childrenOf(dstParent) : uncategorized;
+        const newSrc = srcList.filter(c => c.id !== active.id);
+        const dstIdx = dstParent && overChannel.type === 3 ? dstList.length : dstList.findIndex(c => c.id === over.id);
         const newDst = [...dstList];
-        newDst.splice(destination.index, 0, moved);
-
+        newDst.splice(dstIdx === -1 ? newDst.length : dstIdx, 0, activeChannel);
         const orders: ChannelOrder[] = [
-          ...newSrc.map((c, i) => ({ id: c.id, position: i * 10, parent_id: srcCatId })),
-          ...newDst.map((c, i) => ({ id: c.id, position: i * 10, parent_id: dstCatId })),
+          ...newSrc.map((c, i) => ({ id: c.id, position: i * 10, parent_id: srcParent })),
+          ...newDst.map((c, i) => ({ id: c.id, position: i * 10, parent_id: dstParent })),
         ];
         onReorderChannels(orders);
       }
     }
-  };
+  }, [channels, categories, uncategorized, childrenOf, onReorderChannels]);
 
-  // ---- channel item renderer ----
-  const renderChannel = (channel: Channel, index: number) => {
-    const unread = channelUnreadCounts[channel.id] ?? 0;
-    const isActive = channel.id === activeChannelId;
-    const isRenaming = renamingChannelId === channel.id;
+  const renderChannelItem = (ch: Channel) => (
+    <SortableChannelItem
+      key={ch.id}
+      channel={ch}
+      isActive={ch.id === activeChannelId}
+      unread={channelUnreadCounts[ch.id] ?? 0}
+      isRenaming={renamingChannelId === ch.id}
+      renameValue={renameValue}
+      renameInputRef={renameInputRef}
+      hoveredChannel={hoveredChannel}
+      canManageChannels={canManageChannels}
+      activeVoiceChannelId={activeVoiceChannelId}
+      voiceParticipants={voiceParticipants}
+      onSelect={() => onChannelSelect(ch.id)}
+      onContextMenu={e => { e.preventDefault(); setChannelContextMenu({ channel: ch, top: e.clientY, left: e.clientX }); }}
+      onMouseEnter={() => setHoveredChannel(ch.id)}
+      onMouseLeave={() => setHoveredChannel(null)}
+      onDelete={() => onDeleteChannel(ch.id)}
+      onVoiceClick={() => onVoiceChannelClick?.(ch.id)}
+      onRenameChange={setRenameValue}
+      onRenameBlur={() => commitRename(ch.id)}
+      onRenameKeyDown={renameKeyDown(ch.id)}
+      isDragging={activeId === ch.id}
+    />
+  );
 
-    return (
-      <Draggable key={channel.id} draggableId={channel.id} index={index} isDragDisabled={!canManageChannels}>
-        {(provided, snapshot) => (
-          <div
-            ref={provided.innerRef}
-            {...provided.draggableProps}
-            {...provided.dragHandleProps}
-            style={provided.draggableProps.style}
-          >
-            {channel.type === 1 ? (
-              // Voice channel
-              <div>
-                <div
-                  className={`voice-channel-item ${channel.id === activeVoiceChannelId ? 'active' : ''} ${snapshot.isDragging ? 'dragging' : ''}`}
-                  onClick={() => onVoiceChannelClick?.(channel.id)}
-                  onContextMenu={e => { e.preventDefault(); setChannelContextMenu({ channel, top: e.clientY, left: e.clientX }); }}
-                  onMouseEnter={() => setHoveredChannel(channel.id)}
-                  onMouseLeave={() => setHoveredChannel(null)}
-                >
-                  <span className="voice-icon">🔊</span>
-                  <span className="channel-name">{channel.name}</span>
-                  {(voiceParticipants[channel.id]?.length ?? 0) > 0 && (
-                    <span className="voice-count">{voiceParticipants[channel.id].length}</span>
-                  )}
-                  {canManageChannels && hoveredChannel === channel.id && (
-                    <button className="delete-channel-btn" onClick={e => { e.stopPropagation(); onDeleteChannel(channel.id); }} title="Delete">×</button>
-                  )}
-                </div>
-                {(voiceParticipants[channel.id]?.length ?? 0) > 0 && (
-                  <div className="voice-participants-list">
-                    {voiceParticipants[channel.id].map(p => (
-                      <div key={p.user_id} className="voice-participant-row">
-                        <div className="voice-participant-avatar">
-                          {p.avatar_url ? <img src={p.avatar_url} alt={p.username} /> : p.username.charAt(0).toUpperCase()}
-                        </div>
-                        <span>{p.username}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ) : (
-              // Text / bin channel
-              <div
-                className={`channel-item ${isActive ? 'active' : ''} ${unread > 0 && !isActive ? 'unread' : ''} ${snapshot.isDragging ? 'dragging' : ''}`}
-                onClick={() => !isRenaming && onChannelSelect(channel.id)}
-                onContextMenu={e => { e.preventDefault(); setChannelContextMenu({ channel, top: e.clientY, left: e.clientX }); }}
-                onMouseEnter={() => setHoveredChannel(channel.id)}
-                onMouseLeave={() => setHoveredChannel(null)}
-              >
-                <span className="channel-icon">{channelIcon(channel.type)}</span>
-                {isRenaming ? (
-                  <input
-                    ref={renameInputRef}
-                    className="channel-rename-input"
-                    value={renameValue}
-                    onChange={e => setRenameValue(e.target.value)}
-                    onBlur={() => commitRename(channel.id)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') { e.preventDefault(); commitRename(channel.id); }
-                      if (e.key === 'Escape') setRenamingChannelId(null);
-                    }}
-                    onClick={e => e.stopPropagation()}
-                  />
-                ) : (
-                  <span className="channel-name">{channel.name}</span>
-                )}
-                {unread > 0 && !isActive && !isRenaming && (
-                  <span className="channel-unread-badge">{unread > 99 ? '99+' : unread}</span>
-                )}
-                {canManageChannels && hoveredChannel === channel.id && !isRenaming && (
-                  <button className="delete-channel-btn" onClick={e => { e.stopPropagation(); onDeleteChannel(channel.id); }} title="Delete">×</button>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </Draggable>
-    );
-  };
+  const activeItem = activeId ? channels.find(c => c.id === activeId) : null;
 
   return (
     <div className="channel-list">
-      <div className="server-header clickable" onClick={e => { const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); setServerContextMenu({ top: rect.top, left: rect.left }); }}>
+      <div
+        className="server-header clickable"
+        onClick={e => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setServerContextMenu({ top: r.top, left: r.left }); }}
+      >
         <span className="server-name">{serverName}</span>
         <div className="server-header-actions">
           {onServerSettings && (
@@ -370,85 +472,72 @@ const ChannelList: React.FC<ChannelListProps> = ({
       </div>
 
       <div className="channels-container">
-        <DragDropContext onDragEnd={handleDragEnd}>
-          {/* Uncategorized channels at top */}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          {/* Uncategorized channels */}
           {uncategorized.length > 0 && (
-            <Droppable droppableId="uncategorized" type="CHANNEL">
-              {(provided) => (
-                <div ref={provided.innerRef} {...provided.droppableProps} className="uncategorized-channels">
-                  {uncategorized.map((ch, i) => renderChannel(ch, i))}
-                  {provided.placeholder}
-                </div>
-              )}
-            </Droppable>
+            <SortableContext items={uncategorized.map(c => c.id)} strategy={verticalListSortingStrategy}>
+              <div className="uncategorized-channels">
+                {uncategorized.map(ch => renderChannelItem(ch))}
+              </div>
+            </SortableContext>
           )}
 
           {/* Categories */}
-          <Droppable droppableId="categories" type="CATEGORY">
-            {(provided) => (
-              <div ref={provided.innerRef} {...provided.droppableProps}>
-                {categories.map((cat, catIndex) => {
-                  const isCollapsed = collapsedCategories.has(cat.id);
-                  const children = childrenOf(cat.id);
-                  const isRenamingCat = renamingChannelId === cat.id;
-                  return (
-                    <Draggable key={cat.id} draggableId={cat.id} index={catIndex} isDragDisabled={!canManageChannels}>
-                      {(catProvided) => (
-                        <div ref={catProvided.innerRef} {...catProvided.draggableProps} style={catProvided.draggableProps.style}>
-                          <div className="category-row">
-                            <div
-                              className={`category-header ${isCollapsed ? 'collapsed' : ''}`}
-                              onClick={() => toggleCategory(cat.id)}
-                              onContextMenu={e => { e.preventDefault(); setChannelContextMenu({ channel: cat, top: e.clientY, left: e.clientX }); }}
-                              {...(canManageChannels ? catProvided.dragHandleProps : {})}
-                            >
-                              <svg viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M7 10l5 5 5-5z" />
-                              </svg>
-                              {isRenamingCat ? (
-                                <input
-                                  ref={renameInputRef}
-                                  className="channel-rename-input"
-                                  value={renameValue}
-                                  onChange={e => setRenameValue(e.target.value)}
-                                  onBlur={() => commitRename(cat.id)}
-                                  onKeyDown={e => {
-                                    if (e.key === 'Enter') { e.preventDefault(); commitRename(cat.id); }
-                                    if (e.key === 'Escape') setRenamingChannelId(null);
-                                  }}
-                                  onClick={e => e.stopPropagation()}
-                                />
-                              ) : (
-                                cat.name.toUpperCase()
-                              )}
-                            </div>
-                            {canManageChannels && (
-                              <button className="add-channel-btn" onClick={onCreateChannel} title="Create channel">+</button>
-                            )}
-                          </div>
+          <SortableContext items={categories.map(c => c.id)} strategy={verticalListSortingStrategy}>
+            {categories.map(cat => {
+              const isCollapsed = collapsedCategories.has(cat.id);
+              const children = childrenOf(cat.id);
+              return (
+                <div key={cat.id}>
+                  <SortableCategoryHeader
+                    category={cat}
+                    isCollapsed={isCollapsed}
+                    isRenaming={renamingChannelId === cat.id}
+                    renameValue={renameValue}
+                    renameInputRef={renameInputRef}
+                    canManageChannels={canManageChannels}
+                    onToggle={() => setCollapsedCategories(prev => {
+                      const next = new Set(prev);
+                      if (next.has(cat.id)) next.delete(cat.id); else next.add(cat.id);
+                      return next;
+                    })}
+                    onCreateChannel={onCreateChannel}
+                    onContextMenu={e => { e.preventDefault(); setChannelContextMenu({ channel: cat, top: e.clientY, left: e.clientX }); }}
+                    onRenameChange={setRenameValue}
+                    onRenameBlur={() => commitRename(cat.id)}
+                    onRenameKeyDown={renameKeyDown(cat.id)}
+                  />
+                  {!isCollapsed && (
+                    <SortableContext items={children.map(c => c.id)} strategy={verticalListSortingStrategy}>
+                      <div className="category-channels">
+                        {children.map(ch => renderChannelItem(ch))}
+                      </div>
+                    </SortableContext>
+                  )}
+                </div>
+              );
+            })}
+          </SortableContext>
 
-                          {!isCollapsed && (
-                            <Droppable droppableId={`cat-${cat.id}`} type="CHANNEL">
-                              {(chProvided) => (
-                                <div ref={chProvided.innerRef} {...chProvided.droppableProps} className="category-channels">
-                                  {children.map((ch, i) => renderChannel(ch, i))}
-                                  {chProvided.placeholder}
-                                </div>
-                              )}
-                            </Droppable>
-                          )}
-                        </div>
-                      )}
-                    </Draggable>
-                  );
-                })}
-                {provided.placeholder}
+          <DragOverlay>
+            {activeItem && (
+              <div className={activeItem.type === 3 ? 'category-drag-overlay' : 'channel-drag-overlay'}>
+                {activeItem.type === 3 ? activeItem.name.toUpperCase() : (
+                  <>
+                    <span className="channel-icon">{channelIcon(activeItem.type)}</span>
+                    <span className="channel-name">{activeItem.name}</span>
+                  </>
+                )}
               </div>
             )}
-          </Droppable>
-        </DragDropContext>
+          </DragOverlay>
+        </DndContext>
 
-        {/* Add channel button when no categories exist */}
         {categories.length === 0 && canManageChannels && (
           <div className="category-row">
             <div className="category-header" style={{ cursor: 'default' }}>Channels</div>
@@ -472,25 +561,17 @@ const ChannelList: React.FC<ChannelListProps> = ({
           </div>
           {(() => {
             const vcCh = channels.find(c => c.id === activeVoiceChannelId);
-            return vcCh ? (
-              <div className="voice-bar-channel" onClick={onVcNavigate} title="Go to voice channel">
-                🔊 {vcCh.name}
-              </div>
-            ) : null;
+            return vcCh ? <div className="voice-bar-channel" onClick={onVcNavigate} title="Go to voice channel">🔊 {vcCh.name}</div> : null;
           })()}
           <div className="voice-bar-controls">
-            <button className={`voice-bar-btn${vcMuted ? ' active' : ''}`} onClick={onVcMuteToggle} title={vcMuted ? 'Unmute' : 'Mute'}>
-              {vcMuted ? '🔇' : '🎙'}
-            </button>
-            <button className={`voice-bar-btn${vcDeafened ? ' active' : ''}`} onClick={onVcDeafenToggle} title={vcDeafened ? 'Undeafen' : 'Deafen'}>
-              {vcDeafened ? '🔕' : '🔔'}
-            </button>
+            <button className={`voice-bar-btn${vcMuted ? ' active' : ''}`} onClick={onVcMuteToggle} title={vcMuted ? 'Unmute' : 'Mute'}>{vcMuted ? '🔇' : '🎙'}</button>
+            <button className={`voice-bar-btn${vcDeafened ? ' active' : ''}`} onClick={onVcDeafenToggle} title={vcDeafened ? 'Undeafen' : 'Deafen'}>{vcDeafened ? '🔕' : '🔔'}</button>
             <button className="voice-bar-btn leave" onClick={onVcLeave} title="Leave voice">✕ Leave</button>
           </div>
         </div>
       )}
 
-      <div className="user-area clickable" onClick={e => { const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); setUserContextMenu({ top: rect.top, left: rect.left }); }} title="Click for user settings">
+      <div className="user-area clickable" onClick={e => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setUserContextMenu({ top: r.top, left: r.left }); }} title="Click for user settings">
         <div className="user-info">
           <div className="user-avatar">
             {currentUser?.avatar_url
