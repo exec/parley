@@ -286,6 +286,15 @@ type BinLineComment struct {
 	AuthorAvatarURL string `json:"author_avatar_url,omitempty" db:"-"`
 }
 
+// Overwrite represents a permission overwrite for a channel (role or member).
+// TargetType: 0 = role, 1 = member.
+type Overwrite struct {
+	TargetType int
+	TargetID   int64
+	Allow      int64
+	Deny       int64
+}
+
 // BinChannelTag represents an admin-defined tag for a bin channel.
 type BinChannelTag struct {
 	ID        int64  `json:"id" db:"id"`

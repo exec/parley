@@ -71,13 +71,8 @@ const PermDefaultEveryone int64 = PermViewChannel | PermSendMessages | PermReadM
 	PermAddReactions | PermEmbedLinks | PermAttachFiles | PermConnect | PermSpeak |
 	PermUseVAD | PermChangeNickname | PermCreateInvite | PermCreatePosts
 
-// Overwrite represents a permission overwrite for a channel.
-type Overwrite struct {
-	TargetType int   // 0 = role, 1 = member
-	TargetID   int64
-	Allow      int64
-	Deny       int64
-}
+// Overwrite is an alias for db.Overwrite for backward compatibility.
+type Overwrite = db.Overwrite
 
 // ComputeBasePermissions computes server-wide permissions.
 func ComputeBasePermissions(everyonePerms int64, memberRolePerms []int64, isOwner bool) int64 {
