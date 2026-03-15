@@ -34,6 +34,11 @@ export interface VoiceStateUpdate {
   action: 'join' | 'leave';
 }
 
+export interface BinPostEvent {
+  post_id: string;
+  channel_id: string;
+}
+
 interface UseWebSocketOptions {
   onMessage: (msg: Message) => void;
   onDmMessage?: (msg: DmMessage) => void;
@@ -56,11 +61,14 @@ interface UseWebSocketOptions {
   onMemberRoleUpdate?: (update: MemberRoleUpdate) => void;
   onUserUpdate?: (update: UserUpdate) => void;
   onVoiceStateUpdate?: (update: VoiceStateUpdate) => void;
+  onBinPostCreate?: (event: BinPostEvent) => void;
+  onBinPostUpdate?: (event: BinPostEvent) => void;
+  onBinPostDelete?: (event: BinPostEvent) => void;
   activeChannelId: string | null;
   extraChannelIds?: string[]; // Additional channels to subscribe to for notifications
 }
 
-export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onServerMemberLeave, onServerMemberKick, onServerMemberBan, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, onChannelCreate, onChannelUpdate, onChannelDelete, onServerUpdate, onServerDelete, onMemberRoleUpdate, onUserUpdate, onVoiceStateUpdate, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
+export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onServerMemberLeave, onServerMemberKick, onServerMemberBan, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, onChannelCreate, onChannelUpdate, onChannelDelete, onServerUpdate, onServerDelete, onMemberRoleUpdate, onUserUpdate, onVoiceStateUpdate, onBinPostCreate, onBinPostUpdate, onBinPostDelete, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const subscribedChannelsRef = useRef<Set<string>>(new Set());
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -90,6 +98,9 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
   const onMemberRoleUpdateRef = useRef(onMemberRoleUpdate);
   const onUserUpdateRef = useRef(onUserUpdate);
   const onVoiceStateUpdateRef = useRef(onVoiceStateUpdate);
+  const onBinPostCreateRef = useRef(onBinPostCreate);
+  const onBinPostUpdateRef = useRef(onBinPostUpdate);
+  const onBinPostDeleteRef = useRef(onBinPostDelete);
   useEffect(() => { onMessageRef.current = onMessage; }, [onMessage]);
   useEffect(() => { onDmMessageRef.current = onDmMessage; }, [onDmMessage]);
   useEffect(() => { onServerMemberJoinRef.current = onServerMemberJoin; }, [onServerMemberJoin]);
@@ -111,6 +122,9 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
   useEffect(() => { onMemberRoleUpdateRef.current = onMemberRoleUpdate; }, [onMemberRoleUpdate]);
   useEffect(() => { onUserUpdateRef.current = onUserUpdate; }, [onUserUpdate]);
   useEffect(() => { onVoiceStateUpdateRef.current = onVoiceStateUpdate; }, [onVoiceStateUpdate]);
+  useEffect(() => { onBinPostCreateRef.current = onBinPostCreate; }, [onBinPostCreate]);
+  useEffect(() => { onBinPostUpdateRef.current = onBinPostUpdate; }, [onBinPostUpdate]);
+  useEffect(() => { onBinPostDeleteRef.current = onBinPostDelete; }, [onBinPostDelete]);
 
   const sendTyping = useCallback((channelId: string, username: string) => {
     const ws = wsRef.current;
@@ -242,6 +256,33 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
         } else if (wsMsg.type === 'VOICE_STATE_UPDATE' && onVoiceStateUpdateRef.current) {
           if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
             onVoiceStateUpdateRef.current(wsMsg.payload as VoiceStateUpdate);
+          }
+        } else if (wsMsg.type === 'BIN_POST_CREATE') {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            const event = wsMsg.payload as BinPostEvent;
+            if (onBinPostCreateRef.current) {
+              onBinPostCreateRef.current(event);
+            } else {
+              console.log('[WebSocket] BIN_POST_CREATE', event);
+            }
+          }
+        } else if (wsMsg.type === 'BIN_POST_UPDATE') {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            const event = wsMsg.payload as BinPostEvent;
+            if (onBinPostUpdateRef.current) {
+              onBinPostUpdateRef.current(event);
+            } else {
+              console.log('[WebSocket] BIN_POST_UPDATE', event);
+            }
+          }
+        } else if (wsMsg.type === 'BIN_POST_DELETE') {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            const event = wsMsg.payload as BinPostEvent;
+            if (onBinPostDeleteRef.current) {
+              onBinPostDeleteRef.current(event);
+            } else {
+              console.log('[WebSocket] BIN_POST_DELETE', event);
+            }
           }
         }
       } catch (err) {

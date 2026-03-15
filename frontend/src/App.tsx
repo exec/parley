@@ -9,15 +9,19 @@ import { AppProvider, useApp } from './context/AppContext';
 import { Landing } from './pages/Landing';
 import { useWebSocket, MemberRoleUpdate, UserUpdate, VoiceStateUpdate } from './hooks/useWebSocket';
 import { VoiceChannel } from './components/voice/VoiceChannel';
-import { DmMessage, Message } from './api/types';
+import { DmMessage, Message, BinChannelTag } from './api/types';
 import * as serversApi from './api/servers';
 import * as channelsApi from './api/channels';
 import { getVoiceParticipants } from './api/voice';
+import { getTags } from './api/bin';
 import MainLayout from './components/layout/MainLayout';
 import ChannelList from './components/layout/ChannelList';
 import DmPanel from './components/layout/DmPanel';
 import UserSidebar from './components/layout/UserSidebar';
 import { ChatWindow } from './components/chat/ChatWindow';
+import { BinChannel } from './components/bin/BinChannel';
+import { PostView } from './components/bin/PostView';
+import { CreatePostModal } from './components/bin/CreatePostModal';
 import { Homepage } from './pages/Homepage';
 import { CreateServerModal } from './components/modals/CreateServerModal';
 import { CreateChannelModal } from './components/modals/CreateChannelModal';
@@ -138,6 +142,11 @@ function MainApp() {
   // Reply-to state for nested replies
   const [replyTo, setReplyTo] = useState<Message | null>(null);
 
+  // Bin channel state
+  const [activePostId, setActivePostId] = useState<string | null>(null);
+  const [showCreatePost, setShowCreatePost] = useState(false);
+  const [binTags, setBinTags] = useState<BinChannelTag[]>([]);
+
   // Typing indicators: channelId → list of typing users
   const [typingUsers, setTypingUsers] = useState<Record<string, { userId: string; username: string }[]>>({});
   const typingTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -194,6 +203,18 @@ function MainApp() {
       navigate('/channels/@me', { replace: true });
     }
   }, [activeDmChannel?.id, activeServer?.id, activeChannel?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset bin state when channel changes
+  useEffect(() => {
+    setActivePostId(null);
+    setShowCreatePost(false);
+    setBinTags([]);
+    if (activeChannel?.type === 2) {
+      getTags(activeChannel.id)
+        .then(tags => setBinTags(tags))
+        .catch(console.error);
+    }
+  }, [activeChannel?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clear unread count when the active channel or DM channel changes
   useEffect(() => {
@@ -262,7 +283,7 @@ function MainApp() {
 
   // Fetch initial voice presence whenever the channel list changes (server switch / reload)
   useEffect(() => {
-    const voiceChannels = channels.filter(c => c.type === 1 || c.type === 2);
+    const voiceChannels = channels.filter(c => c.type === 1);
     if (voiceChannels.length === 0) return;
     Promise.all(
       voiceChannels.map(ch =>
@@ -583,7 +604,17 @@ function MainApp() {
 
   // Build main content
   let mainContent: React.ReactNode;
-  if (isViewingVC && vcChannel && currentUser) {
+  if (activeChannel?.type === 2) {
+    mainContent = activePostId ? (
+      <PostView postId={activePostId} onBack={() => setActivePostId(null)} />
+    ) : (
+      <BinChannel
+        channelId={activeChannel.id}
+        onOpenPost={setActivePostId}
+        onNewPost={() => setShowCreatePost(true)}
+      />
+    );
+  } else if (isViewingVC && vcChannel && currentUser) {
     mainContent = (
       <div className="vc-layout">
         <div className="vc-participants-panel">
@@ -799,6 +830,19 @@ function MainApp() {
         serverId={notifSettingsServerId}
         serverName={servers.find(s => s.id === notifSettingsServerId)?.name ?? ''}
       />
+
+      {showCreatePost && activeChannel?.type === 2 && (
+        <CreatePostModal
+          isOpen={showCreatePost}
+          channelId={activeChannel.id}
+          availableTags={binTags}
+          onClose={() => setShowCreatePost(false)}
+          onCreated={(postId) => {
+            setShowCreatePost(false);
+            setActivePostId(postId);
+          }}
+        />
+      )}
 
     </>
   );
