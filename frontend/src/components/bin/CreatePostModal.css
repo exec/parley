@@ -1,0 +1,206 @@
+/* =========================================================
+   CreatePostModal — create a new bin post
+   Green terminal theme: #32CD32 on #000000
+   ========================================================= */
+
+/* Override modal width for the larger form */
+.create-post-modal .modal-content {
+  min-width: 600px;
+  max-width: 800px;
+  width: 90vw;
+}
+
+/* ---- Files section ---- */
+
+.create-post-files {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.create-post-file-entry {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.create-post-file-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.create-post-file-number {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.create-post-file-header-inputs {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+}
+
+.create-post-filename-input {
+  flex: 2;
+}
+
+.create-post-language-input {
+  flex: 1;
+}
+
+.create-post-file-remove {
+  background: none;
+  border: none;
+  color: var(--discord-text-dim);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 3px;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+
+.create-post-file-remove:hover {
+  color: var(--discord-danger);
+}
+
+.create-post-code-textarea {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: 'Fira Mono', 'Consolas', 'Menlo', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 10px 12px;
+  resize: vertical;
+  min-height: 120px;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.create-post-code-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.create-post-code-textarea::placeholder {
+  color: var(--discord-text-dim);
+  font-family: 'Fira Mono', 'Consolas', 'Menlo', monospace;
+}
+
+.add-file-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+  align-self: flex-start;
+}
+
+.add-file-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ---- Tags section ---- */
+
+.create-post-tag-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.create-post-tag-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 12px;
+  border: 1px solid;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s;
+  background: transparent;
+  font-family: inherit;
+}
+
+.create-post-tag-pill:hover {
+  opacity: 0.85;
+}
+
+.create-post-tag-pill.selected {
+  background: rgba(50, 205, 50, 0.12);
+}
+
+.create-post-custom-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 6px;
+}
+
+.create-post-custom-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px 2px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: 12px;
+  background: rgba(50, 205, 50, 0.08);
+}
+
+.create-post-custom-tag-remove {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.create-post-custom-tag-remove:hover {
+  opacity: 1;
+}
+
+.create-post-tag-input {
+  /* uses .form-input from styles.css */
+  font-size: 13px;
+}
+
+.create-post-tag-hint {
+  font-size: 11px;
+  color: var(--discord-text-dim);
+  margin-top: 4px;
+}
+
+/* ---- Description textarea ---- */
+
+.create-post-desc-textarea {
+  resize: vertical;
+  min-height: 80px;
+}
