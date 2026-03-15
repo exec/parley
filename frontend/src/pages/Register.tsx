@@ -18,7 +18,7 @@ export const Register: React.FC = () => {
   const validate = (): boolean => {
     const e: Record<string, string> = {};
     if (!username.trim()) e.username = 'Username is required';
-    else if (username.length < 3) e.username = 'Username must be at least 3 characters';
+    else if (username.length < 2) e.username = 'Username must be at least 2 characters';
     else if (!/^[a-zA-Z0-9_]+$/.test(username)) e.username = 'Letters, numbers, and underscores only';
 
     if (method === 'email') {
