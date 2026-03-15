@@ -6,6 +6,7 @@ import { InvitePage } from './pages/InvitePage';
 import { VerifyEmail } from './pages/VerifyEmail';
 import { Impersonate } from './pages/Impersonate';
 import { AppProvider, useApp } from './context/AppContext';
+import { Landing } from './pages/Landing';
 import { useWebSocket, MemberRoleUpdate, UserUpdate } from './hooks/useWebSocket';
 import { DmMessage } from './api/types';
 import * as serversApi from './api/servers';
@@ -614,6 +615,12 @@ const ProtectedApp = (
   </ProtectedRoute>
 );
 
+const HomeRoute: React.FC = () => {
+  const token = localStorage.getItem('token');
+  if (!token) return <Landing />;
+  return <>{ProtectedApp}</>;
+};
+
 function App() {
   return (
     <Routes>
@@ -632,7 +639,7 @@ function App() {
       <Route path="/verify-email" element={<VerifyEmail />} />
       <Route path="/impersonate" element={<Impersonate />} />
       {/* Channel routes — all handled by MainApp which syncs URL with state */}
-      <Route path="/" element={ProtectedApp} />
+      <Route path="/" element={<HomeRoute />} />
       <Route path="/channels/*" element={ProtectedApp} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
