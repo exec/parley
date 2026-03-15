@@ -109,6 +109,7 @@ type Channel struct {
 	Position    int           `json:"position" db:"position"`
 	ParentID    sql.NullInt64 `json:"parent_id" db:"parent_id"`
 	Topic       string        `json:"topic,omitempty" db:"topic"`
+	Synced      bool          `json:"synced" db:"synced"`
 	CreatedAt   time.Time     `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time     `json:"updated_at" db:"updated_at"`
 }
@@ -202,6 +203,7 @@ type ServerRole struct {
 	Permissions int64     `json:"permissions" db:"permissions"`
 	Hoist       bool      `json:"hoist" db:"hoist"`
 	Position    int       `json:"position" db:"position"`
+	IsEveryone  bool      `json:"is_everyone" db:"is_everyone"`
 	CreatedAt   time.Time `json:"created_at" db:"created_at"`
 }
 

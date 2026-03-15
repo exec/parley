@@ -460,6 +460,52 @@ CREATE TABLE IF NOT EXISTS bin_channel_tags (
 );
 CREATE INDEX IF NOT EXISTS idx_bin_channel_tags_channel_id ON bin_channel_tags(channel_id);
 `,
+
+	`-- Add is_everyone flag to server_roles
+ALTER TABLE server_roles ADD COLUMN IF NOT EXISTS is_everyone BOOLEAN NOT NULL DEFAULT FALSE;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_server_roles_everyone ON server_roles(server_id) WHERE is_everyone = TRUE;
+
+-- Add synced flag to channels for category permission sync
+ALTER TABLE channels ADD COLUMN IF NOT EXISTS synced BOOLEAN NOT NULL DEFAULT TRUE;
+
+-- Create permission_overwrites table
+CREATE TABLE IF NOT EXISTS permission_overwrites (
+    id BIGSERIAL PRIMARY KEY,
+    channel_id BIGINT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+    target_type SMALLINT NOT NULL,
+    target_id BIGINT NOT NULL,
+    allow BIGINT NOT NULL DEFAULT 0,
+    deny BIGINT NOT NULL DEFAULT 0,
+    UNIQUE(channel_id, target_type, target_id)
+);
+CREATE INDEX IF NOT EXISTS idx_perm_overwrites_channel ON permission_overwrites(channel_id);
+CREATE INDEX IF NOT EXISTS idx_perm_overwrites_target ON permission_overwrites(target_type, target_id);
+
+-- Remap existing permission bits to new layout
+UPDATE server_roles SET permissions =
+    (CASE WHEN permissions & 32 != 0 THEN 1 ELSE 0 END) |
+    (CASE WHEN permissions & 16 != 0 THEN 2 ELSE 0 END) |
+    (CASE WHEN permissions & 4  != 0 THEN 8 ELSE 0 END) |
+    (CASE WHEN permissions & 8  != 0 THEN 16 ELSE 0 END) |
+    (CASE WHEN permissions & 1  != 0 THEN 131072 ELSE 0 END) |
+    (CASE WHEN permissions & 2  != 0 THEN 4194304 ELSE 0 END)
+WHERE permissions != 0;
+
+-- Rename conflicting roles
+UPDATE server_roles SET name = 'everyone (renamed)' WHERE name = '@everyone';
+
+-- Seed @everyone role for every server
+INSERT INTO server_roles (server_id, name, color, permissions, hoist, position, is_everyone, created_at)
+SELECT s.id, '@everyone', '#99aab5',
+    (1::BIGINT << 16) | (1::BIGINT << 17) | (1::BIGINT << 23) | (1::BIGINT << 20) |
+    (1::BIGINT << 18) | (1::BIGINT << 19) | (1::BIGINT << 32) | (1::BIGINT << 33) |
+    (1::BIGINT << 37) | (1::BIGINT << 7) | (1::BIGINT << 8) | (1::BIGINT << 29),
+    FALSE, 0, TRUE, NOW()
+FROM servers s
+WHERE NOT EXISTS (
+    SELECT 1 FROM server_roles sr WHERE sr.server_id = s.id AND sr.is_everyone = TRUE
+);
+`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string
