@@ -148,37 +148,71 @@ func HasPerm(perms int64, perm int64) bool {
 	return perms&perm == perm
 }
 
-// GetEffectivePermissions returns the OR of all role permission bits for a user in a server.
+// GetEffectivePermissions returns computed base permissions for a user in a server.
 // If the user is the server owner or has PermAdministrator, all bits are set.
-//
-// DEPRECATED: Use ComputeBasePermissions with role data fetched from the repository instead.
 func GetEffectivePermissions(ctx context.Context, repo *db.Repository, serverID, userID, ownerID int64) (int64, error) {
-	if userID == ownerID {
-		return ^int64(0), nil // all permissions
-	}
-	roles, err := repo.GetMemberRoles(ctx, serverID, userID)
+	isOwner := userID == ownerID
+
+	everyoneRole, err := repo.GetEveryoneRole(ctx, serverID)
 	if err != nil {
+		if isOwner {
+			return PermAllPermissions, nil
+		}
 		return 0, err
 	}
-	var perms int64
-	for _, role := range roles {
-		perms |= role.Permissions
+
+	memberRoles, err := repo.GetMemberRoles(ctx, serverID, userID)
+	if err != nil {
+		return ComputeBasePermissions(everyoneRole.Permissions, nil, isOwner), nil
 	}
-	if perms&PermAdministrator != 0 {
-		return ^int64(0), nil // Administrator implies all permissions
+
+	rolePerms := make([]int64, len(memberRoles))
+	for i, r := range memberRoles {
+		rolePerms[i] = r.Permissions
 	}
-	return perms, nil
+
+	return ComputeBasePermissions(everyoneRole.Permissions, rolePerms, isOwner), nil
 }
 
-// HasPermission returns true if the user has the given permission bit in the server.
-//
-// DEPRECATED: Use ComputeBasePermissions + HasPerm instead.
+// HasPermission checks if a user has a specific server-level permission.
 func HasPermission(ctx context.Context, repo *db.Repository, serverID, userID, ownerID int64, perm int64) (bool, error) {
-	effective, err := GetEffectivePermissions(ctx, repo, serverID, userID, ownerID)
+	perms, err := GetEffectivePermissions(ctx, repo, serverID, userID, ownerID)
 	if err != nil {
 		return false, err
 	}
-	return effective&perm != 0, nil
+	return HasPerm(perms, perm), nil
+}
+
+// HasChannelPermission checks if a user has a permission in a specific channel,
+// taking into account channel permission overwrites.
+func HasChannelPermission(ctx context.Context, repo *db.Repository, serverID, userID, ownerID, channelID int64, perm int64) (bool, error) {
+	basePerms, err := GetEffectivePermissions(ctx, repo, serverID, userID, ownerID)
+	if err != nil {
+		return false, err
+	}
+	if HasPerm(basePerms, PermAdministrator) {
+		return true, nil
+	}
+
+	everyoneRole, _ := repo.GetEveryoneRole(ctx, serverID)
+	memberRoles, _ := repo.GetMemberRoles(ctx, serverID, userID)
+	overwrites, err := repo.GetChannelOverwrites(ctx, channelID)
+	if err != nil {
+		return HasPerm(basePerms, perm), nil
+	}
+
+	everyoneID := int64(0)
+	if everyoneRole != nil {
+		everyoneID = everyoneRole.ID
+	}
+
+	roleIDs := make([]int64, len(memberRoles))
+	for i, r := range memberRoles {
+		roleIDs[i] = r.ID
+	}
+
+	channelPerms := ComputeChannelPermissions(basePerms, userID, roleIDs, everyoneID, overwrites)
+	return HasPerm(channelPerms, perm), nil
 }
 
 // ParseInt64 is a convenience wrapper for strconv.ParseInt used by handlers.
