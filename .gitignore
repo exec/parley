@@ -9,7 +9,7 @@ terraform/terraform.tfstate.backup
 /parley-api
 /parley-admin
 /admin
-bin/
+/bin/
 
 # Go
 *.exe

@@ -37,4 +37,12 @@ const (
 
 	// Voice events
 	EventVoiceStateUpdate = "VOICE_STATE_UPDATE"
+
+	// Bin events
+	EventBinPostCreate        = "BIN_POST_CREATE"
+	EventBinPostUpdate        = "BIN_POST_UPDATE"
+	EventBinPostDelete        = "BIN_POST_DELETE"
+	EventBinLineCommentCreate = "BIN_LINE_COMMENT_CREATE"
+	EventBinLineCommentUpdate = "BIN_LINE_COMMENT_UPDATE"
+	EventBinLineCommentDelete = "BIN_LINE_COMMENT_DELETE"
 )
