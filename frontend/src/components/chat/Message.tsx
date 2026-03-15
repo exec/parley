@@ -4,6 +4,8 @@ import { Avatar } from '../ui/Avatar';
 import { EmojiPicker } from './EmojiPicker';
 import MarkdownRenderer from '../ui/MarkdownRenderer';
 import { AudioPlayer } from './AudioPlayer';
+import { CodeBlock } from '../ui/CodeBlock';
+import { isCodeFile, languageFromFilename } from '../../lib/shiki';
 import './Chat.css';
 
 interface MessageProps {
@@ -38,6 +40,78 @@ const FileIcon = () => (
     <polyline points="7.5,1 7.5,5.5 12,5.5" />
   </svg>
 );
+
+const MAX_PREVIEW_BYTES = 100 * 1024; // 100 KB
+const COLLAPSE_LINES = 50;
+
+interface CodeAttachmentProps {
+  url: string;
+  filename: string;
+}
+
+const CodeAttachment: React.FC<CodeAttachmentProps> = ({ url, filename }) => {
+  const [content, setContent] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
+
+    fetch(url, { signal: controller.signal })
+      .then(async (res) => {
+        const lengthHeader = res.headers.get('content-length');
+        if (lengthHeader && parseInt(lengthHeader, 10) > MAX_PREVIEW_BYTES) {
+          setError(true);
+          return;
+        }
+        const text = await res.text();
+        if (cancelled) return;
+        if (text.length > MAX_PREVIEW_BYTES) {
+          setError(true);
+        } else {
+          setContent(text);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setError(true);
+      });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [url]);
+
+  if (error) {
+    return (
+      <a href={url} target="_blank" rel="noopener noreferrer" className="message-attachment-file">
+        <FileIcon /> {filename}
+      </a>
+    );
+  }
+
+  if (content === null) {
+    return (
+      <a href={url} target="_blank" rel="noopener noreferrer" className="message-attachment-file">
+        <FileIcon /> {filename}
+      </a>
+    );
+  }
+
+  const lineCount = content.split('\n').length;
+  const lang = languageFromFilename(filename);
+
+  return (
+    <CodeBlock
+      content={content}
+      language={lang}
+      filename={filename}
+      showLineNumbers
+      collapsible
+      defaultCollapsed={lineCount > COLLAPSE_LINES}
+    />
+  );
+};
 
 export const Message: React.FC<MessageProps> = ({
   message,
@@ -274,6 +348,11 @@ export const Message: React.FC<MessageProps> = ({
                       url={message.attachment_url}
                       isVoiceMessage={isVoice}
                       filename={isAudio ? (message.attachment_name || undefined) : undefined}
+                    />
+                  ) : message.attachment_name && isCodeFile(message.attachment_name) ? (
+                    <CodeAttachment
+                      url={message.attachment_url}
+                      filename={message.attachment_name}
                     />
                   ) : (
                     <a
