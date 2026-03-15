@@ -30,7 +30,12 @@ const (
 	EventMemberBan    = "SERVER_MEMBER_BAN"
 
 	// Role events
-	EventMemberRoleUpdate = "MEMBER_ROLE_UPDATE"
+	EventMemberRoleUpdate      = "MEMBER_ROLE_UPDATE"
+	EventRoleUpdate            = "ROLE_UPDATE"
+	EventRoleDelete            = "ROLE_DELETE"
+
+	// Channel permission events
+	EventChannelOverwriteUpdate = "CHANNEL_OVERWRITE_UPDATE"
 
 	// User update
 	EventUserUpdate = "USER_UPDATE"

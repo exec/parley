@@ -39,6 +39,26 @@ export interface BinPostEvent {
   channel_id: string;
 }
 
+export interface ChannelOverwriteUpdateEvent {
+  channel_id: string;
+  overwrites: unknown[];
+}
+
+export interface RoleUpdateEvent {
+  id: string;
+  server_id: string;
+  name: string;
+  color: string;
+  permissions: number;
+  hoist: boolean;
+  position: number;
+}
+
+export interface RoleDeleteEvent {
+  role_id: string;
+  server_id: string;
+}
+
 interface UseWebSocketOptions {
   onMessage: (msg: Message) => void;
   onDmMessage?: (msg: DmMessage) => void;
@@ -64,11 +84,14 @@ interface UseWebSocketOptions {
   onBinPostCreate?: (event: BinPostEvent) => void;
   onBinPostUpdate?: (event: BinPostEvent) => void;
   onBinPostDelete?: (event: BinPostEvent) => void;
+  onChannelOverwriteUpdate?: (event: ChannelOverwriteUpdateEvent) => void;
+  onRoleUpdate?: (event: RoleUpdateEvent) => void;
+  onRoleDelete?: (event: RoleDeleteEvent) => void;
   activeChannelId: string | null;
   extraChannelIds?: string[]; // Additional channels to subscribe to for notifications
 }
 
-export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onServerMemberLeave, onServerMemberKick, onServerMemberBan, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, onChannelCreate, onChannelUpdate, onChannelDelete, onServerUpdate, onServerDelete, onMemberRoleUpdate, onUserUpdate, onVoiceStateUpdate, onBinPostCreate, onBinPostUpdate, onBinPostDelete, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
+export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onServerMemberLeave, onServerMemberKick, onServerMemberBan, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, onChannelCreate, onChannelUpdate, onChannelDelete, onServerUpdate, onServerDelete, onMemberRoleUpdate, onUserUpdate, onVoiceStateUpdate, onBinPostCreate, onBinPostUpdate, onBinPostDelete, onChannelOverwriteUpdate, onRoleUpdate, onRoleDelete, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const subscribedChannelsRef = useRef<Set<string>>(new Set());
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -101,6 +124,9 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
   const onBinPostCreateRef = useRef(onBinPostCreate);
   const onBinPostUpdateRef = useRef(onBinPostUpdate);
   const onBinPostDeleteRef = useRef(onBinPostDelete);
+  const onChannelOverwriteUpdateRef = useRef(onChannelOverwriteUpdate);
+  const onRoleUpdateRef = useRef(onRoleUpdate);
+  const onRoleDeleteRef = useRef(onRoleDelete);
   useEffect(() => { onMessageRef.current = onMessage; }, [onMessage]);
   useEffect(() => { onDmMessageRef.current = onDmMessage; }, [onDmMessage]);
   useEffect(() => { onServerMemberJoinRef.current = onServerMemberJoin; }, [onServerMemberJoin]);
@@ -125,6 +151,9 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
   useEffect(() => { onBinPostCreateRef.current = onBinPostCreate; }, [onBinPostCreate]);
   useEffect(() => { onBinPostUpdateRef.current = onBinPostUpdate; }, [onBinPostUpdate]);
   useEffect(() => { onBinPostDeleteRef.current = onBinPostDelete; }, [onBinPostDelete]);
+  useEffect(() => { onChannelOverwriteUpdateRef.current = onChannelOverwriteUpdate; }, [onChannelOverwriteUpdate]);
+  useEffect(() => { onRoleUpdateRef.current = onRoleUpdate; }, [onRoleUpdate]);
+  useEffect(() => { onRoleDeleteRef.current = onRoleDelete; }, [onRoleDelete]);
 
   const sendTyping = useCallback((channelId: string, username: string) => {
     const ws = wsRef.current;
@@ -282,6 +311,33 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
               onBinPostDeleteRef.current(event);
             } else {
               console.log('[WebSocket] BIN_POST_DELETE', event);
+            }
+          }
+        } else if (wsMsg.type === 'CHANNEL_OVERWRITE_UPDATE') {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            const event = wsMsg.payload as ChannelOverwriteUpdateEvent;
+            if (onChannelOverwriteUpdateRef.current) {
+              onChannelOverwriteUpdateRef.current(event);
+            } else {
+              console.log('[WebSocket] CHANNEL_OVERWRITE_UPDATE', event);
+            }
+          }
+        } else if (wsMsg.type === 'ROLE_UPDATE') {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            const event = wsMsg.payload as RoleUpdateEvent;
+            if (onRoleUpdateRef.current) {
+              onRoleUpdateRef.current(event);
+            } else {
+              console.log('[WebSocket] ROLE_UPDATE', event);
+            }
+          }
+        } else if (wsMsg.type === 'ROLE_DELETE') {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            const event = wsMsg.payload as RoleDeleteEvent;
+            if (onRoleDeleteRef.current) {
+              onRoleDeleteRef.current(event);
+            } else {
+              console.log('[WebSocket] ROLE_DELETE', event);
             }
           }
         }

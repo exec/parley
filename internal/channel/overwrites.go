@@ -2,12 +2,14 @@ package channel
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"parley/internal/auth"
 	"parley/internal/permissions"
+	ws "parley/internal/websocket"
 )
 
 // UpsertOverwriteRequest represents the request body for upserting a permission overwrite.
@@ -172,6 +174,9 @@ func (h *Handler) UpsertOverwrite(w http.ResponseWriter, r *http.Request) {
 		_ = err
 	}
 
+	// Broadcast overwrite update to channel subscribers
+	h.broadcastChannelOverwriteUpdate(r, ch.ServerID, channelIDInt)
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(ow)
 }
@@ -251,6 +256,9 @@ func (h *Handler) DeleteOverwrite(w http.ResponseWriter, r *http.Request) {
 		_ = err
 	}
 
+	// Broadcast overwrite update to channel subscribers
+	h.broadcastChannelOverwriteUpdate(r, ch.ServerID, channelIDInt)
+
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -316,6 +324,29 @@ func (h *Handler) GetMyChannelPermissions(w http.ResponseWriter, r *http.Request
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]int64{"permissions": channelPerms})
+}
+
+// broadcastChannelOverwriteUpdate fetches the current overwrites for a channel and broadcasts
+// a CHANNEL_OVERWRITE_UPDATE event to the channel's subscribers.
+func (h *Handler) broadcastChannelOverwriteUpdate(r *http.Request, serverID, channelID int64) {
+	if h.service.hub == nil {
+		return
+	}
+	overwrites, err := h.service.repo.GetRawChannelOverwrites(r.Context(), channelID)
+	if err != nil {
+		log.Printf("broadcastChannelOverwriteUpdate: failed to get overwrites for channel %d: %v", channelID, err)
+		return
+	}
+	payload, err := json.Marshal(map[string]interface{}{
+		"channel_id": strconv.FormatInt(channelID, 10),
+		"overwrites": overwrites,
+	})
+	if err != nil {
+		log.Printf("broadcastChannelOverwriteUpdate: failed to marshal payload: %v", err)
+		return
+	}
+	channelIDStr := strconv.FormatInt(channelID, 10)
+	h.service.hub.BroadcastToChannel("channel:"+channelIDStr, ws.EventChannelOverwriteUpdate, payload)
 }
 
 // handleOverwriteSync handles the synced flag logic after an overwrite change.

@@ -52,7 +52,26 @@ func (s *ServerService) DeleteServerRole(ctx context.Context, serverID, roleID s
 	if err != nil {
 		return errors.New("invalid role ID")
 	}
-	return s.repo.DeleteServerRole(ctx, sID, rID)
+	if err := s.repo.DeleteServerRole(ctx, sID, rID); err != nil {
+		return err
+	}
+	// Clean up all permission overwrites that reference this role.
+	// target_type 0 = role overwrite.
+	if err := s.repo.DeleteOverwritesByTarget(ctx, 0, rID); err != nil {
+		// Log but don't fail the deletion.
+		_ = err
+	}
+	// Broadcast ROLE_DELETE to server subscribers.
+	if s.hub != nil {
+		payload, err := json.Marshal(map[string]string{
+			"role_id":   roleID,
+			"server_id": serverID,
+		})
+		if err == nil {
+			s.hub.BroadcastToChannel("server:"+serverID, ws.EventRoleDelete, payload)
+		}
+	}
+	return nil
 }
 
 func (s *ServerService) UpdateServerRole(ctx context.Context, serverID, roleID, name, color string, permissions int64, hoist bool, position int) (*Role, error) {
@@ -69,6 +88,13 @@ func (s *ServerService) UpdateServerRole(ctx context.Context, serverID, roleID, 
 		return nil, err
 	}
 	r := dbRoleToRole(*dbRole)
+	// Broadcast ROLE_UPDATE to server subscribers.
+	if s.hub != nil {
+		payload, err := json.Marshal(r)
+		if err == nil {
+			s.hub.BroadcastToChannel("server:"+serverID, ws.EventRoleUpdate, payload)
+		}
+	}
 	return &r, nil
 }
 
