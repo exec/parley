@@ -324,9 +324,22 @@
   border-top: none;
 }
 
+/* Files body (wraps CodeBlock + inline form) */
+
+.post-view-files-body {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.post-view-files-body .code-block {
+  border-radius: 0;
+  border: none;
+}
+
 /* Comments tab */
 
-.post-view-comments-placeholder,
 .post-view-comments {
   flex: 1;
   display: flex;
@@ -334,11 +347,11 @@
   overflow: hidden;
 }
 
-.post-view-comments-placeholder {
+.post-view-comments-loading {
+  flex: 1;
+  display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-secondary);
-  font-size: 14px;
 }
 
 /* Line Notes tab */

@@ -1,0 +1,107 @@
+/* =========================================================
+   LineCommentForm — inline line comment form
+   Green terminal theme
+   ========================================================= */
+
+.line-comment-form {
+  margin: 0 0 0 40px; /* indent to align with code content */
+  padding: 10px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 4px 4px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.line-comment-form-header {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  font-family: 'Fira Mono', monospace;
+}
+
+.line-comment-form-textarea {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  padding: 8px 10px;
+  resize: vertical;
+  min-height: 72px;
+  line-height: 1.5;
+  transition: border-color 0.15s;
+}
+
+.line-comment-form-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.line-comment-form-textarea::placeholder {
+  color: var(--discord-text-dim);
+}
+
+.line-comment-form-textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.line-comment-form-error {
+  font-size: 12px;
+  color: var(--discord-danger);
+}
+
+.line-comment-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.line-comment-form-cancel {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-family: inherit;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.line-comment-form-cancel:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
+}
+
+.line-comment-form-cancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.line-comment-form-submit {
+  background: var(--accent);
+  border: none;
+  border-radius: 4px;
+  color: #000;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  padding: 5px 14px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.line-comment-form-submit:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.line-comment-form-submit:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

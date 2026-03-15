@@ -1,10 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { BinPost, BinPostVersion, BinLineComment } from '../../api/types';
+import { BinPost, BinPostVersion, BinLineComment, Message } from '../../api/types';
 import { getPost, getVersions, getVersion, getLineComments } from '../../api/bin';
+import { getMessages, sendMessage as apiSendMessage } from '../../api/messages';
 import { CodeBlock } from '../ui/CodeBlock';
 import ShikiCodeBlock from '../ui/ShikiCodeBlock';
+import { MessageList } from '../chat/MessageList';
+import { MessageInput } from '../chat/MessageInput';
+import { LineCommentForm } from './LineCommentForm';
 import './PostView.css';
 
 interface PostViewProps {
@@ -13,6 +17,12 @@ interface PostViewProps {
 }
 
 type TabKey = 'files' | 'comments' | 'linenotes';
+
+interface ActiveLineComment {
+  lineNumber: number;
+  fileId: string;
+  versionId: string;
+}
 
 function formatRelativeTime(dateStr: string): string {
   const date = new Date(dateStr);
@@ -40,6 +50,23 @@ export const PostView: React.FC<PostViewProps> = ({ postId, onBack }) => {
   const [activeTab, setActiveTab] = useState<TabKey>('files');
   const [activeFileIndex, setActiveFileIndex] = useState(0);
 
+  // Line comment form state
+  const [activeLineComment, setActiveLineComment] = useState<ActiveLineComment | null>(null);
+
+  // Thread channel messages state
+  const [threadMessages, setThreadMessages] = useState<Message[]>([]);
+  const [threadLoading, setThreadLoading] = useState(false);
+  const threadChannelIdRef = useRef<string | null>(null);
+
+  const refreshLineComments = useCallback(async () => {
+    try {
+      const comments = await getLineComments(postId);
+      setLineComments(comments);
+    } catch {
+      // non-fatal
+    }
+  }, [postId]);
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -55,6 +82,7 @@ export const PostView: React.FC<PostViewProps> = ({ postId, onBack }) => {
         setPost(fetchedPost);
         setVersions(fetchedVersions);
         setLineComments(fetchedComments);
+        threadChannelIdRef.current = fetchedPost.thread_channel_id;
         setActiveFileIndex(0);
       })
       .catch((err) => {
@@ -66,6 +94,28 @@ export const PostView: React.FC<PostViewProps> = ({ postId, onBack }) => {
 
     return () => { cancelled = true; };
   }, [postId]);
+
+  // Load thread channel messages when Comments tab is selected
+  useEffect(() => {
+    if (activeTab !== 'comments') return;
+    const channelId = threadChannelIdRef.current;
+    if (!channelId) return;
+
+    let cancelled = false;
+    setThreadLoading(true);
+    getMessages(channelId, { limit: 100 })
+      .then((msgs) => {
+        if (!cancelled) setThreadMessages(msgs);
+      })
+      .catch(() => {
+        // non-fatal
+      })
+      .finally(() => {
+        if (!cancelled) setThreadLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [activeTab]);
 
   // Load version files when a specific version is selected
   useEffect(() => {
@@ -101,6 +151,51 @@ export const PostView: React.FC<PostViewProps> = ({ postId, onBack }) => {
       .map((c) => c.line_number);
     return new Set(lineNums);
   }, [lineComments, activeFile]);
+
+  const handleLineClick = useCallback(
+    (lineNumber: number) => {
+      if (!activeFile) return;
+      // Determine the version id: use the currently loaded version or fall back to
+      // the latest version (versions[0]) from the list. If no versions loaded yet,
+      // use an empty string — the form will still render.
+      const versionId =
+        selectedVersionId ??
+        (versions.length > 0 ? versions[versions.length - 1].id : '');
+      setActiveLineComment({
+        lineNumber,
+        fileId: activeFile.id,
+        versionId,
+      });
+    },
+    [activeFile, selectedVersionId, versions]
+  );
+
+  const handleLineCommentCreated = useCallback(
+    (_comment: BinLineComment) => {
+      // Refresh the full list so we always have server-canonical data
+      refreshLineComments();
+      setActiveLineComment(null);
+    },
+    [refreshLineComments]
+  );
+
+  const handleSendThreadMessage = useCallback(
+    async (content: string) => {
+      const channelId = threadChannelIdRef.current;
+      if (!channelId || !content.trim()) return;
+      const nonce = crypto.randomUUID();
+      try {
+        const confirmed = await apiSendMessage(channelId, content, nonce);
+        setThreadMessages((prev) => {
+          if (prev.some((m) => m.id === confirmed.id)) return prev;
+          return [...prev, confirmed];
+        });
+      } catch {
+        // swallow — user can retry
+      }
+    },
+    []
+  );
 
   if (loading) {
     return (
@@ -240,24 +335,54 @@ export const PostView: React.FC<PostViewProps> = ({ postId, onBack }) => {
               </div>
             )}
 
-            {activeFile ? (
-              <CodeBlock
-                content={activeFile.content}
-                language={activeFile.language}
-                filename={currentFiles.length === 1 ? activeFile.filename : undefined}
-                showLineNumbers={true}
-                highlightedLines={highlightedLines}
-              />
-            ) : (
-              <div className="post-view-empty">No files attached.</div>
-            )}
+            <div className="post-view-files-body">
+              {activeFile ? (
+                <>
+                  <CodeBlock
+                    content={activeFile.content}
+                    language={activeFile.language}
+                    filename={currentFiles.length === 1 ? activeFile.filename : undefined}
+                    showLineNumbers={true}
+                    highlightedLines={highlightedLines}
+                    onLineClick={handleLineClick}
+                  />
+                  {activeLineComment && activeLineComment.fileId === activeFile.id && (
+                    <LineCommentForm
+                      postId={postId}
+                      versionId={activeLineComment.versionId}
+                      fileId={activeLineComment.fileId}
+                      lineNumber={activeLineComment.lineNumber}
+                      onCreated={handleLineCommentCreated}
+                      onCancel={() => setActiveLineComment(null)}
+                    />
+                  )}
+                </>
+              ) : (
+                <div className="post-view-empty">No files attached.</div>
+              )}
+            </div>
           </div>
         )}
 
-        {/* Comments tab — wired in Task 23 */}
+        {/* Comments tab — thread channel messages */}
         {activeTab === 'comments' && (
-          <div className="post-view-comments-placeholder">
-            <span>Thread comments will appear here.</span>
+          <div className="post-view-comments">
+            {threadLoading ? (
+              <div className="post-view-comments-loading">
+                <div className="bin-loading-spinner" />
+              </div>
+            ) : (
+              <>
+                <MessageList
+                  messages={threadMessages}
+                  allMessages={threadMessages}
+                />
+                <MessageInput
+                  channelName="thread"
+                  onSendMessage={handleSendThreadMessage}
+                />
+              </>
+            )}
           </div>
         )}
 
@@ -265,7 +390,7 @@ export const PostView: React.FC<PostViewProps> = ({ postId, onBack }) => {
         {activeTab === 'linenotes' && (
           <div className="post-view-linenotes">
             {lineComments.length === 0 ? (
-              <div className="post-view-empty">No line notes yet.</div>
+              <div className="post-view-empty">No line notes yet. Click a line number in the Files tab to add one.</div>
             ) : (
               lineComments.map((comment) => {
                 const commentInitials = (comment.author_username || '?').slice(0, 2).toUpperCase();
