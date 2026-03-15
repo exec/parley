@@ -128,3 +128,40 @@ export interface PublicUser {
   bio?: string;
   badges?: number;
 }
+
+export interface BinPost {
+  id: string; channel_id: string; thread_channel_id: string;
+  author_id: string; title: string; description: string;
+  tags: string[]; created_at: string; updated_at: string;
+  author_username: string; author_avatar_url?: string;
+  files: BinPostFile[]; comment_count: number;
+  line_comment_count: number; version_count: number;
+}
+
+export interface BinPostFile {
+  id: string; post_id: string; filename: string;
+  language: string; content: string; position: number;
+}
+
+export interface BinPostVersion {
+  id: string; post_id: string; version: number;
+  description: string; created_at: string;
+  files?: BinPostVersionFile[];
+}
+
+export interface BinPostVersionFile {
+  id: string; version_id: string; filename: string;
+  language: string; content: string; position: number;
+}
+
+export interface BinLineComment {
+  id: string; post_id: string; version_id: string;
+  file_id: string; line_number: number; author_id: string;
+  content: string; parent_id?: string;
+  created_at: string; updated_at: string;
+  author_username: string; author_avatar_url?: string;
+}
+
+export interface BinChannelTag {
+  id: string; channel_id: string; name: string; color: string;
+}
