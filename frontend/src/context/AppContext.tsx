@@ -252,8 +252,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const createChannel = useCallback(async (name: string, type: number, topic?: string) => {
     if (!activeServer) return;
-    const ch = await channelsApi.createChannel(activeServer.id, name, type, topic);
-    setChannels(prev => [...prev, ch]);
+    await channelsApi.createChannel(activeServer.id, name, type, topic);
+    // Channel will be added via CHANNEL_CREATE WebSocket event
   }, [activeServer]);
 
   const deleteChannel = useCallback(async (channelId: string) => {
