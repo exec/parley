@@ -35,6 +35,7 @@ interface AppActions {
   leaveServer: (serverId: string) => Promise<void>;
   createChannel: (name: string, type: number, topic?: string) => Promise<void>;
   deleteChannel: (channelId: string) => Promise<void>;
+  reorderChannels: (orders: channelsApi.ChannelOrder[]) => Promise<void>;
   sendMessage: (content: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string, parentId?: string) => Promise<void>;
   editMessage: (messageId: string, content: string) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
@@ -254,6 +255,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!activeServer) return;
     await channelsApi.createChannel(activeServer.id, name, type, topic);
     // Channel will be added via CHANNEL_CREATE WebSocket event
+  }, [activeServer]);
+
+  const reorderChannels = useCallback(async (orders: channelsApi.ChannelOrder[]) => {
+    if (!activeServer) return;
+    // Optimistic update
+    setChannels(prev => {
+      const updated = [...prev];
+      orders.forEach(o => {
+        const idx = updated.findIndex(c => c.id === o.id);
+        if (idx !== -1) {
+          updated[idx] = { ...updated[idx], position: o.position, parent_id: o.parent_id ?? undefined };
+        }
+      });
+      return updated.sort((a, b) => a.position - b.position);
+    });
+    await channelsApi.reorderChannels(activeServer.id, orders);
   }, [activeServer]);
 
   const deleteChannel = useCallback(async (channelId: string) => {
@@ -592,6 +609,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       addServer,
       createChannel,
       deleteChannel,
+      reorderChannels,
       sendMessage,
       editMessage,
       deleteMessage,

@@ -1,5 +1,26 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import './ChannelList.css';
+import { ChannelOrder } from '../../api/channels';
+
+// ---- local type mirrors (avoid circular import) ----
+interface Channel {
+  id: string;
+  name: string;
+  type: number;       // 0=text, 1=voice, 2=bin, 3=category
+  position: number;
+  parent_id?: string;
+  topic?: string;
+}
+
+interface User {
+  id: string;
+  username: string;
+  avatar?: string;
+  avatar_url?: string;
+}
+
+// ---- context menus ----
 
 interface UserContextMenuProps {
   position: { top: number; left: number };
@@ -10,38 +31,22 @@ interface UserContextMenuProps {
 
 const UserContextMenu: React.FC<UserContextMenuProps> = ({ position, onClose, onSettings, onLogout }) => {
   const ref = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        onClose();
-      }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    const handle = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose(); };
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
   }, [onClose]);
-
   return (
-    <div
-      ref={ref}
-      className="cl-user-context-menu"
-      style={{ bottom: `calc(100vh - ${position.top}px)`, left: position.left }}
-    >
-      <button className="cl-user-context-item" onClick={() => { onSettings(); onClose(); }}>
-        User Settings
-      </button>
+    <div ref={ref} className="cl-user-context-menu" style={{ bottom: `calc(100vh - ${position.top}px)`, left: position.left }}>
+      <button className="cl-user-context-item" onClick={() => { onSettings(); onClose(); }}>User Settings</button>
       <div className="cl-user-context-divider" />
-      <button className="cl-user-context-item danger" onClick={() => { onLogout(); onClose(); }}>
-        Log Out
-      </button>
+      <button className="cl-user-context-item danger" onClick={() => { onLogout(); onClose(); }}>Log Out</button>
     </div>
   );
 };
 
 interface ServerContextMenuProps {
   position: { top: number; left: number };
-  serverName: string;
-  isOwner: boolean;
   onClose: () => void;
   onLeave?: () => void;
   onSettings?: () => void;
@@ -49,46 +54,23 @@ interface ServerContextMenuProps {
 
 const ServerContextMenu: React.FC<ServerContextMenuProps> = ({ position, onClose, onLeave, onSettings }) => {
   const ref = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        onClose();
-      }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    const handle = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose(); };
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
   }, [onClose]);
-
   return (
-    <div
-      ref={ref}
-      className="cl-server-context-menu"
-      style={{ top: position.top, left: position.left }}
-    >
-      {onSettings && (
-        <button className="cl-server-context-item" onClick={() => { onSettings(); onClose(); }}>
-          Server Settings
-        </button>
-      )}
+    <div ref={ref} className="cl-server-context-menu" style={{ top: position.top, left: position.left }}>
+      {onSettings && <button className="cl-server-context-item" onClick={() => { onSettings(); onClose(); }}>Server Settings</button>}
       {onLeave && (
         <>
           <div className="cl-server-context-divider" />
-          <button className="cl-server-context-item danger" onClick={() => { onLeave(); onClose(); }}>
-            Leave Server
-          </button>
+          <button className="cl-server-context-item danger" onClick={() => { onLeave(); onClose(); }}>Leave Server</button>
         </>
       )}
     </div>
   );
 };
-
-interface Channel {
-  id: string;
-  name: string;
-  type: number;
-  topic?: string;
-}
 
 interface ChannelContextMenuProps {
   channel: Channel;
@@ -102,38 +84,30 @@ interface ChannelContextMenuProps {
 
 const ChannelContextMenu: React.FC<ChannelContextMenuProps> = ({ channel, position, canManageChannels, onClose, onRename, onDelete, onMarkAsRead }) => {
   const ref = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    const handle = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose(); };
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
   }, [onClose]);
-
+  const label = channel.type === 3 ? `📁 ${channel.name}` : `# ${channel.name}`;
   return (
     <div ref={ref} className="cl-channel-context-menu" style={{ top: position.top, left: position.left }}>
-      <div className="cl-channel-context-header"># {channel.name}</div>
+      <div className="cl-channel-context-header">{label}</div>
       <div className="cl-server-context-divider" />
-      <button className="cl-server-context-item" onClick={() => { onMarkAsRead(); onClose(); }}>Mark as Read</button>
-      <button className="cl-server-context-item" onClick={() => { navigator.clipboard.writeText(channel.id); onClose(); }}>Copy Channel ID</button>
+      {channel.type !== 3 && <button className="cl-server-context-item" onClick={() => { onMarkAsRead(); onClose(); }}>Mark as Read</button>}
+      <button className="cl-server-context-item" onClick={() => { navigator.clipboard.writeText(channel.id); onClose(); }}>Copy ID</button>
       {canManageChannels && (
         <>
           <div className="cl-server-context-divider" />
-          <button className="cl-server-context-item" onClick={() => { onRename(); onClose(); }}>Rename Channel</button>
-          <button className="cl-server-context-item danger" onClick={() => { onDelete(); onClose(); }}>Delete Channel</button>
+          <button className="cl-server-context-item" onClick={() => { onRename(); onClose(); }}>Rename</button>
+          <button className="cl-server-context-item danger" onClick={() => { onDelete(); onClose(); }}>Delete</button>
         </>
       )}
     </div>
   );
 };
 
-interface User {
-  id: string;
-  username: string;
-  avatar?: string;
-  avatar_url?: string;
-}
+// ---- main props ----
 
 interface ChannelListProps {
   serverName: string;
@@ -156,6 +130,7 @@ interface ChannelListProps {
   canManageChannels?: boolean;
   onRenameChannel?: (channelId: string, newName: string) => void;
   onMarkChannelRead?: (channelId: string) => void;
+  onReorderChannels?: (orders: ChannelOrder[]) => void;
   // Voice bar
   vcConnected?: boolean;
   vcMuted?: boolean;
@@ -164,6 +139,13 @@ interface ChannelListProps {
   onVcDeafenToggle?: () => void;
   onVcLeave?: () => void;
   onVcNavigate?: () => void;
+}
+
+// ---- channel icon helper ----
+function channelIcon(type: number) {
+  if (type === 1) return '🔊';
+  if (type === 2) return '</>';
+  return '#';
 }
 
 const ChannelList: React.FC<ChannelListProps> = ({
@@ -187,6 +169,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
   canManageChannels = false,
   onRenameChannel,
   onMarkChannelRead,
+  onReorderChannels,
   vcConnected,
   vcMuted,
   vcDeafened,
@@ -195,9 +178,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
   onVcLeave,
   onVcNavigate,
 }) => {
-  const [textChannelsCollapsed, setTextChannelsCollapsed] = useState(false);
-  const [voiceChannelsCollapsed, setVoiceChannelsCollapsed] = useState(false);
-  const [binChannelsCollapsed, setBinChannelsCollapsed] = useState(false);
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [hoveredChannel, setHoveredChannel] = useState<string | null>(null);
   const [userContextMenu, setUserContextMenu] = useState<{ top: number; left: number } | null>(null);
   const [serverContextMenu, setServerContextMenu] = useState<{ top: number; left: number } | null>(null);
@@ -206,48 +187,175 @@ const ChannelList: React.FC<ChannelListProps> = ({
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (renamingChannelId) renameInputRef.current?.focus();
-  }, [renamingChannelId]);
+  useEffect(() => { if (renamingChannelId) renameInputRef.current?.focus(); }, [renamingChannelId]);
 
-  const startRename = (channel: Channel) => {
-    setRenameValue(channel.name);
-    setRenamingChannelId(channel.id);
-  };
-
+  const startRename = (channel: Channel) => { setRenameValue(channel.name); setRenamingChannelId(channel.id); };
   const commitRename = (channelId: string) => {
     if (renameValue.trim()) onRenameChannel?.(channelId, renameValue.trim());
     setRenamingChannelId(null);
   };
 
-  const handleUserAreaClick = (e: React.MouseEvent) => {
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setUserContextMenu({ top: rect.top, left: rect.left });
+  const toggleCategory = (catId: string) => {
+    setCollapsedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(catId)) next.delete(catId); else next.add(catId);
+      return next;
+    });
   };
 
-  const handleServerHeaderClick = (e: React.MouseEvent) => {
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setServerContextMenu({ top: rect.top, left: rect.left });
+  // Build ordered structure: categories sorted by position, channels sorted by position
+  const sorted = [...channels].sort((a, b) => a.position - b.position || a.name.localeCompare(b.name));
+  const categories = sorted.filter(c => c.type === 3);
+  const uncategorized = sorted.filter(c => c.type !== 3 && !c.parent_id);
+  const childrenOf = (catId: string) => sorted.filter(c => c.type !== 3 && c.parent_id === catId);
+
+  // ---- drag and drop ----
+  const handleDragEnd = (result: DropResult) => {
+    if (!result.destination || !onReorderChannels) return;
+    const { source, destination, draggableId, type } = result;
+    if (source.droppableId === destination.droppableId && source.index === destination.index) return;
+
+    // Build a mutable sorted list we can mutate
+    const allSorted = [...sorted];
+
+    if (type === 'CATEGORY') {
+      // Reorder categories among themselves
+      const cats = categories.filter(c => c.id !== draggableId);
+      cats.splice(destination.index, 0, categories[source.index]);
+      const orders: ChannelOrder[] = cats.map((c, i) => ({ id: c.id, position: i * 10, parent_id: null }));
+      onReorderChannels(orders);
+    } else {
+      // type === 'CHANNEL' — reorder within or between category droppables
+      const srcCatId = source.droppableId === 'uncategorized' ? null : source.droppableId.replace('cat-', '');
+      const dstCatId = destination.droppableId === 'uncategorized' ? null : destination.droppableId.replace('cat-', '');
+
+      const srcList = srcCatId
+        ? allSorted.filter(c => c.type !== 3 && c.parent_id === srcCatId)
+        : allSorted.filter(c => c.type !== 3 && !c.parent_id);
+
+      const moved = srcList[source.index];
+      if (!moved) return;
+
+      if (srcCatId === dstCatId) {
+        // Same category: just reorder
+        const list = [...srcList];
+        list.splice(source.index, 1);
+        list.splice(destination.index, 0, moved);
+        const orders: ChannelOrder[] = list.map((c, i) => ({ id: c.id, position: i * 10, parent_id: dstCatId }));
+        onReorderChannels(orders);
+      } else {
+        // Moving between categories — update source list and destination list
+        const dstList = dstCatId
+          ? allSorted.filter(c => c.type !== 3 && c.parent_id === dstCatId)
+          : allSorted.filter(c => c.type !== 3 && !c.parent_id);
+
+        const newSrc = srcList.filter(c => c.id !== moved.id);
+        const newDst = [...dstList];
+        newDst.splice(destination.index, 0, moved);
+
+        const orders: ChannelOrder[] = [
+          ...newSrc.map((c, i) => ({ id: c.id, position: i * 10, parent_id: srcCatId })),
+          ...newDst.map((c, i) => ({ id: c.id, position: i * 10, parent_id: dstCatId })),
+        ];
+        onReorderChannels(orders);
+      }
+    }
   };
 
-  const textChannels = channels.filter(ch => ch.type === 0);
-  const voiceChannels = channels.filter(ch => ch.type === 1);
-  const binChannels = channels.filter(ch => ch.type === 2);
+  // ---- channel item renderer ----
+  const renderChannel = (channel: Channel, index: number) => {
+    const unread = channelUnreadCounts[channel.id] ?? 0;
+    const isActive = channel.id === activeChannelId;
+    const isRenaming = renamingChannelId === channel.id;
+
+    return (
+      <Draggable key={channel.id} draggableId={channel.id} index={index} isDragDisabled={!canManageChannels}>
+        {(provided, snapshot) => (
+          <div
+            ref={provided.innerRef}
+            {...provided.draggableProps}
+            {...provided.dragHandleProps}
+            style={provided.draggableProps.style}
+          >
+            {channel.type === 1 ? (
+              // Voice channel
+              <div>
+                <div
+                  className={`voice-channel-item ${channel.id === activeVoiceChannelId ? 'active' : ''} ${snapshot.isDragging ? 'dragging' : ''}`}
+                  onClick={() => onVoiceChannelClick?.(channel.id)}
+                  onContextMenu={e => { e.preventDefault(); setChannelContextMenu({ channel, top: e.clientY, left: e.clientX }); }}
+                  onMouseEnter={() => setHoveredChannel(channel.id)}
+                  onMouseLeave={() => setHoveredChannel(null)}
+                >
+                  <span className="voice-icon">🔊</span>
+                  <span className="channel-name">{channel.name}</span>
+                  {(voiceParticipants[channel.id]?.length ?? 0) > 0 && (
+                    <span className="voice-count">{voiceParticipants[channel.id].length}</span>
+                  )}
+                  {canManageChannels && hoveredChannel === channel.id && (
+                    <button className="delete-channel-btn" onClick={e => { e.stopPropagation(); onDeleteChannel(channel.id); }} title="Delete">×</button>
+                  )}
+                </div>
+                {(voiceParticipants[channel.id]?.length ?? 0) > 0 && (
+                  <div className="voice-participants-list">
+                    {voiceParticipants[channel.id].map(p => (
+                      <div key={p.user_id} className="voice-participant-row">
+                        <div className="voice-participant-avatar">
+                          {p.avatar_url ? <img src={p.avatar_url} alt={p.username} /> : p.username.charAt(0).toUpperCase()}
+                        </div>
+                        <span>{p.username}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              // Text / bin channel
+              <div
+                className={`channel-item ${isActive ? 'active' : ''} ${unread > 0 && !isActive ? 'unread' : ''} ${snapshot.isDragging ? 'dragging' : ''}`}
+                onClick={() => !isRenaming && onChannelSelect(channel.id)}
+                onContextMenu={e => { e.preventDefault(); setChannelContextMenu({ channel, top: e.clientY, left: e.clientX }); }}
+                onMouseEnter={() => setHoveredChannel(channel.id)}
+                onMouseLeave={() => setHoveredChannel(null)}
+              >
+                <span className="channel-icon">{channelIcon(channel.type)}</span>
+                {isRenaming ? (
+                  <input
+                    ref={renameInputRef}
+                    className="channel-rename-input"
+                    value={renameValue}
+                    onChange={e => setRenameValue(e.target.value)}
+                    onBlur={() => commitRename(channel.id)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') { e.preventDefault(); commitRename(channel.id); }
+                      if (e.key === 'Escape') setRenamingChannelId(null);
+                    }}
+                    onClick={e => e.stopPropagation()}
+                  />
+                ) : (
+                  <span className="channel-name">{channel.name}</span>
+                )}
+                {unread > 0 && !isActive && !isRenaming && (
+                  <span className="channel-unread-badge">{unread > 99 ? '99+' : unread}</span>
+                )}
+                {canManageChannels && hoveredChannel === channel.id && !isRenaming && (
+                  <button className="delete-channel-btn" onClick={e => { e.stopPropagation(); onDeleteChannel(channel.id); }} title="Delete">×</button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </Draggable>
+    );
+  };
 
   return (
     <div className="channel-list">
-      <div
-        className="server-header clickable"
-        onClick={handleServerHeaderClick}
-      >
+      <div className="server-header clickable" onClick={e => { const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); setServerContextMenu({ top: rect.top, left: rect.left }); }}>
         <span className="server-name">{serverName}</span>
         <div className="server-header-actions">
           {onServerSettings && (
-            <button
-              className="server-settings-btn"
-              onClick={(e) => { e.stopPropagation(); onServerSettings(); }}
-              title="Server Settings"
-            >
+            <button className="server-settings-btn" onClick={e => { e.stopPropagation(); onServerSettings(); }} title="Server Settings">
               <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
                 <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
               </svg>
@@ -262,186 +370,93 @@ const ChannelList: React.FC<ChannelListProps> = ({
       </div>
 
       <div className="channels-container">
-        <div className="category-row">
-          <div
-            className={`category-header ${textChannelsCollapsed ? 'collapsed' : ''}`}
-            onClick={() => setTextChannelsCollapsed(!textChannelsCollapsed)}
-          >
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M7 10l5 5 5-5z" />
-            </svg>
-            Text Channels
-          </div>
-          {canManageChannels && (
-            <button className="add-channel-btn" onClick={onCreateChannel} title="Create channel">
-              +
-            </button>
-          )}
-        </div>
-
-        {!textChannelsCollapsed && textChannels.map(channel => {
-          const unread = channelUnreadCounts[channel.id] ?? 0;
-          const isActive = channel.id === activeChannelId;
-          const isRenaming = renamingChannelId === channel.id;
-          return (
-            <div
-              key={channel.id}
-              className={`channel-item ${isActive ? 'active' : ''} ${unread > 0 && !isActive ? 'unread' : ''}`}
-              onClick={() => !isRenaming && onChannelSelect(channel.id)}
-              onContextMenu={e => { e.preventDefault(); setChannelContextMenu({ channel, top: e.clientY, left: e.clientX }); }}
-              onMouseEnter={() => setHoveredChannel(channel.id)}
-              onMouseLeave={() => setHoveredChannel(null)}
-            >
-              <span className="channel-icon">#</span>
-              {isRenaming ? (
-                <input
-                  ref={renameInputRef}
-                  className="channel-rename-input"
-                  value={renameValue}
-                  onChange={e => setRenameValue(e.target.value)}
-                  onBlur={() => commitRename(channel.id)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') { e.preventDefault(); commitRename(channel.id); }
-                    if (e.key === 'Escape') setRenamingChannelId(null);
-                  }}
-                  onClick={e => e.stopPropagation()}
-                />
-              ) : (
-                <span className="channel-name">{channel.name}</span>
-              )}
-              {unread > 0 && !isActive && !isRenaming && (
-                <span className="channel-unread-badge">{unread > 99 ? '99+' : unread}</span>
-              )}
-              {canManageChannels && hoveredChannel === channel.id && !isRenaming && (
-                <button
-                  className="delete-channel-btn"
-                  onClick={e => { e.stopPropagation(); onDeleteChannel(channel.id); }}
-                  title="Delete channel"
-                >
-                  ×
-                </button>
-              )}
-            </div>
-          );
-        })}
-
-        <div className="category-row">
-          <div
-            className={`category-header ${voiceChannelsCollapsed ? 'collapsed' : ''}`}
-            onClick={() => setVoiceChannelsCollapsed(!voiceChannelsCollapsed)}
-          >
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M7 10l5 5 5-5z" />
-            </svg>
-            Voice Channels
-          </div>
-        </div>
-
-        {!voiceChannelsCollapsed && voiceChannels.map(channel => {
-          const participants = voiceParticipants[channel.id] ?? [];
-          const isActive = channel.id === activeVoiceChannelId;
-          return (
-            <div key={channel.id}>
-              <div
-                className={`voice-channel-item ${isActive ? 'active' : ''}`}
-                onClick={() => onVoiceChannelClick?.(channel.id)}
-                onContextMenu={e => { e.preventDefault(); setChannelContextMenu({ channel, top: e.clientY, left: e.clientX }); }}
-                onMouseEnter={() => setHoveredChannel(channel.id)}
-                onMouseLeave={() => setHoveredChannel(null)}
-              >
-                <span className="voice-icon">🔊</span>
-                <span className="channel-name">{channel.name}</span>
-                {participants.length > 0 && (
-                  <span className="voice-count">{participants.length}</span>
-                )}
-                {canManageChannels && hoveredChannel === channel.id && (
-                  <button
-                    className="delete-channel-btn"
-                    onClick={e => { e.stopPropagation(); onDeleteChannel(channel.id); }}
-                    title="Delete channel"
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-              {participants.length > 0 && (
-                <div className="voice-participants-list">
-                  {participants.map(p => (
-                    <div key={p.user_id} className="voice-participant-row">
-                      <div className="voice-participant-avatar">
-                        {p.avatar_url
-                          ? <img src={p.avatar_url} alt={p.username} />
-                          : p.username.charAt(0).toUpperCase()
-                        }
-                      </div>
-                      <span>{p.username}</span>
-                    </div>
-                  ))}
+        <DragDropContext onDragEnd={handleDragEnd}>
+          {/* Uncategorized channels at top */}
+          {uncategorized.length > 0 && (
+            <Droppable droppableId="uncategorized" type="CHANNEL">
+              {(provided) => (
+                <div ref={provided.innerRef} {...provided.droppableProps} className="uncategorized-channels">
+                  {uncategorized.map((ch, i) => renderChannel(ch, i))}
+                  {provided.placeholder}
                 </div>
               )}
-            </div>
-          );
-        })}
+            </Droppable>
+          )}
 
-        <div className="category-row">
-          <div
-            className={`category-header ${binChannelsCollapsed ? 'collapsed' : ''}`}
-            onClick={() => setBinChannelsCollapsed(!binChannelsCollapsed)}
-          >
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M7 10l5 5 5-5z" />
-            </svg>
-            Bin Channels
+          {/* Categories */}
+          <Droppable droppableId="categories" type="CATEGORY">
+            {(provided) => (
+              <div ref={provided.innerRef} {...provided.droppableProps}>
+                {categories.map((cat, catIndex) => {
+                  const isCollapsed = collapsedCategories.has(cat.id);
+                  const children = childrenOf(cat.id);
+                  const isRenamingCat = renamingChannelId === cat.id;
+                  return (
+                    <Draggable key={cat.id} draggableId={cat.id} index={catIndex} isDragDisabled={!canManageChannels}>
+                      {(catProvided) => (
+                        <div ref={catProvided.innerRef} {...catProvided.draggableProps} style={catProvided.draggableProps.style}>
+                          <div className="category-row">
+                            <div
+                              className={`category-header ${isCollapsed ? 'collapsed' : ''}`}
+                              onClick={() => toggleCategory(cat.id)}
+                              onContextMenu={e => { e.preventDefault(); setChannelContextMenu({ channel: cat, top: e.clientY, left: e.clientX }); }}
+                              {...(canManageChannels ? catProvided.dragHandleProps : {})}
+                            >
+                              <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M7 10l5 5 5-5z" />
+                              </svg>
+                              {isRenamingCat ? (
+                                <input
+                                  ref={renameInputRef}
+                                  className="channel-rename-input"
+                                  value={renameValue}
+                                  onChange={e => setRenameValue(e.target.value)}
+                                  onBlur={() => commitRename(cat.id)}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') { e.preventDefault(); commitRename(cat.id); }
+                                    if (e.key === 'Escape') setRenamingChannelId(null);
+                                  }}
+                                  onClick={e => e.stopPropagation()}
+                                />
+                              ) : (
+                                cat.name.toUpperCase()
+                              )}
+                            </div>
+                            {canManageChannels && (
+                              <button className="add-channel-btn" onClick={onCreateChannel} title="Create channel">+</button>
+                            )}
+                          </div>
+
+                          {!isCollapsed && (
+                            <Droppable droppableId={`cat-${cat.id}`} type="CHANNEL">
+                              {(chProvided) => (
+                                <div ref={chProvided.innerRef} {...chProvided.droppableProps} className="category-channels">
+                                  {children.map((ch, i) => renderChannel(ch, i))}
+                                  {chProvided.placeholder}
+                                </div>
+                              )}
+                            </Droppable>
+                          )}
+                        </div>
+                      )}
+                    </Draggable>
+                  );
+                })}
+                {provided.placeholder}
+              </div>
+            )}
+          </Droppable>
+        </DragDropContext>
+
+        {/* Add channel button when no categories exist */}
+        {categories.length === 0 && canManageChannels && (
+          <div className="category-row">
+            <div className="category-header" style={{ cursor: 'default' }}>Channels</div>
+            <button className="add-channel-btn" onClick={onCreateChannel} title="Create channel">+</button>
           </div>
-        </div>
+        )}
 
-        {!binChannelsCollapsed && binChannels.map(channel => {
-          const unread = channelUnreadCounts[channel.id] ?? 0;
-          const isActive = channel.id === activeChannelId;
-          const isRenaming = renamingChannelId === channel.id;
-          return (
-            <div
-              key={channel.id}
-              className={`channel-item ${isActive ? 'active' : ''} ${unread > 0 && !isActive ? 'unread' : ''}`}
-              onClick={() => !isRenaming && onChannelSelect(channel.id)}
-              onContextMenu={e => { e.preventDefault(); setChannelContextMenu({ channel, top: e.clientY, left: e.clientX }); }}
-              onMouseEnter={() => setHoveredChannel(channel.id)}
-              onMouseLeave={() => setHoveredChannel(null)}
-            >
-              <span className="channel-icon">&lt;/&gt;</span>
-              {isRenaming ? (
-                <input
-                  ref={renameInputRef}
-                  className="channel-rename-input"
-                  value={renameValue}
-                  onChange={e => setRenameValue(e.target.value)}
-                  onBlur={() => commitRename(channel.id)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') { e.preventDefault(); commitRename(channel.id); }
-                    if (e.key === 'Escape') setRenamingChannelId(null);
-                  }}
-                  onClick={e => e.stopPropagation()}
-                />
-              ) : (
-                <span className="channel-name">{channel.name}</span>
-              )}
-              {unread > 0 && !isActive && !isRenaming && (
-                <span className="channel-unread-badge">{unread > 99 ? '99+' : unread}</span>
-              )}
-              {canManageChannels && hoveredChannel === channel.id && !isRenaming && (
-                <button
-                  className="delete-channel-btn"
-                  onClick={e => { e.stopPropagation(); onDeleteChannel(channel.id); }}
-                  title="Delete channel"
-                >
-                  ×
-                </button>
-              )}
-            </div>
-          );
-        })}
-
-        {(owner_id === currentUser?.id) && (
+        {owner_id === currentUser?.id && (
           <div className="channel-item manage-roles-item" onClick={onManageRoles}>
             <span className="channel-icon">⚙</span>
             <span className="channel-name">Manage Roles</span>
@@ -470,18 +485,12 @@ const ChannelList: React.FC<ChannelListProps> = ({
             <button className={`voice-bar-btn${vcDeafened ? ' active' : ''}`} onClick={onVcDeafenToggle} title={vcDeafened ? 'Undeafen' : 'Deafen'}>
               {vcDeafened ? '🔕' : '🔔'}
             </button>
-            <button className="voice-bar-btn leave" onClick={onVcLeave} title="Leave voice">
-              ✕ Leave
-            </button>
+            <button className="voice-bar-btn leave" onClick={onVcLeave} title="Leave voice">✕ Leave</button>
           </div>
         </div>
       )}
 
-      <div
-        className="user-area clickable"
-        onClick={handleUserAreaClick}
-        title="Click for user settings"
-      >
+      <div className="user-area clickable" onClick={e => { const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); setUserContextMenu({ top: rect.top, left: rect.left }); }} title="Click for user settings">
         <div className="user-info">
           <div className="user-avatar">
             {currentUser?.avatar_url
@@ -502,25 +511,11 @@ const ChannelList: React.FC<ChannelListProps> = ({
       </div>
 
       {userContextMenu && (
-        <UserContextMenu
-          position={userContextMenu}
-          onClose={() => setUserContextMenu(null)}
-          onSettings={() => onOpenSettings?.()}
-          onLogout={() => onLogout?.()}
-        />
+        <UserContextMenu position={userContextMenu} onClose={() => setUserContextMenu(null)} onSettings={() => onOpenSettings?.()} onLogout={() => onLogout?.()} />
       )}
-
       {serverContextMenu && (
-        <ServerContextMenu
-          position={serverContextMenu}
-          serverName={serverName}
-          isOwner={owner_id === currentUser?.id}
-          onClose={() => setServerContextMenu(null)}
-          onLeave={onLeaveServer}
-          onSettings={onServerSettings}
-        />
+        <ServerContextMenu position={serverContextMenu} onClose={() => setServerContextMenu(null)} onSettings={onServerSettings} onLeave={onLeaveServer} />
       )}
-
       {channelContextMenu && (
         <ChannelContextMenu
           channel={channelContextMenu.channel}

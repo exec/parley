@@ -32,3 +32,12 @@ export async function deleteChannel(id: string): Promise<void> {
 export async function getChannel(id: string): Promise<Channel> {
   return apiClient.get<Channel>(`/channels/${id}`);
 }
+export interface ChannelOrder {
+  id: string;
+  position: number;
+  parent_id: string | null;
+}
+
+export async function reorderChannels(serverId: string, orders: ChannelOrder[]): Promise<Channel[]> {
+  return apiClient.patch<Channel[]>(`/servers/${serverId}/channels/reorder`, orders);
+}

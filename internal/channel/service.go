@@ -18,8 +18,10 @@ import (
 type ChannelType int
 
 const (
-	ChannelTypeText  ChannelType = 0
-	ChannelTypeVoice ChannelType = 1
+	ChannelTypeText     ChannelType = 0
+	ChannelTypeVoice    ChannelType = 1
+	ChannelTypeBin      ChannelType = 2
+	ChannelTypeCategory ChannelType = 3
 )
 
 // Channel represents a chat channel in the system
@@ -28,6 +30,7 @@ type Channel struct {
 	ServerID  string      `json:"server_id"`
 	Name      string      `json:"name"`
 	Type      ChannelType `json:"type"`
+	Position  int         `json:"position"`
 	ParentID  *string     `json:"parent_id,omitempty"`
 	Topic     string      `json:"topic,omitempty"`
 	CreatedAt string      `json:"created_at"`
@@ -268,6 +271,7 @@ func dbChannelToChannel(dbCh *db.Channel) *Channel {
 		ServerID:  strconv.FormatInt(dbCh.ServerID, 10),
 		Name:      dbCh.Name,
 		Type:      ChannelType(dbCh.ChannelType),
+		Position:  dbCh.Position,
 		Topic:     dbCh.Topic,
 		CreatedAt: dbCh.CreatedAt.Format(time.RFC3339),
 		UpdatedAt: dbCh.UpdatedAt.Format(time.RFC3339),
@@ -279,6 +283,75 @@ func dbChannelToChannel(dbCh *db.Channel) *Channel {
 	}
 
 	return ch
+}
+
+// ChannelOrder represents a single channel's position/parent update
+type ChannelOrder struct {
+	ID       string  `json:"id"`
+	Position int     `json:"position"`
+	ParentID *string `json:"parent_id"`
+}
+
+// ReorderChannels bulk-updates positions and parent_ids for channels in a server.
+func (s *ChannelService) ReorderChannels(ctx context.Context, serverID string, orders []ChannelOrder, userID string) ([]*Channel, error) {
+	serverIDInt, err := strconv.ParseInt(serverID, 10, 64)
+	if err != nil {
+		return nil, errors.New("invalid server ID")
+	}
+	userIDInt, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		return nil, errors.New("invalid user ID")
+	}
+
+	srv, err := s.repo.GetServerByID(ctx, serverIDInt)
+	if err != nil {
+		return nil, errors.New("server not found")
+	}
+	allowed, err := permissions.HasPermission(ctx, s.repo, serverIDInt, userIDInt, srv.OwnerID, permissions.PermManageChannels)
+	if err != nil {
+		return nil, err
+	}
+	if !allowed {
+		return nil, errors.New("forbidden")
+	}
+
+	for _, o := range orders {
+		chIDInt, err := strconv.ParseInt(o.ID, 10, 64)
+		if err != nil {
+			return nil, errors.New("invalid channel ID: " + o.ID)
+		}
+		var parentIDInt *int64
+		if o.ParentID != nil {
+			pid, err := strconv.ParseInt(*o.ParentID, 10, 64)
+			if err != nil {
+				return nil, errors.New("invalid parent ID")
+			}
+			parentIDInt = &pid
+		}
+		if err := s.repo.UpdateChannelOrder(ctx, chIDInt, o.Position, int64ToNullInt64(parentIDInt)); err != nil {
+			return nil, err
+		}
+	}
+
+	updated, err := s.repo.GetChannelsByServerID(ctx, serverIDInt)
+	if err != nil {
+		return nil, err
+	}
+
+	channels := make([]*Channel, len(updated))
+	for i, c := range updated {
+		channels[i] = dbChannelToChannel(c)
+	}
+
+	if s.hub != nil {
+		for _, ch := range channels {
+			if payload, err := json.Marshal(ch); err == nil {
+				s.hub.BroadcastToChannel("server:"+serverID, ws.EventChannelUpdate, payload)
+			}
+		}
+	}
+
+	return channels, nil
 }
 
 // int64ToNullInt64 converts *int64 to sql.NullInt64

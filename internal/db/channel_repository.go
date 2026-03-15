@@ -131,6 +131,12 @@ func (r *Repository) UpdateChannel(ctx context.Context, channel *Channel) error 
 	return nil
 }
 
+func (r *Repository) UpdateChannelOrder(ctx context.Context, id int64, position int, parentID sql.NullInt64) error {
+	query := `UPDATE channels SET position = $1, parent_id = $2, updated_at = NOW() WHERE id = $3`
+	_, err := r.db.ExecContext(ctx, query, position, parentID, id)
+	return err
+}
+
 func (r *Repository) DeleteChannel(ctx context.Context, id int64) error {
 	query := `DELETE FROM channels WHERE id = $1`
 

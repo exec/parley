@@ -23,6 +23,7 @@ func (h *Handler) ServerRoutes() http.Handler {
 	r := chi.NewRouter()
 
 	r.Post("/", h.CreateChannel)
+	r.Patch("/reorder", h.ReorderChannels)
 	r.Get("/", h.GetServerChannels)
 
 	return r
@@ -187,3 +188,32 @@ func (h *Handler) DeleteChannel(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+
+// ReorderChannels handles PATCH /servers/:serverID/channels/reorder
+func (h *Handler) ReorderChannels(w http.ResponseWriter, r *http.Request) {
+	serverID := chi.URLParam(r, "serverID")
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var orders []ChannelOrder
+	if err := json.NewDecoder(r.Body).Decode(&orders); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	channels, err := h.service.ReorderChannels(r.Context(), serverID, orders, userID)
+	if err != nil {
+		if err.Error() == "forbidden" {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(channels)
+}

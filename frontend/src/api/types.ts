@@ -52,6 +52,8 @@ export interface Channel {
   server_id: string;
   name: string;
   type: number;
+  position: number;
+  parent_id?: string;
   topic?: string;
   created_at: string;
   updated_at: string;

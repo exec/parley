@@ -86,6 +86,7 @@ function MainApp() {
     receiveMemberRoleUpdate,
     receiveUserUpdate,
     reloadMembers,
+    reorderChannels,
   } = useApp();
 
   const navigate = useNavigate();
@@ -558,6 +559,7 @@ function MainApp() {
       onVcDeafenToggle={vcToggleDeafen}
       onVcLeave={vcDisconnect}
       onVcNavigate={() => { if (activeVoiceChannel) selectChannel(activeVoiceChannel); }}
+      onReorderChannels={reorderChannels}
     />
   ) : (
     <DmPanel
@@ -671,6 +673,7 @@ function MainApp() {
       server_id: '',
       name: activeDmChannel.other_username,
       type: 0,
+      position: 0,
       created_at: activeDmChannel.created_at,
       updated_at: activeDmChannel.created_at,
     };
