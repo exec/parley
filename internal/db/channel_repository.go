@@ -139,6 +139,45 @@ func (r *Repository) UpdateChannelOrder(ctx context.Context, id int64, position 
 	return err
 }
 
+// SetChannelSynced sets the synced flag on a channel.
+func (r *Repository) SetChannelSynced(ctx context.Context, channelID int64, synced bool) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE channels SET synced = $1, updated_at = NOW() WHERE id = $2`,
+		synced, channelID)
+	return err
+}
+
+// GetSyncedChildrenByParent returns channels that have the given parentID and synced = true.
+func (r *Repository) GetSyncedChildrenByParent(ctx context.Context, parentID int64) ([]*Channel, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, server_id, name, channel_type, position, parent_id, topic, synced, created_at, updated_at
+         FROM channels WHERE parent_id = $1 AND synced = true`,
+		parentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var channels []*Channel
+	for rows.Next() {
+		var ch Channel
+		if err := rows.Scan(&ch.ID, &ch.ServerID, &ch.Name, &ch.ChannelType, &ch.Position, &ch.ParentID, &ch.Topic, &ch.Synced, &ch.CreatedAt, &ch.UpdatedAt); err != nil {
+			return nil, err
+		}
+		channels = append(channels, &ch)
+	}
+	return channels, rows.Err()
+}
+
+// HasChildren returns true if the channel has any child channels.
+func (r *Repository) HasChildren(ctx context.Context, channelID int64) (bool, error) {
+	var count int
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM channels WHERE parent_id = $1`,
+		channelID).Scan(&count)
+	return count > 0, err
+}
+
 func (r *Repository) DeleteChannel(ctx context.Context, id int64) error {
 	query := `DELETE FROM channels WHERE id = $1`
 

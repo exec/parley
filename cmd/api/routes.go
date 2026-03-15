@@ -100,6 +100,10 @@ func registerRoutes(
 			r.Get("/channels/{id}", channelHandler.GetChannel)
 			r.Put("/channels/{id}", channelHandler.UpdateChannel)
 			r.Delete("/channels/{id}", channelHandler.DeleteChannel)
+			r.Get("/channels/{id}/overwrites", channelHandler.GetOverwrites)
+			r.Put("/channels/{id}/overwrites", channelHandler.UpsertOverwrite)
+			r.Delete("/channels/{id}/overwrites/{overwriteId}", channelHandler.DeleteOverwrite)
+			r.Get("/channels/{id}/my-permissions", channelHandler.GetMyChannelPermissions)
 
 			// Message routes
 			messageHandler := message.NewHandler(messageService)

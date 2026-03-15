@@ -1,0 +1,341 @@
+package channel
+
+import (
+	"encoding/json"
+	"net/http"
+	"strconv"
+
+	"github.com/go-chi/chi/v5"
+	"parley/internal/auth"
+	"parley/internal/permissions"
+)
+
+// UpsertOverwriteRequest represents the request body for upserting a permission overwrite.
+type UpsertOverwriteRequest struct {
+	TargetType int    `json:"target_type"`
+	TargetID   string `json:"target_id"`
+	Allow      int64  `json:"allow"`
+	Deny       int64  `json:"deny"`
+}
+
+// GetOverwrites handles GET /channels/{id}/overwrites
+func (h *Handler) GetOverwrites(w http.ResponseWriter, r *http.Request) {
+	channelID := chi.URLParam(r, "id")
+	if channelID == "" {
+		http.Error(w, "channel ID is required", http.StatusBadRequest)
+		return
+	}
+
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	channelIDInt, err := strconv.ParseInt(channelID, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid channel ID", http.StatusBadRequest)
+		return
+	}
+
+	ch, err := h.service.repo.GetChannelByID(r.Context(), channelIDInt)
+	if err != nil {
+		http.Error(w, "channel not found", http.StatusNotFound)
+		return
+	}
+
+	userIDInt, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid user ID", http.StatusBadRequest)
+		return
+	}
+
+	srv, err := h.service.repo.GetServerByID(r.Context(), ch.ServerID)
+	if err != nil {
+		http.Error(w, "server not found", http.StatusNotFound)
+		return
+	}
+
+	canView, err := permissions.HasChannelPermission(r.Context(), h.service.repo, ch.ServerID, userIDInt, srv.OwnerID, channelIDInt, permissions.PermViewChannel)
+	if err != nil || !canView {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	overwrites, err := h.service.repo.GetRawChannelOverwrites(r.Context(), channelIDInt)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if overwrites == nil {
+		w.Write([]byte("[]"))
+		return
+	}
+	json.NewEncoder(w).Encode(overwrites)
+}
+
+// UpsertOverwrite handles PUT /channels/{id}/overwrites
+func (h *Handler) UpsertOverwrite(w http.ResponseWriter, r *http.Request) {
+	channelID := chi.URLParam(r, "id")
+	if channelID == "" {
+		http.Error(w, "channel ID is required", http.StatusBadRequest)
+		return
+	}
+
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	channelIDInt, err := strconv.ParseInt(channelID, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid channel ID", http.StatusBadRequest)
+		return
+	}
+
+	userIDInt, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid user ID", http.StatusBadRequest)
+		return
+	}
+
+	ch, err := h.service.repo.GetChannelByID(r.Context(), channelIDInt)
+	if err != nil {
+		http.Error(w, "channel not found", http.StatusNotFound)
+		return
+	}
+
+	srv, err := h.service.repo.GetServerByID(r.Context(), ch.ServerID)
+	if err != nil {
+		http.Error(w, "server not found", http.StatusNotFound)
+		return
+	}
+
+	// Check permission: must have ManageRoles or ManageChannels
+	hasManageRoles, err := permissions.HasPermission(r.Context(), h.service.repo, ch.ServerID, userIDInt, srv.OwnerID, permissions.PermManageRoles)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	hasManageChannels, err := permissions.HasPermission(r.Context(), h.service.repo, ch.ServerID, userIDInt, srv.OwnerID, permissions.PermManageChannels)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !hasManageRoles && !hasManageChannels {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	var req UpsertOverwriteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	targetIDInt, err := strconv.ParseInt(req.TargetID, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid target_id", http.StatusBadRequest)
+		return
+	}
+
+	// Mask out server-only bits
+	req.Allow &= ^permissions.PermServerOnlyMask
+	req.Deny &= ^permissions.PermServerOnlyMask
+
+	// Clear conflicting bits: if a bit is in both allow and deny, clear it from deny
+	req.Deny &= ^req.Allow
+
+	// Check actor can only set bits they themselves have
+	actorPerms, err := permissions.GetEffectivePermissions(r.Context(), h.service.repo, ch.ServerID, userIDInt, srv.OwnerID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if (req.Allow|req.Deny)&(^actorPerms) != 0 {
+		http.Error(w, "forbidden: cannot set permissions you do not have", http.StatusForbidden)
+		return
+	}
+
+	ow, err := h.service.repo.UpsertOverwrite(r.Context(), channelIDInt, req.TargetType, targetIDInt, req.Allow, req.Deny)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Sync handling
+	if err := h.handleOverwriteSync(r, ch.ServerID, channelIDInt, ch.ParentID.Valid, ch.ParentID.Int64); err != nil {
+		// Log but don't fail the request
+		_ = err
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(ow)
+}
+
+// DeleteOverwrite handles DELETE /channels/{id}/overwrites/{overwriteId}
+func (h *Handler) DeleteOverwrite(w http.ResponseWriter, r *http.Request) {
+	channelID := chi.URLParam(r, "id")
+	overwriteID := chi.URLParam(r, "overwriteId")
+	if channelID == "" {
+		http.Error(w, "channel ID is required", http.StatusBadRequest)
+		return
+	}
+	if overwriteID == "" {
+		http.Error(w, "overwrite ID is required", http.StatusBadRequest)
+		return
+	}
+
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	channelIDInt, err := strconv.ParseInt(channelID, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid channel ID", http.StatusBadRequest)
+		return
+	}
+
+	overwriteIDInt, err := strconv.ParseInt(overwriteID, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid overwrite ID", http.StatusBadRequest)
+		return
+	}
+
+	userIDInt, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid user ID", http.StatusBadRequest)
+		return
+	}
+
+	ch, err := h.service.repo.GetChannelByID(r.Context(), channelIDInt)
+	if err != nil {
+		http.Error(w, "channel not found", http.StatusNotFound)
+		return
+	}
+
+	srv, err := h.service.repo.GetServerByID(r.Context(), ch.ServerID)
+	if err != nil {
+		http.Error(w, "server not found", http.StatusNotFound)
+		return
+	}
+
+	// Check permission: must have ManageRoles or ManageChannels
+	hasManageRoles, err := permissions.HasPermission(r.Context(), h.service.repo, ch.ServerID, userIDInt, srv.OwnerID, permissions.PermManageRoles)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	hasManageChannels, err := permissions.HasPermission(r.Context(), h.service.repo, ch.ServerID, userIDInt, srv.OwnerID, permissions.PermManageChannels)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !hasManageRoles && !hasManageChannels {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	if err := h.service.repo.DeleteOverwrite(r.Context(), overwriteIDInt); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Sync handling
+	if err := h.handleOverwriteSync(r, ch.ServerID, channelIDInt, ch.ParentID.Valid, ch.ParentID.Int64); err != nil {
+		_ = err
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// GetMyChannelPermissions handles GET /channels/{id}/my-permissions
+func (h *Handler) GetMyChannelPermissions(w http.ResponseWriter, r *http.Request) {
+	channelID := chi.URLParam(r, "id")
+	if channelID == "" {
+		http.Error(w, "channel ID is required", http.StatusBadRequest)
+		return
+	}
+
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	channelIDInt, err := strconv.ParseInt(channelID, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid channel ID", http.StatusBadRequest)
+		return
+	}
+
+	userIDInt, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid user ID", http.StatusBadRequest)
+		return
+	}
+
+	ch, err := h.service.repo.GetChannelByID(r.Context(), channelIDInt)
+	if err != nil {
+		http.Error(w, "channel not found", http.StatusNotFound)
+		return
+	}
+
+	srv, err := h.service.repo.GetServerByID(r.Context(), ch.ServerID)
+	if err != nil {
+		http.Error(w, "server not found", http.StatusNotFound)
+		return
+	}
+
+	basePerms, err := permissions.GetEffectivePermissions(r.Context(), h.service.repo, ch.ServerID, userIDInt, srv.OwnerID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	everyoneRole, _ := h.service.repo.GetEveryoneRole(r.Context(), ch.ServerID)
+	memberRoles, _ := h.service.repo.GetMemberRoles(r.Context(), ch.ServerID, userIDInt)
+	overwrites, _ := h.service.repo.GetChannelOverwrites(r.Context(), channelIDInt)
+
+	everyoneID := int64(0)
+	if everyoneRole != nil {
+		everyoneID = everyoneRole.ID
+	}
+
+	roleIDs := make([]int64, len(memberRoles))
+	for i, role := range memberRoles {
+		roleIDs[i] = role.ID
+	}
+
+	channelPerms := permissions.ComputeChannelPermissions(basePerms, userIDInt, roleIDs, everyoneID, overwrites)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]int64{"permissions": channelPerms})
+}
+
+// handleOverwriteSync handles the synced flag logic after an overwrite change.
+// If the channel has a parent (is in a category), mark it as unsynced.
+// If the channel IS a category (no parent, has children), propagate to synced children.
+func (h *Handler) handleOverwriteSync(r *http.Request, serverID, channelID int64, hasParent bool, parentID int64) error {
+	if hasParent {
+		// Channel is in a category — mark as unsynced
+		return h.service.repo.SetChannelSynced(r.Context(), channelID, false)
+	}
+
+	// Channel might be a category — propagate to synced children
+	children, err := h.service.repo.GetSyncedChildrenByParent(r.Context(), channelID)
+	if err != nil {
+		return err
+	}
+	for _, child := range children {
+		if copyErr := h.service.repo.CopyOverwrites(r.Context(), channelID, child.ID); copyErr != nil {
+			return copyErr
+		}
+	}
+	return nil
+}
