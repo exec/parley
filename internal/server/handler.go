@@ -500,10 +500,23 @@ func (h *Handler) CreateServerRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	server, err := h.service.GetServer(r.Context(), serverID)
-	if err != nil || server.OwnerID != userID {
-		w.WriteHeader(http.StatusForbidden)
-		render.JSON(w, r, ErrorResponse{Error: "only the server owner can manage roles"})
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		render.JSON(w, r, ErrorResponse{Error: "server not found"})
 		return
+	}
+
+	isOwner := server.OwnerID == userID
+	if !isOwner {
+		sID, _ := permissions.ParseInt64(serverID)
+		aID, _ := permissions.ParseInt64(userID)
+		ownerID, _ := permissions.ParseInt64(server.OwnerID)
+		hasPerm, err := permissions.HasPermission(r.Context(), h.service.Repo(), sID, aID, ownerID, permissions.PermManageRoles)
+		if err != nil || !hasPerm {
+			w.WriteHeader(http.StatusForbidden)
+			render.JSON(w, r, ErrorResponse{Error: "manage roles permission required"})
+			return
+		}
 	}
 
 	var req struct {
@@ -515,6 +528,23 @@ func (h *Handler) CreateServerRole(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		render.JSON(w, r, ErrorResponse{Error: "invalid request body"})
 		return
+	}
+
+	// Non-owners can only grant permissions they themselves have.
+	if !isOwner {
+		sID, _ := permissions.ParseInt64(serverID)
+		aID, _ := permissions.ParseInt64(userID)
+		ownerID, _ := permissions.ParseInt64(server.OwnerID)
+		actorPerms, _ := permissions.GetEffectivePermissions(r.Context(), h.service.Repo(), sID, aID, ownerID)
+		req.Permissions &= actorPerms
+	}
+
+	// Hierarchy: new role position must be below actor's highest role (unless owner).
+	if !isOwner {
+		sID, _ := permissions.ParseInt64(serverID)
+		aID, _ := permissions.ParseInt64(userID)
+		actorHighest, _ := h.service.Repo().GetHighestRolePosition(r.Context(), sID, aID)
+		_ = actorHighest // position is assigned by DB; we can't enforce pre-creation without knowing final position
 	}
 
 	role, err := h.service.CreateServerRole(r.Context(), serverID, req.Name, req.Color, req.Permissions)
@@ -541,10 +571,50 @@ func (h *Handler) DeleteServerRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	server, err := h.service.GetServer(r.Context(), serverID)
-	if err != nil || server.OwnerID != userID {
-		w.WriteHeader(http.StatusForbidden)
-		render.JSON(w, r, ErrorResponse{Error: "only the server owner can manage roles"})
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		render.JSON(w, r, ErrorResponse{Error: "server not found"})
 		return
+	}
+
+	isOwner := server.OwnerID == userID
+	if !isOwner {
+		sID, _ := permissions.ParseInt64(serverID)
+		aID, _ := permissions.ParseInt64(userID)
+		ownerID, _ := permissions.ParseInt64(server.OwnerID)
+		hasPerm, err := permissions.HasPermission(r.Context(), h.service.Repo(), sID, aID, ownerID, permissions.PermManageRoles)
+		if err != nil || !hasPerm {
+			w.WriteHeader(http.StatusForbidden)
+			render.JSON(w, r, ErrorResponse{Error: "manage roles permission required"})
+			return
+		}
+	}
+
+	// Prevent deleting @everyone role.
+	sID, _ := permissions.ParseInt64(serverID)
+	rID, _ := permissions.ParseInt64(roleID)
+	roles, err := h.service.Repo().GetServerRoles(r.Context(), sID)
+	if err == nil {
+		for _, role := range roles {
+			if role.ID == rID && role.IsEveryone {
+				w.WriteHeader(http.StatusForbidden)
+				render.JSON(w, r, ErrorResponse{Error: "cannot delete the @everyone role"})
+				return
+			}
+		}
+	}
+
+	// Hierarchy enforcement: non-owners cannot delete a role at or above their own highest position.
+	if !isOwner {
+		aID, _ := permissions.ParseInt64(userID)
+		actorHighest, _ := h.service.Repo().GetHighestRolePosition(r.Context(), sID, aID)
+		for _, role := range roles {
+			if role.ID == rID && role.Position >= actorHighest {
+				w.WriteHeader(http.StatusForbidden)
+				render.JSON(w, r, ErrorResponse{Error: "cannot delete a role at or above your highest role"})
+				return
+			}
+		}
 	}
 
 	if err := h.service.DeleteServerRole(r.Context(), serverID, roleID); err != nil {
@@ -569,10 +639,54 @@ func (h *Handler) UpdateServerRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	server, err := h.service.GetServer(r.Context(), serverID)
-	if err != nil || server.OwnerID != userID {
-		w.WriteHeader(http.StatusForbidden)
-		render.JSON(w, r, ErrorResponse{Error: "only the server owner can manage roles"})
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		render.JSON(w, r, ErrorResponse{Error: "server not found"})
 		return
+	}
+
+	isOwner := server.OwnerID == userID
+	sID, _ := permissions.ParseInt64(serverID)
+	rID, _ := permissions.ParseInt64(roleID)
+	aID, _ := permissions.ParseInt64(userID)
+	ownerID, _ := permissions.ParseInt64(server.OwnerID)
+
+	// Determine if this is the @everyone role.
+	roles, _ := h.service.Repo().GetServerRoles(r.Context(), sID)
+	isEveryoneRole := false
+	for _, role := range roles {
+		if role.ID == rID && role.IsEveryone {
+			isEveryoneRole = true
+			break
+		}
+	}
+
+	if !isOwner {
+		// @everyone role requires ManageServer; other roles require ManageRoles.
+		requiredPerm := permissions.PermManageRoles
+		if isEveryoneRole {
+			requiredPerm = permissions.PermManageServer
+		}
+		hasPerm, err := permissions.HasPermission(r.Context(), h.service.Repo(), sID, aID, ownerID, requiredPerm)
+		if err != nil || !hasPerm {
+			w.WriteHeader(http.StatusForbidden)
+			if isEveryoneRole {
+				render.JSON(w, r, ErrorResponse{Error: "manage server permission required to edit @everyone"})
+			} else {
+				render.JSON(w, r, ErrorResponse{Error: "manage roles permission required"})
+			}
+			return
+		}
+
+		// Hierarchy enforcement: non-owners cannot edit a role at or above their highest position.
+		actorHighest, _ := h.service.Repo().GetHighestRolePosition(r.Context(), sID, aID)
+		for _, role := range roles {
+			if role.ID == rID && role.Position >= actorHighest {
+				w.WriteHeader(http.StatusForbidden)
+				render.JSON(w, r, ErrorResponse{Error: "cannot edit a role at or above your highest role"})
+				return
+			}
+		}
 	}
 
 	var req struct {
@@ -586,6 +700,12 @@ func (h *Handler) UpdateServerRole(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		render.JSON(w, r, ErrorResponse{Error: "name is required"})
 		return
+	}
+
+	// Non-owners can only grant permissions they themselves have.
+	if !isOwner {
+		actorPerms, _ := permissions.GetEffectivePermissions(r.Context(), h.service.Repo(), sID, aID, ownerID)
+		req.Permissions &= actorPerms
 	}
 
 	role, err := h.service.UpdateServerRole(r.Context(), serverID, roleID, req.Name, req.Color, req.Permissions, req.Hoist, req.Position)
@@ -628,10 +748,23 @@ func (h *Handler) AssignRoleToMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	server, err := h.service.GetServer(r.Context(), serverID)
-	if err != nil || server.OwnerID != userID {
-		w.WriteHeader(http.StatusForbidden)
-		render.JSON(w, r, ErrorResponse{Error: "only the server owner can manage roles"})
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		render.JSON(w, r, ErrorResponse{Error: "server not found"})
 		return
+	}
+
+	isOwner := server.OwnerID == userID
+	if !isOwner {
+		sID, _ := permissions.ParseInt64(serverID)
+		aID, _ := permissions.ParseInt64(userID)
+		ownerID, _ := permissions.ParseInt64(server.OwnerID)
+		hasPerm, err := permissions.HasPermission(r.Context(), h.service.Repo(), sID, aID, ownerID, permissions.PermManageRoles)
+		if err != nil || !hasPerm {
+			w.WriteHeader(http.StatusForbidden)
+			render.JSON(w, r, ErrorResponse{Error: "manage roles permission required"})
+			return
+		}
 	}
 
 	var req struct {
@@ -641,6 +774,22 @@ func (h *Handler) AssignRoleToMember(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		render.JSON(w, r, ErrorResponse{Error: "role_id is required"})
 		return
+	}
+
+	// Hierarchy: non-owners can only assign roles below their own highest position.
+	if !isOwner {
+		sID, _ := permissions.ParseInt64(serverID)
+		aID, _ := permissions.ParseInt64(userID)
+		rID, _ := permissions.ParseInt64(req.RoleID)
+		actorHighest, _ := h.service.Repo().GetHighestRolePosition(r.Context(), sID, aID)
+		roles, _ := h.service.Repo().GetServerRoles(r.Context(), sID)
+		for _, role := range roles {
+			if role.ID == rID && role.Position >= actorHighest {
+				w.WriteHeader(http.StatusForbidden)
+				render.JSON(w, r, ErrorResponse{Error: "cannot assign a role at or above your highest role"})
+				return
+			}
+		}
 	}
 
 	if err := h.service.AssignRoleToMember(r.Context(), serverID, targetUserID, req.RoleID); err != nil {
@@ -666,10 +815,39 @@ func (h *Handler) RemoveRoleFromMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	server, err := h.service.GetServer(r.Context(), serverID)
-	if err != nil || server.OwnerID != userID {
-		w.WriteHeader(http.StatusForbidden)
-		render.JSON(w, r, ErrorResponse{Error: "only the server owner can manage roles"})
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		render.JSON(w, r, ErrorResponse{Error: "server not found"})
 		return
+	}
+
+	isOwner := server.OwnerID == userID
+	if !isOwner {
+		sID, _ := permissions.ParseInt64(serverID)
+		aID, _ := permissions.ParseInt64(userID)
+		ownerID, _ := permissions.ParseInt64(server.OwnerID)
+		hasPerm, err := permissions.HasPermission(r.Context(), h.service.Repo(), sID, aID, ownerID, permissions.PermManageRoles)
+		if err != nil || !hasPerm {
+			w.WriteHeader(http.StatusForbidden)
+			render.JSON(w, r, ErrorResponse{Error: "manage roles permission required"})
+			return
+		}
+	}
+
+	// Hierarchy: non-owners can only remove roles below their own highest position.
+	if !isOwner {
+		sID, _ := permissions.ParseInt64(serverID)
+		aID, _ := permissions.ParseInt64(userID)
+		rID, _ := permissions.ParseInt64(roleID)
+		actorHighest, _ := h.service.Repo().GetHighestRolePosition(r.Context(), sID, aID)
+		roles, _ := h.service.Repo().GetServerRoles(r.Context(), sID)
+		for _, role := range roles {
+			if role.ID == rID && role.Position >= actorHighest {
+				w.WriteHeader(http.StatusForbidden)
+				render.JSON(w, r, ErrorResponse{Error: "cannot remove a role at or above your highest role"})
+				return
+			}
+		}
 	}
 
 	if err := h.service.RemoveRoleFromMember(r.Context(), serverID, targetUserID, roleID); err != nil {
@@ -763,7 +941,7 @@ func (h *Handler) KickMember(w http.ResponseWriter, r *http.Request) {
 		render.JSON(w, r, ErrorResponse{Error: "cannot kick the server owner"})
 		return
 	}
-	_, allowed, err := h.service.CanKickBan(r.Context(), serverID, currentUserID)
+	_, allowed, err := h.service.CanKick(r.Context(), serverID, currentUserID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		render.JSON(w, r, ErrorResponse{Error: err.Error()})
@@ -772,6 +950,19 @@ func (h *Handler) KickMember(w http.ResponseWriter, r *http.Request) {
 	if !allowed {
 		w.WriteHeader(http.StatusForbidden)
 		render.JSON(w, r, ErrorResponse{Error: "you do not have permission to kick members"})
+		return
+	}
+
+	// Role hierarchy check: actor must outrank target.
+	_, hierarchyOK, err := h.service.RoleHierarchyCheck(r.Context(), serverID, currentUserID, targetUserID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		return
+	}
+	if !hierarchyOK {
+		w.WriteHeader(http.StatusForbidden)
+		render.JSON(w, r, ErrorResponse{Error: "your role is not high enough to kick this member"})
 		return
 	}
 
@@ -806,7 +997,7 @@ func (h *Handler) BanMember(w http.ResponseWriter, r *http.Request) {
 		render.JSON(w, r, ErrorResponse{Error: "cannot ban the server owner"})
 		return
 	}
-	_, allowed, err := h.service.CanKickBan(r.Context(), serverID, currentUserID)
+	_, allowed, err := h.service.CanBan(r.Context(), serverID, currentUserID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		render.JSON(w, r, ErrorResponse{Error: err.Error()})
@@ -815,6 +1006,19 @@ func (h *Handler) BanMember(w http.ResponseWriter, r *http.Request) {
 	if !allowed {
 		w.WriteHeader(http.StatusForbidden)
 		render.JSON(w, r, ErrorResponse{Error: "you do not have permission to ban members"})
+		return
+	}
+
+	// Role hierarchy check: actor must outrank target.
+	_, hierarchyOK, err := h.service.RoleHierarchyCheck(r.Context(), serverID, currentUserID, targetUserID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		return
+	}
+	if !hierarchyOK {
+		w.WriteHeader(http.StatusForbidden)
+		render.JSON(w, r, ErrorResponse{Error: "your role is not high enough to ban this member"})
 		return
 	}
 

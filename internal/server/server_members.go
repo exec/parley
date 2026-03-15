@@ -218,7 +218,13 @@ func (s *ServerService) GetMembersWithRoles(ctx context.Context, serverID string
 }
 
 // CanKickBan returns true if actorID has permission to kick/ban members in the server.
+// Kept for backward compatibility; use CanKick/CanBan for separate checks.
 func (s *ServerService) CanKickBan(ctx context.Context, serverID, actorID string) (isOwner bool, allowed bool, err error) {
+	return s.CanKick(ctx, serverID, actorID)
+}
+
+// CanKick returns true if actorID has permission to kick members in the server.
+func (s *ServerService) CanKick(ctx context.Context, serverID, actorID string) (isOwner bool, allowed bool, err error) {
 	srv, err := s.GetServer(ctx, serverID)
 	if err != nil {
 		return false, false, err
@@ -237,6 +243,58 @@ func (s *ServerService) CanKickBan(ctx context.Context, serverID, actorID string
 		return false, false, err
 	}
 	return false, hasPerm, nil
+}
+
+// CanBan returns true if actorID has permission to ban members in the server.
+func (s *ServerService) CanBan(ctx context.Context, serverID, actorID string) (isOwner bool, allowed bool, err error) {
+	srv, err := s.GetServer(ctx, serverID)
+	if err != nil {
+		return false, false, err
+	}
+	if srv.OwnerID == actorID {
+		return true, true, nil
+	}
+	sID, _ := idToInt64(serverID)
+	aID, err := idToInt64(actorID)
+	if err != nil {
+		return false, false, errors.New("invalid actor ID")
+	}
+	ownerID, _ := idToInt64(srv.OwnerID)
+	hasPerm, err := permissions.HasPermission(ctx, s.repo, sID, aID, ownerID, permissions.PermBanMembers)
+	if err != nil {
+		return false, false, err
+	}
+	return false, hasPerm, nil
+}
+
+// RoleHierarchyCheck returns true if actorID's highest role is above targetID's highest role.
+// Owner always passes. Returns (isOwner, passes, error).
+func (s *ServerService) RoleHierarchyCheck(ctx context.Context, serverID, actorID, targetID string) (bool, bool, error) {
+	return s.roleHierarchyCheck(ctx, serverID, actorID, targetID)
+}
+
+// roleHierarchyCheck is the internal implementation.
+func (s *ServerService) roleHierarchyCheck(ctx context.Context, serverID, actorID, targetID string) (bool, bool, error) {
+	srv, err := s.GetServer(ctx, serverID)
+	if err != nil {
+		return false, false, err
+	}
+	if srv.OwnerID == actorID {
+		return true, true, nil
+	}
+	sID, _ := idToInt64(serverID)
+	aID, _ := idToInt64(actorID)
+	tID, _ := idToInt64(targetID)
+	actorHighest, err := s.repo.GetHighestRolePosition(ctx, sID, aID)
+	if err != nil {
+		return false, false, err
+	}
+	targetHighest, err := s.repo.GetHighestRolePosition(ctx, sID, tID)
+	if err != nil {
+		return false, false, err
+	}
+	// Actor's position must be strictly greater than target's.
+	return false, actorHighest > targetHighest, nil
 }
 
 // GetMyPermissions returns the effective permission bitfield and owner status for a user in a server.
