@@ -17,7 +17,7 @@ This feature also introduces three platform-wide capabilities:
 
 | Column | Type | Notes |
 |--------|------|-------|
-| id | BIGSERIAL PK | Uses `gen_bin_post_id()` (9-digit) |
+| id | BIGSERIAL PK | Uses `gen_bin_post_id()` (9-digit, created in migration following the `gen_server_id()` pattern) |
 | channel_id | BIGINT FK → channels | The bin container channel |
 | thread_channel_id | BIGINT FK → channels | Dedicated thread channel for general comments |
 | author_id | BIGINT FK → users | |
@@ -38,18 +38,18 @@ Current version of files attached to a post.
 | filename | VARCHAR(255) | e.g. `exploit.py`, `config.yaml` |
 | language | VARCHAR(50) | Shiki language ID, nullable for auto-detect |
 | content | TEXT | The actual code |
-| position | INT | Ordering within the post |
+| position | INT | Ordering within the post, UNIQUE(post_id, position) |
 
 #### `bin_post_versions`
 
-Snapshot created each time a post is edited.
+A version is created on post creation (version 1) and on each subsequent edit (version 2, 3, ...). The initial version snapshot is needed so that line comments always have a version to anchor to.
 
 | Column | Type | Notes |
 |--------|------|-------|
 | id | BIGSERIAL PK | |
 | post_id | BIGINT FK → bin_posts | |
-| version | INT | Sequential: 1, 2, 3... |
-| description | TEXT | Description at time of edit |
+| version | INT | Sequential: 1 (initial), 2, 3... |
+| description | TEXT | Description at time of snapshot |
 | created_at | TIMESTAMP | When this version was saved |
 
 #### `bin_post_version_files`
@@ -90,7 +90,7 @@ Admin-defined tags per bin channel.
 |--------|------|-------|
 | id | BIGSERIAL PK | |
 | channel_id | BIGINT FK → channels | |
-| name | VARCHAR(50) | |
+| name | VARCHAR(50) | UNIQUE(channel_id, name) |
 | color | VARCHAR(7) | Hex color |
 
 ### Modifications to Existing Tables
@@ -114,9 +114,20 @@ Enables Facebook-style nested replies platform-wide. One level of nesting only �
 
 Previous content is saved here before each edit. Versions older than 90 days are periodically purged.
 
-#### `channels` — no schema change
+#### `channels` — no schema change needed
 
-`ChannelType = 2` for bin channels. Existing `channel_type` column already supports this.
+The `channel_type` column already supports arbitrary integer values. Add `ChannelTypeBin = 2` constant to `internal/db/models.go` alongside the existing `ChannelTypeText` and `ChannelTypeVoice` constants.
+
+### Indexes
+
+Key indexes beyond PKs and FKs:
+
+- `bin_posts`: `(channel_id, created_at DESC)` — post listing
+- `bin_post_files`: `(post_id, position)` — file ordering
+- `bin_line_comments`: `(version_id, file_id, line_number)` — line comment queries
+- `bin_channel_tags`: unique on `(channel_id, name)`
+- `message_versions`: `(message_id, edited_at)` — version history lookup
+- `messages`: index on `parent_id WHERE parent_id IS NOT NULL` — reply tree queries
 
 ## API Endpoints
 
@@ -173,6 +184,10 @@ DELETE /api/channels/{channelID}/tags/{tagID}    — Delete tag
 GET    /api/messages/{id}/versions               — Get edit history for any message
 ```
 
+### Error Handling
+
+All bin post endpoints validate that the target channel is `ChannelType = 2`. Requests against non-bin channels return `400 Bad Request` with `"channel is not a bin channel"`. Post mutations (edit, delete) check that the requesting user is the post author or has `manage_messages` permission. Tag CRUD requires `manage_channels` permission. All new tables use `ON DELETE CASCADE` on their foreign keys — deleting a post cascades to its files, versions, version files, line comments, and thread channel.
+
 ### Post Listing Query Parameters
 
 `GET /api/channels/{channelID}/posts` supports:
@@ -203,7 +218,7 @@ GET    /api/messages/{id}/versions               — Get edit history for any me
 
 ### Subscription Model
 
-Users subscribe to the bin channel ID to receive post-level events. When viewing a specific post, they additionally subscribe to the post's thread channel for general comment events. Line comment events are routed via the bin channel subscription using the post ID.
+Users subscribe to the bin channel ID to receive post-level events (`BIN_POST_CREATE/UPDATE/DELETE`). When viewing a specific post, they additionally subscribe to the post's thread channel for general comment events (`MESSAGE_CREATE` etc.). Line comment events are broadcast to all subscribers of the post's thread channel — since only users viewing that post are subscribed, this avoids noise. The existing `subscribe`/`unsubscribe` WebSocket messages are sufficient; no new subscription types needed.
 
 ## Frontend Architecture
 
@@ -324,7 +339,11 @@ Frontend: Version dropdown in post header ("v3 · edited 2h ago"). Selecting a p
 
 ### Retention
 
-Versions older than 90 days are purged. Applies to both `message_versions` and `bin_post_versions` / `bin_post_version_files`. Cleanup runs on app startup or as a periodic job.
+Versions older than 90 days are purged. Applies to both `message_versions` and `bin_post_versions` / `bin_post_version_files`. Line comments anchored to purged versions are purged along with them (cascading delete on `version_id` FK). Cleanup runs as a goroutine on app startup that executes the purge query once, then on a 24-hour ticker thereafter.
+
+## Implementation Scope Note
+
+While this spec covers three capabilities (bin channels, nested replies, edit history), they are delivered together because bin channels depend on both nested replies and edit history. The implementation plan should order them so that platform-wide features (nested replies, edit history, syntax highlighting) land first, then bin-specific work builds on top.
 
 ## Out of Scope
 
