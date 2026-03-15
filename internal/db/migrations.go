@@ -390,7 +390,7 @@ END; $$;
 
 -- Bin posts
 CREATE TABLE IF NOT EXISTS bin_posts (
-    id BIGSERIAL PRIMARY KEY DEFAULT gen_bin_post_id(),
+    id BIGINT PRIMARY KEY DEFAULT gen_bin_post_id(),
     channel_id BIGINT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
     thread_channel_id BIGINT REFERENCES channels(id) ON DELETE SET NULL,
     author_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
