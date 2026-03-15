@@ -126,11 +126,11 @@
 }
 
 .mention-user {
-  background: rgba(88, 101, 242, 0.2);
-  color: #7289da;
+  background: rgba(50, 205, 50, 0.15);
+  color: #32CD32;
 }
 .mention-user:hover {
-  background: rgba(88, 101, 242, 0.4);
+  background: rgba(50, 205, 50, 0.3);
   color: #fff;
 }
 

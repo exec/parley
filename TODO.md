@@ -106,6 +106,35 @@ This is a living task list for Parley - a Discord clone.
 
 ---
 
+---
+
+## Code Health / Refactoring
+
+These are growing-pains issues identified from a structural inspection — not bugs or features, just tech debt.
+
+### Backend
+
+- [x] **`cmd/api/routes.go` (929 lines)** — Split into `routes.go` (pure registration, ~140 lines) + `auth_handlers.go`, `user_handlers.go`, `developer_handlers.go`, `websocket_handler.go`, `upload_handler.go`, `helpers.go`.
+- [x] **`internal/server/service.go` (957 lines)** — Split into `service.go` (types + helpers), `server_crud.go`, `server_members.go`, `server_invites.go`, `server_roles.go`.
+- [ ] **`cmd/admin/main.go` (765 lines)** — A CLI binary entry point that also boots a full HTTP admin dashboard server. Two separate responsibilities; should be split into separate binaries or clearly separated sections.
+
+### Frontend
+
+- [ ] **`App.tsx` (854 lines, 50+ state vars)** — God component handling routing, WebSocket setup, all modal state, voice state, DM state, and server navigation. Should delegate to context/hooks more aggressively.
+- [ ] **`AppContext.tsx` (630 lines)** — Global context doing everything: servers, channels, DMs, messages, voice, presence. Consider splitting into domain-specific contexts or a proper state management approach.
+- [ ] **`UserSettings.tsx` (732 lines)** — Three tabs (Account, Profile, Developer) inlined into one file. Each tab should be its own component: `AccountTab.tsx`, `ProfileTab.tsx`, `DeveloperTab.tsx`.
+- [ ] **`ServerSettings.tsx` (704 lines)** — Same problem as UserSettings — multiple settings sections should be extracted into sub-components.
+- [ ] **`ChannelList.tsx` (479 lines)** — Contains 3 separate context menus, server list, channel hierarchy, and voice bar. Should be broken into focused sub-components.
+
+### CSS
+
+- [ ] **`ui/styles.css` (1,794 lines)** — Monolithic file mixing global resets, utility classes, and dozens of component styles. Should be split per component or migrated to CSS Modules.
+- [ ] **`chat/Chat.css` (1,056 lines)** — Imported by 4 separate components (ChatWindow, DmChat, MessageInput, MessageList). Consider splitting into per-component files.
+- [ ] **`settings/Settings.css` (1,092 lines)** — Shared by UserSettings and ServerSettings. Side-effect coupling: changing one component's styles risks breaking the other.
+- [ ] **`layout/ChannelList.css` (719 lines)** — Excessive for a single component; inline context menu styles and voice bar styles should be co-located with those sub-components when extracted.
+
+---
+
 ## Already Implemented but Need Verification/Adjustment
 
 - [x] User-profile-username CSS (duplicate rule fixed — `margin: 25px 0 0` now applies correctly)
