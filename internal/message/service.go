@@ -92,6 +92,23 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 		return nil, errors.New("invalid author ID")
 	}
 
+	// Check SendMessages permission at channel level.
+	ch, err := s.repo.GetChannelByID(ctx, channelIDInt)
+	if err != nil {
+		return nil, errors.New("channel not found")
+	}
+	srv, err := s.repo.GetServerByID(ctx, ch.ServerID)
+	if err != nil {
+		return nil, errors.New("server not found")
+	}
+	canSend, err := permissions.HasChannelPermission(ctx, s.repo, srv.ID, authorIDInt, srv.OwnerID, channelIDInt, permissions.PermSendMessages)
+	if err != nil {
+		return nil, err
+	}
+	if !canSend {
+		return nil, errors.New("forbidden")
+	}
+
 	viaAPI, _ := ctx.Value("isAPIKeyAuth").(bool)
 
 	var parentIDPtr *int64
@@ -179,7 +196,8 @@ func (s *MessageService) GetMessage(ctx context.Context, id string) (*Message, e
 
 // GetChannelMessages retrieves messages for a channel with cursor-based pagination.
 // beforeID: if > 0, returns messages older than that ID. If 0, returns the latest messages.
-func (s *MessageService) GetChannelMessages(ctx context.Context, channelID string, limit int, beforeID int64) ([]*Message, error) {
+// userID is used for ViewChannel permission check; pass "" to skip the check.
+func (s *MessageService) GetChannelMessages(ctx context.Context, channelID, userID string, limit int, beforeID int64) ([]*Message, error) {
 	if channelID == "" {
 		return nil, errors.New("channel ID is required")
 	}
@@ -192,6 +210,29 @@ func (s *MessageService) GetChannelMessages(ctx context.Context, channelID strin
 	channelIDInt, err := strconv.ParseInt(channelID, 10, 64)
 	if err != nil {
 		return nil, errors.New("invalid channel ID")
+	}
+
+	// Check ViewChannel permission.
+	if userID != "" {
+		userIDInt, err := strconv.ParseInt(userID, 10, 64)
+		if err != nil {
+			return nil, errors.New("invalid user ID")
+		}
+		ch, err := s.repo.GetChannelByID(ctx, channelIDInt)
+		if err != nil {
+			return nil, errors.New("channel not found")
+		}
+		srv, err := s.repo.GetServerByID(ctx, ch.ServerID)
+		if err != nil {
+			return nil, errors.New("server not found")
+		}
+		canView, err := permissions.HasChannelPermission(ctx, s.repo, srv.ID, userIDInt, srv.OwnerID, channelIDInt, permissions.PermViewChannel)
+		if err != nil {
+			return nil, err
+		}
+		if !canView {
+			return nil, errors.New("channel not found")
+		}
 	}
 
 	dbMessages, err := s.repo.GetChannelMessages(ctx, channelIDInt, limit, beforeID)
@@ -432,5 +473,5 @@ func (s *MessageService) CanManageMessage(ctx context.Context, messageID, userID
 		return false, err
 	}
 
-	return permissions.HasPermission(ctx, s.repo, srv.ID, userIDInt, srv.OwnerID, permissions.PermManageMessages)
+	return permissions.HasChannelPermission(ctx, s.repo, srv.ID, userIDInt, srv.OwnerID, msg.ChannelID, permissions.PermManageMessages)
 }

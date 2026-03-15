@@ -77,6 +77,10 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 
 	msg, err := h.service.SendMessage(r.Context(), channelID, authorID.(string), req.Content, req.Nonce, req.AttachmentURL, req.AttachmentName, req.AttachmentType, req.ParentID)
 	if err != nil {
+		if err.Error() == "forbidden" {
+			http.Error(w, "you do not have permission to send messages in this channel", http.StatusForbidden)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -93,6 +97,9 @@ func (h *Handler) GetChannelMessages(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "channel ID is required", http.StatusBadRequest)
 		return
 	}
+
+	// Get user ID from context for ViewChannel check.
+	userID, _ := r.Context().Value("userID").(string)
 
 	// Parse query parameters
 	limit := 50
@@ -113,8 +120,12 @@ func (h *Handler) GetChannelMessages(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	messages, err := h.service.GetChannelMessages(r.Context(), channelID, limit, beforeID)
+	messages, err := h.service.GetChannelMessages(r.Context(), channelID, userID, limit, beforeID)
 	if err != nil {
+		if err.Error() == "channel not found" {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
