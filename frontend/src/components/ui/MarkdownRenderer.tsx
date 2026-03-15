@@ -2,6 +2,7 @@ import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Components } from 'react-markdown';
+import ShikiCodeBlock from './ShikiCodeBlock';
 import './MarkdownRenderer.css';
 
 type Mode = 'chat' | 'bio';
@@ -64,6 +65,7 @@ const BIO_COMPONENTS: Partial<Components> = {
 
 const CHAT_COMPONENTS: Partial<Components> = {
   a: SafeLink,
+  code: ShikiCodeBlock,
   img: ({ src, alt }) => (
     <img src={src} alt={alt || ''} className="md-inline-image"
       style={{ maxWidth: '100%', maxHeight: 300, borderRadius: 4, display: 'block', marginTop: 4 }} />
