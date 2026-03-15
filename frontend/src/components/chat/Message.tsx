@@ -6,13 +6,17 @@ import MarkdownRenderer from '../ui/MarkdownRenderer';
 import { AudioPlayer } from './AudioPlayer';
 import { CodeBlock } from '../ui/CodeBlock';
 import { isCodeFile, languageFromFilename } from '../../lib/shiki';
+import { getParentAuthor } from './NestedReplies';
+import { EditHistoryPopover } from './EditHistoryPopover';
 import './Chat.css';
+import './NestedReplies.css';
 
 interface MessageProps {
   message: MessageType;
   currentUserId?: string;
   isGrouped?: boolean;
   memberMap?: Map<string, string>;
+  messages?: MessageType[];
   onEdit?: (message: MessageType) => void;
   onDelete?: (messageId: string) => void;
   onReact?: (messageId: string, emoji: string) => void;
@@ -118,6 +122,7 @@ export const Message: React.FC<MessageProps> = ({
   currentUserId,
   isGrouped = false,
   memberMap,
+  messages,
   onEdit,
   onDelete,
   onReact,
@@ -132,8 +137,10 @@ export const Message: React.FC<MessageProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(message.content);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [showEditHistory, setShowEditHistory] = useState(false);
   const editRef = useRef<HTMLTextAreaElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const editedSpanRef = useRef<HTMLSpanElement>(null);
 
   const isOwnMessage = currentUserId && message.author_id === currentUserId;
 
@@ -255,8 +262,20 @@ export const Message: React.FC<MessageProps> = ({
 
   const wasEdited = message.updated_at !== message.created_at;
 
+  const parentAuthor = message.parent_id && messages
+    ? getParentAuthor(message.parent_id, messages)
+    : null;
+
   return (
     <>
+    {message.parent_id && (
+      <div className="reply-indicator">
+        <span>↳ replying to</span>
+        <span className="reply-indicator-name">
+          @{parentAuthor ?? message.parent_id}
+        </span>
+      </div>
+    )}
     <div
       className={`message${message.pending ? ' message-pending' : ''}${isGrouped ? ' message-grouped' : ''}`}
       onMouseEnter={() => setShowActions(true)}
@@ -302,7 +321,23 @@ export const Message: React.FC<MessageProps> = ({
             <span className="msg-badge selfbot" title="Selfbot">🤖</span>
           )}
           <span className="message-timestamp">{formatTimestamp(message.created_at)}</span>
-          {wasEdited && <span className="message-edited">(edited)</span>}
+          {wasEdited && (
+            <span
+              ref={editedSpanRef}
+              className="message-edited"
+              style={{ cursor: 'pointer', position: 'relative' }}
+              onClick={(e) => { e.stopPropagation(); setShowEditHistory(p => !p); }}
+              title="View edit history"
+            >
+              (edited)
+              {showEditHistory && (
+                <EditHistoryPopover
+                  messageId={message.id}
+                  onClose={() => setShowEditHistory(false)}
+                />
+              )}
+            </span>
+          )}
         </div>
         )}
 

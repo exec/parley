@@ -16,7 +16,7 @@ interface ChatWindowProps {
   currentUserId?: string;
   members?: ServerMember[];
   memberMap?: Map<string, string>;
-  onSendMessage: (content: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string) => void;
+  onSendMessage: (content: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string, parentId?: string) => void;
   onLoadMore?: () => void;
   onEdit?: (message: MessageType) => void;
   onDelete?: (messageId: string) => void;
@@ -93,8 +93,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   };
 
   const handleSendMessage = useCallback(
-    (content: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string) => {
-      onSendMessage(content, attachmentUrl, attachmentName, attachmentType);
+    (content: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string, parentId?: string) => {
+      onSendMessage(content, attachmentUrl, attachmentName, attachmentType, parentId);
       if (onClearReply) {
         onClearReply();
       }
@@ -152,6 +152,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         onSendMessage={onSendMessageToUser}
         hasMore={hasMore}
         isLoading={isLoading}
+        allMessages={messages}
       />
       <TypingIndicator typingUsers={typingUsers} />
       <MessageInput
@@ -160,6 +161,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         onTyping={onTyping}
         initialValue={replyValue}
         members={members}
+        replyTo={replyTo}
       />
     </div>
   );

@@ -16,6 +16,7 @@ interface MessageListProps {
   onSendMessage?: (userId: string) => void;
   hasMore?: boolean;
   isLoading?: boolean;
+  allMessages?: MessageType[];
 }
 
 export const MessageList: React.FC<MessageListProps> = ({
@@ -31,6 +32,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   onSendMessage,
   hasMore = false,
   isLoading = false,
+  allMessages,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true);
@@ -168,6 +170,7 @@ export const MessageList: React.FC<MessageListProps> = ({
               currentUserId={currentUserId}
               isGrouped={groupedFlags[idx]}
               memberMap={memberMap}
+              messages={allMessages}
               onEdit={onEdit}
               onDelete={onDelete}
               onReact={onReact}

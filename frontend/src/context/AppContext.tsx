@@ -35,7 +35,7 @@ interface AppActions {
   leaveServer: (serverId: string) => Promise<void>;
   createChannel: (name: string, type: number, topic?: string) => Promise<void>;
   deleteChannel: (channelId: string) => Promise<void>;
-  sendMessage: (content: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string) => Promise<void>;
+  sendMessage: (content: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string, parentId?: string) => Promise<void>;
   editMessage: (messageId: string, content: string) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
   receiveMessage: (msg: Message) => void;
@@ -265,7 +265,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [activeChannel]);
 
-  const sendMessage = useCallback(async (content: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string) => {
+  const sendMessage = useCallback(async (content: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string, parentId?: string) => {
     if (!activeChannel || !currentUser) return;
     const nonce = crypto.randomUUID();
 
@@ -285,11 +285,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       attachment_url: attachmentUrl,
       attachment_name: attachmentName,
       attachment_type: attachmentType,
+      parent_id: parentId,
     };
     setMessages(prev => [...prev, optimistic]);
 
     try {
-      const confirmed = await messagesApi.sendMessage(activeChannel.id, content, nonce, attachmentUrl, attachmentName, attachmentType);
+      const confirmed = await messagesApi.sendMessage(activeChannel.id, content, nonce, attachmentUrl, attachmentName, attachmentType, parentId);
       // Confirm immediately from the HTTP 201 response — don't wait for WS echo.
       // receiveMessage handles the WS echo as a no-op (nonce already replaced,
       // duplicate id check prevents double-add).

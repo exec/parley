@@ -135,6 +135,9 @@ function MainApp() {
     retry: vcRetry,
   } = useVoiceConnection(activeVoiceChannel, handleVcLeave);
 
+  // Reply-to state for nested replies
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+
   // Typing indicators: channelId → list of typing users
   const [typingUsers, setTypingUsers] = useState<Record<string, { userId: string; username: string }[]>>({});
   const typingTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -680,6 +683,7 @@ function MainApp() {
         onEdit={(msg) => editMessage(msg.id, msg.content)}
         onDelete={deleteMessage}
         onReact={toggleReaction}
+        onReply={(msg) => setReplyTo(msg)}
         onViewProfile={handleViewProfile}
         onSendMessageToUser={(userId) => openDmChannel(userId)}
         onLoadMore={loadMoreMessages}
@@ -688,6 +692,8 @@ function MainApp() {
         typingUsers={typingUsers[activeChannel.id] ?? []}
         onTyping={handleSendTyping}
         canManageChannels={canManageChannels}
+        replyTo={replyTo}
+        onClearReply={() => setReplyTo(null)}
         onUpdateTopic={async (channelId, topic) => {
           const updated = await channelsApi.updateChannel(channelId, activeChannel.name, topic);
           receiveChannelUpdate(updated);

@@ -6,17 +6,18 @@ import { MentionDropdown } from './MentionDropdown';
 import { detectMention, useMentionSuggestions, insertMentionText, resolveMentions, MentionSuggestion } from '../../hooks/useMentionAutocomplete';
 import { detectEmojiTrigger, useEmojiSuggestions, insertEmoji, resolveEmojis, EmojiSuggestion } from '../../hooks/useEmojiAutocomplete';
 import { EmojiDropdown } from './EmojiDropdown';
-import { ServerMember } from '../../api/types';
+import { Message as MessageType, ServerMember } from '../../api/types';
 import './Chat.css';
 
 interface MessageInputProps {
   channelName: string;
-  onSendMessage: (content: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string) => void;
+  onSendMessage: (content: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string, parentId?: string) => void;
   onTyping?: () => void;
   disabled?: boolean;
   placeholder?: string;
   initialValue?: string;
   members?: ServerMember[];
+  replyTo?: MessageType | null;
 }
 
 const PaperclipIcon = () => (
@@ -57,6 +58,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   disabled = false,
   initialValue = '',
   members = [],
+  replyTo,
 }) => {
   const [message, setMessage] = useState(initialValue);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -157,7 +159,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         attachmentType = pendingFile.type;
       }
 
-      onSendMessage(trimmedMessage, attachmentUrl, attachmentName, attachmentType);
+      onSendMessage(trimmedMessage, attachmentUrl, attachmentName, attachmentType, replyTo?.id);
       setMessage('');
       setPendingFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
