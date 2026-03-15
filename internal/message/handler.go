@@ -43,6 +43,7 @@ func (h *Handler) Routes() http.Handler {
 type SendMessageRequest struct {
 	Content        string `json:"content"`
 	Nonce          string `json:"nonce"`
+	ParentID       string `json:"parent_id"`
 	AttachmentURL  string `json:"attachment_url"`
 	AttachmentName string `json:"attachment_name"`
 	AttachmentType string `json:"attachment_type"`
@@ -74,7 +75,7 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg, err := h.service.SendMessage(r.Context(), channelID, authorID.(string), req.Content, req.Nonce, req.AttachmentURL, req.AttachmentName, req.AttachmentType)
+	msg, err := h.service.SendMessage(r.Context(), channelID, authorID.(string), req.Content, req.Nonce, req.AttachmentURL, req.AttachmentName, req.AttachmentType, req.ParentID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

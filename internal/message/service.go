@@ -32,6 +32,7 @@ type Message struct {
 	ViaApi          bool       `json:"via_api,omitempty"`
 	Content         string     `json:"content"`
 	Nonce           string     `json:"nonce,omitempty"`
+	ParentID        *int64     `json:"parent_id,omitempty"`
 	AttachmentURL   string     `json:"attachment_url,omitempty"`
 	AttachmentName  string     `json:"attachment_name,omitempty"`
 	AttachmentType  string     `json:"attachment_type,omitempty"`
@@ -64,7 +65,8 @@ func (s *MessageService) SetBroadcaster(b Broadcaster) {
 
 // SendMessage creates a new message in a channel.
 // nonce is a client-generated UUID used for deduplication; pass "" if not provided.
-func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, content, nonce, attachmentURL, attachmentName, attachmentType string) (*Message, error) {
+// parentID is an optional message ID for nested replies; pass "" for top-level messages.
+func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, content, nonce, attachmentURL, attachmentName, attachmentType, parentID string) (*Message, error) {
 	if channelID == "" {
 		return nil, errors.New("channel ID is required")
 	}
@@ -92,7 +94,16 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 
 	viaAPI, _ := ctx.Value("isAPIKeyAuth").(bool)
 
-	dbMsg, err := s.repo.CreateMessage(ctx, channelIDInt, authorIDInt, content, nonce, attachmentURL, attachmentName, attachmentType, viaAPI)
+	var parentIDPtr *int64
+	if parentID != "" {
+		pid, err := strconv.ParseInt(parentID, 10, 64)
+		if err != nil {
+			return nil, errors.New("invalid parent ID")
+		}
+		parentIDPtr = &pid
+	}
+
+	dbMsg, err := s.repo.CreateMessage(ctx, channelIDInt, authorIDInt, content, nonce, attachmentURL, attachmentName, attachmentType, viaAPI, parentIDPtr)
 	if err != nil {
 		return nil, err
 	}
@@ -114,6 +125,7 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 		ViaApi:          viaAPI,
 		Content:         content,
 		Nonce:           dbMsg.Nonce,
+		ParentID:        dbMsg.ParentID,
 		AttachmentURL:   dbMsg.AttachmentURL,
 		AttachmentName:  dbMsg.AttachmentName,
 		AttachmentType:  dbMsg.AttachmentType,
@@ -221,6 +233,7 @@ func (s *MessageService) GetChannelMessages(ctx context.Context, channelID strin
 			ViaApi:          dbMsg.ViaApi,
 			Content:         dbMsg.Content,
 			Nonce:           dbMsg.Nonce,
+			ParentID:        dbMsg.ParentID,
 			AttachmentURL:   dbMsg.AttachmentURL,
 			AttachmentName:  dbMsg.AttachmentName,
 			AttachmentType:  dbMsg.AttachmentType,

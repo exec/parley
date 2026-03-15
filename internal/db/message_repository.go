@@ -12,15 +12,16 @@ import (
 
 // CreateMessage creates a new message in the database.
 // If a nonce is set, duplicate submissions (retries) return the existing message instead of inserting.
-func (r *Repository) CreateMessage(ctx context.Context, channelID, authorID int64, content, nonce, attachmentURL, attachmentName, attachmentType string, viaAPI bool) (*Message, error) {
+// parentID may be nil for top-level messages or a valid message ID for nested replies.
+func (r *Repository) CreateMessage(ctx context.Context, channelID, authorID int64, content, nonce, attachmentURL, attachmentName, attachmentType string, viaAPI bool, parentID *int64) (*Message, error) {
 	now := time.Now()
 
 	query := `
-		INSERT INTO messages (channel_id, author_id, content, nonce, attachment_url, attachment_name, attachment_type, via_api, created_at, updated_at)
-		VALUES ($1, $2, $3, NULLIF($4, ''), $5, $6, $7, $8, $9, $10)
+		INSERT INTO messages (channel_id, author_id, content, nonce, attachment_url, attachment_name, attachment_type, via_api, parent_id, created_at, updated_at)
+		VALUES ($1, $2, $3, NULLIF($4, ''), $5, $6, $7, $8, $9, $10, $11)
 		ON CONFLICT (nonce) WHERE nonce IS NOT NULL AND nonce != ''
 		DO UPDATE SET updated_at = messages.updated_at
-		RETURNING id, created_at, updated_at, COALESCE(nonce, ''), attachment_url, attachment_name, attachment_type
+		RETURNING id, created_at, updated_at, COALESCE(nonce, ''), attachment_url, attachment_name, attachment_type, parent_id
 	`
 
 	var message Message
@@ -40,6 +41,7 @@ func (r *Repository) CreateMessage(ctx context.Context, channelID, authorID int6
 		attachmentName,
 		attachmentType,
 		viaAPI,
+		parentID,
 		now,
 		now,
 	).Scan(
@@ -50,6 +52,7 @@ func (r *Repository) CreateMessage(ctx context.Context, channelID, authorID int6
 		&message.AttachmentURL,
 		&message.AttachmentName,
 		&message.AttachmentType,
+		&message.ParentID,
 	)
 	if err != nil {
 		return nil, err
@@ -100,7 +103,7 @@ func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, li
 			SELECT * FROM (
 				SELECT m.id, m.channel_id, m.author_id, m.content, COALESCE(m.nonce, ''), m.created_at, m.updated_at,
 				       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
-				       u.username, COALESCE(u.avatar_url, ''), u.is_bot, COALESCE(u.display_name, '')
+				       u.username, COALESCE(u.avatar_url, ''), u.is_bot, COALESCE(u.display_name, ''), m.parent_id
 				FROM messages m
 				JOIN users u ON u.id = m.author_id
 				WHERE m.channel_id = $1 AND m.id < $3
@@ -115,7 +118,7 @@ func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, li
 			SELECT * FROM (
 				SELECT m.id, m.channel_id, m.author_id, m.content, COALESCE(m.nonce, ''), m.created_at, m.updated_at,
 				       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
-				       u.username, COALESCE(u.avatar_url, ''), u.is_bot, COALESCE(u.display_name, '')
+				       u.username, COALESCE(u.avatar_url, ''), u.is_bot, COALESCE(u.display_name, ''), m.parent_id
 				FROM messages m
 				JOIN users u ON u.id = m.author_id
 				WHERE m.channel_id = $1
@@ -149,6 +152,7 @@ func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, li
 			&message.AuthorAvatarURL,
 			&message.AuthorIsBot,
 			&message.AuthorDisplayName,
+			&message.ParentID,
 		)
 		if err != nil {
 			return nil, err
