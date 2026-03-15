@@ -77,12 +77,13 @@ interface UserSidebarProps {
   onlineUserIds?: Set<string>;
   serverId?: string;
   currentUserIsOwner?: boolean;
+  canKickMembers?: boolean;
   onManageRoles?: (memberId: string) => void;
   onKick?: (userId: string) => void;
   onBan?: (userId: string) => void;
 }
 
-const UserSidebar: React.FC<UserSidebarProps> = ({ members, ownerId, currentUserId, onViewProfile, onSendMessage, onlineUserIds, currentUserIsOwner, onManageRoles, onKick, onBan }) => {
+const UserSidebar: React.FC<UserSidebarProps> = ({ members, ownerId, currentUserId, onViewProfile, onSendMessage, onlineUserIds, currentUserIsOwner, canKickMembers, onManageRoles, onKick, onBan }) => {
   const [contextMenu, setContextMenu] = useState<{ member: ServerMember; position: { top: number; left: number } } | null>(null);
 
   const handleMemberClick = (member: ServerMember, e: React.MouseEvent) => {
@@ -189,7 +190,7 @@ const UserSidebar: React.FC<UserSidebarProps> = ({ members, ownerId, currentUser
           member={contextMenu.member}
           isCurrentUser={contextMenu.member.user_id === currentUserId}
           isOwner={contextMenu.member.user_id === ownerId}
-          canManageRoles={currentUserIsOwner === true}
+          canManageRoles={currentUserIsOwner === true || canKickMembers === true}
           position={contextMenu.position}
           onClose={closeContextMenu}
           onViewProfile={onViewProfile}

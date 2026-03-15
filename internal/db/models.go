@@ -104,17 +104,18 @@ type Channel struct {
 
 // Message represents a message in a channel
 type Message struct {
-	ID             int64     `json:"id" db:"id"`
-	ChannelID      int64     `json:"channel_id" db:"channel_id"`
-	AuthorID       int64     `json:"author_id" db:"author_id"`
-	Content        string    `json:"content" db:"content"`
-	Nonce          string    `json:"nonce" db:"nonce"`
-	AttachmentURL  string    `json:"attachment_url,omitempty" db:"attachment_url"`
-	AttachmentName string    `json:"attachment_name,omitempty" db:"attachment_name"`
-	AttachmentType string    `json:"attachment_type,omitempty" db:"attachment_type"`
-	CreatedAt      time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at" db:"updated_at"`
-	AuthorUsername string    `json:"author_username" db:"-"`
+	ID              int64     `json:"id" db:"id"`
+	ChannelID       int64     `json:"channel_id" db:"channel_id"`
+	AuthorID        int64     `json:"author_id" db:"author_id"`
+	Content         string    `json:"content" db:"content"`
+	Nonce           string    `json:"nonce" db:"nonce"`
+	AttachmentURL   string    `json:"attachment_url,omitempty" db:"attachment_url"`
+	AttachmentName  string    `json:"attachment_name,omitempty" db:"attachment_name"`
+	AttachmentType  string    `json:"attachment_type,omitempty" db:"attachment_type"`
+	CreatedAt       time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at" db:"updated_at"`
+	AuthorUsername  string    `json:"author_username" db:"-"`
+	AuthorAvatarURL string    `json:"author_avatar_url,omitempty" db:"-"`
 }
 
 // DmChannel represents a direct message channel between two users

@@ -183,14 +183,17 @@ func (h *Handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if the message exists and belongs to the user
-	msg, err := h.service.GetMessage(r.Context(), id)
+	// Check if the user has permission to delete the message (author or MANAGE_MESSAGES)
+	canManage, err := h.service.CanManageMessage(r.Context(), id, authorID.(string))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		if err.Error() == "message not found" {
+			http.Error(w, err.Error(), http.StatusNotFound)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 		return
 	}
-
-	if msg.AuthorID != authorID.(string) {
+	if !canManage {
 		http.Error(w, "you can only delete your own messages", http.StatusForbidden)
 		return
 	}

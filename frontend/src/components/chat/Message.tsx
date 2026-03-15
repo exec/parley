@@ -32,6 +32,7 @@ export const Message: React.FC<MessageProps> = ({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(message.content);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const editRef = useRef<HTMLTextAreaElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
 
@@ -156,6 +157,7 @@ export const Message: React.FC<MessageProps> = ({
   const wasEdited = message.updated_at !== message.created_at;
 
   return (
+    <>
     <div
       className={`message${message.pending ? ' message-pending' : ''}`}
       onMouseEnter={() => setShowActions(true)}
@@ -170,6 +172,7 @@ export const Message: React.FC<MessageProps> = ({
           title="Left-click to view profile · Right-click for options"
         >
           <Avatar
+            src={message.author_avatar_url || undefined}
             alt={message.author_username || 'User'}
             fallback={message.author_username || 'User'}
             size="md"
@@ -215,7 +218,8 @@ export const Message: React.FC<MessageProps> = ({
                     src={message.attachment_url}
                     alt={message.attachment_name || 'attachment'}
                     className="message-attachment-image"
-                    style={{ maxWidth: '400px', maxHeight: '300px', borderRadius: '4px', marginTop: '4px' }}
+                    style={{ maxWidth: '400px', maxHeight: '300px', borderRadius: '4px', marginTop: '4px', cursor: 'zoom-in' }}
+                    onClick={() => setLightboxUrl(message.attachment_url!)}
                   />
                 ) : (
                   <a
@@ -311,5 +315,34 @@ export const Message: React.FC<MessageProps> = ({
         </div>
       )}
     </div>
+    {lightboxUrl && (
+      <div
+        style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          background: 'rgba(0,0,0,0.85)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}
+        onClick={() => setLightboxUrl(null)}
+      >
+        <button
+          onClick={e => { e.stopPropagation(); setLightboxUrl(null); }}
+          style={{
+            position: 'absolute', top: 16, right: 20,
+            background: 'none', border: 'none', color: '#fff',
+            fontSize: 32, cursor: 'pointer', lineHeight: 1, padding: '4px 8px',
+          }}
+          title="Close"
+        >
+          ×
+        </button>
+        <img
+          src={lightboxUrl}
+          alt="Full size"
+          style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8, objectFit: 'contain' }}
+          onClick={e => e.stopPropagation()}
+        />
+      </div>
+    )}
+    </>
   );
 };

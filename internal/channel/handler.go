@@ -54,14 +54,24 @@ func (h *Handler) CreateChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	var req CreateChannelRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	ch, err := h.service.CreateChannel(r.Context(), serverID, req.Name, req.Type, req.ParentID)
+	ch, err := h.service.CreateChannel(r.Context(), serverID, req.Name, req.Type, req.ParentID, userID)
 	if err != nil {
+		if err.Error() == "forbidden" {
+			http.Error(w, "you do not have permission to create channels", http.StatusForbidden)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -120,14 +130,24 @@ func (h *Handler) UpdateChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	var req UpdateChannelRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	ch, err := h.service.UpdateChannel(r.Context(), id, req.Name)
+	ch, err := h.service.UpdateChannel(r.Context(), id, req.Name, userID)
 	if err != nil {
+		if err.Error() == "forbidden" {
+			http.Error(w, "you do not have permission to update channels", http.StatusForbidden)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

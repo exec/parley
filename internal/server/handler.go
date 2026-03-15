@@ -599,7 +599,7 @@ func (h *Handler) AssignRoleToMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusCreated)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // RemoveRoleFromMember handles DELETE /servers/:id/members/:userId/roles/:roleId
@@ -708,14 +708,20 @@ func (h *Handler) KickMember(w http.ResponseWriter, r *http.Request) {
 		render.JSON(w, r, ErrorResponse{Error: "server not found"})
 		return
 	}
-	if server.OwnerID != currentUserID {
-		w.WriteHeader(http.StatusForbidden)
-		render.JSON(w, r, ErrorResponse{Error: "only the server owner can kick members"})
-		return
-	}
 	if targetUserID == server.OwnerID {
 		w.WriteHeader(http.StatusForbidden)
 		render.JSON(w, r, ErrorResponse{Error: "cannot kick the server owner"})
+		return
+	}
+	_, allowed, err := h.service.CanKickBan(r.Context(), serverID, currentUserID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		return
+	}
+	if !allowed {
+		w.WriteHeader(http.StatusForbidden)
+		render.JSON(w, r, ErrorResponse{Error: "you do not have permission to kick members"})
 		return
 	}
 
@@ -745,14 +751,20 @@ func (h *Handler) BanMember(w http.ResponseWriter, r *http.Request) {
 		render.JSON(w, r, ErrorResponse{Error: "server not found"})
 		return
 	}
-	if server.OwnerID != currentUserID {
-		w.WriteHeader(http.StatusForbidden)
-		render.JSON(w, r, ErrorResponse{Error: "only the server owner can ban members"})
-		return
-	}
 	if targetUserID == server.OwnerID {
 		w.WriteHeader(http.StatusForbidden)
 		render.JSON(w, r, ErrorResponse{Error: "cannot ban the server owner"})
+		return
+	}
+	_, allowed, err := h.service.CanKickBan(r.Context(), serverID, currentUserID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		return
+	}
+	if !allowed {
+		w.WriteHeader(http.StatusForbidden)
+		render.JSON(w, r, ErrorResponse{Error: "you do not have permission to ban members"})
 		return
 	}
 
@@ -767,6 +779,32 @@ func (h *Handler) BanMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// GetMyPermissions handles GET /servers/:id/my-permissions
+func (h *Handler) GetMyPermissions(w http.ResponseWriter, r *http.Request) {
+	serverID := chi.URLParam(r, "id")
+	if serverID == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		render.JSON(w, r, ErrorResponse{Error: "server ID is required"})
+		return
+	}
+	userID, ok := r.Context().Value(UserIDKey).(string)
+	if !ok || userID == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+		return
+	}
+	perms, isOwner, err := h.service.GetMyPermissions(r.Context(), serverID, userID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		return
+	}
+	render.JSON(w, r, map[string]interface{}{
+		"permissions": perms,
+		"is_owner":    isOwner,
+	})
 }
 
 // SetVanityURL handles PUT /servers/:id/vanity

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"parley/internal/db"
+	"parley/internal/permissions"
 	ws "parley/internal/websocket"
 )
 
@@ -52,8 +53,8 @@ func (s *ChannelService) SetHub(hub *ws.Hub) {
 
 const maxChannelNameLen = 100
 
-// CreateChannel creates a new channel
-func (s *ChannelService) CreateChannel(ctx context.Context, serverID, name string, channelType int, parentID *string) (*Channel, error) {
+// CreateChannel creates a new channel. userID must be the server owner or have MANAGE_CHANNELS.
+func (s *ChannelService) CreateChannel(ctx context.Context, serverID, name string, channelType int, parentID *string, userID string) (*Channel, error) {
 	if name == "" {
 		return nil, errors.New("channel name is required")
 	}
@@ -64,6 +65,22 @@ func (s *ChannelService) CreateChannel(ctx context.Context, serverID, name strin
 	serverIDInt, err := strconv.ParseInt(serverID, 10, 64)
 	if err != nil {
 		return nil, errors.New("invalid server ID")
+	}
+	userIDInt, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		return nil, errors.New("invalid user ID")
+	}
+
+	srv, err := s.repo.GetServerByID(ctx, serverIDInt)
+	if err != nil {
+		return nil, errors.New("server not found")
+	}
+	allowed, err := permissions.HasPermission(ctx, s.repo, serverIDInt, userIDInt, srv.OwnerID, permissions.PermManageChannels)
+	if err != nil {
+		return nil, err
+	}
+	if !allowed {
+		return nil, errors.New("forbidden")
 	}
 
 	var parentIDInt *int64
@@ -136,8 +153,8 @@ func (s *ChannelService) GetServerChannels(ctx context.Context, serverID string)
 	return result, nil
 }
 
-// UpdateChannel updates a channel's name
-func (s *ChannelService) UpdateChannel(ctx context.Context, id, name string) (*Channel, error) {
+// UpdateChannel updates a channel's name. userID must be the server owner or have MANAGE_CHANNELS.
+func (s *ChannelService) UpdateChannel(ctx context.Context, id, name, userID string) (*Channel, error) {
 	if name == "" {
 		return nil, errors.New("channel name is required")
 	}
@@ -149,6 +166,10 @@ func (s *ChannelService) UpdateChannel(ctx context.Context, id, name string) (*C
 	if err != nil {
 		return nil, errors.New("invalid channel ID")
 	}
+	userIDInt, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		return nil, errors.New("invalid user ID")
+	}
 
 	channel, err := s.repo.GetChannelByID(ctx, idInt)
 	if err != nil {
@@ -156,6 +177,18 @@ func (s *ChannelService) UpdateChannel(ctx context.Context, id, name string) (*C
 			return nil, errors.New("channel not found")
 		}
 		return nil, err
+	}
+
+	srv, err := s.repo.GetServerByID(ctx, channel.ServerID)
+	if err != nil {
+		return nil, errors.New("server not found")
+	}
+	allowed, err := permissions.HasPermission(ctx, s.repo, channel.ServerID, userIDInt, srv.OwnerID, permissions.PermManageChannels)
+	if err != nil {
+		return nil, err
+	}
+	if !allowed {
+		return nil, errors.New("forbidden")
 	}
 
 	channel.Name = name
@@ -200,7 +233,11 @@ func (s *ChannelService) DeleteChannel(ctx context.Context, id string, userID st
 	if err != nil {
 		return errors.New("invalid user ID")
 	}
-	if srv.OwnerID != userIDInt {
+	allowed, err := permissions.HasPermission(ctx, s.repo, srv.ID, userIDInt, srv.OwnerID, permissions.PermManageChannels)
+	if err != nil {
+		return err
+	}
+	if !allowed {
 		return errors.New("forbidden")
 	}
 

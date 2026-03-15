@@ -1061,7 +1061,7 @@ func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, li
 	query := `
 		SELECT m.id, m.channel_id, m.author_id, m.content, COALESCE(m.nonce, ''), m.created_at, m.updated_at,
 		       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
-		       u.username
+		       u.username, COALESCE(u.avatar_url, '')
 		FROM messages m
 		JOIN users u ON u.id = m.author_id
 		WHERE m.channel_id = $1
@@ -1090,6 +1090,7 @@ func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, li
 			&message.AttachmentName,
 			&message.AttachmentType,
 			&message.AuthorUsername,
+			&message.AuthorAvatarURL,
 		)
 		if err != nil {
 			return nil, err

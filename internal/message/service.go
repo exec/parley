@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"parley/internal/db"
+	"parley/internal/permissions"
 )
 
 // Reaction represents aggregated emoji reactions for a message.
@@ -20,18 +21,19 @@ type Reaction struct {
 
 // Message represents a message in the system
 type Message struct {
-	ID             string     `json:"id"`
-	ChannelID      string     `json:"channel_id"`
-	AuthorID       string     `json:"author_id"`
-	AuthorUsername string     `json:"author_username"`
-	Content        string     `json:"content"`
-	Nonce          string     `json:"nonce,omitempty"`
-	AttachmentURL  string     `json:"attachment_url,omitempty"`
-	AttachmentName string     `json:"attachment_name,omitempty"`
-	AttachmentType string     `json:"attachment_type,omitempty"`
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
-	Reactions      []Reaction `json:"reactions"`
+	ID              string     `json:"id"`
+	ChannelID       string     `json:"channel_id"`
+	AuthorID        string     `json:"author_id"`
+	AuthorUsername  string     `json:"author_username"`
+	AuthorAvatarURL string     `json:"author_avatar_url,omitempty"`
+	Content         string     `json:"content"`
+	Nonce           string     `json:"nonce,omitempty"`
+	AttachmentURL   string     `json:"attachment_url,omitempty"`
+	AttachmentName  string     `json:"attachment_name,omitempty"`
+	AttachmentType  string     `json:"attachment_type,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
+	Reactions       []Reaction `json:"reactions"`
 }
 
 // MessageService provides message management operations
@@ -86,25 +88,26 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 		return nil, err
 	}
 
-	// Look up author username
-	var authorUsername string
-	if err := s.repo.DB().QueryRowContext(ctx, "SELECT username FROM users WHERE id = $1", authorIDInt).Scan(&authorUsername); err != nil {
-		log.Printf("SendMessage: failed to fetch username for author %d: %v", authorIDInt, err)
+	// Look up author username and avatar
+	var authorUsername, authorAvatarURL string
+	if err := s.repo.DB().QueryRowContext(ctx, "SELECT username, COALESCE(avatar_url, '') FROM users WHERE id = $1", authorIDInt).Scan(&authorUsername, &authorAvatarURL); err != nil {
+		log.Printf("SendMessage: failed to fetch user info for author %d: %v", authorIDInt, err)
 	}
 
 	msg := &Message{
-		ID:             strconv.FormatInt(dbMsg.ID, 10),
-		ChannelID:      channelID,
-		AuthorID:       authorID,
-		AuthorUsername: authorUsername,
-		Content:        content,
-		Nonce:          dbMsg.Nonce,
-		AttachmentURL:  dbMsg.AttachmentURL,
-		AttachmentName: dbMsg.AttachmentName,
-		AttachmentType: dbMsg.AttachmentType,
-		CreatedAt:      dbMsg.CreatedAt,
-		UpdatedAt:      dbMsg.UpdatedAt,
-		Reactions:      []Reaction{},
+		ID:              strconv.FormatInt(dbMsg.ID, 10),
+		ChannelID:       channelID,
+		AuthorID:        authorID,
+		AuthorUsername:  authorUsername,
+		AuthorAvatarURL: authorAvatarURL,
+		Content:         content,
+		Nonce:           dbMsg.Nonce,
+		AttachmentURL:   dbMsg.AttachmentURL,
+		AttachmentName:  dbMsg.AttachmentName,
+		AttachmentType:  dbMsg.AttachmentType,
+		CreatedAt:       dbMsg.CreatedAt,
+		UpdatedAt:       dbMsg.UpdatedAt,
+		Reactions:       []Reaction{},
 	}
 
 	// Broadcast the message if a broadcaster is set
@@ -199,14 +202,19 @@ func (s *MessageService) GetChannelMessages(ctx context.Context, channelID strin
 			}
 		}
 		messages = append(messages, &Message{
-			ID:             strconv.FormatInt(dbMsg.ID, 10),
-			ChannelID:      channelID,
-			AuthorID:       strconv.FormatInt(dbMsg.AuthorID, 10),
-			AuthorUsername: dbMsg.AuthorUsername,
-			Content:        dbMsg.Content,
-			CreatedAt:      dbMsg.CreatedAt,
-			UpdatedAt:      dbMsg.UpdatedAt,
-			Reactions:      reactions,
+			ID:              strconv.FormatInt(dbMsg.ID, 10),
+			ChannelID:       channelID,
+			AuthorID:        strconv.FormatInt(dbMsg.AuthorID, 10),
+			AuthorUsername:  dbMsg.AuthorUsername,
+			AuthorAvatarURL: dbMsg.AuthorAvatarURL,
+			Content:         dbMsg.Content,
+			Nonce:           dbMsg.Nonce,
+			AttachmentURL:   dbMsg.AttachmentURL,
+			AttachmentName:  dbMsg.AttachmentName,
+			AttachmentType:  dbMsg.AttachmentType,
+			CreatedAt:       dbMsg.CreatedAt,
+			UpdatedAt:       dbMsg.UpdatedAt,
+			Reactions:       reactions,
 		})
 	}
 
@@ -365,4 +373,37 @@ func (s *MessageService) ToggleReaction(ctx context.Context, messageID, userID, 
 	s.mu.RUnlock()
 
 	return nil
+}
+
+// CanManageMessage returns true if the given user has permission to delete/manage the message.
+// Returns true if the user is the message author OR has MANAGE_MESSAGES permission in the server.
+func (s *MessageService) CanManageMessage(ctx context.Context, messageID, userID string) (bool, error) {
+	msgIDInt, err := strconv.ParseInt(messageID, 10, 64)
+	if err != nil {
+		return false, errors.New("invalid message ID")
+	}
+	userIDInt, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		return false, errors.New("invalid user ID")
+	}
+
+	msg, err := s.repo.GetMessageByID(ctx, msgIDInt)
+	if err != nil {
+		return false, err
+	}
+	if msg.AuthorID == userIDInt {
+		return true, nil
+	}
+
+	// Look up the channel to get the server ID
+	ch, err := s.repo.GetChannelByID(ctx, msg.ChannelID)
+	if err != nil {
+		return false, err
+	}
+	srv, err := s.repo.GetServerByID(ctx, ch.ServerID)
+	if err != nil {
+		return false, err
+	}
+
+	return permissions.HasPermission(ctx, s.repo, srv.ID, userIDInt, srv.OwnerID, permissions.PermManageMessages)
 }

@@ -58,6 +58,7 @@ export interface Message {
   channel_id: string;
   author_id: string;
   author_username: string;
+  author_avatar_url?: string;
   content: string;
   nonce?: string;
   created_at: string;

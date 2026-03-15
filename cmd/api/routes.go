@@ -96,6 +96,7 @@ func registerRoutes(
 			r.Post("/servers/{id}/members/{userID}/roles", serverHandler.AssignRoleToMember)
 			r.Delete("/servers/{id}/members/{userID}/roles/{roleId}", serverHandler.RemoveRoleFromMember)
 			r.Get("/servers/{id}/members-with-roles", serverHandler.GetMembersWithRoles)
+			r.Get("/servers/{id}/my-permissions", serverHandler.GetMyPermissions)
 
 			// Channel routes
 			channelHandler := channel.NewHandler(channelService)

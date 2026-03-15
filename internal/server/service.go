@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"parley/internal/db"
+	"parley/internal/permissions"
 	ws "parley/internal/websocket"
 )
 
@@ -870,4 +871,50 @@ func (s *ServerService) GetMembersWithRoles(ctx context.Context, serverID string
 		}
 	}
 	return members, nil
+}
+
+// CanKickBan returns true if actorID has permission to kick/ban members in the server.
+// Returns (isOwner, hasKickPerm, error).
+func (s *ServerService) CanKickBan(ctx context.Context, serverID, actorID string) (isOwner bool, allowed bool, err error) {
+	srv, err := s.GetServer(ctx, serverID)
+	if err != nil {
+		return false, false, err
+	}
+	if srv.OwnerID == actorID {
+		return true, true, nil
+	}
+	sID, _ := idToInt64(serverID)
+	aID, err := idToInt64(actorID)
+	if err != nil {
+		return false, false, errors.New("invalid actor ID")
+	}
+	ownerID, _ := idToInt64(srv.OwnerID)
+	hasPerm, err := permissions.HasPermission(ctx, s.repo, sID, aID, ownerID, permissions.PermKickMembers)
+	if err != nil {
+		return false, false, err
+	}
+	return false, hasPerm, nil
+}
+
+// GetMyPermissions returns the effective permission bitfield and owner status for a user in a server.
+func (s *ServerService) GetMyPermissions(ctx context.Context, serverID, userID string) (int64, bool, error) {
+	srv, err := s.GetServer(ctx, serverID)
+	if err != nil {
+		return 0, false, err
+	}
+	isOwner := srv.OwnerID == userID
+	if isOwner {
+		return ^int64(0), true, nil
+	}
+	sID, _ := idToInt64(serverID)
+	uID, err := idToInt64(userID)
+	if err != nil {
+		return 0, false, errors.New("invalid user ID")
+	}
+	ownerID, _ := idToInt64(srv.OwnerID)
+	perms, err := permissions.GetEffectivePermissions(ctx, s.repo, sID, uID, ownerID)
+	if err != nil {
+		return 0, false, err
+	}
+	return perms, false, nil
 }

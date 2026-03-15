@@ -111,6 +111,7 @@ interface ChannelListProps {
   onOpenSettings?: () => void;
   onVoiceChannelClick?: () => void;
   channelUnreadCounts?: Record<string, number>;
+  canManageChannels?: boolean;
 }
 
 const ChannelList: React.FC<ChannelListProps> = ({
@@ -129,6 +130,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
   onOpenSettings,
   onVoiceChannelClick,
   channelUnreadCounts = {},
+  canManageChannels = false,
 }) => {
   const [textChannelsCollapsed, setTextChannelsCollapsed] = useState(false);
   const [voiceChannelsCollapsed, setVoiceChannelsCollapsed] = useState(false);
@@ -187,9 +189,11 @@ const ChannelList: React.FC<ChannelListProps> = ({
             </svg>
             Text Channels
           </div>
-          <button className="add-channel-btn" onClick={onCreateChannel} title="Create channel">
-            +
-          </button>
+          {canManageChannels && (
+            <button className="add-channel-btn" onClick={onCreateChannel} title="Create channel">
+              +
+            </button>
+          )}
         </div>
 
         {!textChannelsCollapsed && textChannels.map(channel => {
@@ -208,7 +212,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
               {unread > 0 && !isActive && (
                 <span className="channel-unread-badge">{unread > 99 ? '99+' : unread}</span>
               )}
-              {hoveredChannel === channel.id && (
+              {canManageChannels && hoveredChannel === channel.id && (
                 <button
                   className="delete-channel-btn"
                   onClick={e => { e.stopPropagation(); onDeleteChannel(channel.id); }}
@@ -243,7 +247,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
           >
             <span className="voice-icon">🔊</span>
             <span className="channel-name">{channel.name}</span>
-            {hoveredChannel === channel.id && (
+            {canManageChannels && hoveredChannel === channel.id && (
               <button
                 className="delete-channel-btn"
                 onClick={e => { e.stopPropagation(); onDeleteChannel(channel.id); }}
@@ -255,10 +259,12 @@ const ChannelList: React.FC<ChannelListProps> = ({
           </div>
         ))}
 
-        <div className="channel-item manage-roles-item" onClick={onManageRoles}>
-          <span className="channel-icon">⚙</span>
-          <span className="channel-name">Manage Roles</span>
-        </div>
+        {(owner_id === currentUser?.id) && (
+          <div className="channel-item manage-roles-item" onClick={onManageRoles}>
+            <span className="channel-icon">⚙</span>
+            <span className="channel-name">Manage Roles</span>
+          </div>
+        )}
       </div>
 
       <div

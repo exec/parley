@@ -101,6 +101,15 @@ function MainApp() {
   // Determine current view
   const view: View = activeDmChannel ? 'dm' : activeServer ? 'server' : 'homepage';
 
+  // Compute effective permissions from the current user's roles in the active server
+  const isServerOwner = currentUser?.id === activeServer?.owner_id;
+  const currentMember = members.find(m => m.user_id === currentUser?.id);
+  const effectivePermissions = isServerOwner
+    ? ~0 // all bits set
+    : (currentMember?.roles ?? []).reduce((acc, role) => acc | (role.permissions ?? 0), 0);
+  const canManageChannels = isServerOwner || (effectivePermissions & 4) !== 0;
+  const canKickMembers = isServerOwner || (effectivePermissions & 8) !== 0;
+
   // Restore state from URL once servers are loaded
   useEffect(() => {
     if (isLoadingServers || didRestoreFromUrl.current || servers.length === 0) return;
@@ -394,6 +403,7 @@ function MainApp() {
       onOpenSettings={() => setShowUserSettings(true)}
       onVoiceChannelClick={() => setShowVoiceModal(true)}
       channelUnreadCounts={unreadCounts}
+      canManageChannels={canManageChannels}
     />
   ) : (
     <DmPanel
@@ -416,7 +426,8 @@ function MainApp() {
       onViewProfile={handleViewProfile}
       onSendMessage={openDmChannel}
       onlineUserIds={onlineUsers}
-      currentUserIsOwner={currentUser?.id === activeServer?.owner_id}
+      currentUserIsOwner={isServerOwner}
+      canKickMembers={canKickMembers}
       onManageRoles={(userId) => {
         setManageRolesFocusUserId(userId);
         setShowManageRoles(true);
