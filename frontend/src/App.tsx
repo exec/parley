@@ -9,15 +9,15 @@ import { AppProvider, useApp } from './context/AppContext';
 import { Landing } from './pages/Landing';
 import { useWebSocket, MemberRoleUpdate, UserUpdate, VoiceStateUpdate } from './hooks/useWebSocket';
 import { VoiceChannel } from './components/voice/VoiceChannel';
-import { DmMessage } from './api/types';
+import { DmMessage, Message } from './api/types';
 import * as serversApi from './api/servers';
 import * as channelsApi from './api/channels';
+import { getVoiceParticipants } from './api/voice';
 import MainLayout from './components/layout/MainLayout';
 import ChannelList from './components/layout/ChannelList';
 import DmPanel from './components/layout/DmPanel';
 import UserSidebar from './components/layout/UserSidebar';
 import { ChatWindow } from './components/chat/ChatWindow';
-import { DmChat } from './components/chat/DmChat';
 import { Homepage } from './pages/Homepage';
 import { CreateServerModal } from './components/modals/CreateServerModal';
 import { CreateChannelModal } from './components/modals/CreateChannelModal';
@@ -25,6 +25,8 @@ import { UserProfileModal } from './components/modals/UserProfileModal';
 import { AssignRolesModal } from './components/modals/AssignRolesModal';
 import { UserSettings } from './components/settings/UserSettings';
 import { ServerSettings } from './components/settings/ServerSettings';
+import { NotificationSettingsModal, getNotifPref } from './components/modals/NotificationSettingsModal';
+import { useNotifications } from './hooks/useNotifications';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 type View = 'homepage' | 'server' | 'dm';
@@ -61,12 +63,16 @@ function MainApp() {
     dmChannels,
     activeDmChannel,
     dmMessages,
+    hasMoreDmMessages,
     isLoadingDms,
     selectDmChannel,
     sendDmMessage,
     openDmChannel,
     updateCurrentUser,
     loadServers,
+    hasMoreMessages,
+    loadMoreMessages,
+    loadMoreDmMessages,
     receiveChannelCreate,
     receiveChannelUpdate,
     receiveChannelDelete,
@@ -93,8 +99,17 @@ function MainApp() {
   const [assignRolesUserId, setAssignRolesUserId] = useState('');
   const [assignRolesUsername, setAssignRolesUsername] = useState('');
 
+  // Notification settings modal
+  const [showNotifSettings, setShowNotifSettings] = useState(false);
+  const [notifSettingsServerId, setNotifSettingsServerId] = useState('');
+
+  const { requestPermission, notify } = useNotifications();
+
+  // Request notification permission once on mount (Chromium allows this without a gesture)
+  useEffect(() => { requestPermission(); }, [requestPermission]);
+
   // Voice state: channelId → list of participants
-  const [voiceParticipants, setVoiceParticipants] = useState<Record<string, { user_id: string; username: string }[]>>({});
+  const [voiceParticipants, setVoiceParticipants] = useState<Record<string, { user_id: string; username: string; avatar_url?: string }[]>>({});
   const [activeVoiceChannel, setActiveVoiceChannel] = useState<string | null>(null);
 
   // Typing indicators: channelId → list of typing users
@@ -150,7 +165,7 @@ function MainApp() {
     } else if (activeServer) {
       navigate(`/channels/${activeServer.id}`, { replace: true });
     } else {
-      navigate('/', { replace: true });
+      navigate('/channels/@me', { replace: true });
     }
   }, [activeDmChannel?.id, activeServer?.id, activeChannel?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -219,12 +234,31 @@ function MainApp() {
     receiveUserUpdate(update);
   }, [receiveUserUpdate]);
 
+  // Fetch initial voice presence whenever the channel list changes (server switch / reload)
+  useEffect(() => {
+    const voiceChannels = channels.filter(c => c.type === 1 || c.type === 2);
+    if (voiceChannels.length === 0) return;
+    Promise.all(
+      voiceChannels.map(ch =>
+        getVoiceParticipants(ch.id)
+          .then(ps => ({ channelId: ch.id, participants: ps }))
+          .catch(() => ({ channelId: ch.id, participants: [] }))
+      )
+    ).then(results => {
+      setVoiceParticipants(prev => {
+        const next = { ...prev };
+        results.forEach(({ channelId, participants }) => { next[channelId] = participants; });
+        return next;
+      });
+    });
+  }, [channels]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleVoiceStateUpdate = useCallback((update: VoiceStateUpdate) => {
     setVoiceParticipants(prev => {
       const list = prev[update.channel_id] ?? [];
       if (update.action === 'join') {
         if (list.some(p => p.user_id === update.user_id)) return prev;
-        return { ...prev, [update.channel_id]: [...list, { user_id: update.user_id, username: update.username }] };
+        return { ...prev, [update.channel_id]: [...list, { user_id: update.user_id, username: update.username, avatar_url: update.avatar_url }] };
       } else {
         const filtered = list.filter(p => p.user_id !== update.user_id);
         return { ...prev, [update.channel_id]: filtered };
@@ -284,21 +318,42 @@ function MainApp() {
   }, [currentUser?.id]);
 
   const handleReceiveMessage = useCallback((msg: Parameters<typeof receiveMessage>[0]) => {
-    // Clear typing indicator when a message arrives from that user
     clearTypingUser(msg.channel_id, msg.author_id);
     receiveMessage(msg);
-    // Track unread for channels we're not currently viewing
     if (msg.channel_id !== activeChannel?.id) {
-      setUnreadCounts(prev => ({ ...prev, [msg.channel_id]: (prev[msg.channel_id] ?? 0) + 1 }));
+      // Apply notification preference for this server
+      const pref = getNotifPref(activeServer?.id ?? '');
+      let shouldCount = true;
+      if (pref === 'never') {
+        shouldCount = false;
+      } else if (pref === 'tags') {
+        shouldCount = msg.content.includes('@everyone') ||
+          msg.content.includes('@here') ||
+          msg.content.includes(`<@${currentUser?.id}>`);
+      } else if (pref === 'direct') {
+        shouldCount = msg.content.includes(`<@${currentUser?.id}>`);
+      }
+      if (shouldCount) {
+        setUnreadCounts(prev => ({ ...prev, [msg.channel_id]: (prev[msg.channel_id] ?? 0) + 1 }));
+        const channelName = channels.find(c => c.id === msg.channel_id)?.name ?? 'a channel';
+        notify(`#${channelName}`, `${msg.author_username}: ${msg.content}`, msg.author_avatar_url);
+      }
     }
-  }, [receiveMessage, clearTypingUser, activeChannel?.id]);
+  }, [receiveMessage, clearTypingUser, activeChannel?.id, activeServer?.id, currentUser?.id, channels, notify]);
 
   const handleReceiveDmMessage = useCallback((msg: DmMessage) => {
     receiveDmMessage(msg);
     if (msg.dm_channel_id !== activeDmChannel?.id) {
       setUnreadCounts(prev => ({ ...prev, [msg.dm_channel_id]: (prev[msg.dm_channel_id] ?? 0) + 1 }));
+      notify(`${msg.author_username}`, msg.content, msg.author_avatar_url);
     }
-  }, [receiveDmMessage, activeDmChannel?.id]);
+  }, [receiveDmMessage, activeDmChannel?.id, notify]);
+
+  // userid → username map for rendering mention tokens in messages
+  const memberMap = useMemo(
+    () => new Map(members.map(m => [m.user_id, m.username])),
+    [members],
+  );
 
   // Channel IDs for the active server (for unread notifications)
   const allChannelIds = channels.map(c => c.id);
@@ -427,7 +482,16 @@ function MainApp() {
       currentUser={currentUser ?? undefined}
       onLogout={logout}
       onOpenSettings={() => setShowUserSettings(true)}
-      onVoiceChannelClick={(channelId) => setActiveVoiceChannel(channelId)}
+      onVoiceChannelClick={(channelId) => {
+        setActiveVoiceChannel(channelId);
+        if (currentUser) {
+          setVoiceParticipants(prev => {
+            const list = prev[channelId] ?? [];
+            if (list.some(p => p.user_id === currentUser.id)) return prev;
+            return { ...prev, [channelId]: [...list, { user_id: currentUser.id, username: currentUser.username, avatar_url: currentUser.avatar_url }] };
+          });
+        }
+      }}
       voiceParticipants={voiceParticipants}
       activeVoiceChannelId={activeVoiceChannel}
       channelUnreadCounts={unreadCounts}
@@ -449,6 +513,7 @@ function MainApp() {
       onLogout={logout}
       onOpenSettings={() => setShowUserSettings(true)}
       dmUnreadCounts={unreadCounts}
+      onlineUserIds={onlineUsers}
     />
   );
 
@@ -488,8 +553,17 @@ function MainApp() {
           channel={vc}
           currentUserId={currentUser.id}
           currentUsername={currentUser.username}
+          currentAvatarUrl={currentUser.avatar_url}
           participants={voiceParticipants[activeVoiceChannel] ?? []}
-          onLeave={() => setActiveVoiceChannel(null)}
+          onLeave={() => {
+            if (currentUser && activeVoiceChannel) {
+              setVoiceParticipants(prev => {
+                const filtered = (prev[activeVoiceChannel] ?? []).filter(p => p.user_id !== currentUser.id);
+                return { ...prev, [activeVoiceChannel]: filtered };
+              });
+            }
+            setActiveVoiceChannel(null);
+          }}
         />
       );
     }
@@ -501,14 +575,41 @@ function MainApp() {
         onOpenDm={openDmChannel}
       />
     );
-  } else if (view === 'dm') {
+  } else if (view === 'dm' && activeDmChannel) {
+    const dmChannel = {
+      id: activeDmChannel.id,
+      server_id: '',
+      name: activeDmChannel.other_username,
+      type: 0,
+      created_at: activeDmChannel.created_at,
+      updated_at: activeDmChannel.created_at,
+    };
+    const dmAsMessages: Message[] = dmMessages.map(dm => ({
+      id: dm.id,
+      channel_id: dm.dm_channel_id,
+      author_id: dm.author_id,
+      author_username: dm.author_username,
+      author_avatar_url: dm.author_avatar_url,
+      content: dm.content,
+      created_at: dm.created_at,
+      updated_at: dm.updated_at,
+      attachment_url: dm.attachment_url,
+      attachment_name: dm.attachment_name,
+      attachment_type: dm.attachment_type,
+    }));
     mainContent = (
-      <DmChat
-        channel={activeDmChannel!}
-        messages={dmMessages}
+      <ChatWindow
+        channel={dmChannel}
+        messages={dmAsMessages}
         currentUserId={currentUser?.id}
         onSendMessage={sendDmMessage}
+        onLoadMore={loadMoreDmMessages}
+        hasMore={hasMoreDmMessages}
         isLoading={isLoadingDms}
+        onViewProfile={handleViewProfile}
+        headerPrefix="@"
+        headerAvatar={activeDmChannel.other_avatar_url}
+        isOnline={onlineUsers.has(activeDmChannel.other_user_id)}
       />
     );
   } else if (activeChannel) {
@@ -517,12 +618,16 @@ function MainApp() {
         channel={activeChannel}
         messages={messages}
         currentUserId={currentUser?.id}
+        members={members}
+        memberMap={memberMap}
         onSendMessage={sendMessage}
         onEdit={(msg) => editMessage(msg.id, msg.content)}
         onDelete={deleteMessage}
         onReact={toggleReaction}
         onViewProfile={handleViewProfile}
         onSendMessageToUser={(userId) => openDmChannel(userId)}
+        onLoadMore={loadMoreMessages}
+        hasMore={hasMoreMessages}
         isLoading={isLoadingMessages}
         typingUsers={typingUsers[activeChannel.id] ?? []}
         onTyping={handleSendTyping}
@@ -556,12 +661,30 @@ function MainApp() {
       <MainLayout
         servers={servers}
         activeServerId={activeServer?.id ?? null}
+        currentUserId={currentUser?.id}
         onServerSelect={selectServer}
         onCreateServer={() => setShowCreateServer(true)}
         onHomepage={handleGoHome}
         leftPanel={leftPanel}
         rightPanel={rightPanel}
         serverUnreadCounts={serverUnreadCounts}
+        onMarkServerRead={(serverId) => {
+          setUnreadCounts(prev => {
+            const next = { ...prev };
+            channels.forEach(ch => { if (ch.server_id === serverId) delete next[ch.id]; });
+            return next;
+          });
+        }}
+        onNotificationSettings={(serverId) => {
+          setNotifSettingsServerId(serverId);
+          setShowNotifSettings(true);
+        }}
+        onServerSettings={(serverId) => {
+          selectServer(serverId);
+          setServerSettingsInitialTab('overview');
+          setShowServerSettings(true);
+        }}
+        onLeaveServer={(serverId) => leaveServer(serverId)}
       >
         {mainContent}
       </MainLayout>
@@ -582,6 +705,7 @@ function MainApp() {
         userId={profileUserId}
         currentUserId={currentUser?.id}
         onStartDm={openDmChannel}
+        isOnline={profileUserId ? onlineUsers.has(profileUserId) : undefined}
       />
       <AssignRolesModal
         isOpen={showAssignRoles}
@@ -605,6 +729,13 @@ function MainApp() {
         onDelete={() => deleteServer(activeServer?.id ?? '')}
         onCreateInvite={() => {}}
         initialTab={serverSettingsInitialTab}
+      />
+
+      <NotificationSettingsModal
+        isOpen={showNotifSettings}
+        onClose={() => setShowNotifSettings(false)}
+        serverId={notifSettingsServerId}
+        serverName={servers.find(s => s.id === notifSettingsServerId)?.name ?? ''}
       />
 
     </>
@@ -636,7 +767,7 @@ const ProtectedApp = (
 const HomeRoute: React.FC = () => {
   const token = localStorage.getItem('token');
   if (!token) return <Landing />;
-  return <>{ProtectedApp}</>;
+  return <Navigate to="/channels/@me" replace />;
 };
 
 function App() {

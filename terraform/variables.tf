@@ -128,6 +128,13 @@ variable "admin_impersonate_secret" {
   default     = ""
 }
 
+variable "giphy_api_key" {
+  description = "Giphy API key for GIF search in the frontend"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 variable "livekit_api_key" {
   description = "LiveKit API key (used by API servers to issue tokens and the VC droplet to authenticate them)"
   type        = string

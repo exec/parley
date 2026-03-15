@@ -93,7 +93,7 @@ func (h *Handler) GetChannelMessages(w http.ResponseWriter, r *http.Request) {
 
 	// Parse query parameters
 	limit := 50
-	offset := 0
+	var beforeID int64
 
 	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
@@ -104,13 +104,13 @@ func (h *Handler) GetChannelMessages(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if offsetStr := r.URL.Query().Get("offset"); offsetStr != "" {
-		if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 && o <= 10000 {
-			offset = o
+	if beforeStr := r.URL.Query().Get("before"); beforeStr != "" {
+		if b, err := strconv.ParseInt(beforeStr, 10, 64); err == nil && b > 0 {
+			beforeID = b
 		}
 	}
 
-	messages, err := h.service.GetChannelMessages(r.Context(), channelID, limit, offset)
+	messages, err := h.service.GetChannelMessages(r.Context(), channelID, limit, beforeID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

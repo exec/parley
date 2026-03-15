@@ -30,6 +30,7 @@ export interface VoiceStateUpdate {
   channel_id: string;
   user_id: string;
   username: string;
+  avatar_url?: string;
   action: 'join' | 'leave';
 }
 

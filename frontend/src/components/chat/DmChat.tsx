@@ -130,7 +130,9 @@ export function DmChat({ channel, messages, currentUserId, onSendMessage, isLoad
                     >
                       {showAvatar ? (
                         <div className="message-avatar">
-                          {msg.author_username.charAt(0).toUpperCase()}
+                          {msg.author_avatar_url
+                            ? <img src={msg.author_avatar_url} alt={msg.author_username} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                            : msg.author_username.charAt(0).toUpperCase()}
                         </div>
                       ) : (
                         <div className="message-avatar-spacer" />

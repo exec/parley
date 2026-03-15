@@ -75,10 +75,10 @@ func (h *Hub) Run() {
 	}
 }
 
-// RegisterClient adds a client to the hub
+// RegisterClient adds a client to the hub, broadcasts USER_ONLINE globally,
+// and sends a PRESENCE_SNAPSHOT of all online users to the new client.
 func (h *Hub) RegisterClient(client *Client) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
 
 	h.clients[client] = true
 
@@ -86,17 +86,46 @@ func (h *Hub) RegisterClient(client *Client) {
 	if h.userToClient[client.userID] == nil {
 		h.userToClient[client.userID] = make(map[*Client]bool)
 	}
+	isFirstConnection := len(h.userToClient[client.userID]) == 0
 	h.userToClient[client.userID][client] = true
+
+	// Collect all unique online user IDs for the snapshot
+	seen := make(map[string]bool)
+	onlineUserIDs := make([]string, 0, len(h.userToClient))
+	for uid := range h.userToClient {
+		if !seen[uid] {
+			seen[uid] = true
+			onlineUserIDs = append(onlineUserIDs, uid)
+		}
+	}
+
+	h.mu.Unlock()
+
+	// Send the new client a snapshot of everyone currently online
+	if snapshotPayload, err := json.Marshal(map[string]interface{}{
+		"user_ids": onlineUserIDs,
+	}); err == nil {
+		client.Send(EventPresenceSnapshot, snapshotPayload)
+	}
+
+	// Announce arrival globally (only once per user, not once per tab/connection)
+	if isFirstConnection {
+		if onlinePayload, err := json.Marshal(map[string]string{
+			"user_id": client.userID,
+		}); err == nil {
+			h.broadcastToAllLocal(EventUserOnline, onlinePayload)
+		}
+	}
 
 	log.Printf("Client registered for user: %s", client.userID)
 }
 
 // UnregisterClient removes a client from the hub and broadcasts USER_OFFLINE
-// to every channel where this user no longer has any remaining connections.
+// globally when the user has no remaining connections.
 func (h *Hub) UnregisterClient(client *Client) {
 	h.mu.Lock()
 
-	offlineChannels := []string{}
+	userFullyOffline := false
 
 	if _, ok := h.clients[client]; ok {
 		delete(h.clients, client)
@@ -107,26 +136,16 @@ func (h *Hub) UnregisterClient(client *Client) {
 			delete(h.userToClient[client.userID], client)
 			if len(h.userToClient[client.userID]) == 0 {
 				delete(h.userToClient, client.userID)
+				userFullyOffline = true
 			}
 		}
 
-		// Remove from all channel subscriptions; track channels where user is now absent.
+		// Remove from all channel subscriptions
 		for channelID, clients := range h.channelSubs {
 			if _, ok := clients[client]; ok {
 				delete(h.channelSubs[channelID], client)
 				if len(h.channelSubs[channelID]) == 0 {
 					delete(h.channelSubs, channelID)
-				}
-				// Check whether any other connection for this user is still subscribed.
-				stillPresent := false
-				for c := range h.channelSubs[channelID] {
-					if c.userID == client.userID {
-						stillPresent = true
-						break
-					}
-				}
-				if !stillPresent {
-					offlineChannels = append(offlineChannels, channelID)
 				}
 			}
 		}
@@ -136,103 +155,44 @@ func (h *Hub) UnregisterClient(client *Client) {
 
 	h.mu.Unlock()
 
-	// Broadcast USER_OFFLINE outside the lock (BroadcastToChannel acquires it internally).
-	for _, channelID := range offlineChannels {
+	// Broadcast USER_OFFLINE globally only when the user has no remaining connections.
+	if userFullyOffline {
 		if offlinePayload, err := json.Marshal(map[string]string{
-			"user_id":    client.userID,
-			"channel_id": channelID,
+			"user_id": client.userID,
 		}); err == nil {
-			h.BroadcastToChannel(channelID, EventUserOffline, offlinePayload)
+			h.broadcastToAllLocal(EventUserOffline, offlinePayload)
 		}
 	}
 }
 
 // SubscribeToChannel adds a client to a channel's subscriber list.
-// It sends a PRESENCE_SNAPSHOT of currently-online users to the new subscriber
-// and broadcasts USER_ONLINE to the channel if this is the user's first presence there.
+// Presence events are now handled globally (on connect/disconnect), not per-channel.
 func (h *Hub) SubscribeToChannel(channelID string, client *Client) {
 	h.mu.Lock()
 
 	if h.channelSubs[channelID] == nil {
 		h.channelSubs[channelID] = make(map[*Client]bool)
 	}
-
-	// Check whether this user already has another connection in this channel.
-	alreadyPresent := false
-	for c := range h.channelSubs[channelID] {
-		if c.userID == client.userID {
-			alreadyPresent = true
-			break
-		}
-	}
-
 	h.channelSubs[channelID][client] = true
 
-	// Collect unique online user IDs for the snapshot (includes the new subscriber).
-	seen := make(map[string]bool)
-	onlineUserIDs := make([]string, 0, len(h.channelSubs[channelID]))
-	for c := range h.channelSubs[channelID] {
-		if !seen[c.userID] {
-			seen[c.userID] = true
-			onlineUserIDs = append(onlineUserIDs, c.userID)
-		}
-	}
-
 	h.mu.Unlock()
-
-	// Send the snapshot directly to the new subscriber so they know who's online now.
-	if snapshotPayload, err := json.Marshal(map[string]interface{}{
-		"channel_id": channelID,
-		"user_ids":   onlineUserIDs,
-	}); err == nil {
-		client.Send(EventPresenceSnapshot, snapshotPayload)
-	}
-
-	// Announce the user's arrival to everyone already in the channel.
-	if !alreadyPresent {
-		if onlinePayload, err := json.Marshal(map[string]string{
-			"user_id":    client.userID,
-			"channel_id": channelID,
-		}); err == nil {
-			h.BroadcastToChannel(channelID, EventUserOnline, onlinePayload)
-		}
-	}
 
 	log.Printf("Client %s subscribed to channel: %s", client.userID, channelID)
 }
 
-// UnsubscribeFromChannel removes a client from a channel's subscriber list
-// and broadcasts USER_OFFLINE if no other connections for that user remain.
+// UnsubscribeFromChannel removes a client from a channel's subscriber list.
+// Presence events are now handled globally (on connect/disconnect), not per-channel.
 func (h *Hub) UnsubscribeFromChannel(channelID string, client *Client) {
 	h.mu.Lock()
 
-	broadcastOffline := false
 	if h.channelSubs[channelID] != nil {
 		delete(h.channelSubs[channelID], client)
 		if len(h.channelSubs[channelID]) == 0 {
 			delete(h.channelSubs, channelID)
 		}
-		// Check whether any other connection for this user is still in this channel.
-		stillPresent := false
-		for c := range h.channelSubs[channelID] {
-			if c.userID == client.userID {
-				stillPresent = true
-				break
-			}
-		}
-		broadcastOffline = !stillPresent
 	}
 
 	h.mu.Unlock()
-
-	if broadcastOffline {
-		if offlinePayload, err := json.Marshal(map[string]string{
-			"user_id":    client.userID,
-			"channel_id": channelID,
-		}); err == nil {
-			h.BroadcastToChannel(channelID, EventUserOffline, offlinePayload)
-		}
-	}
 
 	log.Printf("Client %s unsubscribed from channel: %s", client.userID, channelID)
 }
@@ -302,6 +262,31 @@ func (h *Hub) DisconnectUser(userID string) {
 
 	for _, c := range clients {
 		c.closeSend()
+	}
+}
+
+// broadcastToAllLocal sends a message to every locally-connected client.
+// Used for global presence events (USER_ONLINE / USER_OFFLINE).
+func (h *Hub) broadcastToAllLocal(messageType string, payload []byte) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	wsMsg := WSMessage{Type: messageType, Payload: payload}
+	msgBytes, err := json.Marshal(wsMsg)
+	if err != nil {
+		return
+	}
+
+	for client := range h.clients {
+		select {
+		case client.send <- msgBytes:
+		default:
+			delete(h.clients, client)
+			client.closeSend()
+			if h.userToClient[client.userID] != nil {
+				delete(h.userToClient[client.userID], client)
+			}
+		}
 	}
 }
 

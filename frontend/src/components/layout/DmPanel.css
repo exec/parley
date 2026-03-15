@@ -116,6 +116,30 @@
   color: var(--accent);
 }
 
+/* Avatar wrapper for status dot positioning */
+.dm-panel-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.dm-panel-status-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--bg-secondary);
+}
+
+.dm-panel-status-dot.online {
+  background-color: #3ba55c;
+}
+
+.dm-panel-status-dot.offline {
+  background-color: #747f8d;
+}
+
 .dm-panel-name {
   font-size: 14px;
   font-weight: 500;
@@ -154,8 +178,11 @@
   font-weight: bold;
   font-size: 14px;
   color: var(--text-primary);
-  margin-right: 8px;
   flex-shrink: 0;
+}
+
+.dm-panel-user-info .dm-panel-avatar-wrap {
+  margin-right: 8px;
 }
 
 .dm-panel-user-details {

@@ -3,6 +3,7 @@ import { PublicUser } from '../../api/types';
 import { getUser } from '../../api/users';
 import { Spinner } from '../ui/Spinner';
 import MarkdownRenderer from '../ui/MarkdownRenderer';
+import BadgeList from '../ui/BadgeList';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -10,13 +11,14 @@ interface UserProfileModalProps {
   userId: string | null;
   currentUserId?: string;
   onStartDm: (userId: string) => void;
+  isOnline?: boolean;
 }
 
 function formatMemberSince(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 }
 
-export function UserProfileModal({ isOpen, onClose, userId, currentUserId, onStartDm }: UserProfileModalProps) {
+export function UserProfileModal({ isOpen, onClose, userId, currentUserId, onStartDm, isOnline }: UserProfileModalProps) {
   const [user, setUser] = useState<PublicUser | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -65,9 +67,19 @@ export function UserProfileModal({ isOpen, onClose, userId, currentUserId, onSta
                 : user.username.charAt(0).toUpperCase()
               }
             </div>
+            {(user.badges ?? 0) > 0 && (
+              <div className="user-profile-badge-row">
+                <BadgeList badges={user.badges!} />
+              </div>
+            )}
 
             <div className="user-profile-body">
-              <h2 className="user-profile-username">{user.username}</h2>
+              <div className="user-profile-name-row">
+                <h2 className="user-profile-username">{user.username}</h2>
+                {isOnline !== undefined && (
+                  <span className={`profile-status-dot ${isOnline ? 'online' : 'offline'}`} title={isOnline ? 'Online' : 'Offline'} />
+                )}
+              </div>
               <p className="user-profile-tag">@{user.username.toLowerCase()}</p>
 
               {user.bio && (

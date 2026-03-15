@@ -5,6 +5,7 @@ export interface User {
   avatar_url?: string;
   banner_url?: string;
   bio?: string;
+  badges?: number;
   email_verified?: boolean;
   phone_number?: string;
   phone_verified?: boolean;
@@ -16,6 +17,8 @@ export interface Role {
   name: string;
   color: string;
   permissions: number;
+  hoist: boolean;
+  position: number;
   created_at: string;
 }
 
@@ -36,6 +39,9 @@ export interface ServerMember {
   username: string;
   nickname?: string;
   avatar_url?: string;
+  banner_url?: string;
+  bio?: string;
+  badges?: number;
   joined_at: string;
   roles?: Role[];
 }
@@ -62,6 +68,8 @@ export interface Message {
   author_id: string;
   author_username: string;
   author_avatar_url?: string;
+  author_is_bot?: boolean;
+  via_api?: boolean;
   content: string;
   nonce?: string;
   created_at: string;
@@ -90,6 +98,7 @@ export interface DmChannel {
   created_at: string;
   other_username: string;
   other_user_id: string;
+  other_avatar_url?: string;
 }
 
 export interface DmMessage {
@@ -97,6 +106,7 @@ export interface DmMessage {
   dm_channel_id: string;
   author_id: string;
   author_username: string;
+  author_avatar_url?: string;
   content: string;
   created_at: string;
   updated_at: string;
@@ -112,4 +122,5 @@ export interface PublicUser {
   created_at: string;
   banner_url?: string;
   bio?: string;
+  badges?: number;
 }

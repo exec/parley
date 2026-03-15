@@ -145,7 +145,7 @@ func (h *Handler) GetDmMessages(w http.ResponseWriter, r *http.Request) {
 
 	// Parse query parameters
 	limit := 50
-	offset := 0
+	var beforeID int64
 
 	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
@@ -156,13 +156,13 @@ func (h *Handler) GetDmMessages(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if offsetStr := r.URL.Query().Get("offset"); offsetStr != "" {
-		if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 && o <= 10000 {
-			offset = o
+	if beforeStr := r.URL.Query().Get("before"); beforeStr != "" {
+		if b, err := strconv.ParseInt(beforeStr, 10, 64); err == nil && b > 0 {
+			beforeID = b
 		}
 	}
 
-	messages, err := h.repo.GetDmMessages(r.Context(), dmChannelID, limit, offset)
+	messages, err := h.repo.GetDmMessages(r.Context(), dmChannelID, limit, beforeID)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return

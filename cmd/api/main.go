@@ -76,14 +76,13 @@ func main() {
 	}
 	log.Println("Connected to PostgreSQL database")
 
-	// Run migrations
-	migrationSQL := db.MigrationSQL()
-	_, err = dbConn.Exec(migrationSQL)
-	if err != nil {
-		log.Printf("Warning: Migration error (may already exist): %v", err)
-	} else {
-		log.Println("Database migrations completed")
+	// Run migrations individually so a transient error on one doesn't block later ones
+	for i, sql := range db.Migrations {
+		if _, merr := dbConn.Exec(sql); merr != nil {
+			log.Printf("Warning: migration %d may already be applied: %v", i, merr)
+		}
 	}
+	log.Println("Database migrations completed")
 
 	// Initialize repository layer
 	repo := db.NewRepository(dbConn)

@@ -15,8 +15,9 @@ import (
 
 // Participant holds info about a user currently in a voice channel.
 type Participant struct {
-	UserID   string `json:"user_id"`
-	Username string `json:"username"`
+	UserID    string `json:"user_id"`
+	Username  string `json:"username"`
+	AvatarURL string `json:"avatar_url,omitempty"`
 }
 
 // Service handles LiveKit token generation and Redis voice presence.
@@ -74,11 +75,11 @@ func presenceKey(channelID string) string {
 }
 
 // Join records a participant joining a voice channel.
-func (s *Service) Join(ctx context.Context, channelID, userID, username string) error {
+func (s *Service) Join(ctx context.Context, channelID, userID, username, avatarURL string) error {
 	if s.rdb == nil {
 		return nil
 	}
-	p := Participant{UserID: userID, Username: username}
+	p := Participant{UserID: userID, Username: username, AvatarURL: avatarURL}
 	b, _ := json.Marshal(p)
 	return s.rdb.HSet(ctx, presenceKey(channelID), userID, string(b)).Err()
 }

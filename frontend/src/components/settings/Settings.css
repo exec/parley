@@ -945,3 +945,148 @@
     width: 100%;
   }
 }
+
+/* ── Developer tab ─────────────────────────────────────────────────────────── */
+.dev-key-reveal {
+  margin: 0 0 20px;
+  padding: 16px;
+  background: rgba(50,205,50,0.05);
+  border: 1px solid rgba(50,205,50,0.25);
+  border-radius: 6px;
+}
+.dev-key-reveal-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #32CD32;
+  margin-bottom: 10px;
+}
+.dev-key-reveal-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.dev-key-code {
+  flex: 1;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid #1e2124;
+  border-radius: 4px;
+  padding: 8px 12px;
+  color: #32CD32;
+  word-break: break-all;
+  user-select: all;
+}
+.dev-copy-btn { flex-shrink: 0; }
+
+.dev-create-form {
+  background: #0d0f11;
+  border: 1px solid #1e2124;
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.dev-type-toggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid #2a2d32;
+  border-radius: 4px;
+  overflow: hidden;
+  width: fit-content;
+}
+.dev-type-btn {
+  background: transparent;
+  border: none;
+  color: #666;
+  padding: 6px 16px;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.dev-type-btn.active {
+  background: rgba(50,205,50,0.12);
+  color: #32CD32;
+}
+.dev-type-btn:hover:not(.active) { color: #aaa; background: rgba(255,255,255,0.03); }
+
+.dev-empty {
+  color: #555;
+  font-size: 13px;
+  padding: 16px 0;
+}
+
+.dev-key-table {
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+}
+.dev-key-header-row {
+  display: grid;
+  grid-template-columns: 150px 60px 1fr 90px 90px 70px;
+  gap: 8px;
+  padding: 6px 8px;
+  color: #444;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  border-bottom: 1px solid #1a1c1f;
+}
+.dev-key-row {
+  display: grid;
+  grid-template-columns: 150px 60px 1fr 90px 90px 70px;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 8px;
+  border-bottom: 1px solid #141618;
+  transition: background 0.1s;
+}
+.dev-key-row:hover { background: rgba(255,255,255,0.02); }
+
+.dev-key-prefix {
+  font-family: 'Courier New', monospace;
+  color: #32CD32;
+  font-size: 12px;
+}
+.dev-key-type {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 10px;
+  width: fit-content;
+}
+.dev-key-type.bot { background: rgba(88,101,242,0.2); color: #8892f0; }
+.dev-key-type.user { background: rgba(50,205,50,0.1); color: #32CD32; }
+.dev-key-name { color: #ccc; display: flex; align-items: center; gap: 6px; }
+.dev-key-date { color: #555; font-size: 12px; }
+
+.dev-rename-btn {
+  background: none;
+  border: none;
+  color: #555;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0 3px;
+  transition: color 0.1s;
+}
+.dev-rename-btn:hover { color: #32CD32; }
+
+.dev-revoke-btn {
+  background: none;
+  border: 1px solid rgba(224,85,85,0.3);
+  color: rgba(224,85,85,0.7);
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.dev-revoke-btn:hover {
+  border-color: #e05555;
+  color: #e05555;
+  background: rgba(224,85,85,0.08);
+}

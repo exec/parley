@@ -1444,6 +1444,12 @@
   z-index: 10;
 }
 
+.user-profile-badge-row {
+  position: absolute;
+  top: 147px;
+  left: 121px;
+}
+
 .user-profile-body {
   padding: 58px 24px 24px; /* 46px avatar overhang + 12px gap */
   background: #1e2128;
@@ -1458,6 +1464,12 @@
   border-radius: 0 0 8px 8px;
 }
 
+.user-profile-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .user-profile-username {
   font-size: 22px;
   font-weight: 700;
@@ -1467,6 +1479,17 @@
   word-break: break-word;
   line-height: 1.2;
 }
+
+.profile-status-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-bottom: 2px;
+}
+
+.profile-status-dot.online { background-color: #3ba55c; }
+.profile-status-dot.offline { background-color: #747f8d; }
 
 .user-profile-tag {
   color: #555;

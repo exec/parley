@@ -132,6 +132,7 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({
 
   // Permission flags scaffolding
   const PERMISSIONS = [
+    { label: 'Administrator', value: 32, description: 'Grants all permissions and ability to add bots to the server.' },
     { label: 'Send Messages', value: 1 },
     { label: 'Manage Messages', value: 2 },
     { label: 'Manage Channels', value: 4 },
@@ -206,7 +207,7 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({
               <div style={{ fontSize: 12, color: '#555', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Permissions</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {PERMISSIONS.map(p => (
-                  <label key={p.value} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#aaa', cursor: 'pointer' }}>
+                  <label key={p.value} title={'description' in p ? p.description : undefined} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#aaa', cursor: 'pointer' }}>
                     <button
                       type="button"
                       className={`custom-toggle${(newRolePerms & p.value) !== 0 ? ' on' : ''}`}

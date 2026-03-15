@@ -1,4 +1,6 @@
 import React, { useRef, useEffect } from 'react';
+import MarkdownRenderer from '../ui/MarkdownRenderer';
+import BadgeList from '../ui/BadgeList';
 import './MiniProfile.css';
 
 interface Role {
@@ -14,6 +16,8 @@ interface MiniProfileMember {
   nickname?: string;
   avatar_url?: string;
   banner_url?: string;
+  bio?: string;
+  badges?: number;
   roles?: Role[];
 }
 
@@ -88,12 +92,18 @@ const MiniProfile: React.FC<MiniProfileProps> = ({
           </div>
           <span className={`mini-profile-status-dot ${isOnline ? 'online' : 'offline'}`} />
         </div>
+        {(member.badges ?? 0) > 0 && (
+          <div className="mini-profile-badge-row">
+            <BadgeList badges={member.badges!} />
+          </div>
+        )}
       </div>
 
       {/* Body */}
       <div className="mini-profile-body">
         <div className="mini-profile-username">{displayName}</div>
         {subName && <div className="mini-profile-nickname">{subName}</div>}
+        {member.bio && <div className="mini-profile-bio"><MarkdownRenderer content={member.bio} mode="bio" /></div>}
 
         <div className="mini-profile-divider" />
 

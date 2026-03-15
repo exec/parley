@@ -3,11 +3,14 @@ import { Message as MessageType } from '../../api/types';
 import { Avatar } from '../ui/Avatar';
 import { EmojiPicker } from './EmojiPicker';
 import MarkdownRenderer from '../ui/MarkdownRenderer';
+import { AudioPlayer } from './AudioPlayer';
 import './Chat.css';
 
 interface MessageProps {
   message: MessageType;
   currentUserId?: string;
+  isGrouped?: boolean;
+  memberMap?: Map<string, string>;
   onEdit?: (message: MessageType) => void;
   onDelete?: (messageId: string) => void;
   onReact?: (messageId: string, emoji: string) => void;
@@ -16,9 +19,32 @@ interface MessageProps {
   onSendMessage?: (userId: string) => void;
 }
 
+/** Returns the number of grapheme clusters if the text is 1–5 emoji only, else null. */
+function getEmojiOnlyCount(text: string): number | null {
+  const t = text.trim();
+  if (!t) return null;
+  try {
+    const segs = [...new Intl.Segmenter().segment(t)].map(s => s.segment);
+    if (segs.length < 1 || segs.length > 5) return null;
+    const emojiRe = /\p{Extended_Pictographic}/u;
+    return segs.every(s => emojiRe.test(s)) ? segs.length : null;
+  } catch {
+    return null;
+  }
+}
+
+const FileIcon = () => (
+  <svg width="13" height="16" viewBox="0 0 13 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+    <path d="M7.5 1H2a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V5.5L7.5 1Z" />
+    <polyline points="7.5,1 7.5,5.5 12,5.5" />
+  </svg>
+);
+
 export const Message: React.FC<MessageProps> = ({
   message,
   currentUserId,
+  isGrouped = false,
+  memberMap,
   onEdit,
   onDelete,
   onReact,
@@ -159,27 +185,34 @@ export const Message: React.FC<MessageProps> = ({
   return (
     <>
     <div
-      className={`message${message.pending ? ' message-pending' : ''}`}
+      className={`message${message.pending ? ' message-pending' : ''}${isGrouped ? ' message-grouped' : ''}`}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
       onContextMenu={handleContextMenu}
     >
-      <div className="message-avatar">
-        <div
-          className="message-avatar-clickable"
-          onClick={() => onViewProfile?.(message.author_id, message.author_username)}
-          onContextMenu={handleUsernameContextMenu}
-          title="Left-click to view profile · Right-click for options"
-        >
-          <Avatar
-            src={message.author_avatar_url || undefined}
-            alt={message.author_username || 'User'}
-            fallback={message.author_username || 'User'}
-            size="md"
-          />
+      {isGrouped ? (
+        <div className="message-avatar-grouped">
+          <span className="message-group-time">{formatTimestamp(message.created_at)}</span>
         </div>
-      </div>
+      ) : (
+        <div className="message-avatar">
+          <div
+            className="message-avatar-clickable"
+            onClick={() => onViewProfile?.(message.author_id, message.author_username)}
+            onContextMenu={handleUsernameContextMenu}
+            title="Left-click to view profile · Right-click for options"
+          >
+            <Avatar
+              src={message.author_avatar_url || undefined}
+              alt={message.author_username || 'User'}
+              fallback={message.author_username || 'User'}
+              size="md"
+            />
+          </div>
+        </div>
+      )}
       <div className="message-content">
+        {!isGrouped && (
         <div className="message-header">
           <span
             className="message-author"
@@ -189,9 +222,16 @@ export const Message: React.FC<MessageProps> = ({
           >
             {message.author_username || 'Unknown User'}
           </span>
+          {message.author_is_bot && (
+            <span className="msg-badge bot" title="Bot">BOT</span>
+          )}
+          {message.via_api && !message.author_is_bot && (
+            <span className="msg-badge selfbot" title="Selfbot">🤖</span>
+          )}
           <span className="message-timestamp">{formatTimestamp(message.created_at)}</span>
           {wasEdited && <span className="message-edited">(edited)</span>}
         </div>
+        )}
 
         {isEditing ? (
           <div className="message-edit-container">
@@ -210,29 +250,42 @@ export const Message: React.FC<MessageProps> = ({
           </div>
         ) : (
           <>
-            <div className="message-text"><MarkdownRenderer content={message.content} mode="chat" /></div>
-            {message.attachment_url && (
-              <div className="message-attachment">
-                {message.attachment_type?.startsWith('image/') ? (
-                  <img
-                    src={message.attachment_url}
-                    alt={message.attachment_name || 'attachment'}
-                    className="message-attachment-image"
-                    style={{ maxWidth: '400px', maxHeight: '300px', borderRadius: '4px', marginTop: '4px', cursor: 'zoom-in' }}
-                    onClick={() => setLightboxUrl(message.attachment_url!)}
-                  />
-                ) : (
-                  <a
-                    href={message.attachment_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="message-attachment-file"
-                  >
-                    📎 {message.attachment_name || 'attachment'}
-                  </a>
-                )}
-              </div>
-            )}
+            <div className={`message-text${getEmojiOnlyCount(message.content) ? ' message-text--jumbo' : ''}`}><MarkdownRenderer content={message.content} mode="chat" memberMap={memberMap} /></div>
+            {message.attachment_url && (() => {
+              const isVoice = message.attachment_name?.startsWith('voice_message_');
+              const isAudio = !isVoice && (
+                message.attachment_type?.startsWith('audio/') ||
+                /\.(mp3|ogg|wav|webm|m4a|aac|flac)(\?|$)/i.test(message.attachment_url)
+              );
+              return (
+                <div className="message-attachment">
+                  {message.attachment_type?.startsWith('image/') ? (
+                    <img
+                      src={message.attachment_url}
+                      alt={message.attachment_name || 'attachment'}
+                      className="message-attachment-image"
+                      style={{ maxWidth: '400px', maxHeight: '300px', borderRadius: '4px', marginTop: '4px', cursor: 'zoom-in' }}
+                      onClick={() => setLightboxUrl(message.attachment_url!)}
+                    />
+                  ) : isVoice || isAudio ? (
+                    <AudioPlayer
+                      url={message.attachment_url}
+                      isVoiceMessage={isVoice}
+                      filename={isAudio ? (message.attachment_name || undefined) : undefined}
+                    />
+                  ) : (
+                    <a
+                      href={message.attachment_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="message-attachment-file"
+                    >
+                      <FileIcon /> {message.attachment_name || 'attachment'}
+                    </a>
+                  )}
+                </div>
+              );
+            })()}
           </>
         )}
 

@@ -132,6 +132,7 @@ interface User {
   id: string;
   username: string;
   avatar?: string;
+  avatar_url?: string;
 }
 
 interface ChannelListProps {
@@ -149,7 +150,7 @@ interface ChannelListProps {
   onLogout?: () => void;
   onOpenSettings?: () => void;
   onVoiceChannelClick?: (channelId: string) => void;
-  voiceParticipants?: Record<string, { user_id: string; username: string }[]>;
+  voiceParticipants?: Record<string, { user_id: string; username: string; avatar_url?: string }[]>;
   activeVoiceChannelId?: string | null;
   channelUnreadCounts?: Record<string, number>;
   canManageChannels?: boolean;
@@ -350,8 +351,13 @@ const ChannelList: React.FC<ChannelListProps> = ({
                 <div className="voice-participants-list">
                   {participants.map(p => (
                     <div key={p.user_id} className="voice-participant-row">
-                      <span className="voice-participant-dot" />
-                      {p.username}
+                      <div className="voice-participant-avatar">
+                        {p.avatar_url
+                          ? <img src={p.avatar_url} alt={p.username} />
+                          : p.username.charAt(0).toUpperCase()
+                        }
+                      </div>
+                      <span>{p.username}</span>
                     </div>
                   ))}
                 </div>
@@ -375,9 +381,10 @@ const ChannelList: React.FC<ChannelListProps> = ({
       >
         <div className="user-info">
           <div className="user-avatar">
-            <span className="user-avatar-placeholder">
-              {currentUser?.username?.charAt(0).toUpperCase() || 'U'}
-            </span>
+            {currentUser?.avatar_url
+              ? <img src={currentUser.avatar_url} alt={currentUser.username} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+              : <span className="user-avatar-placeholder">{currentUser?.username?.charAt(0).toUpperCase() || 'U'}</span>
+            }
           </div>
           <div className="user-details">
             <div className="username">{currentUser?.username || 'User'}</div>

@@ -1,0 +1,82 @@
+.mention-dropdown {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #111;
+  border: 1px solid #1a3d1a;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.7);
+  z-index: 200;
+}
+
+.mention-dropdown-header {
+  padding: 6px 12px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.mention-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.mention-option:hover,
+.mention-option.selected {
+  background: rgba(88, 101, 242, 0.15);
+}
+
+.mention-option-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(88, 101, 242, 0.2);
+  border: 1px solid rgba(88, 101, 242, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #7289da;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.mention-option-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.mention-option-name {
+  font-size: 14px;
+  color: #ccc;
+  font-weight: 500;
+}
+
+.mention-option-avatar--everyone {
+  background: rgba(250, 166, 26, 0.15);
+  border-color: rgba(250, 166, 26, 0.4);
+  color: #faa61a;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.mention-option-name--everyone {
+  color: #faa61a;
+}
+
+.mention-option-everyone-hint {
+  font-size: 11px;
+  color: #555;
+  margin-left: auto;
+}

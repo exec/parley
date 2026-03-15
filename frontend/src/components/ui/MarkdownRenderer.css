@@ -114,3 +114,30 @@
 .md-bio p { margin: 0 0 4px; }
 .md-bio pre { font-size: 0.8em; }
 .md-bio ul, .md-bio ol { margin-top: 2px; margin-bottom: 2px; }
+
+/* ---- Mention pills ---- */
+.mention-pill {
+  display: inline;
+  border-radius: 3px;
+  padding: 0 3px;
+  font-weight: 500;
+  cursor: default;
+  transition: background 0.1s ease;
+}
+
+.mention-user {
+  background: rgba(88, 101, 242, 0.2);
+  color: #7289da;
+}
+.mention-user:hover {
+  background: rgba(88, 101, 242, 0.4);
+  color: #fff;
+}
+
+.mention-everyone {
+  background: rgba(250, 166, 26, 0.15);
+  color: #faa61a;
+}
+.mention-everyone:hover {
+  background: rgba(250, 166, 26, 0.3);
+}

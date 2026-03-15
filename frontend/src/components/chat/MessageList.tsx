@@ -6,6 +6,7 @@ import './Chat.css';
 interface MessageListProps {
   messages: MessageType[];
   currentUserId?: string;
+  memberMap?: Map<string, string>;
   onLoadMore?: () => void;
   onEdit?: (message: MessageType) => void;
   onDelete?: (messageId: string) => void;
@@ -20,6 +21,7 @@ interface MessageListProps {
 export const MessageList: React.FC<MessageListProps> = ({
   messages,
   currentUserId,
+  memberMap,
   onLoadMore,
   onEdit,
   onDelete,
@@ -117,6 +119,9 @@ export const MessageList: React.FC<MessageListProps> = ({
 
   const groupedMessages = groupMessagesByDate(sortedMessages);
 
+  const GROUP_WINDOW_MS = 10 * 60 * 1000;
+  const MAX_GROUP_SIZE = 10;
+
   return (
     <div
       ref={containerRef}
@@ -130,18 +135,39 @@ export const MessageList: React.FC<MessageListProps> = ({
         <div className="message-loading">Loading older messages...</div>
       )}
 
-      {Array.from(groupedMessages.entries()).map(([date, dateMessages]) => (
+      {Array.from(groupedMessages.entries()).map(([date, dateMessages]) => {
+        // Compute grouped flags within each date group (iterative to avoid TDZ)
+        const groupedFlags: boolean[] = [];
+        for (let idx = 0; idx < dateMessages.length; idx++) {
+          const msg = dateMessages[idx];
+          if (idx === 0) { groupedFlags.push(false); continue; }
+          const prev = dateMessages[idx - 1];
+          if (prev.author_id !== msg.author_id) { groupedFlags.push(false); continue; }
+          if (new Date(msg.created_at).getTime() - new Date(prev.created_at).getTime() > GROUP_WINDOW_MS) { groupedFlags.push(false); continue; }
+          // Count how many consecutive grouped messages are in this streak
+          let streakLen = 0;
+          for (let i = idx - 1; i >= 0; i--) {
+            if (dateMessages[i].author_id !== msg.author_id) break;
+            streakLen++;
+            if (!groupedFlags[i]) break;
+          }
+          groupedFlags.push(streakLen < MAX_GROUP_SIZE);
+        }
+
+        return (
         <div key={date} className="date-group">
           <div className="date-divider">
             <div className="date-divider-line" />
             <span className="date-divider-text">{formatDateHeader(date)}</span>
             <div className="date-divider-line" />
           </div>
-          {dateMessages.map((message) => (
+          {dateMessages.map((message, idx) => (
             <Message
               key={message.id}
               message={message}
               currentUserId={currentUserId}
+              isGrouped={groupedFlags[idx]}
+              memberMap={memberMap}
               onEdit={onEdit}
               onDelete={onDelete}
               onReact={onReact}
@@ -151,7 +177,8 @@ export const MessageList: React.FC<MessageListProps> = ({
             />
           ))}
         </div>
-      ))}
+        );
+      })}
 
       {messages.length === 0 && !isLoading && (
         <div className="message-empty">

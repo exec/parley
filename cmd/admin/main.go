@@ -225,6 +225,7 @@ func runServer() {
 			r.Post("/users/{id}/unban", handleUnbanUser)
 			r.Post("/users/{id}/force-logout", handleForceLogout)
 			r.Post("/users/{id}/impersonate", handleImpersonate)
+			r.Patch("/users/{id}/badges", handleSetBadges)
 			r.Delete("/users/{id}", handleDeleteUser)
 
 			// Messages
@@ -446,6 +447,26 @@ func handleImpersonate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	jsonOK(w, map[string]string{"token": tokenStr})
+}
+
+func handleSetBadges(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		jsonError(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	var req struct {
+		Badges int `json:"badges"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+	if err := repo.AdminSetBadges(r.Context(), id, req.Badges); err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	jsonOK(w, map[string]interface{}{"badges": req.Badges})
 }
 
 func handleDeleteUser(w http.ResponseWriter, r *http.Request) {

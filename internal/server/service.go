@@ -34,6 +34,8 @@ type Role struct {
 	Name        string    `json:"name"`
 	Color       string    `json:"color"`
 	Permissions int64     `json:"permissions"`
+	Hoist       bool      `json:"hoist"`
+	Position    int       `json:"position"`
 	CreatedAt   time.Time `json:"created_at"`
 }
 
@@ -45,6 +47,9 @@ type ServerMember struct {
 	Username  string    `json:"username"`
 	Nickname  string    `json:"nickname,omitempty"`
 	AvatarURL string    `json:"avatar_url,omitempty"`
+	BannerURL string    `json:"banner_url,omitempty"`
+	Bio       string    `json:"bio,omitempty"`
+	Badges    int       `json:"badges"`
 	JoinedAt  time.Time `json:"joined_at"`
 	Roles     []Role    `json:"roles"`
 }
@@ -410,6 +415,9 @@ func (s *ServerService) GetMembers(ctx context.Context, serverID string) ([]*Ser
 			Username:  member.Username,
 			Nickname:  member.Nickname,
 			AvatarURL: member.AvatarURL,
+			BannerURL: member.BannerURL,
+			Bio:       member.Bio,
+			Badges:    member.Badges,
 			JoinedAt:  member.JoinedAt,
 			Roles:     []Role{},
 		}
@@ -705,6 +713,8 @@ func dbRoleToRole(r db.ServerRole) Role {
 		Name:        r.Name,
 		Color:       r.Color,
 		Permissions: r.Permissions,
+		Hoist:       r.Hoist,
+		Position:    r.Position,
 		CreatedAt:   r.CreatedAt,
 	}
 }
@@ -759,8 +769,8 @@ func (s *ServerService) DeleteServerRole(ctx context.Context, serverID, roleID s
 	return s.repo.DeleteServerRole(ctx, sID, rID)
 }
 
-// UpdateServerRole updates a role's name, color and permissions
-func (s *ServerService) UpdateServerRole(ctx context.Context, serverID, roleID, name, color string, permissions int64) (*Role, error) {
+// UpdateServerRole updates a role's name, color, permissions, hoist, and position
+func (s *ServerService) UpdateServerRole(ctx context.Context, serverID, roleID, name, color string, permissions int64, hoist bool, position int) (*Role, error) {
 	sID, err := idToInt64(serverID)
 	if err != nil {
 		return nil, errors.New("invalid server ID")
@@ -769,7 +779,7 @@ func (s *ServerService) UpdateServerRole(ctx context.Context, serverID, roleID, 
 	if err != nil {
 		return nil, errors.New("invalid role ID")
 	}
-	dbRole, err := s.repo.UpdateServerRole(ctx, sID, rID, name, color, permissions)
+	dbRole, err := s.repo.UpdateServerRole(ctx, sID, rID, name, color, permissions, hoist, position)
 	if err != nil {
 		return nil, err
 	}
@@ -887,6 +897,9 @@ func (s *ServerService) GetMembersWithRoles(ctx context.Context, serverID string
 			Username:  m.Username,
 			Nickname:  m.Nickname,
 			AvatarURL: m.AvatarURL,
+			BannerURL: m.BannerURL,
+			Bio:       m.Bio,
+			Badges:    m.Badges,
 			JoinedAt:  m.JoinedAt,
 			Roles:     roles,
 		}
@@ -939,3 +952,6 @@ func (s *ServerService) GetMyPermissions(ctx context.Context, serverID, userID s
 	}
 	return perms, false, nil
 }
+
+// Repo exposes the repository for permission checks in handlers.
+func (s *ServerService) Repo() *db.Repository { return s.repo }

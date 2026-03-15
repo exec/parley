@@ -14,10 +14,11 @@ const (
 	PermManageChannels int64 = 4
 	PermKickMembers    int64 = 8
 	PermManageServer   int64 = 16
+	PermAdministrator  int64 = 32 // grants all permissions, including adding bots
 )
 
 // GetEffectivePermissions returns the OR of all role permission bits for a user in a server.
-// If the user is the server owner, all bits are set (owner bypasses everything).
+// If the user is the server owner or has PermAdministrator, all bits are set.
 func GetEffectivePermissions(ctx context.Context, repo *db.Repository, serverID, userID, ownerID int64) (int64, error) {
 	if userID == ownerID {
 		return ^int64(0), nil // all permissions
@@ -29,6 +30,9 @@ func GetEffectivePermissions(ctx context.Context, repo *db.Repository, serverID,
 	var perms int64
 	for _, role := range roles {
 		perms |= role.Permissions
+	}
+	if perms&PermAdministrator != 0 {
+		return ^int64(0), nil // Administrator implies all permissions
 	}
 	return perms, nil
 }

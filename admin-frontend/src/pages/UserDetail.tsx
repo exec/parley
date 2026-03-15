@@ -7,6 +7,7 @@ import {
   apiForceLogout,
   apiImpersonateUser,
   apiDeleteUser,
+  apiSetBadges,
   userStatus,
   User,
 } from '../api'
@@ -25,6 +26,7 @@ export default function UserDetail() {
   const [showBanModal, setShowBanModal] = useState(false)
   const [banReason, setBanReason] = useState('')
   const [actionLoading, setActionLoading] = useState(false)
+  const [badgesLoading, setBadgesLoading] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -88,6 +90,21 @@ export default function UserDetail() {
       window.open(`https://parley.x86-64.com/impersonate?token=${token}`, '_blank')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Impersonate failed')
+    }
+  }
+
+  const handleToggleBadge = async (bit: number) => {
+    if (!user) return
+    const newBadges = (user.badges ?? 0) ^ bit
+    setBadgesLoading(true)
+    try {
+      const res = await apiSetBadges(user.id, newBadges)
+      setUser({ ...user, badges: res.badges })
+      setSuccess('Badges updated.')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Badge update failed')
+    } finally {
+      setBadgesLoading(false)
     }
   }
 
@@ -248,6 +265,32 @@ export default function UserDetail() {
               &gt; View messages by this user
             </Link>
           </div>
+        </div>
+      </div>
+
+      {/* Badges panel */}
+      <div className="panel" style={{ marginTop: '16px' }}>
+        <div className="panel-title">// BADGES</div>
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+          {[
+            { bit: 2, label: 'Parley Admin' },
+            { bit: 1, label: 'Donor' },
+          ].map(({ bit, label }) => {
+            const active = ((user.badges ?? 0) & bit) !== 0
+            return (
+              <label key={bit} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px' }}>
+                <input
+                  type="checkbox"
+                  checked={active}
+                  disabled={badgesLoading}
+                  onChange={() => handleToggleBadge(bit)}
+                  style={{ accentColor: 'var(--green)', width: '14px', height: '14px' }}
+                />
+                <span style={{ color: active ? 'var(--green)' : 'var(--text-dim)' }}>{label}</span>
+              </label>
+            )
+          })}
+          {badgesLoading && <span className="loading" style={{ fontSize: '11px' }}>SAVING</span>}
         </div>
       </div>
 

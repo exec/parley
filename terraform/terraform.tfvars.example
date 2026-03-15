@@ -25,3 +25,6 @@ jwt_secret = "change-me-use-openssl-rand-base64-32"
 
 # Git repository URL
 repo_url = "https://github.com/yourusername/parley.git"
+
+# Giphy API key (from https://developers.giphy.com)
+giphy_api_key = "your-giphy-api-key-here"

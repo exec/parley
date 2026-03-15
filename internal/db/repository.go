@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -91,7 +92,7 @@ func (r *Repository) GetUserByID(ctx context.Context, id int64) (*User, error) {
 		       COALESCE(bio, ''),
 		       email_verified, COALESCE(email_verification_token, ''),
 		       COALESCE(phone_number, ''), phone_verified,
-		       banned_at, COALESCE(ban_reason, ''), force_logout_at, is_system,
+		       banned_at, COALESCE(ban_reason, ''), force_logout_at, is_system, badges,
 		       created_at, updated_at
 		FROM users
 		WHERE id = $1
@@ -115,6 +116,7 @@ func (r *Repository) GetUserByID(ctx context.Context, id int64) (*User, error) {
 		&user.BanReason,
 		&forceLogoutAt,
 		&user.IsSystem,
+		&user.Badges,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -805,7 +807,7 @@ func (r *Repository) GetMember(ctx context.Context, serverID, userID int64) (*Se
 // GetServerMembers retrieves all members of a server
 func (r *Repository) GetServerMembers(ctx context.Context, serverID int64) ([]*ServerMember, error) {
 	query := `
-		SELECT sm.id, sm.server_id, sm.user_id, sm.nickname, sm.joined_at, u.username, COALESCE(u.avatar_url, '')
+		SELECT sm.id, sm.server_id, sm.user_id, sm.nickname, sm.joined_at, u.username, COALESCE(u.avatar_url, ''), COALESCE(u.banner_url, ''), COALESCE(u.bio, ''), u.badges
 		FROM server_members sm
 		JOIN users u ON u.id = sm.user_id
 		WHERE sm.server_id = $1
@@ -829,6 +831,9 @@ func (r *Repository) GetServerMembers(ctx context.Context, serverID int64) ([]*S
 			&member.JoinedAt,
 			&member.Username,
 			&member.AvatarURL,
+			&member.BannerURL,
+			&member.Bio,
+			&member.Badges,
 		)
 		if err != nil {
 			return nil, err
@@ -998,12 +1003,12 @@ func (r *Repository) DeleteChannel(ctx context.Context, id int64) error {
 
 // CreateMessage creates a new message in the database.
 // If a nonce is set, duplicate submissions (retries) return the existing message instead of inserting.
-func (r *Repository) CreateMessage(ctx context.Context, channelID, authorID int64, content, nonce, attachmentURL, attachmentName, attachmentType string) (*Message, error) {
+func (r *Repository) CreateMessage(ctx context.Context, channelID, authorID int64, content, nonce, attachmentURL, attachmentName, attachmentType string, viaAPI bool) (*Message, error) {
 	now := time.Now()
 
 	query := `
-		INSERT INTO messages (channel_id, author_id, content, nonce, attachment_url, attachment_name, attachment_type, created_at, updated_at)
-		VALUES ($1, $2, $3, NULLIF($4, ''), $5, $6, $7, $8, $9)
+		INSERT INTO messages (channel_id, author_id, content, nonce, attachment_url, attachment_name, attachment_type, via_api, created_at, updated_at)
+		VALUES ($1, $2, $3, NULLIF($4, ''), $5, $6, $7, $8, $9, $10)
 		ON CONFLICT (nonce) WHERE nonce IS NOT NULL AND nonce != ''
 		DO UPDATE SET updated_at = messages.updated_at
 		RETURNING id, created_at, updated_at, COALESCE(nonce, ''), attachment_url, attachment_name, attachment_type
@@ -1015,6 +1020,7 @@ func (r *Repository) CreateMessage(ctx context.Context, channelID, authorID int6
 	message.Content = content
 	message.CreatedAt = now
 	message.UpdatedAt = now
+	message.ViaApi = viaAPI
 
 	err := r.db.QueryRowContext(ctx, query,
 		channelID,
@@ -1024,6 +1030,7 @@ func (r *Repository) CreateMessage(ctx context.Context, channelID, authorID int6
 		attachmentURL,
 		attachmentName,
 		attachmentType,
+		viaAPI,
 		now,
 		now,
 	).Scan(
@@ -1071,20 +1078,46 @@ func (r *Repository) GetMessageByID(ctx context.Context, id int64) (*Message, er
 	return &message, nil
 }
 
-// GetChannelMessages retrieves messages for a channel with pagination
-func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, limit, offset int) ([]*Message, error) {
-	query := `
-		SELECT m.id, m.channel_id, m.author_id, m.content, COALESCE(m.nonce, ''), m.created_at, m.updated_at,
-		       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
-		       u.username, COALESCE(u.avatar_url, '')
-		FROM messages m
-		JOIN users u ON u.id = m.author_id
-		WHERE m.channel_id = $1
-		ORDER BY m.id ASC
-		LIMIT $2 OFFSET $3
-	`
+// GetChannelMessages retrieves messages for a channel with cursor-based pagination.
+// If beforeID > 0, returns messages with id < beforeID (older messages).
+// Otherwise returns the latest `limit` messages.
+// Results are always returned in ascending order (oldest first).
+func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, limit int, beforeID int64) ([]*Message, error) {
+	var query string
+	var rows *sql.Rows
+	var err error
 
-	rows, err := r.db.QueryContext(ctx, query, channelID, limit, offset)
+	if beforeID > 0 {
+		query = `
+			SELECT * FROM (
+				SELECT m.id, m.channel_id, m.author_id, m.content, COALESCE(m.nonce, ''), m.created_at, m.updated_at,
+				       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
+				       u.username, COALESCE(u.avatar_url, ''), u.is_bot
+				FROM messages m
+				JOIN users u ON u.id = m.author_id
+				WHERE m.channel_id = $1 AND m.id < $3
+				ORDER BY m.id DESC
+				LIMIT $2
+			) sub
+			ORDER BY id ASC
+		`
+		rows, err = r.db.QueryContext(ctx, query, channelID, limit, beforeID)
+	} else {
+		query = `
+			SELECT * FROM (
+				SELECT m.id, m.channel_id, m.author_id, m.content, COALESCE(m.nonce, ''), m.created_at, m.updated_at,
+				       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
+				       u.username, COALESCE(u.avatar_url, ''), u.is_bot
+				FROM messages m
+				JOIN users u ON u.id = m.author_id
+				WHERE m.channel_id = $1
+				ORDER BY m.id DESC
+				LIMIT $2
+			) sub
+			ORDER BY id ASC
+		`
+		rows, err = r.db.QueryContext(ctx, query, channelID, limit)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -1106,6 +1139,7 @@ func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, li
 			&message.AttachmentType,
 			&message.AuthorUsername,
 			&message.AuthorAvatarURL,
+			&message.AuthorIsBot,
 		)
 		if err != nil {
 			return nil, err
@@ -1191,10 +1225,11 @@ func (r *Repository) GetOrCreateDmChannel(ctx context.Context, userAID, userBID 
 	}
 
 	var otherUser User
-	err = r.db.QueryRowContext(ctx, "SELECT id, username FROM users WHERE id = $1", otherUserID).Scan(&otherUser.ID, &otherUser.Username)
+	err = r.db.QueryRowContext(ctx, "SELECT id, username, COALESCE(avatar_url, '') FROM users WHERE id = $1", otherUserID).Scan(&otherUser.ID, &otherUser.Username, &otherUser.AvatarURL)
 	if err == nil {
 		channel.OtherUserID = otherUser.ID
 		channel.OtherUsername = otherUser.Username
+		channel.OtherAvatarURL = otherUser.AvatarURL
 	}
 
 	return &channel, nil
@@ -1204,7 +1239,7 @@ func (r *Repository) GetOrCreateDmChannel(ctx context.Context, userAID, userBID 
 func (r *Repository) GetUserDmChannels(ctx context.Context, userID int64) ([]DmChannel, error) {
 	query := `
 		SELECT dc.id, dc.user1_id, dc.user2_id, dc.created_at,
-			   u.id as other_user_id, u.username as other_username
+			   u.id as other_user_id, u.username as other_username, COALESCE(u.avatar_url, '') as other_avatar_url
 		FROM dm_channels dc
 		JOIN users u ON u.id = CASE WHEN dc.user1_id = $1 THEN dc.user2_id ELSE dc.user1_id END
 		WHERE dc.user1_id = $1 OR dc.user2_id = $1
@@ -1227,6 +1262,7 @@ func (r *Repository) GetUserDmChannels(ctx context.Context, userID int64) ([]DmC
 			&channel.CreatedAt,
 			&channel.OtherUserID,
 			&channel.OtherUsername,
+			&channel.OtherAvatarURL,
 		)
 		if err != nil {
 			return nil, err
@@ -1289,28 +1325,55 @@ func (r *Repository) CreateDmMessage(ctx context.Context, dmChannelID, authorID 
 		return nil, err
 	}
 
-	// Get author username
-	var username string
-	r.db.QueryRowContext(ctx, "SELECT username FROM users WHERE id = $1", authorID).Scan(&username)
+	// Get author username and avatar
+	var username, avatarURL string
+	r.db.QueryRowContext(ctx, "SELECT username, COALESCE(avatar_url, '') FROM users WHERE id = $1", authorID).Scan(&username, &avatarURL)
 	msg.AuthorUsername = username
+	msg.AuthorAvatarURL = avatarURL
 
 	return &msg, nil
 }
 
-// GetDmMessages retrieves messages for a DM channel
-func (r *Repository) GetDmMessages(ctx context.Context, dmChannelID int64, limit, offset int) ([]DmMessage, error) {
-	query := `
-		SELECT m.id, m.dm_channel_id, m.author_id, m.content,
-		       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
-		       m.created_at, m.updated_at, u.username
-		FROM dm_messages m
-		JOIN users u ON u.id = m.author_id
-		WHERE m.dm_channel_id = $1
-		ORDER BY m.created_at ASC
-		LIMIT $2 OFFSET $3
-	`
+// GetDmMessages retrieves messages for a DM channel with cursor-based pagination.
+// If beforeID > 0, returns messages with id < beforeID (older messages).
+// Otherwise returns the latest `limit` messages.
+// Results are always returned in ascending order (oldest first).
+func (r *Repository) GetDmMessages(ctx context.Context, dmChannelID int64, limit int, beforeID int64) ([]DmMessage, error) {
+	var query string
+	var rows *sql.Rows
+	var err error
 
-	rows, err := r.db.QueryContext(ctx, query, dmChannelID, limit, offset)
+	if beforeID > 0 {
+		query = `
+			SELECT * FROM (
+				SELECT m.id, m.dm_channel_id, m.author_id, m.content,
+				       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
+				       m.created_at, m.updated_at, u.username, COALESCE(u.avatar_url, '')
+				FROM dm_messages m
+				JOIN users u ON u.id = m.author_id
+				WHERE m.dm_channel_id = $1 AND m.id < $3
+				ORDER BY m.id DESC
+				LIMIT $2
+			) sub
+			ORDER BY id ASC
+		`
+		rows, err = r.db.QueryContext(ctx, query, dmChannelID, limit, beforeID)
+	} else {
+		query = `
+			SELECT * FROM (
+				SELECT m.id, m.dm_channel_id, m.author_id, m.content,
+				       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
+				       m.created_at, m.updated_at, u.username, COALESCE(u.avatar_url, '')
+				FROM dm_messages m
+				JOIN users u ON u.id = m.author_id
+				WHERE m.dm_channel_id = $1
+				ORDER BY m.id DESC
+				LIMIT $2
+			) sub
+			ORDER BY id ASC
+		`
+		rows, err = r.db.QueryContext(ctx, query, dmChannelID, limit)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -1330,6 +1393,7 @@ func (r *Repository) GetDmMessages(ctx context.Context, dmChannelID int64, limit
 			&msg.CreatedAt,
 			&msg.UpdatedAt,
 			&msg.AuthorUsername,
+			&msg.AuthorAvatarURL,
 		)
 		if err != nil {
 			return nil, err
@@ -1347,7 +1411,7 @@ func (r *Repository) GetDmMessages(ctx context.Context, dmChannelID int64, limit
 // GetPublicUser returns public profile info for a user
 func (r *Repository) GetPublicUser(ctx context.Context, userID int64) (*PublicUser, error) {
 	query := `
-		SELECT id, username, COALESCE(avatar_url, ''), COALESCE(banner_url, ''), COALESCE(bio, ''), created_at
+		SELECT id, username, COALESCE(avatar_url, ''), COALESCE(banner_url, ''), COALESCE(bio, ''), badges, created_at
 		FROM users
 		WHERE id = $1
 	`
@@ -1359,6 +1423,7 @@ func (r *Repository) GetPublicUser(ctx context.Context, userID int64) (*PublicUs
 		&user.AvatarURL,
 		&user.BannerURL,
 		&user.Bio,
+		&user.Badges,
 		&user.CreatedAt,
 	)
 	if err == sql.ErrNoRows {
@@ -1648,8 +1713,8 @@ func (r *Repository) GetReactionsForMessages(ctx context.Context, messageIDs []i
 // GetServerRoles returns all roles for a server
 func (r *Repository) GetServerRoles(ctx context.Context, serverID int64) ([]ServerRole, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, server_id, name, color, permissions, created_at
-         FROM server_roles WHERE server_id = $1 ORDER BY created_at ASC`,
+		`SELECT id, server_id, name, color, permissions, hoist, position, created_at
+         FROM server_roles WHERE server_id = $1 ORDER BY position ASC, created_at ASC`,
 		serverID)
 	if err != nil {
 		return nil, err
@@ -1658,7 +1723,7 @@ func (r *Repository) GetServerRoles(ctx context.Context, serverID int64) ([]Serv
 	var roles []ServerRole
 	for rows.Next() {
 		var role ServerRole
-		if err := rows.Scan(&role.ID, &role.ServerID, &role.Name, &role.Color, &role.Permissions, &role.CreatedAt); err != nil {
+		if err := rows.Scan(&role.ID, &role.ServerID, &role.Name, &role.Color, &role.Permissions, &role.Hoist, &role.Position, &role.CreatedAt); err != nil {
 			return nil, err
 		}
 		roles = append(roles, role)
@@ -1672,9 +1737,9 @@ func (r *Repository) CreateServerRole(ctx context.Context, serverID int64, name,
 	err := r.db.QueryRowContext(ctx,
 		`INSERT INTO server_roles (server_id, name, color, permissions)
          VALUES ($1, $2, $3, $4)
-         RETURNING id, server_id, name, color, permissions, created_at`,
+         RETURNING id, server_id, name, color, permissions, hoist, position, created_at`,
 		serverID, name, color, permissions,
-	).Scan(&role.ID, &role.ServerID, &role.Name, &role.Color, &role.Permissions, &role.CreatedAt)
+	).Scan(&role.ID, &role.ServerID, &role.Name, &role.Color, &role.Permissions, &role.Hoist, &role.Position, &role.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -1696,15 +1761,15 @@ func (r *Repository) DeleteServerRole(ctx context.Context, serverID, roleID int6
 	return nil
 }
 
-// UpdateServerRole updates a role's name, color and permissions
-func (r *Repository) UpdateServerRole(ctx context.Context, serverID, roleID int64, name, color string, permissions int64) (*ServerRole, error) {
+// UpdateServerRole updates a role's name, color, permissions, hoist, and position
+func (r *Repository) UpdateServerRole(ctx context.Context, serverID, roleID int64, name, color string, permissions int64, hoist bool, position int) (*ServerRole, error) {
 	var role ServerRole
 	err := r.db.QueryRowContext(ctx,
-		`UPDATE server_roles SET name = $1, color = $2, permissions = $3
-		 WHERE id = $4 AND server_id = $5
-		 RETURNING id, server_id, name, color, permissions, created_at`,
-		name, color, permissions, roleID, serverID,
-	).Scan(&role.ID, &role.ServerID, &role.Name, &role.Color, &role.Permissions, &role.CreatedAt)
+		`UPDATE server_roles SET name = $1, color = $2, permissions = $3, hoist = $4, position = $5
+		 WHERE id = $6 AND server_id = $7
+		 RETURNING id, server_id, name, color, permissions, hoist, position, created_at`,
+		name, color, permissions, hoist, position, roleID, serverID,
+	).Scan(&role.ID, &role.ServerID, &role.Name, &role.Color, &role.Permissions, &role.Hoist, &role.Position, &role.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -1714,11 +1779,11 @@ func (r *Repository) UpdateServerRole(ctx context.Context, serverID, roleID int6
 // GetMemberRoles returns all roles assigned to a member in a server
 func (r *Repository) GetMemberRoles(ctx context.Context, serverID, userID int64) ([]ServerRole, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT sr.id, sr.server_id, sr.name, sr.color, sr.permissions, sr.created_at
+		`SELECT sr.id, sr.server_id, sr.name, sr.color, sr.permissions, sr.hoist, sr.position, sr.created_at
          FROM server_roles sr
          JOIN server_member_roles smr ON smr.role_id = sr.id
          WHERE smr.server_id = $1 AND smr.user_id = $2
-         ORDER BY sr.created_at ASC`,
+         ORDER BY sr.position ASC, sr.created_at ASC`,
 		serverID, userID)
 	if err != nil {
 		return nil, err
@@ -1727,7 +1792,7 @@ func (r *Repository) GetMemberRoles(ctx context.Context, serverID, userID int64)
 	var roles []ServerRole
 	for rows.Next() {
 		var role ServerRole
-		if err := rows.Scan(&role.ID, &role.ServerID, &role.Name, &role.Color, &role.Permissions, &role.CreatedAt); err != nil {
+		if err := rows.Scan(&role.ID, &role.ServerID, &role.Name, &role.Color, &role.Permissions, &role.Hoist, &role.Position, &role.CreatedAt); err != nil {
 			return nil, err
 		}
 		roles = append(roles, role)
@@ -1766,11 +1831,11 @@ func (r *Repository) GetServerMembersWithRoles(ctx context.Context, serverID int
 
 	// Get all member roles in one query
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT smr.user_id, sr.id, sr.server_id, sr.name, sr.color, sr.permissions, sr.created_at
+		`SELECT smr.user_id, sr.id, sr.server_id, sr.name, sr.color, sr.permissions, sr.hoist, sr.position, sr.created_at
          FROM server_member_roles smr
          JOIN server_roles sr ON sr.id = smr.role_id
          WHERE smr.server_id = $1
-         ORDER BY sr.created_at ASC`,
+         ORDER BY sr.position ASC, sr.created_at ASC`,
 		serverID)
 	if err != nil {
 		return members, nil // non-fatal: return members without roles
@@ -1781,7 +1846,7 @@ func (r *Repository) GetServerMembersWithRoles(ctx context.Context, serverID int
 	for rows.Next() {
 		var userID int64
 		var role ServerRole
-		if err := rows.Scan(&userID, &role.ID, &role.ServerID, &role.Name, &role.Color, &role.Permissions, &role.CreatedAt); err != nil {
+		if err := rows.Scan(&userID, &role.ID, &role.ServerID, &role.Name, &role.Color, &role.Permissions, &role.Hoist, &role.Position, &role.CreatedAt); err != nil {
 			continue
 		}
 		rolesByUser[userID] = append(rolesByUser[userID], role)
@@ -2215,6 +2280,12 @@ func (r *Repository) AdminDeleteUser(ctx context.Context, userID int64) error {
 	return err
 }
 
+// AdminSetBadges sets the badges bitfield for a user.
+func (r *Repository) AdminSetBadges(ctx context.Context, userID int64, badges int) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE users SET badges = $1 WHERE id = $2`, badges, userID)
+	return err
+}
+
 // AddServerBan adds a server-level ban for a user.
 func (r *Repository) AddServerBan(ctx context.Context, serverID, userID, bannedByID int64, reason string) error {
 	_, err := r.db.ExecContext(ctx,
@@ -2233,4 +2304,114 @@ func (r *Repository) IsServerBanned(ctx context.Context, serverID, userID int64)
 		serverID, userID,
 	).Scan(&count)
 	return count > 0, err
+}
+
+// ============ Developer API Key Operations ============
+
+// CreateBotUser creates a new bot user account owned by the given user.
+func (r *Repository) CreateBotUser(ctx context.Context, username string, ownerID int64) (int64, error) {
+	randomBytes := make([]byte, 8)
+	if _, err := rand.Read(randomBytes); err != nil {
+		return 0, err
+	}
+	placeholderEmail := fmt.Sprintf("bot_%x@internal.parley", randomBytes)
+	var botID int64
+	err := r.db.QueryRowContext(ctx,
+		`INSERT INTO users (username, email, password_hash, is_bot, bot_owner_id, created_at, updated_at)
+		 VALUES ($1, $2, '', TRUE, $3, NOW(), NOW())
+		 RETURNING id`,
+		username, placeholderEmail, ownerID,
+	).Scan(&botID)
+	return botID, err
+}
+
+// RenameBotUser renames a bot user, verifying ownership.
+func (r *Repository) RenameBotUser(ctx context.Context, botID, ownerID int64, newUsername string) error {
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE users SET username = $1, updated_at = NOW()
+		 WHERE id = $2 AND is_bot = TRUE AND bot_owner_id = $3`,
+		newUsername, botID, ownerID,
+	)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// CreateAPIKey stores a new hashed API key.
+func (r *Repository) CreateAPIKey(ctx context.Context, keyHash, keyPrefix, name string, userID, ownerID int64) (int64, error) {
+	var id int64
+	err := r.db.QueryRowContext(ctx,
+		`INSERT INTO api_keys (key_hash, key_prefix, user_id, owner_id, name, created_at)
+		 VALUES ($1, $2, $3, $4, $5, NOW())
+		 RETURNING id`,
+		keyHash, keyPrefix, userID, ownerID, name,
+	).Scan(&id)
+	return id, err
+}
+
+// GetAPIKeyByHash looks up an API key by its SHA-256 hash.
+// Returns (keyID, userID, error).
+func (r *Repository) GetAPIKeyByHash(ctx context.Context, keyHash string) (int64, int64, error) {
+	var keyID, userID int64
+	err := r.db.QueryRowContext(ctx,
+		`SELECT id, user_id FROM api_keys WHERE key_hash = $1`, keyHash,
+	).Scan(&keyID, &userID)
+	if err == sql.ErrNoRows {
+		return 0, 0, ErrNotFound
+	}
+	return keyID, userID, err
+}
+
+// UpdateAPIKeyLastUsed updates the last_used_at timestamp for an API key.
+func (r *Repository) UpdateAPIKeyLastUsed(ctx context.Context, keyID int64) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE api_keys SET last_used_at = NOW() WHERE id = $1`, keyID,
+	)
+	return err
+}
+
+// GetAPIKeysByOwner returns all API keys owned by the given user, enriched with bot info.
+func (r *Repository) GetAPIKeysByOwner(ctx context.Context, ownerID int64) ([]APIKeyInfo, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT k.id, k.key_prefix, k.user_id, k.owner_id, k.name, k.created_at, k.last_used_at,
+		       u.is_bot, CASE WHEN u.is_bot THEN u.username ELSE '' END
+		FROM api_keys k
+		JOIN users u ON u.id = k.user_id
+		WHERE k.owner_id = $1
+		ORDER BY k.created_at DESC
+	`, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var keys []APIKeyInfo
+	for rows.Next() {
+		var k APIKeyInfo
+		if err := rows.Scan(&k.ID, &k.KeyPrefix, &k.UserID, &k.OwnerID, &k.Name,
+			&k.CreatedAt, &k.LastUsedAt, &k.IsBot, &k.BotUsername); err != nil {
+			return nil, err
+		}
+		keys = append(keys, k)
+	}
+	return keys, rows.Err()
+}
+
+// RevokeAPIKey deletes an API key by ID, verifying ownership.
+func (r *Repository) RevokeAPIKey(ctx context.Context, keyID, ownerID int64) error {
+	res, err := r.db.ExecContext(ctx,
+		`DELETE FROM api_keys WHERE id = $1 AND owner_id = $2`, keyID, ownerID,
+	)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }

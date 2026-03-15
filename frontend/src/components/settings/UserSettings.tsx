@@ -2,9 +2,10 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { User } from '../../api/types';
 import { updateProfile, resendVerification, changeEmail, verifyPhone, resendPhone, changePhone } from '../../api/auth';
 import { uploadFile } from '../../api/upload';
+import { DeveloperTab } from './DeveloperTab';
 import './Settings.css';
 
-type Tab = 'account' | 'profile';
+type Tab = 'account' | 'profile' | 'developer';
 
 interface Props {
   isOpen: boolean;
@@ -111,6 +112,19 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
     );
   }, [currentUser, username, avatarUrl, bannerUrl, newPassword]);
 
+  const handleReset = useCallback(() => {
+    if (!currentUser) return;
+    setUsername(currentUser.username || '');
+    setAvatarUrl(currentUser.avatar_url || '');
+    setBannerUrl(currentUser.banner_url || '');
+    setBio(currentUser.bio || '');
+    setNewPassword('');
+    setCurrentPassword('');
+    setConfirmPassword('');
+    setError('');
+    setSuccess('');
+  }, [currentUser]);
+
   const attemptClose = () => {
     if (hasChanges()) {
       setUnsavedConfirm(true);
@@ -201,6 +215,9 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
           <button className={`settings-nav-item${activeTab === 'profile' ? ' active' : ''}`} onClick={() => setActiveTab('profile')}>
             Profile
           </button>
+          <button className={`settings-nav-item${activeTab === 'developer' ? ' active' : ''}`} onClick={() => setActiveTab('developer')}>
+            Developer
+          </button>
         </div>
         <div className="settings-nav-divider" />
         <div className="settings-sidebar-spacer" />
@@ -260,7 +277,10 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
             error={error}
             success={success}
             onSave={handleSave}
+            onReset={handleReset}
+            hasChanges={hasChanges()}
           />}
+          {activeTab === 'developer' && <DeveloperTab />}
         </div>
       </div>
 
@@ -272,13 +292,20 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
 
       {/* Unsaved changes confirmation */}
       {unsavedConfirm && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)' }}>
-          <div style={{ background: '#16191d', border: '1px solid #2a2d32', borderRadius: 8, padding: 28, maxWidth: 380, width: '90%' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.7)' }}>
+          <div style={{ background: '#111', border: '1px solid #2a2d32', borderRadius: 8, padding: 28, maxWidth: 400, width: '90%' }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: '#ddd', marginBottom: 8 }}>Unsaved Changes</div>
-            <div style={{ fontSize: 13, color: '#777', marginBottom: 20 }}>You have unsaved changes. Are you sure you want to leave?</div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-              <button className="settings-btn settings-btn-secondary" onClick={() => setUnsavedConfirm(false)}>Keep Editing</button>
-              <button className="settings-btn settings-btn-danger" onClick={onClose}>Leave Without Saving</button>
+            <div style={{ fontSize: 13, color: '#777', marginBottom: 24 }}>You have unsaved changes. What would you like to do?</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button className="settings-btn settings-btn-primary" style={{ justifyContent: 'center' }} onClick={() => { setUnsavedConfirm(false); handleSave().then(() => onClose()).catch(() => {}); }}>
+                Save Changes
+              </button>
+              <button className="settings-btn settings-btn-danger" style={{ justifyContent: 'center' }} onClick={() => { handleReset(); setUnsavedConfirm(false); onClose(); }}>
+                Abandon Changes
+              </button>
+              <button className="settings-btn settings-btn-ghost" style={{ justifyContent: 'center' }} onClick={() => setUnsavedConfirm(false)}>
+                Keep Editing
+              </button>
             </div>
           </div>
         </div>
@@ -288,16 +315,7 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
       {hasChanges() && !unsavedConfirm && (
         <div className="settings-unsaved-bar">
           <span className="settings-unsaved-text">You have unsaved changes</span>
-          <button className="settings-btn settings-btn-ghost" onClick={() => {
-            if (currentUser) {
-              setUsername(currentUser.username || '');
-              setAvatarUrl(currentUser.avatar_url || '');
-              setBannerUrl(currentUser.banner_url || '');
-              setNewPassword('');
-              setCurrentPassword('');
-              setConfirmPassword('');
-            }
-          }}>Reset</button>
+          <button className="settings-btn settings-btn-ghost" onClick={handleReset}>Reset</button>
           <button className="settings-btn settings-btn-primary" onClick={handleSave} disabled={loading}>
             {loading ? 'Saving...' : 'Save Changes'}
           </button>
@@ -585,6 +603,8 @@ interface ProfileTabProps {
   error: string;
   success: string;
   onSave: () => void;
+  onReset: () => void;
+  hasChanges: boolean;
 }
 
 const BIO_MAX = 1000;
@@ -649,6 +669,17 @@ const ProfileTab: React.FC<ProfileTabProps> = (p) => {
                 <button className="settings-upload-remove-btn" onClick={() => p.setBannerUrl('')}>Remove</button>
               )}
             </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, paddingTop: 8 }}>
+            {p.hasChanges && (
+              <button className="settings-btn settings-btn-ghost" onClick={p.onReset} disabled={p.loading}>
+                Reset
+              </button>
+            )}
+            <button className="settings-btn settings-btn-primary" onClick={p.onSave} disabled={p.loading}>
+              {p.loading ? 'Saving...' : 'Save Changes'}
+            </button>
           </div>
         </div>
 

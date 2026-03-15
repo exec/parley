@@ -12,10 +12,11 @@ export async function openDmChannel(userId: string): Promise<DmChannel> {
 export async function getDmMessages(
   dmChannelId: string,
   limit = 50,
-  offset = 0
+  before?: string
 ): Promise<DmMessage[]> {
-  const queryString = `?limit=${limit}&offset=${offset}`;
-  return apiClient.get<DmMessage[]>(`/dms/${dmChannelId}/messages${queryString}`);
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (before) params.append('before', before);
+  return apiClient.get<DmMessage[]>(`/dms/${dmChannelId}/messages?${params}`);
 }
 
 export async function sendDmMessage(

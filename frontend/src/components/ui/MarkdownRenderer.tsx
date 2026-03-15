@@ -10,6 +10,8 @@ interface Props {
   content: string;
   mode: Mode;
   className?: string;
+  /** userid → username map for rendering <@userid> mention tokens */
+  memberMap?: Map<string, string>;
 }
 
 // Detects display text that looks like a URL or URL-fragment.
@@ -24,37 +26,29 @@ function extractHostname(s: string): string {
   return stop >= 0 ? s.slice(0, stop) : s;
 }
 
-/** Returns true if [display](href) looks like a spoofed link. */
 function isSpoofed(display: string, href: string): boolean {
   if (!URL_LIKE.test(display)) return false;
   const displayHost = extractHostname(display);
-  if (!displayHost) return false; // pure protocol like "https://"
+  if (!displayHost) return false;
   return displayHost !== extractHostname(href);
 }
 
-// Shared link renderer — blocks spoofed links, forces new-tab on external links.
 const SafeLink: Components['a'] = ({ href, children, ...rest }) => {
   const childText = typeof children === 'string' ? children
     : Array.isArray(children) ? children.filter(c => typeof c === 'string').join('') : '';
 
   if (href && isSpoofed(childText, href)) {
-    // Render as plain text — don't give it any link affordance
     return <span className="md-spoofed-link" title={`Spoofed link blocked (actual: ${href})`}>{children}</span>;
   }
 
   const isExternal = href && (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('//'));
   return (
-    <a
-      href={href}
-      {...rest}
-      {...(isExternal ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
-    >
+    <a href={href} {...rest} {...(isExternal ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
       {children}
     </a>
   );
 };
 
-// Bio mode: downscale all headers so they don't dominate the layout
 const bioHeading: (level: 1|2|3|4|5|6) => Components['h1'] = (level) =>
   function BioH({ children }) {
     const Tag = level <= 2 ? 'h4' : level <= 4 ? 'h5' : 'h6';
@@ -63,36 +57,88 @@ const bioHeading: (level: 1|2|3|4|5|6) => Components['h1'] = (level) =>
 
 const BIO_COMPONENTS: Partial<Components> = {
   a: SafeLink,
-  // Remap all heading levels to smaller tags
-  h1: bioHeading(1),
-  h2: bioHeading(2),
-  h3: bioHeading(3),
-  h4: bioHeading(4),
-  h5: bioHeading(5),
-  h6: bioHeading(6),
-  // No images in bio
+  h1: bioHeading(1), h2: bioHeading(2), h3: bioHeading(3),
+  h4: bioHeading(4), h5: bioHeading(5), h6: bioHeading(6),
   img: ({ alt }) => <span className="md-blocked-image">[image: {alt || 'image'}]</span>,
 };
 
 const CHAT_COMPONENTS: Partial<Components> = {
   a: SafeLink,
   img: ({ src, alt }) => (
-    <img src={src} alt={alt || ''} className="md-inline-image" style={{ maxWidth: '100%', maxHeight: 300, borderRadius: 4, display: 'block', marginTop: 4 }} />
+    <img src={src} alt={alt || ''} className="md-inline-image"
+      style={{ maxWidth: '100%', maxHeight: 300, borderRadius: 4, display: 'block', marginTop: 4 }} />
   ),
+};
+
+// Used for inline segments (between mention tokens) — unwrap the <p> wrapper
+const INLINE_COMPONENTS: Partial<Components> = {
+  ...CHAT_COMPONENTS,
+  p: ({ children }) => <>{children}</>,
 };
 
 const REMARK_PLUGINS = [remarkGfm];
 
-const MarkdownRenderer: React.FC<Props> = ({ content, mode, className }) => {
-  const modeClass = mode === 'chat' ? 'md-chat' : 'md-bio';
-  const components = mode === 'chat' ? CHAT_COMPONENTS : BIO_COMPONENTS;
+const MENTION_RE = /(<@[^>]+>|@everyone|@here)/;
+
+/** Split content on mention tokens and render as inline elements + mention pills */
+function renderWithMentions(
+  content: string,
+  memberMap: Map<string, string>,
+  wrapClass: string,
+): React.ReactElement {
+  const segments = content.split(MENTION_RE);
 
   return (
-    <div className={`md ${modeClass}${className ? ` ${className}` : ''}`}>
+    <div className={wrapClass}>
+      {segments.map((seg, i) => {
+        if (!seg) return null;
+        // Direct user mention
+        const userMatch = seg.match(/^<@([^>]+)>$/);
+        if (userMatch) {
+          const username = memberMap.get(userMatch[1]) ?? 'unknown';
+          return <span key={i} className="mention-pill mention-user">@{username}</span>;
+        }
+        // @everyone / @here
+        if (seg === '@everyone' || seg === '@here') {
+          return <span key={i} className="mention-pill mention-everyone">{seg}</span>;
+        }
+        // Plain text segment — render inline markdown (p unwrapped)
+        return (
+          <ReactMarkdown
+            key={i}
+            remarkPlugins={REMARK_PLUGINS}
+            components={INLINE_COMPONENTS}
+            disallowedElements={['html']}
+            unwrapDisallowed
+          >
+            {seg}
+          </ReactMarkdown>
+        );
+      })}
+    </div>
+  );
+}
+
+const MarkdownRenderer: React.FC<Props> = ({ content, mode, className, memberMap }) => {
+  const modeClass = mode === 'chat' ? 'md-chat' : 'md-bio';
+  const wrapClass = `md ${modeClass}${className ? ` ${className}` : ''}`;
+  const components = mode === 'chat' ? CHAT_COMPONENTS : BIO_COMPONENTS;
+
+  // If there are mention tokens in the content, split and render inline
+  if (memberMap && MENTION_RE.test(content)) {
+    return renderWithMentions(content, memberMap, wrapClass);
+  }
+
+  // Also render standalone @everyone / @here as pills even without a memberMap
+  if ((content.includes('@everyone') || content.includes('@here')) && MENTION_RE.test(content)) {
+    return renderWithMentions(content, memberMap ?? new Map(), wrapClass);
+  }
+
+  return (
+    <div className={wrapClass}>
       <ReactMarkdown
         remarkPlugins={REMARK_PLUGINS}
         components={components}
-        // Never allow raw HTML — security critical
         disallowedElements={['html']}
         unwrapDisallowed
       >

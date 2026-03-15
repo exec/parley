@@ -14,6 +14,7 @@ interface AppState {
   channels: Channel[];
   activeChannel: Channel | null;
   messages: Message[];
+  hasMoreMessages: boolean;
   members: ServerMember[];
   isLoadingServers: boolean;
   isLoadingChannels: boolean;
@@ -21,6 +22,7 @@ interface AppState {
   dmChannels: DmChannel[];
   activeDmChannel: DmChannel | null;
   dmMessages: DmMessage[];
+  hasMoreDmMessages: boolean;
   isLoadingDms: boolean;
 }
 
@@ -59,6 +61,8 @@ interface AppActions {
   receiveMemberRoleUpdate: (update: MemberRoleUpdate) => void;
   receiveUserUpdate: (update: UserUpdate) => void;
   reloadMembers: (serverId: string) => Promise<void>;
+  loadMoreMessages: () => Promise<void>;
+  loadMoreDmMessages: () => Promise<void>;
 }
 
 const AppContext = createContext<(AppState & AppActions) | null>(null);
@@ -88,6 +92,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [members, setMembers] = useState<ServerMember[]>([]);
   const [isLoadingServers, setIsLoadingServers] = useState(false);
   const [isLoadingChannels, setIsLoadingChannels] = useState(false);
@@ -96,6 +101,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [dmChannels, setDmChannels] = useState<DmChannel[]>([]);
   const [activeDmChannel, setActiveDmChannel] = useState<DmChannel | null>(null);
   const [dmMessages, setDmMessages] = useState<DmMessage[]>([]);
+  const [hasMoreDmMessages, setHasMoreDmMessages] = useState(false);
   const [isLoadingDms, setIsLoadingDms] = useState(false);
 
   useEffect(() => {
@@ -162,8 +168,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (target) {
         setActiveChannel(target);
         setIsLoadingMessages(true);
-        const msgs = await messagesApi.getMessages(target.id);
+        const msgs = await messagesApi.getMessages(target.id, { limit: 50 });
         setMessages(msgs ?? []);
+        setHasMoreMessages((msgs?.length ?? 0) >= 50);
         setIsLoadingMessages(false);
       }
     } catch (err) {
@@ -180,10 +187,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const ch = channels.find(c => c.id === channelId);
     if (!ch) return;
     setActiveChannel(ch);
+    setHasMoreMessages(false);
     setIsLoadingMessages(true);
     try {
-      const msgs = await messagesApi.getMessages(channelId);
+      const msgs = await messagesApi.getMessages(channelId, { limit: 50 });
       setMessages(msgs ?? []);
+      setHasMoreMessages((msgs?.length ?? 0) >= 50);
     } catch (err) {
       console.error(err);
     } finally {
@@ -358,6 +367,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setIsLoadingDms(true);
       const msgs = await dmsApi.getDmMessages(channel.id);
       setDmMessages(msgs ?? []);
+      setHasMoreDmMessages((msgs?.length ?? 0) >= 50);
       setIsLoadingDms(false);
     } catch (err) {
       console.error(err);
@@ -372,11 +382,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setActiveServer(null);
     setActiveChannel(null);
     setMessages([]);
+    setHasMoreDmMessages(false);
 
     setIsLoadingDms(true);
     try {
       const msgs = await dmsApi.getDmMessages(channel.id);
       setDmMessages(msgs ?? []);
+      setHasMoreDmMessages((msgs?.length ?? 0) >= 50);
     } catch (err) {
       console.error(err);
     } finally {
@@ -514,6 +526,44 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     ));
   }, []);
 
+  const loadMoreMessages = useCallback(async () => {
+    if (!activeChannel || isLoadingMessages) return;
+    setIsLoadingMessages(true);
+    try {
+      const oldest = messages[0];
+      const msgs = await messagesApi.getMessages(activeChannel.id, { limit: 50, before: oldest?.id });
+      if (!msgs || msgs.length === 0) {
+        setHasMoreMessages(false);
+        return;
+      }
+      setMessages(prev => [...msgs, ...prev]);
+      setHasMoreMessages(msgs.length >= 50);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoadingMessages(false);
+    }
+  }, [activeChannel, isLoadingMessages, messages]);
+
+  const loadMoreDmMessages = useCallback(async () => {
+    if (!activeDmChannel || isLoadingDms) return;
+    setIsLoadingDms(true);
+    try {
+      const oldest = dmMessages[0];
+      const msgs = await dmsApi.getDmMessages(activeDmChannel.id, 50, oldest?.id);
+      if (!msgs || msgs.length === 0) {
+        setHasMoreDmMessages(false);
+        return;
+      }
+      setDmMessages(prev => [...msgs, ...prev]);
+      setHasMoreDmMessages(msgs.length >= 50);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoadingDms(false);
+    }
+  }, [activeDmChannel, isLoadingDms, dmMessages]);
+
   return (
     <AppContext.Provider value={{
       currentUser,
@@ -522,6 +572,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       channels,
       activeChannel,
       messages,
+      hasMoreMessages,
       members,
       isLoadingServers,
       isLoadingChannels,
@@ -529,6 +580,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       dmChannels,
       activeDmChannel,
       dmMessages,
+      hasMoreDmMessages,
       isLoadingDms,
       selectServer,
       selectChannel,
@@ -563,6 +615,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       receiveMemberRoleUpdate,
       receiveUserUpdate,
       reloadMembers,
+      loadMoreMessages,
+      loadMoreDmMessages,
     }}>
       {children}
     </AppContext.Provider>

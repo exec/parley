@@ -2,8 +2,11 @@ package auth
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -14,7 +17,21 @@ const (
 	AuthorizationHeader = "Authorization"
 	// BearerPrefix is the prefix for Bearer token
 	BearerPrefix = "Bearer "
+	// IsAPIKeyAuthKey is the context key for marking API key authenticated requests
+	IsAPIKeyAuthKey = "isAPIKeyAuth"
 )
+
+// SHA256Hex returns the hex-encoded SHA-256 digest of s.
+func SHA256Hex(s string) string {
+	h := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(h[:])
+}
+
+// IsAPIKeyAuth returns true if the request was authenticated via an API key.
+func IsAPIKeyAuth(r *http.Request) bool {
+	v, _ := r.Context().Value(IsAPIKeyAuthKey).(bool)
+	return v
+}
 
 // AuthMiddleware creates HTTP middleware for authentication
 func AuthMiddleware(next http.Handler) http.Handler {
@@ -65,6 +82,27 @@ func AuthMiddlewareWith(svc *AuthService) func(http.Handler) http.Handler {
 				http.Error(w, "Authorization header required", http.StatusUnauthorized)
 				return
 			}
+
+			// API key authentication
+			if strings.HasPrefix(tokenString, "plk_") {
+				if svc.repo == nil {
+					http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
+					return
+				}
+				keyHash := SHA256Hex(tokenString)
+				keyID, userID, err := svc.repo.GetAPIKeyByHash(r.Context(), keyHash)
+				if err != nil {
+					http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
+					return
+				}
+				// Update last_used_at asynchronously
+				go svc.repo.UpdateAPIKeyLastUsed(context.Background(), keyID)
+				ctx := context.WithValue(r.Context(), UserIDKey, strconv.FormatInt(userID, 10))
+				ctx = context.WithValue(ctx, IsAPIKeyAuthKey, true)
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+
 			userID, iat, err := svc.ValidateTokenFull(tokenString)
 			if err != nil {
 				http.Error(w, "Invalid or expired token", http.StatusUnauthorized)

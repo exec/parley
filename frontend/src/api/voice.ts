@@ -8,6 +8,7 @@ export interface VoiceToken {
 export interface VoiceParticipant {
   user_id: string;
   username: string;
+  avatar_url?: string;
 }
 
 export async function getVoiceToken(channelId: string): Promise<VoiceToken> {

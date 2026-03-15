@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,8 +12,8 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -148,6 +150,12 @@ func registerRoutes(
 			r.Post("/auth/resend-phone", handleResendPhone(authService))
 			r.Put("/auth/phone", handleChangePhone(authService))
 
+			// Developer API key routes
+			r.Get("/developer/keys", handleListAPIKeys(repo))
+			r.Post("/developer/keys", handleCreateAPIKey(repo))
+			r.Delete("/developer/keys/{id}", handleRevokeAPIKey(repo))
+			r.Patch("/developer/bots/{botId}", handleRenameBotUser(repo))
+
 			// File upload endpoint - 25MB limit (overrides global 64KB cap)
 			r.With(func(next http.Handler) http.Handler {
 				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -165,7 +173,7 @@ func registerRoutes(
 					return
 				}
 
-				file, header, err := r.FormFile("file")
+				file, _, err := r.FormFile("file")
 				if err != nil {
 					http.Error(w, "missing file field", http.StatusBadRequest)
 					return
@@ -183,7 +191,11 @@ func registerRoutes(
 				// contentType := header.Header.Get("Content-Type")
 				// if strings.HasPrefix(contentType, "image/") { checkNSFW(...) }
 
-				ext := filepath.Ext(header.Filename)
+				ext, ok := allowedFileExt(data)
+				if !ok {
+					http.Error(w, "only PNG, GIF, JPEG, WebM, OGG, and MP3 files are allowed", http.StatusBadRequest)
+					return
+				}
 				key := fmt.Sprintf("uploads/%s%s", generateID(), ext)
 
 				url, err := spacesClient.Upload(r.Context(), key, bytes.NewReader(data), int64(len(data)))
@@ -228,6 +240,37 @@ func handleImpersonateToken(authService *auth.AuthService) http.HandlerFunc {
 // generateID returns a unique string ID based on the current time in nanoseconds.
 func generateID() string {
 	return fmt.Sprintf("%d", time.Now().UnixNano())
+}
+
+// allowedFileExt inspects the magic bytes of data and returns the file extension
+// for allowed upload types (PNG, GIF, JPEG, WebM, OGG, MP3). Returns ("", false) for anything else.
+func allowedFileExt(data []byte) (string, bool) {
+	if len(data) < 12 {
+		return "", false
+	}
+	switch {
+	// Images
+	case data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF:
+		return ".jpg", true
+	case data[0] == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47 &&
+		data[4] == 0x0D && data[5] == 0x0A && data[6] == 0x1A && data[7] == 0x0A:
+		return ".png", true
+	case data[0] == 0x47 && data[1] == 0x49 && data[2] == 0x46 && data[3] == 0x38:
+		return ".gif", true
+	// Video / audio containers
+	case data[0] == 0x1A && data[1] == 0x45 && data[2] == 0xDF && data[3] == 0xA3:
+		return ".webm", true
+	// OGG (covers ogg/opus and ogg/vorbis audio)
+	case data[0] == 0x4F && data[1] == 0x67 && data[2] == 0x67 && data[3] == 0x53:
+		return ".ogg", true
+	// MP3: ID3v2 tag header
+	case data[0] == 0x49 && data[1] == 0x44 && data[2] == 0x33:
+		return ".mp3", true
+	// MP3: raw MPEG frame sync (no ID3 tag)
+	case data[0] == 0xFF && (data[1]&0xE0 == 0xE0) && (data[1]&0x18 != 0x08) && (data[1]&0x06 != 0x00):
+		return ".mp3", true
+	}
+	return "", false
 }
 
 // checkNSFW sends an image to the local NSFW sidecar and returns true if it should be blocked.
@@ -379,6 +422,7 @@ func handleGetMe(repo *db.Repository) http.HandlerFunc {
 			AvatarURL:     user.AvatarURL,
 			BannerURL:     user.BannerURL,
 			Bio:           user.Bio,
+			Badges:        user.Badges,
 			EmailVerified: user.EmailVerified,
 			PhoneNumber:   user.PhoneNumber,
 			PhoneVerified: user.PhoneVerified,
@@ -442,6 +486,9 @@ type publicUserResponse struct {
 	ID        string `json:"id"`
 	Username  string `json:"username"`
 	AvatarURL string `json:"avatar_url"`
+	BannerURL string `json:"banner_url,omitempty"`
+	Bio       string `json:"bio,omitempty"`
+	Badges    int    `json:"badges"`
 	CreatedAt string `json:"created_at"`
 }
 
@@ -450,6 +497,9 @@ func toPublicUserResponse(u db.PublicUser) publicUserResponse {
 		ID:        strconv.FormatInt(u.ID, 10),
 		Username:  u.Username,
 		AvatarURL: u.AvatarURL,
+		BannerURL: u.BannerURL,
+		Bio:       u.Bio,
+		Badges:    u.Badges,
 		CreatedAt: u.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 }
@@ -702,5 +752,177 @@ func handleChangePhone(authService *auth.AuthService) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(user)
+	}
+}
+
+func handleListAPIKeys(repo *db.Repository) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ownerIDStr := auth.GetUserIDFromContext(r)
+		ownerID, err := strconv.ParseInt(ownerIDStr, 10, 64)
+		if err != nil {
+			jsonError(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		keys, err := repo.GetAPIKeysByOwner(r.Context(), ownerID)
+		if err != nil {
+			jsonError(w, "failed to list keys", http.StatusInternalServerError)
+			return
+		}
+		if keys == nil {
+			keys = []db.APIKeyInfo{}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(keys)
+	}
+}
+
+func handleCreateAPIKey(repo *db.Repository) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ownerIDStr := auth.GetUserIDFromContext(r)
+		ownerID, err := strconv.ParseInt(ownerIDStr, 10, 64)
+		if err != nil {
+			jsonError(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		var req struct {
+			Type        string `json:"type"`
+			BotUsername string `json:"bot_username"`
+			Name        string `json:"name"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			jsonError(w, "invalid request", http.StatusBadRequest)
+			return
+		}
+		if req.Type != "bot" && req.Type != "user" {
+			jsonError(w, "type must be 'bot' or 'user'", http.StatusBadRequest)
+			return
+		}
+		if req.Type == "bot" && strings.TrimSpace(req.BotUsername) == "" {
+			jsonError(w, "bot_username is required for bot type", http.StatusBadRequest)
+			return
+		}
+
+		// Generate key: plk_ + 40 hex chars (20 random bytes)
+		keyBytes := make([]byte, 20)
+		if _, randErr := rand.Read(keyBytes); randErr != nil {
+			jsonError(w, "failed to generate key", http.StatusInternalServerError)
+			return
+		}
+		fullKey := "plk_" + hex.EncodeToString(keyBytes)
+		keyHash := auth.SHA256Hex(fullKey)
+		keyPrefix := fullKey[:12] // "plk_" + first 8 hex chars
+
+		var targetUserID int64
+		var botUsername string
+		var botUserID int64
+
+		if req.Type == "bot" {
+			botUsername = strings.TrimSpace(req.BotUsername)
+			botUserID, err = repo.CreateBotUser(r.Context(), botUsername, ownerID)
+			if err != nil {
+				if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
+					jsonError(w, "bot username already taken", http.StatusConflict)
+					return
+				}
+				jsonError(w, "failed to create bot user", http.StatusInternalServerError)
+				return
+			}
+			targetUserID = botUserID
+		} else {
+			targetUserID = ownerID
+		}
+
+		name := strings.TrimSpace(req.Name)
+		if name == "" {
+			if req.Type == "bot" {
+				name = botUsername
+			} else {
+				name = "User API Key"
+			}
+		}
+
+		keyID, err := repo.CreateAPIKey(r.Context(), keyHash, keyPrefix, name, targetUserID, ownerID)
+		if err != nil {
+			jsonError(w, "failed to create key", http.StatusInternalServerError)
+			return
+		}
+
+		resp := map[string]interface{}{
+			"id":         keyID,
+			"key":        fullKey,
+			"key_prefix": keyPrefix,
+			"name":       name,
+			"type":       req.Type,
+		}
+		if req.Type == "bot" {
+			resp["bot_username"] = botUsername
+			resp["bot_user_id"] = botUserID
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}
+}
+
+func handleRevokeAPIKey(repo *db.Repository) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ownerIDStr := auth.GetUserIDFromContext(r)
+		ownerID, err := strconv.ParseInt(ownerIDStr, 10, 64)
+		if err != nil {
+			jsonError(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		keyIDStr := chi.URLParam(r, "id")
+		keyID, err := strconv.ParseInt(keyIDStr, 10, 64)
+		if err != nil {
+			jsonError(w, "invalid key id", http.StatusBadRequest)
+			return
+		}
+		if err := repo.RevokeAPIKey(r.Context(), keyID, ownerID); err != nil {
+			if err == db.ErrNotFound {
+				jsonError(w, "key not found", http.StatusNotFound)
+				return
+			}
+			jsonError(w, "failed to revoke key", http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func handleRenameBotUser(repo *db.Repository) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ownerIDStr := auth.GetUserIDFromContext(r)
+		ownerID, err := strconv.ParseInt(ownerIDStr, 10, 64)
+		if err != nil {
+			jsonError(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		botIDStr := chi.URLParam(r, "botId")
+		botID, err := strconv.ParseInt(botIDStr, 10, 64)
+		if err != nil {
+			jsonError(w, "invalid bot id", http.StatusBadRequest)
+			return
+		}
+		var req struct {
+			Username string `json:"username"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			jsonError(w, "invalid request", http.StatusBadRequest)
+			return
+		}
+		newUsername := strings.TrimSpace(req.Username)
+		if newUsername == "" {
+			jsonError(w, "username is required", http.StatusBadRequest)
+			return
+		}
+		if err := repo.RenameBotUser(r.Context(), botID, ownerID, newUsername); err != nil {
+			if err == db.ErrNotFound {
+				jsonError(w, "bot not found", http.StatusNotFound)
+				return
+			}
+			jsonError(w, "failed to rename bot", http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 	}
 }

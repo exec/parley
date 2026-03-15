@@ -1,5 +1,5 @@
 import React, { useCallback, useState, useRef, useEffect } from 'react';
-import { Channel, Message as MessageType } from '../../api/types';
+import { Channel, Message as MessageType, ServerMember } from '../../api/types';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { TypingIndicator } from './TypingIndicator';
@@ -14,6 +14,8 @@ interface ChatWindowProps {
   channel: Channel;
   messages: MessageType[];
   currentUserId?: string;
+  members?: ServerMember[];
+  memberMap?: Map<string, string>;
   onSendMessage: (content: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string) => void;
   onLoadMore?: () => void;
   onEdit?: (message: MessageType) => void;
@@ -30,12 +32,17 @@ interface ChatWindowProps {
   onTyping?: () => void;
   canManageChannels?: boolean;
   onUpdateTopic?: (channelId: string, topic: string) => void;
+  headerPrefix?: string;
+  headerAvatar?: string;
+  isOnline?: boolean;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
   channel,
   messages,
   currentUserId,
+  members,
+  memberMap,
   onSendMessage,
   onLoadMore,
   onEdit,
@@ -52,6 +59,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onTyping,
   canManageChannels = false,
   onUpdateTopic,
+  headerPrefix = '#',
+  headerAvatar,
+  isOnline,
 }) => {
   const replyValue = replyTo ? `@${replyTo.author_username} ` : '';
   const [editingTopic, setEditingTopic] = useState(false);
@@ -99,7 +109,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         onClick={startEditTopic}
         title={canManageChannels ? 'Click to edit topic' : undefined}
       >
-        <span className="chat-header-name"># {channel.name}</span>
+        {headerAvatar ? (
+          <div className="chat-header-avatar">
+            <img src={headerAvatar} alt={channel.name} />
+          </div>
+        ) : null}
+        <div className="chat-header-text">
+        <div className="chat-header-name-row">
+          <span className="chat-header-name">{headerPrefix} {channel.name}</span>
+          {isOnline !== undefined && (
+            <span className={`chat-header-status-dot ${isOnline ? 'online' : 'offline'}`} title={isOnline ? 'Online' : 'Offline'} />
+          )}
+        </div>
         {editingTopic ? (
           <input
             ref={topicInputRef}
@@ -116,10 +137,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             {channel.topic || (canManageChannels ? <span className="channel-topic-placeholder">Add a topic...</span> : null)}
           </div>
         )}
+        </div>
       </div>
       <MessageList
         messages={messages}
         currentUserId={currentUserId}
+        memberMap={memberMap}
         onLoadMore={onLoadMore}
         onEdit={onEdit}
         onDelete={onDelete}
@@ -136,6 +159,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         onSendMessage={handleSendMessage}
         onTyping={onTyping}
         initialValue={replyValue}
+        members={members}
       />
     </div>
   );

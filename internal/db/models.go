@@ -30,6 +30,7 @@ type User struct {
 	BanReason               string     `json:"ban_reason,omitempty" db:"ban_reason"`
 	ForceLogoutAt           *time.Time `json:"force_logout_at,omitempty" db:"force_logout_at"`
 	IsSystem                bool       `json:"is_system" db:"is_system"`
+	Badges                  int        `json:"badges" db:"badges"`
 	CreatedAt               time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt               time.Time  `json:"updated_at" db:"updated_at"`
 }
@@ -89,6 +90,9 @@ type ServerMember struct {
 	JoinedAt  time.Time    `json:"joined_at" db:"joined_at"`
 	Username  string       `json:"username" db:"-"`
 	AvatarURL string       `json:"avatar_url,omitempty" db:"-"`
+	BannerURL string       `json:"banner_url,omitempty" db:"-"`
+	Bio       string       `json:"bio,omitempty" db:"-"`
+	Badges    int          `json:"badges" db:"-"`
 	Roles     []ServerRole `json:"roles" db:"-"`
 }
 
@@ -119,6 +123,8 @@ type Message struct {
 	UpdatedAt       time.Time `json:"updated_at" db:"updated_at"`
 	AuthorUsername  string    `json:"author_username" db:"-"`
 	AuthorAvatarURL string    `json:"author_avatar_url,omitempty" db:"-"`
+	AuthorIsBot     bool      `json:"author_is_bot,omitempty"`
+	ViaApi          bool      `json:"via_api,omitempty"`
 }
 
 // DmChannel represents a direct message channel between two users
@@ -127,8 +133,9 @@ type DmChannel struct {
 	User1ID       int64     `json:"user1_id" db:"user1_id"`
 	User2ID       int64     `json:"user2_id" db:"user2_id"`
 	CreatedAt     time.Time `json:"created_at" db:"created_at"`
-	OtherUsername string    `json:"other_username" db:"-"`
-	OtherUserID   int64     `json:"other_user_id" db:"-"`
+	OtherUsername  string    `json:"other_username" db:"-"`
+	OtherUserID    int64     `json:"other_user_id" db:"-"`
+	OtherAvatarURL string    `json:"other_avatar_url,omitempty" db:"-"`
 }
 
 // DmMessage represents a direct message
@@ -142,7 +149,8 @@ type DmMessage struct {
 	AttachmentType string    `json:"attachment_type,omitempty" db:"attachment_type"`
 	CreatedAt      time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at" db:"updated_at"`
-	AuthorUsername string    `json:"author_username" db:"-"`
+	AuthorUsername  string    `json:"author_username" db:"-"`
+	AuthorAvatarURL string    `json:"author_avatar_url,omitempty" db:"-"`
 }
 
 // PublicUser represents public user profile info
@@ -152,8 +160,15 @@ type PublicUser struct {
 	AvatarURL string    `json:"avatar_url" db:"avatar_url"`
 	BannerURL string    `json:"banner_url" db:"banner_url"`
 	Bio       string    `json:"bio,omitempty" db:"bio"`
+	Badges    int       `json:"badges" db:"badges"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
+
+// Badge bit constants
+const (
+	BadgeDonor int = 1 << 0 // 1 — financial supporter
+	BadgeAdmin int = 1 << 1 // 2 — Parley staff/admin
+)
 
 // ReactionGroup represents aggregated reactions for a message, grouped by emoji
 type ReactionGroup struct {
@@ -178,5 +193,20 @@ type ServerRole struct {
 	Name        string    `json:"name" db:"name"`
 	Color       string    `json:"color" db:"color"`
 	Permissions int64     `json:"permissions" db:"permissions"`
+	Hoist       bool      `json:"hoist" db:"hoist"`
+	Position    int       `json:"position" db:"position"`
 	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+}
+
+// APIKeyInfo is an API key enriched with bot info for display
+type APIKeyInfo struct {
+	ID          int64      `json:"id"`
+	KeyPrefix   string     `json:"key_prefix"`
+	UserID      int64      `json:"user_id"`
+	OwnerID     int64      `json:"owner_id"`
+	Name        string     `json:"name"`
+	IsBot       bool       `json:"is_bot"`
+	BotUsername string     `json:"bot_username,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	LastUsedAt  *time.Time `json:"last_used_at,omitempty"`
 }

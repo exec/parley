@@ -27,6 +27,8 @@ type Message struct {
 	AuthorID        string     `json:"author_id"`
 	AuthorUsername  string     `json:"author_username"`
 	AuthorAvatarURL string     `json:"author_avatar_url,omitempty"`
+	AuthorIsBot     bool       `json:"author_is_bot,omitempty"`
+	ViaApi          bool       `json:"via_api,omitempty"`
 	Content         string     `json:"content"`
 	Nonce           string     `json:"nonce,omitempty"`
 	AttachmentURL   string     `json:"attachment_url,omitempty"`
@@ -87,14 +89,17 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 		return nil, errors.New("invalid author ID")
 	}
 
-	dbMsg, err := s.repo.CreateMessage(ctx, channelIDInt, authorIDInt, content, nonce, attachmentURL, attachmentName, attachmentType)
+	viaAPI, _ := ctx.Value("isAPIKeyAuth").(bool)
+
+	dbMsg, err := s.repo.CreateMessage(ctx, channelIDInt, authorIDInt, content, nonce, attachmentURL, attachmentName, attachmentType, viaAPI)
 	if err != nil {
 		return nil, err
 	}
 
-	// Look up author username and avatar
+	// Look up author username, avatar, and bot status
 	var authorUsername, authorAvatarURL string
-	if err := s.repo.DB().QueryRowContext(ctx, "SELECT username, COALESCE(avatar_url, '') FROM users WHERE id = $1", authorIDInt).Scan(&authorUsername, &authorAvatarURL); err != nil {
+	var authorIsBot bool
+	if err := s.repo.DB().QueryRowContext(ctx, "SELECT username, COALESCE(avatar_url, ''), is_bot FROM users WHERE id = $1", authorIDInt).Scan(&authorUsername, &authorAvatarURL, &authorIsBot); err != nil {
 		log.Printf("SendMessage: failed to fetch user info for author %d: %v", authorIDInt, err)
 	}
 
@@ -104,6 +109,8 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 		AuthorID:        authorID,
 		AuthorUsername:  authorUsername,
 		AuthorAvatarURL: authorAvatarURL,
+		AuthorIsBot:     authorIsBot,
+		ViaApi:          viaAPI,
 		Content:         content,
 		Nonce:           dbMsg.Nonce,
 		AttachmentURL:   dbMsg.AttachmentURL,
@@ -157,17 +164,15 @@ func (s *MessageService) GetMessage(ctx context.Context, id string) (*Message, e
 	}, nil
 }
 
-// GetChannelMessages retrieves messages for a channel with pagination
-func (s *MessageService) GetChannelMessages(ctx context.Context, channelID string, limit, offset int) ([]*Message, error) {
+// GetChannelMessages retrieves messages for a channel with cursor-based pagination.
+// beforeID: if > 0, returns messages older than that ID. If 0, returns the latest messages.
+func (s *MessageService) GetChannelMessages(ctx context.Context, channelID string, limit int, beforeID int64) ([]*Message, error) {
 	if channelID == "" {
 		return nil, errors.New("channel ID is required")
 	}
 
 	if limit <= 0 {
 		limit = 50
-	}
-	if offset < 0 {
-		offset = 0
 	}
 
 	// Convert channelID from string to int64
@@ -176,7 +181,7 @@ func (s *MessageService) GetChannelMessages(ctx context.Context, channelID strin
 		return nil, errors.New("invalid channel ID")
 	}
 
-	dbMessages, err := s.repo.GetChannelMessages(ctx, channelIDInt, limit, offset)
+	dbMessages, err := s.repo.GetChannelMessages(ctx, channelIDInt, limit, beforeID)
 	if err != nil {
 		return nil, err
 	}
@@ -211,6 +216,8 @@ func (s *MessageService) GetChannelMessages(ctx context.Context, channelID strin
 			AuthorID:        strconv.FormatInt(dbMsg.AuthorID, 10),
 			AuthorUsername:  dbMsg.AuthorUsername,
 			AuthorAvatarURL: dbMsg.AuthorAvatarURL,
+			AuthorIsBot:     dbMsg.AuthorIsBot,
+			ViaApi:          dbMsg.ViaApi,
 			Content:         dbMsg.Content,
 			Nonce:           dbMsg.Nonce,
 			AttachmentURL:   dbMsg.AttachmentURL,

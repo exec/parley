@@ -25,6 +25,7 @@ type User struct {
 	AvatarURL     string `json:"avatar_url,omitempty"`
 	BannerURL     string `json:"banner_url,omitempty"`
 	Bio           string `json:"bio,omitempty"`
+	Badges        int    `json:"badges"`
 	EmailVerified bool   `json:"email_verified"`
 	PhoneNumber   string `json:"phone_number,omitempty"`
 	PhoneVerified bool   `json:"phone_verified"`
@@ -205,6 +206,7 @@ func (s *AuthService) Login(ctx context.Context, emailOrPhone, password string) 
 		AvatarURL:     dbUser.AvatarURL,
 		BannerURL:     dbUser.BannerURL,
 		Bio:           dbUser.Bio,
+		Badges:        dbUser.Badges,
 		EmailVerified: dbUser.EmailVerified,
 		PhoneNumber:   dbUser.PhoneNumber,
 		PhoneVerified: dbUser.PhoneVerified,
@@ -281,6 +283,7 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername, cu
 		AvatarURL:     dbUser.AvatarURL,
 		BannerURL:     dbUser.BannerURL,
 		Bio:           dbUser.Bio,
+		Badges:        dbUser.Badges,
 		EmailVerified: dbUser.EmailVerified,
 		PhoneNumber:   dbUser.PhoneNumber,
 		PhoneVerified: dbUser.PhoneVerified,
@@ -419,6 +422,7 @@ func (s *AuthService) ChangeEmail(ctx context.Context, userID, newEmail, passwor
 		AvatarURL:     dbUser.AvatarURL,
 		BannerURL:     dbUser.BannerURL,
 		Bio:           dbUser.Bio,
+		Badges:        dbUser.Badges,
 		EmailVerified: false,
 		PhoneNumber:   dbUser.PhoneNumber,
 		PhoneVerified: dbUser.PhoneVerified,
@@ -684,6 +688,7 @@ func (s *AuthService) ChangePhone(ctx context.Context, userID, newPhone, passwor
 		AvatarURL:     dbUser.AvatarURL,
 		BannerURL:     dbUser.BannerURL,
 		Bio:           dbUser.Bio,
+		Badges:        dbUser.Badges,
 		EmailVerified: dbUser.EmailVerified,
 		PhoneNumber:   newPhone,
 		PhoneVerified: false,

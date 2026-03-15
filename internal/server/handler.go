@@ -8,6 +8,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
+
+	"parley/internal/permissions"
 )
 
 // Handler handles HTTP requests for server operations
@@ -280,11 +282,17 @@ func (h *Handler) AddMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Only owner can add members
+	// Only owner or Administrator can add bots
 	if server.OwnerID != userID {
-		w.WriteHeader(http.StatusForbidden)
-		render.JSON(w, r, ErrorResponse{Error: "only the server owner can add members"})
-		return
+		ownerID, _ := permissions.ParseInt64(server.OwnerID)
+		actorID, _ := permissions.ParseInt64(userID)
+		sID, _ := permissions.ParseInt64(serverID)
+		isAdmin, _ := permissions.HasPermission(r.Context(), h.service.Repo(), sID, actorID, ownerID, permissions.PermAdministrator)
+		if !isAdmin {
+			w.WriteHeader(http.StatusForbidden)
+			render.JSON(w, r, ErrorResponse{Error: "Administrator permission required to add bots"})
+			return
+		}
 	}
 
 	err = h.service.AddMember(r.Context(), serverID, req.UserID, req.Nickname)
@@ -571,6 +579,8 @@ func (h *Handler) UpdateServerRole(w http.ResponseWriter, r *http.Request) {
 		Name        string `json:"name"`
 		Color       string `json:"color"`
 		Permissions int64  `json:"permissions"`
+		Hoist       bool   `json:"hoist"`
+		Position    int    `json:"position"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" {
 		w.WriteHeader(http.StatusBadRequest)
@@ -578,7 +588,7 @@ func (h *Handler) UpdateServerRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	role, err := h.service.UpdateServerRole(r.Context(), serverID, roleID, req.Name, req.Color, req.Permissions)
+	role, err := h.service.UpdateServerRole(r.Context(), serverID, roleID, req.Name, req.Color, req.Permissions, req.Hoist, req.Position)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		render.JSON(w, r, ErrorResponse{Error: err.Error()})

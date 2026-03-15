@@ -1,0 +1,53 @@
+:root {
+  --vp-c-brand-1: #32CD32;
+  --vp-c-brand-2: #28a428;
+  --vp-c-brand-3: #1e7a1e;
+  --vp-c-brand-soft: rgba(50, 205, 50, 0.14);
+  --vp-button-brand-bg: #32CD32;
+  --vp-button-brand-hover-bg: #28a428;
+  --vp-button-brand-text: #000;
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(135deg, #32CD32, #00ff88);
+}
+
+.dark {
+  --vp-c-bg: #0d0d0d;
+  --vp-c-bg-soft: #131313;
+  --vp-c-bg-mute: #1a1a1a;
+  --vp-c-divider: rgba(50, 205, 50, 0.12);
+}
+
+/* Method badges */
+.method {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: monospace;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.method.get    { background: rgba(61, 139, 253, 0.15); color: #3d8bfd; border: 1px solid rgba(61, 139, 253, 0.3); }
+.method.post   { background: rgba(50, 205, 50, 0.12); color: #32CD32; border: 1px solid rgba(50, 205, 50, 0.3); }
+.method.put    { background: rgba(255, 165, 0, 0.12); color: #ffa500; border: 1px solid rgba(255, 165, 0, 0.3); }
+.method.patch  { background: rgba(200, 100, 255, 0.12); color: #c864ff; border: 1px solid rgba(200, 100, 255, 0.3); }
+.method.delete { background: rgba(224, 85, 85, 0.12); color: #e05555; border: 1px solid rgba(224, 85, 85, 0.3); }
+
+/* Route display */
+.route {
+  font-family: monospace;
+  font-size: 14px;
+}
+
+/* Bot/User distinction callouts */
+.vp-doc .bot-only,
+.vp-doc .user-only {
+  border-left: 3px solid;
+  padding: 8px 14px;
+  margin: 8px 0;
+  border-radius: 0 4px 4px 0;
+  font-size: 13.5px;
+}
+.vp-doc .bot-only  { border-color: #c864ff; background: rgba(200, 100, 255, 0.06); }
+.vp-doc .user-only { border-color: #32CD32; background: rgba(50, 205, 50, 0.06); }

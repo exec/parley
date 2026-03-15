@@ -91,6 +91,7 @@ export interface User {
   ban_reason?: string
   force_logout_at?: string
   is_system: boolean
+  badges: number
   created_at: string
   updated_at: string
 }
@@ -127,6 +128,10 @@ export async function apiImpersonateUser(id: number): Promise<{ token: string }>
 
 export async function apiDeleteUser(id: number): Promise<void> {
   return request<void>('DELETE', `/users/${id}`)
+}
+
+export async function apiSetBadges(id: number, badges: number): Promise<{ badges: number }> {
+  return request<{ badges: number }>('PATCH', `/users/${id}/badges`, { badges })
 }
 
 // ---- Messages ----

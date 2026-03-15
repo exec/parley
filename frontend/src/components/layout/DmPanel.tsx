@@ -47,6 +47,7 @@ interface DmPanelProps {
   onLogout?: () => void;
   onOpenSettings?: () => void;
   dmUnreadCounts?: Record<string, number>;
+  onlineUserIds?: Set<string>;
 }
 
 const DmPanel: React.FC<DmPanelProps> = ({
@@ -57,6 +58,7 @@ const DmPanel: React.FC<DmPanelProps> = ({
   onLogout,
   onOpenSettings,
   dmUnreadCounts = {},
+  onlineUserIds,
 }) => {
   const [contextMenu, setContextMenu] = useState<{ top: number; left: number } | null>(null);
   const userAreaRef = useRef<HTMLDivElement>(null);
@@ -79,14 +81,20 @@ const DmPanel: React.FC<DmPanelProps> = ({
           dmChannels.map(channel => {
             const unread = dmUnreadCounts[channel.id] ?? 0;
             const isActive = channel.id === activeDmChannelId;
+            const isOtherOnline = onlineUserIds?.has(channel.other_user_id) ?? false;
             return (
               <div
                 key={channel.id}
                 className={`dm-panel-item ${isActive ? 'active' : ''} ${unread > 0 && !isActive ? 'unread' : ''}`}
                 onClick={() => onSelectDm(channel.id)}
               >
-                <div className="dm-panel-avatar">
-                  {channel.other_username.charAt(0).toUpperCase()}
+                <div className="dm-panel-avatar-wrap">
+                  <div className="dm-panel-avatar">
+                    {channel.other_avatar_url
+                      ? <img src={channel.other_avatar_url} alt={channel.other_username} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                      : channel.other_username.charAt(0).toUpperCase()}
+                  </div>
+                  <span className={`dm-panel-status-dot ${isOtherOnline ? 'online' : 'offline'}`} />
                 </div>
                 <span className="dm-panel-name">{channel.other_username}</span>
                 {unread > 0 && !isActive && (
@@ -105,8 +113,13 @@ const DmPanel: React.FC<DmPanelProps> = ({
         title="Click for user settings"
       >
         <div className="dm-panel-user-info">
-          <div className="dm-panel-user-avatar">
-            {currentUser?.username?.charAt(0).toUpperCase() || '?'}
+          <div className="dm-panel-avatar-wrap">
+            <div className="dm-panel-user-avatar">
+              {currentUser?.avatar_url
+                ? <img src={currentUser.avatar_url} alt={currentUser.username} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                : currentUser?.username?.charAt(0).toUpperCase() || '?'}
+            </div>
+            <span className="dm-panel-status-dot online" />
           </div>
           <div className="dm-panel-user-details">
             <div className="dm-panel-username">{currentUser?.username || 'User'}</div>

@@ -2,6 +2,14 @@ import React, { useState, useRef, useEffect } from 'react';
 import './UserSidebar.css';
 import MiniProfile from './MiniProfile';
 
+interface Role {
+  id: string;
+  name: string;
+  color: string;
+  hoist: boolean;
+  position: number;
+}
+
 interface ServerMember {
   id: string;
   user_id: string;
@@ -9,7 +17,7 @@ interface ServerMember {
   nickname?: string;
   avatar_url?: string;
   banner_url?: string;
-  roles?: Array<{ id: string; name: string; color: string }>;
+  roles?: Role[];
 }
 
 /* ---- Right-click context menu ---- */
@@ -41,7 +49,6 @@ const UserContextMenu: React.FC<UserContextMenuProps> = ({
     return () => document.removeEventListener('mousedown', handleClick);
   }, [onClose]);
 
-  // Clamp position
   const left = Math.min(position.left, window.innerWidth - 200);
 
   return (
@@ -73,6 +80,80 @@ const UserContextMenu: React.FC<UserContextMenuProps> = ({
   );
 };
 
+/* ---- Grouping logic ---- */
+
+interface MemberGroup {
+  label: string;
+  color: string | null; // null = no role color (online/offline groups)
+  members: ServerMember[];
+}
+
+/** Returns the highest-position hoisted role for a member, or null. */
+function topHoistedRole(member: ServerMember): Role | null {
+  if (!member.roles || member.roles.length === 0) return null;
+  const hoisted = member.roles.filter(r => r.hoist);
+  if (hoisted.length === 0) return null;
+  return hoisted.reduce((a, b) => (a.position <= b.position ? a : b));
+}
+
+/** Returns the highest-position role for a member (for the inline tag). */
+function topRole(member: ServerMember): Role | null {
+  if (!member.roles || member.roles.length === 0) return null;
+  return member.roles.reduce((a, b) => (a.position <= b.position ? a : b));
+}
+
+function buildGroups(members: ServerMember[], ownerId?: string, onlineIds?: Set<string>): MemberGroup[] {
+  const online = members.filter(m => onlineIds ? onlineIds.has(m.user_id) : true);
+  const offline = members.filter(m => onlineIds ? !onlineIds.has(m.user_id) : false);
+
+  const groups: MemberGroup[] = [];
+
+  // Collect all distinct hoisted roles present across online members, sorted by position
+  const hoistedRolesMap = new Map<string, Role>();
+  for (const m of online) {
+    const r = topHoistedRole(m);
+    if (r) hoistedRolesMap.set(r.id, r);
+  }
+  const hoistedRoles = Array.from(hoistedRolesMap.values()).sort((a, b) => a.position - b.position);
+
+  // Track which online members have been placed
+  const placed = new Set<string>();
+
+  for (const role of hoistedRoles) {
+    const group = online.filter(m => topHoistedRole(m)?.id === role.id);
+    if (group.length === 0) continue;
+    // Sort: owner first, then alphabetical
+    group.sort((a, b) => {
+      if (a.user_id === ownerId) return -1;
+      if (b.user_id === ownerId) return 1;
+      return (a.nickname || a.username).localeCompare(b.nickname || b.username);
+    });
+    groups.push({ label: role.name, color: role.color, members: group });
+    group.forEach(m => placed.add(m.user_id));
+  }
+
+  // Remaining online members (no hoisted role)
+  const ungroupedOnline = online.filter(m => !placed.has(m.user_id));
+  if (ungroupedOnline.length > 0) {
+    ungroupedOnline.sort((a, b) => {
+      if (a.user_id === ownerId) return -1;
+      if (b.user_id === ownerId) return 1;
+      return (a.nickname || a.username).localeCompare(b.nickname || b.username);
+    });
+    groups.push({ label: `Online — ${ungroupedOnline.length}`, color: null, members: ungroupedOnline });
+  }
+
+  // Offline
+  if (offline.length > 0) {
+    offline.sort((a, b) =>
+      (a.nickname || a.username).localeCompare(b.nickname || b.username)
+    );
+    groups.push({ label: `Offline — ${offline.length}`, color: null, members: offline });
+  }
+
+  return groups;
+}
+
 /* ---- Sidebar ---- */
 
 interface UserSidebarProps {
@@ -96,34 +177,25 @@ const UserSidebar: React.FC<UserSidebarProps> = ({
   const [miniProfile, setMiniProfile] = useState<{ member: ServerMember; position: { top: number; left: number } } | null>(null);
   const [contextMenu, setContextMenu] = useState<{ member: ServerMember; position: { top: number; left: number } } | null>(null);
 
-  // Left click → mini profile
   const handleMemberClick = (member: ServerMember, e: React.MouseEvent) => {
     e.stopPropagation();
-    // Close context menu if open
     setContextMenu(null);
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setMiniProfile({
-      member,
-      position: { top: rect.top, left: rect.left - 300 },
-    });
+    setMiniProfile({ member, position: { top: rect.top, left: rect.left - 300 } });
   };
 
-  // Right click → context menu
   const handleMemberContextMenu = (member: ServerMember, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setMiniProfile(null);
-    setContextMenu({
-      member,
-      position: { top: e.clientY, left: e.clientX - 200 },
-    });
+    setContextMenu({ member, position: { top: e.clientY, left: e.clientX - 200 } });
   };
 
-  const owners = members.filter(m => m.user_id === ownerId);
-  const nonOwners = members.filter(m => m.user_id !== ownerId);
-
-  const renderMember = (member: ServerMember, isOwner: boolean) => {
+  const renderMember = (member: ServerMember) => {
     const isOnline = onlineUserIds ? onlineUserIds.has(member.user_id) : false;
+    const isOwner = member.user_id === ownerId;
+    const top = topRole(member);
+
     return (
       <div
         key={member.id}
@@ -157,17 +229,19 @@ const UserSidebar: React.FC<UserSidebarProps> = ({
                 </svg>
               </span>
             )}
-            {member.roles && member.roles.slice(0, 2).map(role => (
-              <span key={role.id} className="role-tag" style={{ backgroundColor: role.color + '33', color: role.color }}>
-                {role.name}
+            {top && (
+              <span className="role-tag" style={{ backgroundColor: top.color + '33', color: top.color }}>
+                {top.name}
               </span>
-            ))}
+            )}
           </div>
           {member.nickname && <div className="member-nickname-text">{member.username}</div>}
         </div>
       </div>
     );
   };
+
+  const groups = buildGroups(members, ownerId, onlineUserIds);
 
   return (
     <div className="user-sidebar">
@@ -176,24 +250,18 @@ const UserSidebar: React.FC<UserSidebarProps> = ({
         {members.length === 0 ? (
           <div className="no-members">No members yet</div>
         ) : (
-          <>
-            {owners.length > 0 && (
-              <div className="member-group">
-                <div className="member-group-header">Owner</div>
-                {owners.map(m => renderMember(m, true))}
+          groups.map((group, i) => (
+            <div key={i} className="member-group">
+              <div className="member-group-header" style={group.color ? { color: group.color } : undefined}>
+                {group.label}
+                <span className="member-group-count">{group.members.length}</span>
               </div>
-            )}
-            {nonOwners.length > 0 && (
-              <div className="member-group">
-                <div className="member-group-header">Members</div>
-                {nonOwners.map(m => renderMember(m, false))}
-              </div>
-            )}
-          </>
+              {group.members.map(m => renderMember(m))}
+            </div>
+          ))
         )}
       </div>
 
-      {/* Left-click: mini profile popup */}
       {miniProfile && (
         <MiniProfile
           member={miniProfile.member}
@@ -208,7 +276,6 @@ const UserSidebar: React.FC<UserSidebarProps> = ({
         />
       )}
 
-      {/* Right-click: context menu */}
       {contextMenu && (
         <UserContextMenu
           member={contextMenu.member}

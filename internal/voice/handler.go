@@ -80,24 +80,24 @@ func (h *Handler) Token(w http.ResponseWriter, r *http.Request) {
 // Join records a participant in a voice channel and broadcasts a WS event.
 // POST /api/channels/{channelId}/voice/join
 func (h *Handler) Join(w http.ResponseWriter, r *http.Request) {
-	userIDStr, username, channelIDStr, serverVirtualChannelID, ok := h.parseVoiceRequest(w, r)
+	userIDStr, username, avatarURL, channelIDStr, serverVirtualChannelID, ok := h.parseVoiceRequest(w, r)
 	if !ok {
 		return
 	}
 
-	if err := h.svc.Join(r.Context(), channelIDStr, userIDStr, username); err != nil {
+	if err := h.svc.Join(r.Context(), channelIDStr, userIDStr, username, avatarURL); err != nil {
 		jsonErr(w, "failed to join", http.StatusInternalServerError)
 		return
 	}
 
-	h.broadcastVoiceState(serverVirtualChannelID, channelIDStr, userIDStr, username, "join")
+	h.broadcastVoiceState(serverVirtualChannelID, channelIDStr, userIDStr, username, avatarURL, "join")
 	w.WriteHeader(http.StatusNoContent)
 }
 
 // Leave removes a participant from a voice channel and broadcasts a WS event.
 // POST /api/channels/{channelId}/voice/leave
 func (h *Handler) Leave(w http.ResponseWriter, r *http.Request) {
-	userIDStr, username, channelIDStr, serverVirtualChannelID, ok := h.parseVoiceRequest(w, r)
+	userIDStr, username, avatarURL, channelIDStr, serverVirtualChannelID, ok := h.parseVoiceRequest(w, r)
 	if !ok {
 		return
 	}
@@ -107,7 +107,7 @@ func (h *Handler) Leave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.broadcastVoiceState(serverVirtualChannelID, channelIDStr, userIDStr, username, "leave")
+	h.broadcastVoiceState(serverVirtualChannelID, channelIDStr, userIDStr, username, avatarURL, "leave")
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -127,7 +127,7 @@ func (h *Handler) Participants(w http.ResponseWriter, r *http.Request) {
 }
 
 // parseVoiceRequest extracts and validates auth + channel for join/leave.
-func (h *Handler) parseVoiceRequest(w http.ResponseWriter, r *http.Request) (userIDStr, username, channelIDStr, serverVirtualChannelID string, ok bool) {
+func (h *Handler) parseVoiceRequest(w http.ResponseWriter, r *http.Request) (userIDStr, username, avatarURL, channelIDStr, serverVirtualChannelID string, ok bool) {
 	userIDStr = auth.GetUserIDFromContext(r)
 	userID, err := strconv.ParseInt(userIDStr, 10, 64)
 	if err != nil {
@@ -156,14 +156,15 @@ func (h *Handler) parseVoiceRequest(w http.ResponseWriter, r *http.Request) (use
 	}
 
 	serverVirtualChannelID = "server:" + strconv.FormatInt(ch.ServerID, 10)
-	return userIDStr, member.Username, channelIDStr, serverVirtualChannelID, true
+	return userIDStr, member.Username, member.AvatarURL, channelIDStr, serverVirtualChannelID, true
 }
 
-func (h *Handler) broadcastVoiceState(serverVirtualChannelID, channelID, userID, username, action string) {
+func (h *Handler) broadcastVoiceState(serverVirtualChannelID, channelID, userID, username, avatarURL, action string) {
 	payload, _ := json.Marshal(map[string]string{
 		"channel_id": channelID,
 		"user_id":    userID,
 		"username":   username,
+		"avatar_url": avatarURL,
 		"action":     action,
 	})
 	h.hub.BroadcastToChannel(serverVirtualChannelID, ws.EventVoiceStateUpdate, payload)

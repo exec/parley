@@ -105,6 +105,9 @@ fi
 # Build the frontend
 echo "=== Building Parley frontend ==="
 cd /parley/frontend
+cat > .env << 'EOF'
+VITE_GIPHY_API_KEY=${GIPHY_API_KEY}
+EOF
 run_with_retry "npm ci"
 run_with_retry "npm run build"
 mkdir -p /var/www/parley

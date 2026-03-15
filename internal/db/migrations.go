@@ -325,6 +325,39 @@ CREATE INDEX IF NOT EXISTS idx_server_bans_user_id ON server_bans(user_id);
 	`-- Add bio field to users
 ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT NOT NULL DEFAULT '';
 `,
+
+	`-- Add bot fields to users
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_bot BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS bot_owner_id BIGINT REFERENCES users(id) ON DELETE CASCADE;
+`,
+
+	`-- Add via_api to messages
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS via_api BOOLEAN NOT NULL DEFAULT FALSE;
+`,
+
+	`-- Create api_keys table
+CREATE TABLE IF NOT EXISTS api_keys (
+    id BIGSERIAL PRIMARY KEY,
+    key_hash VARCHAR(64) NOT NULL UNIQUE,
+    key_prefix VARCHAR(16) NOT NULL,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    owner_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL DEFAULT '',
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    last_used_at TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_api_keys_key_hash ON api_keys(key_hash);
+CREATE INDEX IF NOT EXISTS idx_api_keys_owner_id ON api_keys(owner_id);
+`,
+
+	`-- Add badges bitfield to users
+ALTER TABLE users ADD COLUMN IF NOT EXISTS badges INTEGER NOT NULL DEFAULT 0;
+`,
+
+	`-- Add hoist and position to server_roles
+ALTER TABLE server_roles ADD COLUMN IF NOT EXISTS hoist BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE server_roles ADD COLUMN IF NOT EXISTS position INTEGER NOT NULL DEFAULT 0;
+`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

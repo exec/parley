@@ -66,6 +66,8 @@ export const ServerSettings: React.FC<Props> = ({
   const [editRoleName, setEditRoleName] = useState('');
   const [editRoleColor, setEditRoleColor] = useState('');
   const [editRolePerms, setEditRolePerms] = useState(0);
+  const [editRoleHoist, setEditRoleHoist] = useState(false);
+  const [editRolePosition, setEditRolePosition] = useState(0);
   // Member roles
   const [memberRoles, setMemberRoles] = useState<Record<string, Set<string>>>({});
   const [expandedMember, setExpandedMember] = useState<string | null>(null);
@@ -143,6 +145,8 @@ export const ServerSettings: React.FC<Props> = ({
       setEditRoleName(role.name);
       setEditRoleColor(role.color);
       setEditRolePerms(role.permissions ?? 0);
+      setEditRoleHoist(role.hoist ?? false);
+      setEditRolePosition(role.position ?? 0);
     }
   }, [selectedRoleId, roles]);
 
@@ -242,7 +246,7 @@ export const ServerSettings: React.FC<Props> = ({
     setRolesLoading(true);
     setRolesError('');
     try {
-      const updated = await updateServerRole(server.id, selectedRoleId, editRoleName.trim(), editRoleColor, editRolePerms);
+      const updated = await updateServerRole(server.id, selectedRoleId, editRoleName.trim(), editRoleColor, editRolePerms, editRoleHoist, editRolePosition);
       setRoles(prev => prev.map(r => r.id === selectedRoleId ? updated : r));
     } catch (e) {
       setRolesError(e instanceof Error ? e.message : 'Failed to update role');
@@ -518,6 +522,30 @@ export const ServerSettings: React.FC<Props> = ({
                           <input type="color" value={editRoleColor} onChange={e => setEditRoleColor(e.target.value)}
                             style={{ width: 40, height: 32, border: 'none', background: 'none', cursor: 'pointer', padding: 0 }} />
                           <span style={{ fontSize: 13, color: '#777' }}>{editRoleColor}</span>
+                        </div>
+                        <div className="roles-perm-row" style={{ marginBottom: 12 }}>
+                          <div>
+                            <div className="roles-perm-label">Display separately in member list</div>
+                            <div className="roles-perm-desc">Group members with this role under its own section in the sidebar</div>
+                          </div>
+                          <button
+                            type="button"
+                            className={`custom-toggle${editRoleHoist ? ' on' : ''}`}
+                            onClick={() => setEditRoleHoist(h => !h)}
+                            aria-pressed={editRoleHoist}
+                          />
+                        </div>
+                        <div className="settings-form-group" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                          <label className="settings-form-label" style={{ margin: 0 }}>Position</label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={editRolePosition}
+                            onChange={e => setEditRolePosition(Number(e.target.value))}
+                            className="settings-form-input"
+                            style={{ width: 80 }}
+                          />
+                          <span style={{ fontSize: 12, color: '#555' }}>Lower = higher priority</span>
                         </div>
                         <div className="settings-section-title" style={{ marginBottom: 8 }}>Permissions</div>
                         <div className="roles-perms-grid">
