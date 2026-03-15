@@ -156,10 +156,10 @@ func registerRoutes(
 			r.Delete("/developer/keys/{id}", handleRevokeAPIKey(repo))
 			r.Patch("/developer/bots/{botId}", handleRenameBotUser(repo))
 
-			// File upload endpoint - 25MB limit (overrides global 64KB cap)
+			// File upload endpoint - 50MB limit (overrides global 64KB cap)
 			r.With(func(next http.Handler) http.Handler {
 				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					r.Body = http.MaxBytesReader(w, r.Body, 25*1024*1024)
+					r.Body = http.MaxBytesReader(w, r.Body, 50*1024*1024)
 					next.ServeHTTP(w, r)
 				})
 			}).Post("/upload", func(w http.ResponseWriter, r *http.Request) {
