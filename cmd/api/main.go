@@ -22,6 +22,7 @@ import (
 	"parley/internal/message"
 	"parley/internal/server"
 	"parley/internal/spaces"
+	"parley/internal/voice"
 	"parley/internal/websocket"
 )
 
@@ -153,8 +154,21 @@ func main() {
 		}
 	}
 
+	// Initialize voice service (optional — requires LIVEKIT_* env vars and Redis)
+	var voiceSvc *voice.Service
+	if redisHub != nil {
+		voiceSvc = voice.NewService(redisHub.Client())
+	} else {
+		voiceSvc = voice.NewService(nil)
+	}
+	if voiceSvc.Configured() {
+		log.Println("LiveKit voice service enabled")
+	} else {
+		log.Println("LiveKit voice service not configured (LIVEKIT_API_KEY/LIVEKIT_API_SECRET/LIVEKIT_URL not set)")
+	}
+
 	// Setup chi router
-	router := setupRouter(config, repo, authService, serverService, channelService, messageService, hub, spacesClient)
+	router := setupRouter(config, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc)
 
 	// Create HTTP server
 	srv := &http.Server{
@@ -200,6 +214,7 @@ func setupRouter(
 	messageService *message.MessageService,
 	hub *websocket.Hub,
 	spacesClient *spaces.Client,
+	voiceSvc *voice.Service,
 ) *chi.Mux {
 	router := chi.NewRouter()
 
@@ -213,7 +228,7 @@ func setupRouter(
 	router.Use(corsMiddleware())
 
 	// Mount routes
-	registerRoutes(router, repo, authService, serverService, channelService, messageService, hub, spacesClient)
+	registerRoutes(router, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc)
 
 	return router
 }

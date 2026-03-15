@@ -1,0 +1,27 @@
+import { apiClient } from './client';
+
+export interface VoiceToken {
+  token: string;
+  url: string;
+}
+
+export interface VoiceParticipant {
+  user_id: string;
+  username: string;
+}
+
+export async function getVoiceToken(channelId: string): Promise<VoiceToken> {
+  return apiClient.get<VoiceToken>(`/channels/${channelId}/voice/token`);
+}
+
+export async function joinVoiceChannel(channelId: string): Promise<void> {
+  return apiClient.post<void>(`/channels/${channelId}/voice/join`, {});
+}
+
+export async function leaveVoiceChannel(channelId: string): Promise<void> {
+  return apiClient.post<void>(`/channels/${channelId}/voice/leave`, {});
+}
+
+export async function getVoiceParticipants(channelId: string): Promise<VoiceParticipant[]> {
+  return apiClient.get<VoiceParticipant[]>(`/channels/${channelId}/voice/participants`);
+}

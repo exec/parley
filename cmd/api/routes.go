@@ -24,6 +24,7 @@ import (
 	"parley/internal/message"
 	"parley/internal/server"
 	"parley/internal/spaces"
+	"parley/internal/voice"
 	ws "parley/internal/websocket"
 )
 
@@ -37,6 +38,7 @@ func registerRoutes(
 	messageService *message.MessageService,
 	hub *ws.Hub,
 	spacesClient *spaces.Client,
+	voiceSvc *voice.Service,
 ) {
 	// Cap request bodies at 64 KB for all routes except /api/upload,
 	// which applies its own 25 MB limit inside the handler.
@@ -114,6 +116,13 @@ func registerRoutes(
 			r.Put("/messages/{id}", messageHandler.EditMessage)
 			r.Delete("/messages/{id}", messageHandler.DeleteMessage)
 			r.Post("/messages/{id}/reactions", messageHandler.ToggleReaction)
+
+			// Voice routes
+			voiceHandler := voice.NewHandler(voiceSvc, repo, hub)
+			r.Get("/channels/{channelId}/voice/token", voiceHandler.Token)
+			r.Post("/channels/{channelId}/voice/join", voiceHandler.Join)
+			r.Post("/channels/{channelId}/voice/leave", voiceHandler.Leave)
+			r.Get("/channels/{channelId}/voice/participants", voiceHandler.Participants)
 
 			// DM routes
 			dmHandler := dm.NewHandler(repo, hub)

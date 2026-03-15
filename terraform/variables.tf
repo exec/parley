@@ -127,3 +127,23 @@ variable "admin_impersonate_secret" {
   sensitive   = true
   default     = ""
 }
+
+variable "livekit_api_key" {
+  description = "LiveKit API key (used by API servers to issue tokens and the VC droplet to authenticate them)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "livekit_api_secret" {
+  description = "LiveKit API secret (HMAC key for JWT signing)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "livekit_url" {
+  description = "Public WSS URL clients connect to for voice (e.g. wss://vc.parley.x86-64.com)"
+  type        = string
+  default     = "wss://vc.parley.x86-64.com"
+}

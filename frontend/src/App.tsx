@@ -7,7 +7,8 @@ import { VerifyEmail } from './pages/VerifyEmail';
 import { Impersonate } from './pages/Impersonate';
 import { AppProvider, useApp } from './context/AppContext';
 import { Landing } from './pages/Landing';
-import { useWebSocket, MemberRoleUpdate, UserUpdate } from './hooks/useWebSocket';
+import { useWebSocket, MemberRoleUpdate, UserUpdate, VoiceStateUpdate } from './hooks/useWebSocket';
+import { VoiceChannel } from './components/voice/VoiceChannel';
 import { DmMessage } from './api/types';
 import * as serversApi from './api/servers';
 import * as channelsApi from './api/channels';
@@ -82,7 +83,6 @@ function MainApp() {
 
   const [showCreateServer, setShowCreateServer] = useState(false);
   const [showCreateChannel, setShowCreateChannel] = useState(false);
-  const [showVoiceModal, setShowVoiceModal] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
   const [showServerSettings, setShowServerSettings] = useState(false);
@@ -92,6 +92,10 @@ function MainApp() {
   const [showAssignRoles, setShowAssignRoles] = useState(false);
   const [assignRolesUserId, setAssignRolesUserId] = useState('');
   const [assignRolesUsername, setAssignRolesUsername] = useState('');
+
+  // Voice state: channelId → list of participants
+  const [voiceParticipants, setVoiceParticipants] = useState<Record<string, { user_id: string; username: string }[]>>({});
+  const [activeVoiceChannel, setActiveVoiceChannel] = useState<string | null>(null);
 
   // Typing indicators: channelId → list of typing users
   const [typingUsers, setTypingUsers] = useState<Record<string, { userId: string; username: string }[]>>({});
@@ -214,6 +218,19 @@ function MainApp() {
   const handleUserUpdate = useCallback((update: UserUpdate) => {
     receiveUserUpdate(update);
   }, [receiveUserUpdate]);
+
+  const handleVoiceStateUpdate = useCallback((update: VoiceStateUpdate) => {
+    setVoiceParticipants(prev => {
+      const list = prev[update.channel_id] ?? [];
+      if (update.action === 'join') {
+        if (list.some(p => p.user_id === update.user_id)) return prev;
+        return { ...prev, [update.channel_id]: [...list, { user_id: update.user_id, username: update.username }] };
+      } else {
+        const filtered = list.filter(p => p.user_id !== update.user_id);
+        return { ...prev, [update.channel_id]: filtered };
+      }
+    });
+  }, []);
 
   const clearTypingUser = useCallback((channelId: string, userId: string) => {
     const key = `${channelId}:${userId}`;
@@ -360,6 +377,7 @@ function MainApp() {
     onServerDelete: handleServerDelete,
     onMemberRoleUpdate: handleMemberRoleUpdate,
     onUserUpdate: handleUserUpdate,
+    onVoiceStateUpdate: handleVoiceStateUpdate,
     activeChannelId: activeChannel?.id ?? null,
     extraChannelIds,
   });
@@ -409,7 +427,9 @@ function MainApp() {
       currentUser={currentUser ?? undefined}
       onLogout={logout}
       onOpenSettings={() => setShowUserSettings(true)}
-      onVoiceChannelClick={() => setShowVoiceModal(true)}
+      onVoiceChannelClick={(channelId) => setActiveVoiceChannel(channelId)}
+      voiceParticipants={voiceParticipants}
+      activeVoiceChannelId={activeVoiceChannel}
       channelUnreadCounts={unreadCounts}
       canManageChannels={canManageChannels}
       onRenameChannel={async (channelId, newName) => {
@@ -460,7 +480,20 @@ function MainApp() {
 
   // Build main content
   let mainContent: React.ReactNode;
-  if (view === 'homepage') {
+  if (activeVoiceChannel && currentUser) {
+    const vc = channels.find(c => c.id === activeVoiceChannel);
+    if (vc) {
+      mainContent = (
+        <VoiceChannel
+          channel={vc}
+          currentUserId={currentUser.id}
+          currentUsername={currentUser.username}
+          participants={voiceParticipants[activeVoiceChannel] ?? []}
+          onLeave={() => setActiveVoiceChannel(null)}
+        />
+      );
+    }
+  } else if (view === 'homepage') {
     mainContent = (
       <Homepage
         currentUser={currentUser}
@@ -574,21 +607,6 @@ function MainApp() {
         initialTab={serverSettingsInitialTab}
       />
 
-      {showVoiceModal && (
-        <div className="modal-overlay" onClick={() => setShowVoiceModal(false)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2 className="modal-title">Voice Channels</h2>
-              <button className="modal-close" onClick={() => setShowVoiceModal(false)}>&times;</button>
-            </div>
-            <div className="modal-body">
-              <p style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '20px 0' }}>
-                Voice channels are coming soon!
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }

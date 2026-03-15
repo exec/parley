@@ -148,7 +148,9 @@ interface ChannelListProps {
   currentUser?: User;
   onLogout?: () => void;
   onOpenSettings?: () => void;
-  onVoiceChannelClick?: () => void;
+  onVoiceChannelClick?: (channelId: string) => void;
+  voiceParticipants?: Record<string, { user_id: string; username: string }[]>;
+  activeVoiceChannelId?: string | null;
   channelUnreadCounts?: Record<string, number>;
   canManageChannels?: boolean;
   onRenameChannel?: (channelId: string, newName: string) => void;
@@ -170,6 +172,8 @@ const ChannelList: React.FC<ChannelListProps> = ({
   onLogout,
   onOpenSettings,
   onVoiceChannelClick,
+  voiceParticipants = {},
+  activeVoiceChannelId = null,
   channelUnreadCounts = {},
   canManageChannels = false,
   onRenameChannel,
@@ -315,28 +319,46 @@ const ChannelList: React.FC<ChannelListProps> = ({
           </div>
         </div>
 
-        {!voiceChannelsCollapsed && voiceChannels.map(channel => (
-          <div
-            key={channel.id}
-            className={`voice-channel-item ${channel.id === activeChannelId ? 'active' : ''}`}
-            onClick={() => onVoiceChannelClick?.()}
-            onContextMenu={e => { e.preventDefault(); setChannelContextMenu({ channel, top: e.clientY, left: e.clientX }); }}
-            onMouseEnter={() => setHoveredChannel(channel.id)}
-            onMouseLeave={() => setHoveredChannel(null)}
-          >
-            <span className="voice-icon">🔊</span>
-            <span className="channel-name">{channel.name}</span>
-            {canManageChannels && hoveredChannel === channel.id && (
-              <button
-                className="delete-channel-btn"
-                onClick={e => { e.stopPropagation(); onDeleteChannel(channel.id); }}
-                title="Delete channel"
+        {!voiceChannelsCollapsed && voiceChannels.map(channel => {
+          const participants = voiceParticipants[channel.id] ?? [];
+          const isActive = channel.id === activeVoiceChannelId;
+          return (
+            <div key={channel.id}>
+              <div
+                className={`voice-channel-item ${isActive ? 'active' : ''}`}
+                onClick={() => onVoiceChannelClick?.(channel.id)}
+                onContextMenu={e => { e.preventDefault(); setChannelContextMenu({ channel, top: e.clientY, left: e.clientX }); }}
+                onMouseEnter={() => setHoveredChannel(channel.id)}
+                onMouseLeave={() => setHoveredChannel(null)}
               >
-                ×
-              </button>
-            )}
-          </div>
-        ))}
+                <span className="voice-icon">🔊</span>
+                <span className="channel-name">{channel.name}</span>
+                {participants.length > 0 && (
+                  <span className="voice-count">{participants.length}</span>
+                )}
+                {canManageChannels && hoveredChannel === channel.id && (
+                  <button
+                    className="delete-channel-btn"
+                    onClick={e => { e.stopPropagation(); onDeleteChannel(channel.id); }}
+                    title="Delete channel"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+              {participants.length > 0 && (
+                <div className="voice-participants-list">
+                  {participants.map(p => (
+                    <div key={p.user_id} className="voice-participant-row">
+                      <span className="voice-participant-dot" />
+                      {p.username}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
 
         {(owner_id === currentUser?.id) && (
           <div className="channel-item manage-roles-item" onClick={onManageRoles}>

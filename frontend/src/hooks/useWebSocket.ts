@@ -26,6 +26,13 @@ export interface UserUpdate {
   avatar_url: string;
 }
 
+export interface VoiceStateUpdate {
+  channel_id: string;
+  user_id: string;
+  username: string;
+  action: 'join' | 'leave';
+}
+
 interface UseWebSocketOptions {
   onMessage: (msg: Message) => void;
   onDmMessage?: (msg: DmMessage) => void;
@@ -47,11 +54,12 @@ interface UseWebSocketOptions {
   onServerDelete?: (serverId: string) => void;
   onMemberRoleUpdate?: (update: MemberRoleUpdate) => void;
   onUserUpdate?: (update: UserUpdate) => void;
+  onVoiceStateUpdate?: (update: VoiceStateUpdate) => void;
   activeChannelId: string | null;
   extraChannelIds?: string[]; // Additional channels to subscribe to for notifications
 }
 
-export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onServerMemberLeave, onServerMemberKick, onServerMemberBan, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, onChannelCreate, onChannelUpdate, onChannelDelete, onServerUpdate, onServerDelete, onMemberRoleUpdate, onUserUpdate, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
+export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onServerMemberLeave, onServerMemberKick, onServerMemberBan, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, onChannelCreate, onChannelUpdate, onChannelDelete, onServerUpdate, onServerDelete, onMemberRoleUpdate, onUserUpdate, onVoiceStateUpdate, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const subscribedChannelsRef = useRef<Set<string>>(new Set());
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -80,6 +88,7 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
   const onServerDeleteRef = useRef(onServerDelete);
   const onMemberRoleUpdateRef = useRef(onMemberRoleUpdate);
   const onUserUpdateRef = useRef(onUserUpdate);
+  const onVoiceStateUpdateRef = useRef(onVoiceStateUpdate);
   useEffect(() => { onMessageRef.current = onMessage; }, [onMessage]);
   useEffect(() => { onDmMessageRef.current = onDmMessage; }, [onDmMessage]);
   useEffect(() => { onServerMemberJoinRef.current = onServerMemberJoin; }, [onServerMemberJoin]);
@@ -100,6 +109,7 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
   useEffect(() => { onServerDeleteRef.current = onServerDelete; }, [onServerDelete]);
   useEffect(() => { onMemberRoleUpdateRef.current = onMemberRoleUpdate; }, [onMemberRoleUpdate]);
   useEffect(() => { onUserUpdateRef.current = onUserUpdate; }, [onUserUpdate]);
+  useEffect(() => { onVoiceStateUpdateRef.current = onVoiceStateUpdate; }, [onVoiceStateUpdate]);
 
   const sendTyping = useCallback((channelId: string, username: string) => {
     const ws = wsRef.current;
@@ -227,6 +237,10 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
         } else if (wsMsg.type === 'USER_UPDATE' && onUserUpdateRef.current) {
           if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
             onUserUpdateRef.current(wsMsg.payload as UserUpdate);
+          }
+        } else if (wsMsg.type === 'VOICE_STATE_UPDATE' && onVoiceStateUpdateRef.current) {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            onVoiceStateUpdateRef.current(wsMsg.payload as VoiceStateUpdate);
           }
         }
       } catch (err) {

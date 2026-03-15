@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+
+	goredis "github.com/redis/go-redis/v9"
 )
 
 const redisChannel = "parley:events"
@@ -121,4 +123,9 @@ func (r *RedisHub) PublishToUser(userID, event string, data []byte) {
 // Close shuts down the Redis connection.
 func (r *RedisHub) Close() error {
 	return r.pubsub.Close()
+}
+
+// Client returns the underlying Redis client for use by other services.
+func (r *RedisHub) Client() *goredis.Client {
+	return r.pubsub.Client()
 }

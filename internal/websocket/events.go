@@ -34,4 +34,7 @@ const (
 
 	// User update
 	EventUserUpdate = "USER_UPDATE"
+
+	// Voice events
+	EventVoiceStateUpdate = "VOICE_STATE_UPDATE"
 )
