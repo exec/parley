@@ -269,11 +269,15 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername, cu
 	if bannerURL != "" {
 		dbUser.BannerURL = bannerURL
 	}
-	dbUser.Bio = bio
-	if validation.HasSpoofedLink(bio) {
-		return User{}, errors.New("bio contains a spoofed link")
+	if bio != "" {
+		if validation.HasSpoofedLink(bio) {
+			return User{}, errors.New("bio contains a spoofed link")
+		}
+		dbUser.Bio = bio
 	}
-	dbUser.DisplayName = displayName
+	if displayName != "" {
+		dbUser.DisplayName = displayName
+	}
 
 	if err := s.repo.UpdateUser(ctx, dbUser); err != nil {
 		return User{}, err
