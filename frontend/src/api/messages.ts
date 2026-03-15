@@ -1,6 +1,21 @@
 import { apiClient } from './client';
 import { Message } from './types';
 
+export interface MessageVersion {
+  id: string;
+  message_id: string;
+  content: string;
+  edited_at: string;
+}
+
+export async function getMessageVersions(messageId: string): Promise<MessageVersion[]> {
+  const res = await fetch(`/api/messages/${messageId}/versions`, {
+    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+  });
+  if (!res.ok) throw new Error('Failed to fetch versions');
+  return res.json();
+}
+
 export interface GetMessagesParams {
   limit?: number;
   offset?: number;
@@ -33,13 +48,14 @@ export async function getMessages(
   return apiClient.get<Message[]>(endpoint);
 }
 
-export async function sendMessage(channelId: string, content: string, nonce?: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string): Promise<Message> {
+export async function sendMessage(channelId: string, content: string, nonce?: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string, parentId?: string): Promise<Message> {
   return apiClient.post<Message>(`/channels/${channelId}/messages`, {
     content,
     nonce,
     attachment_url: attachmentUrl || '',
     attachment_name: attachmentName || '',
     attachment_type: attachmentType || '',
+    ...(parentId ? { parent_id: parentId } : {}),
   });
 }
 
