@@ -3,6 +3,8 @@ package db
 import (
 	"database/sql"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 // ChannelType represents the type of channel
@@ -214,4 +216,78 @@ type APIKeyInfo struct {
 	BotUsername string     `json:"bot_username,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 	LastUsedAt  *time.Time `json:"last_used_at,omitempty"`
+}
+
+// BinPost represents a post in a bin channel.
+type BinPost struct {
+	ID              int64          `json:"id" db:"id"`
+	ChannelID       int64          `json:"channel_id" db:"channel_id"`
+	ThreadChannelID int64          `json:"thread_channel_id" db:"thread_channel_id"`
+	AuthorID        int64          `json:"author_id" db:"author_id"`
+	Title           string         `json:"title" db:"title"`
+	Description     string         `json:"description" db:"description"`
+	Tags            pq.StringArray `json:"tags" db:"tags"`
+	CreatedAt       time.Time      `json:"created_at" db:"created_at"`
+	UpdatedAt       time.Time      `json:"updated_at" db:"updated_at"`
+	// Computed fields
+	AuthorUsername    string        `json:"author_username" db:"-"`
+	AuthorAvatarURL  string        `json:"author_avatar_url,omitempty" db:"-"`
+	Files            []BinPostFile `json:"files,omitempty" db:"-"`
+	CommentCount     int           `json:"comment_count" db:"-"`
+	LineCommentCount int           `json:"line_comment_count" db:"-"`
+	VersionCount     int           `json:"version_count" db:"-"`
+}
+
+// BinPostFile represents a code file attached to a bin post.
+type BinPostFile struct {
+	ID       int64  `json:"id" db:"id"`
+	PostID   int64  `json:"post_id" db:"post_id"`
+	Filename string `json:"filename" db:"filename"`
+	Language string `json:"language" db:"language"`
+	Content  string `json:"content" db:"content"`
+	Position int    `json:"position" db:"position"`
+}
+
+// BinPostVersion represents a version snapshot of a bin post.
+type BinPostVersion struct {
+	ID          int64     `json:"id" db:"id"`
+	PostID      int64     `json:"post_id" db:"post_id"`
+	Version     int       `json:"version" db:"version"`
+	Description string    `json:"description" db:"description"`
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+	Files []BinPostVersionFile `json:"files,omitempty" db:"-"`
+}
+
+// BinPostVersionFile represents a file snapshot within a version.
+type BinPostVersionFile struct {
+	ID        int64  `json:"id" db:"id"`
+	VersionID int64  `json:"version_id" db:"version_id"`
+	Filename  string `json:"filename" db:"filename"`
+	Language  string `json:"language" db:"language"`
+	Content   string `json:"content" db:"content"`
+	Position  int    `json:"position" db:"position"`
+}
+
+// BinLineComment represents a comment anchored to a specific line in a file version.
+type BinLineComment struct {
+	ID         int64     `json:"id" db:"id"`
+	PostID     int64     `json:"post_id" db:"post_id"`
+	VersionID  int64     `json:"version_id" db:"version_id"`
+	FileID     int64     `json:"file_id" db:"file_id"`
+	LineNumber int       `json:"line_number" db:"line_number"`
+	AuthorID   int64     `json:"author_id" db:"author_id"`
+	Content    string    `json:"content" db:"content"`
+	ParentID   *int64    `json:"parent_id,omitempty" db:"parent_id"`
+	CreatedAt  time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at" db:"updated_at"`
+	AuthorUsername  string `json:"author_username" db:"-"`
+	AuthorAvatarURL string `json:"author_avatar_url,omitempty" db:"-"`
+}
+
+// BinChannelTag represents an admin-defined tag for a bin channel.
+type BinChannelTag struct {
+	ID        int64  `json:"id" db:"id"`
+	ChannelID int64  `json:"channel_id" db:"channel_id"`
+	Name      string `json:"name" db:"name"`
+	Color     string `json:"color" db:"color"`
 }
