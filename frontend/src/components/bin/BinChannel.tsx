@@ -2,17 +2,22 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { BinPost, BinChannelTag } from '../../api/types';
 import { listPosts, getTags } from '../../api/bin';
 import { PostListItem } from './PostListItem';
+import { usePermissions } from '../../hooks/usePermissions';
+import { PERM_CREATE_POSTS } from '../../lib/permissions';
 import './BinChannel.css';
 
 type SortOption = 'newest' | 'oldest' | 'recently_active';
 
 interface BinChannelProps {
   channelId: string;
+  serverId?: string;
   onOpenPost: (postId: string) => void;
   onNewPost: () => void;
 }
 
-export const BinChannel: React.FC<BinChannelProps> = ({ channelId, onOpenPost, onNewPost }) => {
+export const BinChannel: React.FC<BinChannelProps> = ({ channelId, serverId, onOpenPost, onNewPost }) => {
+  const { hasPerm: checkPerm } = usePermissions(serverId, channelId);
+  const canCreatePosts = !serverId || checkPerm(PERM_CREATE_POSTS);
   const [posts, setPosts] = useState<BinPost[]>([]);
   const [tags, setTags] = useState<BinChannelTag[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,9 +88,11 @@ export const BinChannel: React.FC<BinChannelProps> = ({ channelId, onOpenPost, o
           <span className="bin-channel-icon">&lt;/&gt;</span>
           Bin
         </div>
-        <button className="bin-new-post-btn" onClick={onNewPost}>
-          + New Post
-        </button>
+        {canCreatePosts && (
+          <button className="bin-new-post-btn" onClick={onNewPost}>
+            + New Post
+          </button>
+        )}
       </div>
 
       <div className="bin-filter-bar">

@@ -17,6 +17,8 @@ interface MessageListProps {
   hasMore?: boolean;
   isLoading?: boolean;
   allMessages?: MessageType[];
+  canManageMessages?: boolean;
+  canAddReactions?: boolean;
 }
 
 export const MessageList: React.FC<MessageListProps> = ({
@@ -33,6 +35,8 @@ export const MessageList: React.FC<MessageListProps> = ({
   hasMore = false,
   isLoading = false,
   allMessages,
+  canManageMessages = true,
+  canAddReactions = true,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true);
@@ -177,6 +181,8 @@ export const MessageList: React.FC<MessageListProps> = ({
               onReply={onReply}
               onViewProfile={onViewProfile}
               onSendMessage={onSendMessage}
+              canManageMessages={canManageMessages}
+              canAddReactions={canAddReactions}
             />
           ))}
         </div>

@@ -3,6 +3,8 @@ import { Channel, Message as MessageType, ServerMember } from '../../api/types';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { TypingIndicator } from './TypingIndicator';
+import { usePermissions } from '../../hooks/usePermissions';
+import { PERM_MANAGE_MESSAGES, PERM_ADD_REACTIONS } from '../../lib/permissions';
 import './Chat.css';
 
 interface TypingUser {
@@ -63,6 +65,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   headerAvatar,
   isOnline,
 }) => {
+  const { hasPerm: checkPerm } = usePermissions(channel.server_id || undefined, channel.id || undefined);
+  const canManageMessages = !channel.server_id || checkPerm(PERM_MANAGE_MESSAGES);
+  const canAddReactions = !channel.server_id || checkPerm(PERM_ADD_REACTIONS);
+
   const replyValue = replyTo ? `@${replyTo.author_username} ` : '';
   const [editingTopic, setEditingTopic] = useState(false);
   const [topicValue, setTopicValue] = useState(channel.topic ?? '');
@@ -153,6 +159,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         hasMore={hasMore}
         isLoading={isLoading}
         allMessages={messages}
+        canManageMessages={canManageMessages}
+        canAddReactions={canAddReactions}
       />
       <TypingIndicator typingUsers={typingUsers} />
       <MessageInput
@@ -162,6 +170,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         initialValue={replyValue}
         members={members}
         replyTo={replyTo}
+        serverId={channel.server_id || undefined}
+        channelId={channel.id || undefined}
       />
     </div>
   );

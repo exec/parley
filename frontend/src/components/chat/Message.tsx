@@ -23,6 +23,8 @@ interface MessageProps {
   onReply?: (message: MessageType) => void;
   onViewProfile?: (userId: string, username: string) => void;
   onSendMessage?: (userId: string) => void;
+  canManageMessages?: boolean;
+  canAddReactions?: boolean;
 }
 
 /** Returns the number of emoji if the text is 1–5 emoji only, else null. */
@@ -129,6 +131,8 @@ export const Message: React.FC<MessageProps> = ({
   onReply,
   onViewProfile,
   onSendMessage,
+  canManageMessages = true,
+  canAddReactions = true,
 }) => {
   const [showActions, setShowActions] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -424,12 +428,17 @@ export const Message: React.FC<MessageProps> = ({
       {showActions && !isEditing && (
         <div className="message-actions">
           <button className="message-action-btn" onClick={handleReply} title="Reply">↩</button>
-          <button className="message-action-btn" onClick={(e) => { e.stopPropagation(); setShowEmojiPicker(p => !p); }} title="Add reaction">😊</button>
+          {canAddReactions && (
+            <button className="message-action-btn" onClick={(e) => { e.stopPropagation(); setShowEmojiPicker(p => !p); }} title="Add reaction">😊</button>
+          )}
           {isOwnMessage && (
             <>
               <button className="message-action-btn" onClick={handleEdit} title="Edit">✎</button>
               <button className="message-action-btn delete" onClick={handleDelete} title="Delete">🗑</button>
             </>
+          )}
+          {!isOwnMessage && canManageMessages && (
+            <button className="message-action-btn delete" onClick={handleDelete} title="Delete (Manage Messages)">🗑</button>
           )}
         </div>
       )}
@@ -458,6 +467,12 @@ export const Message: React.FC<MessageProps> = ({
           {isOwnMessage && (
             <>
               <button className="context-menu-item" onClick={handleEdit}>Edit Message</button>
+              <div className="context-menu-divider" />
+              <button className="context-menu-item danger" onClick={handleDelete}>Delete Message</button>
+            </>
+          )}
+          {!isOwnMessage && canManageMessages && (
+            <>
               <div className="context-menu-divider" />
               <button className="context-menu-item danger" onClick={handleDelete}>Delete Message</button>
             </>

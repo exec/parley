@@ -7,6 +7,8 @@ import { detectMention, useMentionSuggestions, insertMentionText, resolveMention
 import { detectEmojiTrigger, useEmojiSuggestions, insertEmoji, resolveEmojis, EmojiSuggestion } from '../../hooks/useEmojiAutocomplete';
 import { EmojiDropdown } from './EmojiDropdown';
 import { Message as MessageType, ServerMember } from '../../api/types';
+import { usePermissions } from '../../hooks/usePermissions';
+import { PERM_SEND_MESSAGES, PERM_ATTACH_FILES } from '../../lib/permissions';
 import './Chat.css';
 
 interface MessageInputProps {
@@ -18,6 +20,8 @@ interface MessageInputProps {
   initialValue?: string;
   members?: ServerMember[];
   replyTo?: MessageType | null;
+  serverId?: string;
+  channelId?: string;
 }
 
 const PaperclipIcon = () => (
@@ -59,7 +63,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   initialValue = '',
   members = [],
   replyTo,
+  serverId,
+  channelId,
 }) => {
+  const { hasPerm: checkPerm, loading: permsLoading } = usePermissions(serverId, channelId);
+  const canSend = !serverId || permsLoading || checkPerm(PERM_SEND_MESSAGES);
+  const canAttach = !serverId || permsLoading || checkPerm(PERM_ATTACH_FILES);
   const [message, setMessage] = useState(initialValue);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -300,7 +309,27 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   }, [isRecording, startRecording, stopRecording]);
 
   const isBusy = disabled || isUploading;
-  const defaultPlaceholder = `Message #${channelName}`;
+  const defaultPlaceholder = !canSend
+    ? 'You do not have permission to send messages in this channel.'
+    : `Message #${channelName}`;
+
+  if (!canSend) {
+    return (
+      <div className="message-input-container">
+        <div className="message-input-row">
+          <div className="message-input-wrapper" style={{ opacity: 0.5, cursor: 'not-allowed' }}>
+            <textarea
+              className="message-textarea"
+              placeholder="You do not have permission to send messages in this channel."
+              disabled
+              rows={1}
+              style={{ cursor: 'not-allowed' }}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="message-input-container">
@@ -359,6 +388,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         />
 
         <div className="message-input-wrapper">
+          {canAttach && (
           <button
             type="button"
             className="input-icon-btn attach-btn"
@@ -368,6 +398,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           >
             <PaperclipIcon />
           </button>
+          )}
           <button
             type="button"
             className={`input-icon-btn gif-btn${showGifPicker ? ' gif-btn--active' : ''}`}

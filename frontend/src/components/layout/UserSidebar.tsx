@@ -27,6 +27,8 @@ interface UserContextMenuProps {
   isCurrentUser: boolean;
   isOwner: boolean;
   canManageRoles: boolean;
+  canKickMembers?: boolean;
+  canBanMembers?: boolean;
   position: { top: number; left: number };
   onClose: () => void;
   onSendMessage?: (userId: string) => void;
@@ -36,8 +38,8 @@ interface UserContextMenuProps {
 }
 
 const UserContextMenu: React.FC<UserContextMenuProps> = ({
-  member, isCurrentUser, isOwner, canManageRoles, position, onClose,
-  onSendMessage, onManageRoles, onKick, onBan,
+  member, isCurrentUser, isOwner, canManageRoles, canKickMembers, canBanMembers,
+  position, onClose, onSendMessage, onManageRoles, onKick, onBan,
 }) => {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -65,15 +67,19 @@ const UserContextMenu: React.FC<UserContextMenuProps> = ({
           Manage Roles
         </button>
       )}
-      {canManageRoles && !isCurrentUser && !isOwner && (
+      {!isCurrentUser && !isOwner && (canKickMembers || canBanMembers) && (
         <>
           <div className="user-context-menu-divider" />
-          <button className="user-context-menu-item" style={{ color: '#FFB347' }} onClick={() => { onKick?.(member.user_id); onClose(); }}>
-            Kick Member
-          </button>
-          <button className="user-context-menu-item" style={{ color: '#FF4444' }} onClick={() => { onBan?.(member.user_id); onClose(); }}>
-            Ban Member
-          </button>
+          {canKickMembers && (
+            <button className="user-context-menu-item" style={{ color: '#FFB347' }} onClick={() => { onKick?.(member.user_id); onClose(); }}>
+              Kick Member
+            </button>
+          )}
+          {canBanMembers && (
+            <button className="user-context-menu-item" style={{ color: '#FF4444' }} onClick={() => { onBan?.(member.user_id); onClose(); }}>
+              Ban Member
+            </button>
+          )}
         </>
       )}
     </div>
@@ -165,6 +171,7 @@ interface UserSidebarProps {
   onlineUserIds?: Set<string>;
   currentUserIsOwner?: boolean;
   canKickMembers?: boolean;
+  canBanMembers?: boolean;
   onManageRoles?: (memberId: string) => void;
   onKick?: (userId: string) => void;
   onBan?: (userId: string) => void;
@@ -172,7 +179,7 @@ interface UserSidebarProps {
 
 const UserSidebar: React.FC<UserSidebarProps> = ({
   members, ownerId, currentUserId, onViewProfile, onSendMessage,
-  onlineUserIds, currentUserIsOwner, canKickMembers, onManageRoles, onKick, onBan,
+  onlineUserIds, currentUserIsOwner, canKickMembers, canBanMembers, onManageRoles, onKick, onBan,
 }) => {
   const [miniProfile, setMiniProfile] = useState<{ member: ServerMember; position: { top: number; left: number } } | null>(null);
   const [contextMenu, setContextMenu] = useState<{ member: ServerMember; position: { top: number; left: number } } | null>(null);
@@ -282,6 +289,8 @@ const UserSidebar: React.FC<UserSidebarProps> = ({
           isCurrentUser={contextMenu.member.user_id === currentUserId}
           isOwner={contextMenu.member.user_id === ownerId}
           canManageRoles={currentUserIsOwner === true || canKickMembers === true}
+          canKickMembers={canKickMembers}
+          canBanMembers={canBanMembers}
           position={contextMenu.position}
           onClose={() => setContextMenu(null)}
           onSendMessage={onSendMessage}
