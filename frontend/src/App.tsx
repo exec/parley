@@ -30,6 +30,7 @@ import { AssignRolesModal } from './components/modals/AssignRolesModal';
 import { UserSettings } from './components/settings/UserSettings';
 import { ServerSettings } from './components/settings/ServerSettings';
 import { NotificationSettingsModal, getNotifPref } from './components/modals/NotificationSettingsModal';
+import { ChannelSettingsModal } from './components/modals/ChannelSettingsModal';
 import { useNotifications } from './hooks/useNotifications';
 import { useVoiceConnection } from './hooks/useVoiceConnection';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -105,6 +106,10 @@ function MainApp() {
   const [assignRolesUserId, setAssignRolesUserId] = useState('');
   const [assignRolesUsername, setAssignRolesUsername] = useState('');
 
+  // Channel settings modal
+  const [showChannelSettings, setShowChannelSettings] = useState(false);
+  const [channelSettingsId, setChannelSettingsId] = useState('');
+
   // Notification settings modal
   const [showNotifSettings, setShowNotifSettings] = useState(false);
   const [notifSettingsServerId, setNotifSettingsServerId] = useState('');
@@ -168,8 +173,10 @@ function MainApp() {
   const effectivePermissions = isServerOwner
     ? ~0 // all bits set
     : (currentMember?.roles ?? []).reduce((acc, role) => acc | (role.permissions ?? 0), 0);
-  const canManageChannels = isServerOwner || (effectivePermissions & 4) !== 0;
-  const canKickMembers = isServerOwner || (effectivePermissions & 8) !== 0;
+  // Bit 0 = Administrator, Bit 3 = ManageChannels, Bit 4 = KickMembers, Bit 5 = BanMembers
+  const canManageChannels = isServerOwner || (effectivePermissions & (1 | 8)) !== 0;
+  const canKickMembers = isServerOwner || (effectivePermissions & (1 | 16)) !== 0;
+  const canBanMembers = isServerOwner || (effectivePermissions & (1 | 32)) !== 0;
 
   // Restore state from URL once servers are loaded
   useEffect(() => {
@@ -552,6 +559,7 @@ function MainApp() {
         receiveChannelUpdate(updated);
       }}
       onMarkChannelRead={(channelId) => setUnreadCounts(prev => ({ ...prev, [channelId]: 0 }))}
+      onChannelSettings={(channelId) => { setChannelSettingsId(channelId); setShowChannelSettings(true); }}
       vcConnected={vcConnected}
       vcMuted={vcMuted}
       vcDeafened={vcDeafened}
@@ -585,6 +593,7 @@ function MainApp() {
       onlineUserIds={onlineUsers}
       currentUserIsOwner={isServerOwner}
       canKickMembers={canKickMembers}
+      canBanMembers={canBanMembers}
       onManageRoles={(userId) => {
         const m = members.find(mem => mem.user_id === userId);
         setAssignRolesUserId(userId);
@@ -612,6 +621,7 @@ function MainApp() {
     ) : (
       <BinChannel
         channelId={activeChannel.id}
+        serverId={activeServer?.id}
         onOpenPost={setActivePostId}
         onNewPost={() => setShowCreatePost(true)}
       />
@@ -833,6 +843,17 @@ function MainApp() {
         serverId={notifSettingsServerId}
         serverName={servers.find(s => s.id === notifSettingsServerId)?.name ?? ''}
       />
+
+      {showChannelSettings && activeServer && (
+        <ChannelSettingsModal
+          isOpen={showChannelSettings}
+          onClose={() => setShowChannelSettings(false)}
+          channelId={channelSettingsId}
+          channelName={channels.find(c => c.id === channelSettingsId)?.name ?? ''}
+          serverId={activeServer.id}
+          parentId={channels.find(c => c.id === channelSettingsId)?.parent_id}
+        />
+      )}
 
       {showCreatePost && activeChannel?.type === 2 && (
         <CreatePostModal

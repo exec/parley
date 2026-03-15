@@ -92,7 +92,8 @@ const ChannelContextMenu: React.FC<{
   onRename: () => void;
   onDelete: () => void;
   onMarkAsRead: () => void;
-}> = ({ channel, position, canManageChannels, onClose, onRename, onDelete, onMarkAsRead }) => {
+  onChannelSettings?: () => void;
+}> = ({ channel, position, canManageChannels, onClose, onRename, onDelete, onMarkAsRead, onChannelSettings }) => {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const handle = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose(); };
@@ -109,6 +110,9 @@ const ChannelContextMenu: React.FC<{
       {canManageChannels && (
         <>
           <div className="cl-server-context-divider" />
+          {onChannelSettings && channel.type !== 3 && (
+            <button className="cl-server-context-item" onClick={() => { onChannelSettings(); onClose(); }}>Channel Settings</button>
+          )}
           <button className="cl-server-context-item" onClick={() => { onRename(); onClose(); }}>Rename</button>
           <button className="cl-server-context-item danger" onClick={() => { onDelete(); onClose(); }}>Delete</button>
         </>
@@ -312,6 +316,7 @@ interface ChannelListProps {
   onRenameChannel?: (channelId: string, newName: string) => void;
   onMarkChannelRead?: (channelId: string) => void;
   onReorderChannels?: (orders: ChannelOrder[]) => void;
+  onChannelSettings?: (channelId: string) => void;
   vcConnected?: boolean;
   vcMuted?: boolean;
   vcDeafened?: boolean;
@@ -328,7 +333,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
   onDeleteChannel, onManageRoles, onServerSettings, onLeaveServer,
   owner_id, currentUser, onLogout, onOpenSettings, onVoiceChannelClick,
   voiceParticipants = {}, activeVoiceChannelId = null, channelUnreadCounts = {},
-  canManageChannels = false, onRenameChannel, onMarkChannelRead, onReorderChannels,
+  canManageChannels = false, onRenameChannel, onMarkChannelRead, onReorderChannels, onChannelSettings,
   vcConnected, vcMuted, vcDeafened, onVcMuteToggle, onVcDeafenToggle, onVcLeave, onVcNavigate,
 }) => {
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
@@ -606,6 +611,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
           onRename={() => startRename(channelContextMenu.channel)}
           onDelete={() => onDeleteChannel(channelContextMenu.channel.id)}
           onMarkAsRead={() => onMarkChannelRead?.(channelContextMenu.channel.id)}
+          onChannelSettings={onChannelSettings ? () => onChannelSettings(channelContextMenu.channel.id) : undefined}
         />
       )}
     </div>
