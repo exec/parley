@@ -22,7 +22,7 @@ This feature also introduces three platform-wide capabilities:
 | thread_channel_id | BIGINT FK → channels | Dedicated thread channel for general comments |
 | author_id | BIGINT FK → users | |
 | title | VARCHAR(200) | Required |
-| description | TEXT | Optional markdown body |
+| description | TEXT | Optional markdown body. Supports triple-backtick code blocks with language tags (e.g. \`\`\`python) rendered with Shiki, same as messages. |
 | tags | TEXT[] | Postgres array, mix of admin-defined + freeform |
 | created_at | TIMESTAMP | |
 | updated_at | TIMESTAMP | |
@@ -246,7 +246,7 @@ Replaces `ChatWindow` when `channel_type === 2`. Shows post list with title, aut
 
 #### `CreatePostModal`
 
-Post creation form: title, description (markdown, optional), file editor (add multiple files with filename, language selector, code textarea), tag selector (admin tags as pills + freeform input), preview toggle.
+Post creation form: title, description (markdown with Shiki-highlighted code blocks, optional), file editor (add multiple files with filename, language selector, code textarea), tag selector (admin tags as pills + freeform input), preview toggle.
 
 #### `PostView`
 
