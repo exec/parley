@@ -46,11 +46,6 @@ keys:
 logging:
   level: info
   pion_level: error
-turn:
-  enabled: true
-  domain: $${PUBLIC_IP}
-  udp_port: 3478
-  credential: ${LIVEKIT_API_SECRET}
 EOF
 
 # ── LiveKit systemd service ───────────────────────────────────────────────────
