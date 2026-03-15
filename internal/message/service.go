@@ -247,22 +247,12 @@ func (s *MessageService) EditMessage(ctx context.Context, id, content string) (*
 		return nil, errors.New("invalid message ID")
 	}
 
-	// First get the existing message to get channelID
-	dbMsg, err := s.repo.GetMessageByID(ctx, idInt)
+	// Save current version and update message via repository
+	dbMsg, err := s.repo.EditMessage(ctx, idInt, content)
 	if err != nil {
 		if err == db.ErrNotFound {
 			return nil, errors.New("message not found")
 		}
-		return nil, err
-	}
-
-	// Update the message
-	dbMsg.Content = content
-	dbMsg.UpdatedAt = time.Now()
-
-	query := `UPDATE messages SET content = $1, updated_at = $2 WHERE id = $3`
-	_, err = s.repo.DB().ExecContext(ctx, query, dbMsg.Content, dbMsg.UpdatedAt, dbMsg.ID)
-	if err != nil {
 		return nil, err
 	}
 

@@ -161,6 +161,47 @@ func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, li
 	return messages, nil
 }
 
+// EditMessage saves the current content as a version then updates the message content.
+func (r *Repository) EditMessage(ctx context.Context, messageID int64, newContent string) (*Message, error) {
+	// Save current content as a version before editing
+	var oldContent string
+	err := r.db.QueryRowContext(ctx,
+		`SELECT content FROM messages WHERE id = $1`, messageID).Scan(&oldContent)
+	if err != nil {
+		return nil, err
+	}
+	if err := r.SaveMessageVersion(ctx, messageID, oldContent); err != nil {
+		return nil, err
+	}
+
+	var message Message
+	err = r.db.QueryRowContext(ctx,
+		`UPDATE messages SET content = $1, updated_at = NOW()
+		 WHERE id = $2
+		 RETURNING id, channel_id, author_id, content, COALESCE(nonce, ''), created_at, updated_at,
+		           COALESCE(attachment_url, ''), COALESCE(attachment_name, ''), COALESCE(attachment_type, '')`,
+		newContent, messageID,
+	).Scan(
+		&message.ID,
+		&message.ChannelID,
+		&message.AuthorID,
+		&message.Content,
+		&message.Nonce,
+		&message.CreatedAt,
+		&message.UpdatedAt,
+		&message.AttachmentURL,
+		&message.AttachmentName,
+		&message.AttachmentType,
+	)
+	if err == sql.ErrNoRows {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &message, nil
+}
+
 func (r *Repository) DeleteMessage(ctx context.Context, id int64) error {
 	query := `DELETE FROM messages WHERE id = $1`
 
