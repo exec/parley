@@ -19,6 +19,15 @@ export const VerifyEmail: React.FC = () => {
       .then(() => {
         setStatus('success');
         setMessage('Your email has been verified successfully!');
+        // Update stored user so settings reflects verified state immediately
+        const stored = localStorage.getItem('user');
+        if (stored) {
+          try {
+            const u = JSON.parse(stored);
+            u.email_verified = true;
+            localStorage.setItem('user', JSON.stringify(u));
+          } catch { /* ignore */ }
+        }
       })
       .catch((err: { message?: string }) => {
         setStatus('error');
