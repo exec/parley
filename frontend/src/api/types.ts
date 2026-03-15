@@ -20,6 +20,7 @@ export interface Role {
   permissions: number;
   hoist: boolean;
   position: number;
+  is_everyone?: boolean;
   created_at: string;
 }
 

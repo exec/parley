@@ -96,3 +96,8 @@ export async function kickMember(serverId: string, userId: string): Promise<void
 export async function banMember(serverId: string, userId: string, reason?: string): Promise<void> {
   return apiClient.post<void>(`/servers/${serverId}/members/${userId}/ban`, { reason: reason ?? '' });
 }
+
+export async function getMyPermissions(serverId: string): Promise<number> {
+  const result = await apiClient.get<{ permissions: number }>(`/servers/${serverId}/my-permissions`);
+  return result.permissions;
+}

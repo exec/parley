@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Server, ServerMember, Role } from '../../api/types';
-import { updateServer, deleteServer, createInvite, setVanityURL } from '../../api/servers';
+import { updateServer, deleteServer, createInvite, setVanityURL, getMyPermissions } from '../../api/servers';
 import { uploadFile } from '../../api/upload';
 import {
   getServerRoles,
@@ -11,18 +11,18 @@ import {
   assignRoleToMember,
   removeRoleFromMember,
 } from '../../api/roles';
+import {
+  PERMISSION_CATEGORIES,
+  PERM_ALL,
+  PERM_ADMINISTRATOR,
+  hasPerm,
+  permFromNumber,
+  permToNumber,
+} from '../../lib/permissions';
 import './Settings.css';
 
 type Tab = 'overview' | 'roles' | 'danger';
 type RolesSubTab = 'roles' | 'members';
-
-const PERMISSIONS = [
-  { label: 'Send Messages',   desc: 'Can send messages in text channels',   value: 1 },
-  { label: 'Manage Messages', desc: 'Can delete and edit others\' messages', value: 2 },
-  { label: 'Manage Channels', desc: 'Can create, edit and delete channels',  value: 4 },
-  { label: 'Kick Members',    desc: 'Can remove members from the server',    value: 8 },
-  { label: 'Manage Server',   desc: 'Can change server name and settings',   value: 16 },
-];
 
 interface Props {
   isOpen: boolean;
@@ -57,15 +57,17 @@ export const ServerSettings: React.FC<Props> = ({
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [rolesLoading, setRolesLoading] = useState(false);
   const [rolesError, setRolesError] = useState('');
+  // Current user's base permissions for hierarchy enforcement
+  const [myPerms, setMyPerms] = useState<bigint>(0n);
   // Creating new role
   const [creatingRole, setCreatingRole] = useState(false);
   const [newRoleName, setNewRoleName] = useState('');
   const [newRoleColor, setNewRoleColor] = useState('#99aab5');
-  const [newRolePerms, setNewRolePerms] = useState(0);
+  const [newRolePerms, setNewRolePerms] = useState<bigint>(0n);
   // Editing existing role
   const [editRoleName, setEditRoleName] = useState('');
   const [editRoleColor, setEditRoleColor] = useState('');
-  const [editRolePerms, setEditRolePerms] = useState(0);
+  const [editRolePerms, setEditRolePerms] = useState<bigint>(0n);
   const [editRoleHoist, setEditRoleHoist] = useState(false);
   const [editRolePosition, setEditRolePosition] = useState(0);
   // Member roles
@@ -101,6 +103,7 @@ export const ServerSettings: React.FC<Props> = ({
   useEffect(() => {
     if (isOpen && activeTab === 'roles' && server) {
       loadRoles();
+      loadMyPerms();
     }
   }, [isOpen, activeTab, server]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -109,11 +112,28 @@ export const ServerSettings: React.FC<Props> = ({
     setRolesLoading(true);
     try {
       const r = await getServerRoles(server.id);
-      setRoles(r ?? []);
+      // Sort: @everyone always last, then by position ascending
+      const sorted = (r ?? []).sort((a, b) => {
+        if (a.is_everyone) return 1;
+        if (b.is_everyone) return -1;
+        return (a.position ?? 0) - (b.position ?? 0);
+      });
+      setRoles(sorted);
     } catch (e) {
       setRolesError(e instanceof Error ? e.message : 'Failed to load roles');
     } finally {
       setRolesLoading(false);
+    }
+  };
+
+  const loadMyPerms = async () => {
+    if (!server) return;
+    try {
+      const n = await getMyPermissions(server.id);
+      setMyPerms(permFromNumber(n));
+    } catch {
+      // If endpoint fails (e.g. user is owner and has all), assume all permissions
+      setMyPerms(PERM_ALL);
     }
   };
 
@@ -144,7 +164,7 @@ export const ServerSettings: React.FC<Props> = ({
     if (role) {
       setEditRoleName(role.name);
       setEditRoleColor(role.color);
-      setEditRolePerms(role.permissions ?? 0);
+      setEditRolePerms(permFromNumber(role.permissions ?? 0));
       setEditRoleHoist(role.hoist ?? false);
       setEditRolePosition(role.position ?? 0);
     }
@@ -227,11 +247,11 @@ export const ServerSettings: React.FC<Props> = ({
     setRolesLoading(true);
     setRolesError('');
     try {
-      const role = await createServerRole(server.id, newRoleName.trim(), newRoleColor, newRolePerms);
+      const role = await createServerRole(server.id, newRoleName.trim(), newRoleColor, permToNumber(newRolePerms));
       setRoles(prev => [...prev, role]);
       setNewRoleName('');
       setNewRoleColor('#99aab5');
-      setNewRolePerms(0);
+      setNewRolePerms(0n);
       setCreatingRole(false);
       setSelectedRoleId(role.id);
     } catch (e) {
@@ -246,7 +266,7 @@ export const ServerSettings: React.FC<Props> = ({
     setRolesLoading(true);
     setRolesError('');
     try {
-      const updated = await updateServerRole(server.id, selectedRoleId, editRoleName.trim(), editRoleColor, editRolePerms, editRoleHoist, editRolePosition);
+      const updated = await updateServerRole(server.id, selectedRoleId, editRoleName.trim(), editRoleColor, permToNumber(editRolePerms), editRoleHoist, editRolePosition);
       setRoles(prev => prev.map(r => r.id === selectedRoleId ? updated : r));
     } catch (e) {
       setRolesError(e instanceof Error ? e.message : 'Failed to update role');
@@ -449,11 +469,14 @@ export const ServerSettings: React.FC<Props> = ({
                     {roles.map(role => (
                       <button
                         key={role.id}
-                        className={`roles-list-item${selectedRoleId === role.id && !creatingRole ? ' active' : ''}`}
+                        className={`roles-list-item${selectedRoleId === role.id && !creatingRole ? ' active' : ''}${role.is_everyone ? ' everyone-role' : ''}`}
                         onClick={() => { setSelectedRoleId(role.id); setCreatingRole(false); }}
+                        title={role.is_everyone ? '@everyone — base role for all members' : undefined}
                       >
                         <span className="roles-list-color-dot" style={{ backgroundColor: role.color }} />
-                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{role.name}</span>
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {role.is_everyone ? '@everyone' : role.name}
+                        </span>
                       </button>
                     ))}
                     <button className="roles-list-add" onClick={() => { setCreatingRole(true); setSelectedRoleId(null); }}>
@@ -480,22 +503,35 @@ export const ServerSettings: React.FC<Props> = ({
                           <span style={{ fontSize: 13, color: '#777' }}>{newRoleColor}</span>
                         </div>
                         <div className="settings-section-title" style={{ marginBottom: 8 }}>Permissions</div>
-                        <div className="roles-perms-grid">
-                          {PERMISSIONS.map(p => (
-                            <div key={p.value} className="roles-perm-row">
-                              <div>
-                                <div className="roles-perm-label">{p.label}</div>
-                                <div className="roles-perm-desc">{p.desc}</div>
-                              </div>
-                              <button
-                                type="button"
-                                className={`custom-toggle${(newRolePerms & p.value) !== 0 ? ' on' : ''}`}
-                                onClick={() => setNewRolePerms(prev => prev ^ p.value)}
-                                aria-pressed={(newRolePerms & p.value) !== 0}
-                              />
+                        {PERMISSION_CATEGORIES.map(cat => (
+                          <div key={cat.label} style={{ marginBottom: 16 }}>
+                            <div style={{ fontSize: 11, color: '#32CD32', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 6 }}>
+                              {cat.label}
                             </div>
-                          ))}
-                        </div>
+                            <div className="roles-perms-grid">
+                              {cat.permissions.map(p => {
+                                const isOn = hasPerm(newRolePerms, p.bit);
+                                const canToggle = hasPerm(myPerms, PERM_ADMINISTRATOR) || hasPerm(myPerms, p.bit);
+                                return (
+                                  <div key={String(p.bit)} className="roles-perm-row">
+                                    <div>
+                                      <div className="roles-perm-label">{p.name}</div>
+                                      <div className="roles-perm-desc">{p.description}</div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      className={`custom-toggle${isOn ? ' on' : ''}${!canToggle ? ' disabled' : ''}`}
+                                      onClick={() => canToggle && setNewRolePerms(prev => prev ^ p.bit)}
+                                      aria-pressed={isOn}
+                                      disabled={!canToggle}
+                                      title={!canToggle ? 'You lack this permission yourself' : undefined}
+                                    />
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
                         <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
                           <button className="settings-btn settings-btn-primary" onClick={handleAddRole} disabled={rolesLoading || !newRoleName.trim()}>
                             {rolesLoading ? 'Creating...' : 'Create Role'}
@@ -508,64 +544,94 @@ export const ServerSettings: React.FC<Props> = ({
                     {selectedRole && !creatingRole && (
                       <div className="roles-edit-form">
                         <div className="roles-edit-header">
-                          <span className="roles-edit-title">Edit Role</span>
-                          <button className="settings-btn settings-btn-danger" onClick={() => handleDeleteRole(selectedRole.id)} disabled={rolesLoading}>
-                            Delete Role
-                          </button>
+                          <span className="roles-edit-title">
+                            {selectedRole.is_everyone ? 'Edit @everyone' : 'Edit Role'}
+                          </span>
+                          {!selectedRole.is_everyone && (
+                            <button className="settings-btn settings-btn-danger" onClick={() => handleDeleteRole(selectedRole.id)} disabled={rolesLoading}>
+                              Delete Role
+                            </button>
+                          )}
                         </div>
-                        <div className="settings-form-group">
-                          <label className="settings-form-label">Role Name</label>
-                          <input className="settings-form-input" type="text" value={editRoleName} onChange={e => setEditRoleName(e.target.value)} placeholder="Role name" />
-                        </div>
-                        <div className="settings-form-group" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          <label className="settings-form-label" style={{ margin: 0 }}>Color</label>
-                          <input type="color" value={editRoleColor} onChange={e => setEditRoleColor(e.target.value)}
-                            style={{ width: 40, height: 32, border: 'none', background: 'none', cursor: 'pointer', padding: 0 }} />
-                          <span style={{ fontSize: 13, color: '#777' }}>{editRoleColor}</span>
-                        </div>
-                        <div className="roles-perm-row" style={{ marginBottom: 12 }}>
-                          <div>
-                            <div className="roles-perm-label">Display separately in member list</div>
-                            <div className="roles-perm-desc">Group members with this role under its own section in the sidebar</div>
+                        {!selectedRole.is_everyone && (
+                          <div className="settings-form-group">
+                            <label className="settings-form-label">Role Name</label>
+                            <input className="settings-form-input" type="text" value={editRoleName} onChange={e => setEditRoleName(e.target.value)} placeholder="Role name" />
                           </div>
-                          <button
-                            type="button"
-                            className={`custom-toggle${editRoleHoist ? ' on' : ''}`}
-                            onClick={() => setEditRoleHoist(h => !h)}
-                            aria-pressed={editRoleHoist}
-                          />
-                        </div>
-                        <div className="settings-form-group" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                          <label className="settings-form-label" style={{ margin: 0 }}>Position</label>
-                          <input
-                            type="number"
-                            min={0}
-                            value={editRolePosition}
-                            onChange={e => setEditRolePosition(Number(e.target.value))}
-                            className="settings-form-input"
-                            style={{ width: 80 }}
-                          />
-                          <span style={{ fontSize: 12, color: '#555' }}>Lower = higher priority</span>
-                        </div>
-                        <div className="settings-section-title" style={{ marginBottom: 8 }}>Permissions</div>
-                        <div className="roles-perms-grid">
-                          {PERMISSIONS.map(p => (
-                            <div key={p.value} className="roles-perm-row">
-                              <div>
-                                <div className="roles-perm-label">{p.label}</div>
-                                <div className="roles-perm-desc">{p.desc}</div>
-                              </div>
-                              <button
-                                type="button"
-                                className={`custom-toggle${(editRolePerms & p.value) !== 0 ? ' on' : ''}`}
-                                onClick={() => setEditRolePerms(prev => prev ^ p.value)}
-                                aria-pressed={(editRolePerms & p.value) !== 0}
-                              />
+                        )}
+                        {selectedRole.is_everyone && (
+                          <div style={{ fontSize: 12, color: '#555', marginBottom: 12, padding: '8px 10px', background: '#0d0f12', borderRadius: 4, border: '1px solid #1e2228' }}>
+                            @everyone is the base role assigned to all server members. It cannot be renamed or deleted.
+                          </div>
+                        )}
+                        {!selectedRole.is_everyone && (
+                          <div className="settings-form-group" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <label className="settings-form-label" style={{ margin: 0 }}>Color</label>
+                            <input type="color" value={editRoleColor} onChange={e => setEditRoleColor(e.target.value)}
+                              style={{ width: 40, height: 32, border: 'none', background: 'none', cursor: 'pointer', padding: 0 }} />
+                            <span style={{ fontSize: 13, color: '#777' }}>{editRoleColor}</span>
+                          </div>
+                        )}
+                        {!selectedRole.is_everyone && (
+                          <div className="roles-perm-row" style={{ marginBottom: 12 }}>
+                            <div>
+                              <div className="roles-perm-label">Display separately in member list</div>
+                              <div className="roles-perm-desc">Group members with this role under its own section in the sidebar</div>
                             </div>
-                          ))}
-                        </div>
+                            <button
+                              type="button"
+                              className={`custom-toggle${editRoleHoist ? ' on' : ''}`}
+                              onClick={() => setEditRoleHoist(h => !h)}
+                              aria-pressed={editRoleHoist}
+                            />
+                          </div>
+                        )}
+                        {!selectedRole.is_everyone && (
+                          <div className="settings-form-group" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                            <label className="settings-form-label" style={{ margin: 0 }}>Position</label>
+                            <input
+                              type="number"
+                              min={0}
+                              value={editRolePosition}
+                              onChange={e => setEditRolePosition(Number(e.target.value))}
+                              className="settings-form-input"
+                              style={{ width: 80 }}
+                            />
+                            <span style={{ fontSize: 12, color: '#555' }}>Lower = higher priority</span>
+                          </div>
+                        )}
+                        <div className="settings-section-title" style={{ marginBottom: 8 }}>Permissions</div>
+                        {PERMISSION_CATEGORIES.map(cat => (
+                          <div key={cat.label} style={{ marginBottom: 16 }}>
+                            <div style={{ fontSize: 11, color: '#32CD32', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 6 }}>
+                              {cat.label}
+                            </div>
+                            <div className="roles-perms-grid">
+                              {cat.permissions.map(p => {
+                                const isOn = hasPerm(editRolePerms, p.bit);
+                                const canToggle = hasPerm(myPerms, PERM_ADMINISTRATOR) || hasPerm(myPerms, p.bit);
+                                return (
+                                  <div key={String(p.bit)} className="roles-perm-row">
+                                    <div>
+                                      <div className="roles-perm-label">{p.name}</div>
+                                      <div className="roles-perm-desc">{p.description}</div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      className={`custom-toggle${isOn ? ' on' : ''}${!canToggle ? ' disabled' : ''}`}
+                                      onClick={() => canToggle && setEditRolePerms(prev => prev ^ p.bit)}
+                                      aria-pressed={isOn}
+                                      disabled={!canToggle}
+                                      title={!canToggle ? 'You lack this permission yourself' : undefined}
+                                    />
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
                         <div style={{ marginTop: 16 }}>
-                          <button className="settings-btn settings-btn-primary" onClick={handleSaveRole} disabled={rolesLoading || !editRoleName.trim()}>
+                          <button className="settings-btn settings-btn-primary" onClick={handleSaveRole} disabled={rolesLoading || (!selectedRole.is_everyone && !editRoleName.trim())}>
                             {rolesLoading ? 'Saving...' : 'Save Role'}
                           </button>
                         </div>
