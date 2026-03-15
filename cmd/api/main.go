@@ -169,6 +169,26 @@ func main() {
 	// Setup chi router
 	router := setupRouter(config, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc)
 
+	// Start version purge goroutine
+	go func() {
+		// Purge on startup
+		if n, err := repo.PurgeOldMessageVersions(context.Background()); err != nil {
+			log.Printf("version purge error: %v", err)
+		} else if n > 0 {
+			log.Printf("purged %d old message versions", n)
+		}
+
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			if n, err := repo.PurgeOldMessageVersions(context.Background()); err != nil {
+				log.Printf("version purge error: %v", err)
+			} else if n > 0 {
+				log.Printf("purged %d old message versions", n)
+			}
+		}
+	}()
+
 	// Create HTTP server
 	srv := &http.Server{
 		Addr:         ":" + config.Port,
