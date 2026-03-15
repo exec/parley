@@ -376,6 +376,90 @@ CREATE TABLE IF NOT EXISTS message_versions (
 );
 CREATE INDEX IF NOT EXISTS idx_message_versions_message_id ON message_versions(message_id, edited_at);
 `,
+
+	`-- Random 9-digit ID generator for bin posts
+CREATE OR REPLACE FUNCTION gen_bin_post_id() RETURNS BIGINT LANGUAGE plpgsql VOLATILE AS $$
+DECLARE new_id BIGINT;
+BEGIN
+  LOOP
+    new_id := floor(random() * 900000000 + 100000000)::BIGINT;
+    EXIT WHEN NOT EXISTS (SELECT 1 FROM bin_posts WHERE id = new_id);
+  END LOOP;
+  RETURN new_id;
+END; $$;
+
+-- Bin posts
+CREATE TABLE IF NOT EXISTS bin_posts (
+    id BIGSERIAL PRIMARY KEY DEFAULT gen_bin_post_id(),
+    channel_id BIGINT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+    thread_channel_id BIGINT REFERENCES channels(id) ON DELETE SET NULL,
+    author_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title VARCHAR(200) NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    tags TEXT[] NOT NULL DEFAULT '{}',
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_bin_posts_channel_id ON bin_posts(channel_id, created_at DESC);
+
+-- Bin post files (current version)
+CREATE TABLE IF NOT EXISTS bin_post_files (
+    id BIGSERIAL PRIMARY KEY,
+    post_id BIGINT NOT NULL REFERENCES bin_posts(id) ON DELETE CASCADE,
+    filename VARCHAR(255) NOT NULL,
+    language VARCHAR(50) NOT NULL DEFAULT '',
+    content TEXT NOT NULL DEFAULT '',
+    position INT NOT NULL DEFAULT 0,
+    UNIQUE(post_id, position)
+);
+CREATE INDEX IF NOT EXISTS idx_bin_post_files_post_id ON bin_post_files(post_id, position);
+
+-- Bin post versions (snapshots on edit)
+CREATE TABLE IF NOT EXISTS bin_post_versions (
+    id BIGSERIAL PRIMARY KEY,
+    post_id BIGINT NOT NULL REFERENCES bin_posts(id) ON DELETE CASCADE,
+    version INT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_bin_post_versions_post_id ON bin_post_versions(post_id);
+
+-- Bin post version files (file snapshots per version)
+CREATE TABLE IF NOT EXISTS bin_post_version_files (
+    id BIGSERIAL PRIMARY KEY,
+    version_id BIGINT NOT NULL REFERENCES bin_post_versions(id) ON DELETE CASCADE,
+    filename VARCHAR(255) NOT NULL,
+    language VARCHAR(50) NOT NULL DEFAULT '',
+    content TEXT NOT NULL DEFAULT '',
+    position INT NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_bin_post_version_files_version_id ON bin_post_version_files(version_id);
+
+-- Line comments anchored to specific version/file/line
+CREATE TABLE IF NOT EXISTS bin_line_comments (
+    id BIGSERIAL PRIMARY KEY,
+    post_id BIGINT NOT NULL REFERENCES bin_posts(id) ON DELETE CASCADE,
+    version_id BIGINT NOT NULL REFERENCES bin_post_versions(id) ON DELETE CASCADE,
+    file_id BIGINT NOT NULL REFERENCES bin_post_version_files(id) ON DELETE CASCADE,
+    line_number INT NOT NULL,
+    author_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    parent_id BIGINT REFERENCES bin_line_comments(id) ON DELETE CASCADE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_bin_line_comments_lookup ON bin_line_comments(version_id, file_id, line_number);
+
+-- Admin-defined tags per bin channel
+CREATE TABLE IF NOT EXISTS bin_channel_tags (
+    id BIGSERIAL PRIMARY KEY,
+    channel_id BIGINT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+    name VARCHAR(50) NOT NULL,
+    color VARCHAR(7) NOT NULL DEFAULT '#99aab5',
+    UNIQUE(channel_id, name)
+);
+CREATE INDEX IF NOT EXISTS idx_bin_channel_tags_channel_id ON bin_channel_tags(channel_id);
+`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string
