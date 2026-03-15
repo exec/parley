@@ -31,6 +31,14 @@ class ApiClient {
   }
 
   private async handleResponse<T>(response: Response): Promise<T> {
+    if (response.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      this.token = null;
+      window.location.href = '/login';
+      throw new Error('Session expired');
+    }
+
     if (!response.ok) {
       const error: ApiError = await response.json().catch(() => ({
         message: response.statusText || 'An error occurred',
