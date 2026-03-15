@@ -4,6 +4,13 @@ terraform/.terraform/
 terraform/terraform.tfstate
 terraform/terraform.tfstate.backup
 
+# Go binaries
+/api
+/parley-api
+/parley-admin
+/admin
+bin/
+
 # Go
 *.exe
 *.exe~
