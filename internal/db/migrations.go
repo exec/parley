@@ -362,6 +362,20 @@ ALTER TABLE server_roles ADD COLUMN IF NOT EXISTS position INTEGER NOT NULL DEFA
 	`-- Add display_name to users
 ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name VARCHAR(100) NOT NULL DEFAULT '';
 `,
+
+	`-- Add parent_id to messages for nested replies
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS parent_id BIGINT REFERENCES messages(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_messages_parent_id ON messages(parent_id) WHERE parent_id IS NOT NULL;
+
+-- Create message_versions table for edit history
+CREATE TABLE IF NOT EXISTS message_versions (
+    id BIGSERIAL PRIMARY KEY,
+    message_id BIGINT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    edited_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_message_versions_message_id ON message_versions(message_id, edited_at);
+`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

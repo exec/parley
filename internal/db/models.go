@@ -11,6 +11,7 @@ type ChannelType int
 const (
 	ChannelTypeText  ChannelType = 0
 	ChannelTypeVoice ChannelType = 1
+	ChannelTypeBin   ChannelType = 2
 )
 
 // User represents a user in the system
@@ -117,6 +118,7 @@ type Message struct {
 	AuthorID        int64     `json:"author_id" db:"author_id"`
 	Content         string    `json:"content" db:"content"`
 	Nonce           string    `json:"nonce" db:"nonce"`
+	ParentID        *int64    `json:"parent_id,omitempty" db:"parent_id"`
 	AttachmentURL   string    `json:"attachment_url,omitempty" db:"attachment_url"`
 	AttachmentName  string    `json:"attachment_name,omitempty" db:"attachment_name"`
 	AttachmentType  string    `json:"attachment_type,omitempty" db:"attachment_type"`
