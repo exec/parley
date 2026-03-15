@@ -1,0 +1,485 @@
+package bin
+
+import (
+	"encoding/json"
+	"net/http"
+	"strconv"
+
+	"github.com/go-chi/chi/v5"
+
+	"parley/internal/auth"
+	"parley/internal/db"
+)
+
+// Handler handles HTTP requests for bin posts, versions, line comments, and tags.
+type Handler struct {
+	service *Service
+}
+
+// NewHandler creates a new bin Handler.
+func NewHandler(service *Service) *Handler {
+	return &Handler{service: service}
+}
+
+// ---- Posts ----
+
+type createPostRequest struct {
+	Title       string           `json:"title"`
+	Description string           `json:"description"`
+	Tags        []string         `json:"tags"`
+	Files       []db.BinPostFile `json:"files"`
+}
+
+// CreatePost handles POST /channels/{channelID}/posts
+func (h *Handler) CreatePost(w http.ResponseWriter, r *http.Request) {
+	channelID := chi.URLParam(r, "channelID")
+	if channelID == "" {
+		http.Error(w, "channel ID is required", http.StatusBadRequest)
+		return
+	}
+
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		http.Error(w, "user not authenticated", http.StatusUnauthorized)
+		return
+	}
+
+	var req createPostRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.Title == "" {
+		http.Error(w, "title is required", http.StatusBadRequest)
+		return
+	}
+
+	post, err := h.service.CreatePost(r.Context(), channelID, userID, req.Title, req.Description, req.Tags, req.Files)
+	if err != nil {
+		switch err.Error() {
+		case "channel not found":
+			http.Error(w, err.Error(), http.StatusNotFound)
+		case "channel is not a bin channel":
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		default:
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(post)
+}
+
+// ListPosts handles GET /channels/{channelID}/posts
+func (h *Handler) ListPosts(w http.ResponseWriter, r *http.Request) {
+	channelID := chi.URLParam(r, "channelID")
+	if channelID == "" {
+		http.Error(w, "channel ID is required", http.StatusBadRequest)
+		return
+	}
+
+	q := r.URL.Query()
+	tag := q.Get("tag")
+	language := q.Get("language")
+	authorID := q.Get("author_id")
+	sort := q.Get("sort")
+
+	limit := 25
+	offset := 0
+	if l := q.Get("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 {
+			limit = v
+		}
+	}
+	if o := q.Get("offset"); o != "" {
+		if v, err := strconv.Atoi(o); err == nil && v >= 0 {
+			offset = v
+		}
+	}
+
+	posts, err := h.service.ListPosts(r.Context(), channelID, tag, language, authorID, sort, limit, offset)
+	if err != nil {
+		switch err.Error() {
+		case "channel not found":
+			http.Error(w, err.Error(), http.StatusNotFound)
+		case "channel is not a bin channel":
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		default:
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(posts)
+}
+
+// GetPost handles GET /posts/{postID}
+func (h *Handler) GetPost(w http.ResponseWriter, r *http.Request) {
+	postID := chi.URLParam(r, "postID")
+	if postID == "" {
+		http.Error(w, "post ID is required", http.StatusBadRequest)
+		return
+	}
+
+	post, err := h.service.GetPost(r.Context(), postID)
+	if err != nil {
+		if err.Error() == "post not found" {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(post)
+}
+
+type editPostRequest struct {
+	Title       string           `json:"title"`
+	Description string           `json:"description"`
+	Tags        []string         `json:"tags"`
+	Files       []db.BinPostFile `json:"files"`
+}
+
+// EditPost handles PUT /posts/{postID}
+func (h *Handler) EditPost(w http.ResponseWriter, r *http.Request) {
+	postID := chi.URLParam(r, "postID")
+	if postID == "" {
+		http.Error(w, "post ID is required", http.StatusBadRequest)
+		return
+	}
+
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		http.Error(w, "user not authenticated", http.StatusUnauthorized)
+		return
+	}
+
+	var req editPostRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.Title == "" {
+		http.Error(w, "title is required", http.StatusBadRequest)
+		return
+	}
+
+	post, err := h.service.EditPost(r.Context(), postID, userID, req.Title, req.Description, req.Tags, req.Files)
+	if err != nil {
+		switch err.Error() {
+		case "post not found":
+			http.Error(w, err.Error(), http.StatusNotFound)
+		case "forbidden":
+			http.Error(w, err.Error(), http.StatusForbidden)
+		default:
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(post)
+}
+
+// DeletePost handles DELETE /posts/{postID}
+func (h *Handler) DeletePost(w http.ResponseWriter, r *http.Request) {
+	postID := chi.URLParam(r, "postID")
+	if postID == "" {
+		http.Error(w, "post ID is required", http.StatusBadRequest)
+		return
+	}
+
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		http.Error(w, "user not authenticated", http.StatusUnauthorized)
+		return
+	}
+
+	if err := h.service.DeletePost(r.Context(), postID, userID); err != nil {
+		switch err.Error() {
+		case "post not found":
+			http.Error(w, err.Error(), http.StatusNotFound)
+		case "forbidden":
+			http.Error(w, err.Error(), http.StatusForbidden)
+		default:
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ---- Versions ----
+
+// GetVersions handles GET /posts/{postID}/versions
+func (h *Handler) GetVersions(w http.ResponseWriter, r *http.Request) {
+	postID := chi.URLParam(r, "postID")
+	if postID == "" {
+		http.Error(w, "post ID is required", http.StatusBadRequest)
+		return
+	}
+
+	versions, err := h.service.GetVersions(r.Context(), postID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(versions)
+}
+
+// GetVersion handles GET /posts/{postID}/versions/{versionID}
+func (h *Handler) GetVersion(w http.ResponseWriter, r *http.Request) {
+	versionID := chi.URLParam(r, "versionID")
+	if versionID == "" {
+		http.Error(w, "version ID is required", http.StatusBadRequest)
+		return
+	}
+
+	version, err := h.service.GetVersion(r.Context(), versionID)
+	if err != nil {
+		if err.Error() == "version not found" {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(version)
+}
+
+// ---- Line Comments ----
+
+type createLineCommentRequest struct {
+	VersionID  string `json:"version_id"`
+	FileID     string `json:"file_id"`
+	LineNumber int    `json:"line_number"`
+	Content    string `json:"content"`
+	ParentID   string `json:"parent_id"`
+}
+
+// CreateLineComment handles POST /posts/{postID}/line-comments
+func (h *Handler) CreateLineComment(w http.ResponseWriter, r *http.Request) {
+	postID := chi.URLParam(r, "postID")
+	if postID == "" {
+		http.Error(w, "post ID is required", http.StatusBadRequest)
+		return
+	}
+
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		http.Error(w, "user not authenticated", http.StatusUnauthorized)
+		return
+	}
+
+	var req createLineCommentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.Content == "" {
+		http.Error(w, "content is required", http.StatusBadRequest)
+		return
+	}
+	if req.VersionID == "" {
+		http.Error(w, "version_id is required", http.StatusBadRequest)
+		return
+	}
+	if req.FileID == "" {
+		http.Error(w, "file_id is required", http.StatusBadRequest)
+		return
+	}
+
+	comment, err := h.service.CreateLineComment(r.Context(), postID, userID, req.VersionID, req.FileID, req.LineNumber, req.Content, req.ParentID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(comment)
+}
+
+// GetLineComments handles GET /posts/{postID}/line-comments
+func (h *Handler) GetLineComments(w http.ResponseWriter, r *http.Request) {
+	postID := chi.URLParam(r, "postID")
+	if postID == "" {
+		http.Error(w, "post ID is required", http.StatusBadRequest)
+		return
+	}
+
+	var versionID, fileID *string
+	if v := r.URL.Query().Get("version_id"); v != "" {
+		versionID = &v
+	}
+	if f := r.URL.Query().Get("file_id"); f != "" {
+		fileID = &f
+	}
+
+	comments, err := h.service.GetLineComments(r.Context(), postID, versionID, fileID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(comments)
+}
+
+type updateLineCommentRequest struct {
+	Content string `json:"content"`
+}
+
+// UpdateLineComment handles PUT /line-comments/{id}
+func (h *Handler) UpdateLineComment(w http.ResponseWriter, r *http.Request) {
+	commentID := chi.URLParam(r, "id")
+	if commentID == "" {
+		http.Error(w, "comment ID is required", http.StatusBadRequest)
+		return
+	}
+
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		http.Error(w, "user not authenticated", http.StatusUnauthorized)
+		return
+	}
+
+	var req updateLineCommentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.Content == "" {
+		http.Error(w, "content is required", http.StatusBadRequest)
+		return
+	}
+
+	comment, err := h.service.UpdateLineComment(r.Context(), commentID, userID, req.Content)
+	if err != nil {
+		switch err.Error() {
+		case "comment not found":
+			http.Error(w, err.Error(), http.StatusNotFound)
+		case "forbidden":
+			http.Error(w, err.Error(), http.StatusForbidden)
+		default:
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(comment)
+}
+
+// DeleteLineComment handles DELETE /line-comments/{id}
+func (h *Handler) DeleteLineComment(w http.ResponseWriter, r *http.Request) {
+	commentID := chi.URLParam(r, "id")
+	if commentID == "" {
+		http.Error(w, "comment ID is required", http.StatusBadRequest)
+		return
+	}
+
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		http.Error(w, "user not authenticated", http.StatusUnauthorized)
+		return
+	}
+
+	if err := h.service.DeleteLineComment(r.Context(), commentID, userID); err != nil {
+		switch err.Error() {
+		case "comment not found":
+			http.Error(w, err.Error(), http.StatusNotFound)
+		case "forbidden":
+			http.Error(w, err.Error(), http.StatusForbidden)
+		default:
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ---- Tags ----
+
+type createTagRequest struct {
+	Name  string `json:"name"`
+	Color string `json:"color"`
+}
+
+// CreateTag handles POST /channels/{channelID}/tags
+func (h *Handler) CreateTag(w http.ResponseWriter, r *http.Request) {
+	channelID := chi.URLParam(r, "channelID")
+	if channelID == "" {
+		http.Error(w, "channel ID is required", http.StatusBadRequest)
+		return
+	}
+
+	var req createTagRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.Name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+
+	tag, err := h.service.CreateTag(r.Context(), channelID, req.Name, req.Color)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(tag)
+}
+
+// GetTags handles GET /channels/{channelID}/tags
+func (h *Handler) GetTags(w http.ResponseWriter, r *http.Request) {
+	channelID := chi.URLParam(r, "channelID")
+	if channelID == "" {
+		http.Error(w, "channel ID is required", http.StatusBadRequest)
+		return
+	}
+
+	tags, err := h.service.GetTags(r.Context(), channelID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(tags)
+}
+
+// DeleteTag handles DELETE /channels/{channelID}/tags/{tagID}
+func (h *Handler) DeleteTag(w http.ResponseWriter, r *http.Request) {
+	tagID := chi.URLParam(r, "tagID")
+	if tagID == "" {
+		http.Error(w, "tag ID is required", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.service.DeleteTag(r.Context(), tagID); err != nil {
+		if err.Error() == "tag not found" {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
