@@ -6,7 +6,7 @@ import (
 )
 
 // mdLinkRe matches markdown links: [display text](url)
-var mdLinkRe = regexp.MustCompile(`\[([^\]\n]{1,500})\]\(([^)\n]{1,2000})\)`)
+var mdLinkRe = regexp.MustCompile(`\[([^\]\n]{1,500})\]\(([^)\n]+)\)`)
 
 // urlLikeRe detects display text that looks like a URL or URL fragment
 var urlLikeRe = regexp.MustCompile(`(?i)(?:https?://|ftp://|www\.|[a-z0-9][\w\-]*\.[a-z]{2,6}(?:[/?#\s]|$))`)
