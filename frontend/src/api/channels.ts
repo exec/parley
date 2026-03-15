@@ -8,17 +8,20 @@ export async function getChannels(serverId: string): Promise<Channel[]> {
 export async function createChannel(
   serverId: string,
   name: string,
-  type: number
+  type: number,
+  topic?: string
 ): Promise<Channel> {
   return apiClient.post<Channel>(`/servers/${serverId}/channels`, {
     name,
     type,
+    ...(topic ? { topic } : {}),
   });
 }
 
-export async function updateChannel(id: string, name: string): Promise<Channel> {
+export async function updateChannel(id: string, name: string, topic?: string): Promise<Channel> {
   return apiClient.put<Channel>(`/channels/${id}`, {
     name,
+    ...(topic !== undefined ? { topic } : {}),
   });
 }
 

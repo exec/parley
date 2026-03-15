@@ -81,13 +81,14 @@ type Server struct {
 
 // ServerMember represents a member of a server
 type ServerMember struct {
-	ID       int64        `json:"id" db:"id"`
-	ServerID int64        `json:"server_id" db:"server_id"`
-	UserID   int64        `json:"user_id" db:"user_id"`
-	Nickname string       `json:"nickname" db:"nickname"`
-	JoinedAt time.Time    `json:"joined_at" db:"joined_at"`
-	Username string       `json:"username" db:"-"`
-	Roles    []ServerRole `json:"roles" db:"-"`
+	ID        int64        `json:"id" db:"id"`
+	ServerID  int64        `json:"server_id" db:"server_id"`
+	UserID    int64        `json:"user_id" db:"user_id"`
+	Nickname  string       `json:"nickname" db:"nickname"`
+	JoinedAt  time.Time    `json:"joined_at" db:"joined_at"`
+	Username  string       `json:"username" db:"-"`
+	AvatarURL string       `json:"avatar_url,omitempty" db:"-"`
+	Roles     []ServerRole `json:"roles" db:"-"`
 }
 
 // Channel represents a text or voice channel
@@ -98,6 +99,7 @@ type Channel struct {
 	ChannelType ChannelType   `json:"channel_type" db:"channel_type"`
 	Position    int           `json:"position" db:"position"`
 	ParentID    sql.NullInt64 `json:"parent_id" db:"parent_id"`
+	Topic       string        `json:"topic,omitempty" db:"topic"`
 	CreatedAt   time.Time     `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time     `json:"updated_at" db:"updated_at"`
 }
@@ -147,6 +149,7 @@ type PublicUser struct {
 	ID        int64     `json:"id" db:"id"`
 	Username  string    `json:"username" db:"username"`
 	AvatarURL string    `json:"avatar_url" db:"avatar_url"`
+	BannerURL string    `json:"banner_url" db:"banner_url"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
 

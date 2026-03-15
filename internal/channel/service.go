@@ -24,13 +24,14 @@ const (
 
 // Channel represents a chat channel in the system
 type Channel struct {
-	ID         string      `json:"id"`
-	ServerID   string      `json:"server_id"`
-	Name       string      `json:"name"`
-	Type       ChannelType `json:"type"`
-	ParentID   *string     `json:"parent_id,omitempty"`
-	CreatedAt  string      `json:"created_at"`
-	UpdatedAt  string      `json:"updated_at"`
+	ID        string      `json:"id"`
+	ServerID  string      `json:"server_id"`
+	Name      string      `json:"name"`
+	Type      ChannelType `json:"type"`
+	ParentID  *string     `json:"parent_id,omitempty"`
+	Topic     string      `json:"topic,omitempty"`
+	CreatedAt string      `json:"created_at"`
+	UpdatedAt string      `json:"updated_at"`
 }
 
 // ChannelService provides channel management operations
@@ -54,7 +55,7 @@ func (s *ChannelService) SetHub(hub *ws.Hub) {
 const maxChannelNameLen = 100
 
 // CreateChannel creates a new channel. userID must be the server owner or have MANAGE_CHANNELS.
-func (s *ChannelService) CreateChannel(ctx context.Context, serverID, name string, channelType int, parentID *string, userID string) (*Channel, error) {
+func (s *ChannelService) CreateChannel(ctx context.Context, serverID, name string, channelType int, parentID *string, topic string, userID string) (*Channel, error) {
 	if name == "" {
 		return nil, errors.New("channel name is required")
 	}
@@ -97,6 +98,7 @@ func (s *ChannelService) CreateChannel(ctx context.Context, serverID, name strin
 		Name:        name,
 		ChannelType: db.ChannelType(channelType),
 		ParentID:    int64ToNullInt64(parentIDInt),
+		Topic:       topic,
 	}
 
 	err = s.repo.CreateChannel(ctx, dbChannel)
@@ -153,8 +155,8 @@ func (s *ChannelService) GetServerChannels(ctx context.Context, serverID string)
 	return result, nil
 }
 
-// UpdateChannel updates a channel's name. userID must be the server owner or have MANAGE_CHANNELS.
-func (s *ChannelService) UpdateChannel(ctx context.Context, id, name, userID string) (*Channel, error) {
+// UpdateChannel updates a channel's name and topic. userID must be the server owner or have MANAGE_CHANNELS.
+func (s *ChannelService) UpdateChannel(ctx context.Context, id, name, topic, userID string) (*Channel, error) {
 	if name == "" {
 		return nil, errors.New("channel name is required")
 	}
@@ -192,6 +194,7 @@ func (s *ChannelService) UpdateChannel(ctx context.Context, id, name, userID str
 	}
 
 	channel.Name = name
+	channel.Topic = topic
 
 	err = s.repo.UpdateChannel(ctx, channel)
 	if err != nil {
@@ -261,12 +264,13 @@ func (s *ChannelService) DeleteChannel(ctx context.Context, id string, userID st
 // dbChannelToChannel converts a db.Channel to a Channel for API responses
 func dbChannelToChannel(dbCh *db.Channel) *Channel {
 	ch := &Channel{
-		ID:         strconv.FormatInt(dbCh.ID, 10),
-		ServerID:   strconv.FormatInt(dbCh.ServerID, 10),
-		Name:       dbCh.Name,
-		Type:       ChannelType(dbCh.ChannelType),
-		CreatedAt:  dbCh.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:  dbCh.UpdatedAt.Format(time.RFC3339),
+		ID:        strconv.FormatInt(dbCh.ID, 10),
+		ServerID:  strconv.FormatInt(dbCh.ServerID, 10),
+		Name:      dbCh.Name,
+		Type:      ChannelType(dbCh.ChannelType),
+		Topic:     dbCh.Topic,
+		CreatedAt: dbCh.CreatedAt.Format(time.RFC3339),
+		UpdatedAt: dbCh.UpdatedAt.Format(time.RFC3339),
 	}
 
 	if dbCh.ParentID.Valid {

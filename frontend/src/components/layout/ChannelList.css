@@ -535,3 +535,38 @@
   background-color: var(--bg-primary);
   color: var(--accent);
 }
+.cl-channel-context-menu {
+  position: fixed;
+  background-color: #111;
+  border: 1px solid #1a3d1a;
+  border-radius: 4px;
+  padding: 4px;
+  min-width: 180px;
+  z-index: 1000;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+}
+
+.cl-channel-context-header {
+  padding: 6px 12px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.channel-rename-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #32CD32;
+  color: #e0e0e0;
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  padding: 0 2px;
+  min-width: 0;
+}

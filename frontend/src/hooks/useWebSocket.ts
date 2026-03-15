@@ -146,7 +146,7 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
           onMessageRef.current(wsMsg.payload as Message);
         } else if (wsMsg.type === 'dm_message' && onDmMessageRef.current) {
           onDmMessageRef.current(wsMsg.payload as DmMessage);
-        } else if (wsMsg.type === 'server_member_join' && onServerMemberJoinRef.current) {
+        } else if (wsMsg.type === 'SERVER_MEMBER_JOIN' && onServerMemberJoinRef.current) {
           if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
             const payload = wsMsg.payload as { server_id: string; user_id: string };
             if (payload.server_id && payload.user_id) {

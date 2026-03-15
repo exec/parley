@@ -9,6 +9,7 @@ import { AppProvider, useApp } from './context/AppContext';
 import { useWebSocket, MemberRoleUpdate, UserUpdate } from './hooks/useWebSocket';
 import { DmMessage } from './api/types';
 import * as serversApi from './api/servers';
+import * as channelsApi from './api/channels';
 import MainLayout from './components/layout/MainLayout';
 import ChannelList from './components/layout/ChannelList';
 import DmPanel from './components/layout/DmPanel';
@@ -18,10 +19,10 @@ import { DmChat } from './components/chat/DmChat';
 import { Homepage } from './pages/Homepage';
 import { CreateServerModal } from './components/modals/CreateServerModal';
 import { CreateChannelModal } from './components/modals/CreateChannelModal';
-import { ManageRolesModal } from './components/modals/ManageRolesModal';
 import { UserProfileModal } from './components/modals/UserProfileModal';
-import { ServerSettingsModal } from './components/modals/ServerSettingsModal';
-import { UserSettingsModal } from './components/modals/UserSettingsModal';
+import { AssignRolesModal } from './components/modals/AssignRolesModal';
+import { UserSettings } from './components/settings/UserSettings';
+import { ServerSettings } from './components/settings/ServerSettings';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 type View = 'homepage' | 'server' | 'dm';
@@ -71,6 +72,7 @@ function MainApp() {
     receiveMemberRemoved,
     receiveMemberRoleUpdate,
     receiveUserUpdate,
+    reloadMembers,
   } = useApp();
 
   const navigate = useNavigate();
@@ -79,13 +81,16 @@ function MainApp() {
 
   const [showCreateServer, setShowCreateServer] = useState(false);
   const [showCreateChannel, setShowCreateChannel] = useState(false);
-  const [showManageRoles, setShowManageRoles] = useState(false);
-  const [manageRolesFocusUserId, setManageRolesFocusUserId] = useState<string | undefined>(undefined);
   const [showVoiceModal, setShowVoiceModal] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
   const [showServerSettings, setShowServerSettings] = useState(false);
+  const [serverSettingsInitialTab, setServerSettingsInitialTab] = useState<'overview' | 'roles' | 'danger'>('overview');
   const [showUserSettings, setShowUserSettings] = useState(false);
+  // Assign roles modal (from context menu on a specific user)
+  const [showAssignRoles, setShowAssignRoles] = useState(false);
+  const [assignRolesUserId, setAssignRolesUserId] = useState('');
+  const [assignRolesUsername, setAssignRolesUsername] = useState('');
 
   // Typing indicators: channelId → list of typing users
   const [typingUsers, setTypingUsers] = useState<Record<string, { userId: string; username: string }[]>>({});
@@ -165,10 +170,12 @@ function MainApp() {
     });
   }, [activeDmChannel?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleServerMemberJoin = useCallback((_serverId: string, _userId: string) => {
-    // When a member joins, reload servers to show the new server for the joining user
+  const handleServerMemberJoin = useCallback((serverId: string, _userId: string) => {
     loadServers();
-  }, [loadServers]);
+    if (activeServer?.id === serverId) {
+      reloadMembers(serverId);
+    }
+  }, [loadServers, reloadMembers, activeServer?.id]);
 
   const handleMemberLeave = useCallback((serverId: string, userId: string) => {
     receiveMemberLeave(serverId, userId);
@@ -394,8 +401,8 @@ function MainApp() {
       onChannelSelect={selectChannel}
       onCreateChannel={() => setShowCreateChannel(true)}
       onDeleteChannel={deleteChannel}
-      onManageRoles={() => setShowManageRoles(true)}
-      onServerSettings={() => setShowServerSettings(true)}
+      onManageRoles={() => { setServerSettingsInitialTab('roles'); setShowServerSettings(true); }}
+      onServerSettings={() => { setServerSettingsInitialTab('overview'); setShowServerSettings(true); }}
       onLeaveServer={() => leaveServer(activeServer?.id ?? '')}
       owner_id={activeServer?.owner_id}
       currentUser={currentUser ?? undefined}
@@ -404,6 +411,13 @@ function MainApp() {
       onVoiceChannelClick={() => setShowVoiceModal(true)}
       channelUnreadCounts={unreadCounts}
       canManageChannels={canManageChannels}
+      onRenameChannel={async (channelId, newName) => {
+        const ch = channels.find(c => c.id === channelId);
+        if (!ch) return;
+        const updated = await channelsApi.updateChannel(channelId, newName, ch.topic);
+        receiveChannelUpdate(updated);
+      }}
+      onMarkChannelRead={(channelId) => setUnreadCounts(prev => ({ ...prev, [channelId]: 0 }))}
     />
   ) : (
     <DmPanel
@@ -429,8 +443,10 @@ function MainApp() {
       currentUserIsOwner={isServerOwner}
       canKickMembers={canKickMembers}
       onManageRoles={(userId) => {
-        setManageRolesFocusUserId(userId);
-        setShowManageRoles(true);
+        const m = members.find(mem => mem.user_id === userId);
+        setAssignRolesUserId(userId);
+        setAssignRolesUsername(m?.username || userId);
+        setShowAssignRoles(true);
       }}
       onKick={activeServer ? (userId) => {
         serversApi.kickMember(activeServer.id, userId).catch(console.error);
@@ -476,6 +492,11 @@ function MainApp() {
         isLoading={isLoadingMessages}
         typingUsers={typingUsers[activeChannel.id] ?? []}
         onTyping={handleSendTyping}
+        canManageChannels={canManageChannels}
+        onUpdateTopic={async (channelId, topic) => {
+          const updated = await channelsApi.updateChannel(channelId, activeChannel.name, topic);
+          receiveChannelUpdate(updated);
+        }}
       />
     );
   } else if (activeServer) {
@@ -521,13 +542,6 @@ function MainApp() {
         onClose={() => setShowCreateChannel(false)}
         onCreate={createChannel}
       />
-      <ManageRolesModal
-        isOpen={showManageRoles}
-        onClose={() => { setShowManageRoles(false); setManageRolesFocusUserId(undefined); }}
-        serverId={activeServer?.id ?? ''}
-        members={members}
-        focusUserId={manageRolesFocusUserId}
-      />
       <UserProfileModal
         isOpen={showProfile}
         onClose={() => setShowProfile(false)}
@@ -535,20 +549,28 @@ function MainApp() {
         currentUserId={currentUser?.id}
         onStartDm={openDmChannel}
       />
-      <ServerSettingsModal
-        isOpen={showServerSettings}
-        onClose={() => setShowServerSettings(false)}
-        server={activeServer}
-        onUpdate={updateServer}
-        onDelete={() => deleteServer(activeServer?.id ?? '')}
-        onCreateInvite={() => {}}
+      <AssignRolesModal
+        isOpen={showAssignRoles}
+        onClose={() => setShowAssignRoles(false)}
+        serverId={activeServer?.id ?? ''}
+        userId={assignRolesUserId}
+        username={assignRolesUsername}
       />
-
-      <UserSettingsModal
+      <UserSettings
         isOpen={showUserSettings}
         onClose={() => setShowUserSettings(false)}
         currentUser={currentUser}
         onUpdate={updateCurrentUser}
+      />
+      <ServerSettings
+        isOpen={showServerSettings}
+        onClose={() => setShowServerSettings(false)}
+        server={activeServer}
+        members={members}
+        onUpdate={updateServer}
+        onDelete={() => deleteServer(activeServer?.id ?? '')}
+        onCreateInvite={() => {}}
+        initialTab={serverSettingsInitialTab}
       />
 
       {showVoiceModal && (

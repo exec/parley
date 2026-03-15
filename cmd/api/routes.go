@@ -92,6 +92,7 @@ func registerRoutes(
 			r.Get("/servers/{id}/roles", serverHandler.GetServerRoles)
 			r.Post("/servers/{id}/roles", serverHandler.CreateServerRole)
 			r.Delete("/servers/{id}/roles/{roleId}", serverHandler.DeleteServerRole)
+			r.Patch("/servers/{id}/roles/{roleId}", serverHandler.UpdateServerRole)
 			r.Get("/servers/{id}/members/{userID}/roles", serverHandler.GetMemberRoles)
 			r.Post("/servers/{id}/members/{userID}/roles", serverHandler.AssignRoleToMember)
 			r.Delete("/servers/{id}/members/{userID}/roles/{roleId}", serverHandler.RemoveRoleFromMember)

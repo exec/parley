@@ -254,6 +254,10 @@ CREATE INDEX IF NOT EXISTS idx_reports_reported_user ON reports(reported_user_id
 CREATE INDEX IF NOT EXISTS idx_reports_category ON reports(category_id);
 `,
 
+	`-- Add topic to channels table
+ALTER TABLE channels ADD COLUMN IF NOT EXISTS topic TEXT NOT NULL DEFAULT '';
+`,
+
 	`-- Server-level bans table
 CREATE TABLE IF NOT EXISTS server_bans (
     id BIGSERIAL PRIMARY KEY,

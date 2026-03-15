@@ -5,12 +5,13 @@ import { Button } from '../ui/Button';
 interface CreateChannelModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreate: (name: string, type: number) => Promise<void>;
+  onCreate: (name: string, type: number, topic?: string) => Promise<void>;
 }
 
 export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({ isOpen, onClose, onCreate }) => {
   const [name, setName] = useState('');
   const [type, setType] = useState(0); // 0 = text, 1 = voice
+  const [topic, setTopic] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -23,9 +24,10 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({ isOpen, 
     setLoading(true);
     setError('');
     try {
-      await onCreate(name.trim().toLowerCase().replace(/\s+/g, '-'), type);
+      await onCreate(name.trim().toLowerCase().replace(/\s+/g, '-'), type, topic.trim() || undefined);
       setName('');
       setType(0);
+      setTopic('');
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create channel');
@@ -74,6 +76,18 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({ isOpen, 
             autoFocus
           />
         </div>
+        {type === 0 && (
+          <div className="form-group">
+            <label className="form-label">Channel Topic <span style={{ color: '#555', fontWeight: 400 }}>(optional)</span></label>
+            <input
+              className="form-input"
+              type="text"
+              value={topic}
+              onChange={e => setTopic(e.target.value)}
+              placeholder="What's this channel about?"
+            />
+          </div>
+        )}
         <div className="modal-actions">
           <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
           <Button type="submit" variant="primary" loading={loading}>Create Channel</Button>

@@ -1,0 +1,939 @@
+/* =========================================================
+   Full-screen Settings Overlay — shared by User + Server
+   ========================================================= */
+
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: #111214;
+  display: flex;
+  animation: settings-fade-in 0.12s ease;
+}
+
+@keyframes settings-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ---- Sidebar ---- */
+
+.settings-sidebar {
+  width: 232px;
+  flex-shrink: 0;
+  background: #0d0f12;
+  border-right: 1px solid #1a1d22;
+  padding: 56px 8px 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-sidebar-group {
+  margin-bottom: 8px;
+}
+
+.settings-sidebar-group-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: #444;
+  padding: 6px 12px 4px;
+}
+
+.settings-nav-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: #777;
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+  font-family: inherit;
+  letter-spacing: 0.2px;
+}
+
+.settings-nav-item:hover {
+  background: #1a1d22;
+  color: #bbb;
+}
+
+.settings-nav-item.active {
+  background: #1e2228;
+  color: #32CD32;
+  font-weight: 600;
+}
+
+.settings-nav-item.danger {
+  color: #cc4444;
+}
+
+.settings-nav-item.danger:hover {
+  background: #2a1010;
+  color: #ff6666;
+}
+
+.settings-nav-divider {
+  height: 1px;
+  background: #1a1d22;
+  margin: 8px 12px;
+}
+
+.settings-sidebar-spacer {
+  flex: 1;
+}
+
+/* ---- Main content area ---- */
+
+.settings-main {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  justify-content: center;
+  position: relative;
+}
+
+.settings-content {
+  width: 100%;
+  max-width: 700px;
+  padding: 56px 40px 80px;
+}
+
+.settings-page-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #ddd;
+  margin: 0 0 28px;
+  letter-spacing: 0.3px;
+}
+
+/* ---- Section ---- */
+
+.settings-section {
+  margin-bottom: 36px;
+}
+
+.settings-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #555;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #1a1d22;
+}
+
+/* ---- Row (read-only info rows) ---- */
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: #0d0f12;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  border: 1px solid #1e2228;
+}
+
+.settings-row-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-row-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #555;
+  margin-bottom: 2px;
+}
+
+.settings-row-value {
+  font-size: 14px;
+  color: #bbb;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-row-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+  margin-left: 12px;
+}
+
+.settings-row-badge.verified {
+  background: #0f2a0f;
+  color: #44cc44;
+  border: 1px solid #1a5a1a;
+}
+
+.settings-row-badge.unverified {
+  background: #2a1f00;
+  color: #ffaa00;
+  border: 1px solid #664400;
+}
+
+/* ---- Forms ---- */
+
+.settings-form-group {
+  margin-bottom: 20px;
+}
+
+.settings-form-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: #555;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.settings-form-input {
+  width: 100%;
+  background: #0a0c0f;
+  border: 1px solid #2a2d32;
+  border-radius: 4px;
+  color: #ccc;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+  box-sizing: border-box;
+}
+
+.settings-form-input:focus {
+  border-color: #32CD32;
+}
+
+.settings-form-input:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.settings-form-hint {
+  font-size: 11px;
+  color: #555;
+  margin-top: 5px;
+}
+
+.settings-inline-form {
+  margin-top: 10px;
+  padding: 14px 16px;
+  background: #0d0f12;
+  border: 1px solid #2a2d32;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-inline-label {
+  font-size: 11px;
+  color: #666;
+  display: block;
+  margin-bottom: 4px;
+}
+
+/* ---- Alerts ---- */
+
+.settings-error {
+  background: #2a0f0f;
+  border: 1px solid #5a1a1a;
+  border-radius: 4px;
+  color: #ff7777;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.settings-success {
+  background: #0f2a0f;
+  border: 1px solid #1a5a1a;
+  border-radius: 4px;
+  color: #66cc66;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+/* ---- Buttons ---- */
+
+.settings-btn {
+  padding: 9px 20px;
+  border-radius: 4px;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: 0.3px;
+  transition: opacity 0.1s, background 0.1s, color 0.1s;
+}
+
+.settings-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.settings-btn-primary {
+  background: #32CD32;
+  color: #000;
+}
+
+.settings-btn-primary:hover:not(:disabled) {
+  background: #44dd44;
+}
+
+.settings-btn-secondary {
+  background: #1a1d22;
+  color: #888;
+  border: 1px solid #2a2d32;
+}
+
+.settings-btn-secondary:hover:not(:disabled) {
+  background: #2a2d32;
+  color: #ccc;
+}
+
+.settings-btn-danger {
+  background: transparent;
+  color: #e04e4e;
+  border: 1px solid #5a1a1a;
+}
+
+.settings-btn-danger:hover:not(:disabled) {
+  background: #2a1010;
+  color: #ff7777;
+  border-color: #8a2a2a;
+}
+
+.settings-btn-ghost {
+  background: none;
+  border: 1px solid #2a2d32;
+  color: #666;
+}
+
+.settings-btn-ghost:hover:not(:disabled) {
+  background: #1a1d22;
+  color: #aaa;
+}
+
+/* ---- Upload ---- */
+
+.settings-upload-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 16px;
+  background: #0d0f12;
+  border: 1px solid #1e2228;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.settings-avatar-preview {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: #1a2a1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  color: #32CD32;
+  font-weight: bold;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.settings-avatar-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.settings-server-icon-preview {
+  width: 80px;
+  height: 80px;
+  border-radius: 16px;
+  background: #1a2a1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: #32CD32;
+  font-weight: bold;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.settings-server-icon-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 16px;
+}
+
+.settings-banner-preview {
+  width: 100%;
+  height: 108px;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 8px;
+  background: #1a2a1a;
+  background-size: cover;
+  background-position: center;
+}
+
+.settings-upload-btn {
+  background: #1a1d22;
+  border: 1px solid #2a2d32;
+  color: #32CD32;
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.1s;
+}
+
+.settings-upload-btn:hover {
+  background: #2a2d32;
+}
+
+.settings-upload-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.settings-upload-remove-btn {
+  background: none;
+  border: 1px solid #3a1a1a;
+  color: #cc4444;
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  margin-top: 4px;
+}
+
+.settings-upload-remove-btn:hover {
+  background: #2a0f0f;
+}
+
+/* ---- Profile preview card ---- */
+
+.settings-profile-split {
+  display: flex;
+  gap: 32px;
+  align-items: flex-start;
+}
+
+.settings-profile-form {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-profile-preview {
+  width: 240px;
+  flex-shrink: 0;
+}
+
+.settings-preview-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #444;
+  margin-bottom: 8px;
+}
+
+.settings-preview-card {
+  background: #0d0f12;
+  border: 1px solid #1e2228;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.settings-preview-banner {
+  height: 72px;
+  background-size: cover;
+  background-position: center;
+  background-color: #1a2a1a;
+}
+
+.settings-preview-avatar-row {
+  padding: 0 12px;
+  margin-top: -28px;
+  margin-bottom: 4px;
+  position: relative;
+}
+
+.settings-preview-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 4px solid #0d0f12;
+  background: #1a2a1a;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  color: #32CD32;
+  font-weight: bold;
+}
+
+.settings-preview-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.settings-preview-body {
+  padding: 0 12px 12px;
+}
+
+.settings-preview-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #ddd;
+}
+
+.settings-preview-sub {
+  font-size: 12px;
+  color: #555;
+}
+
+/* ---- Unsaved changes bar ---- */
+
+.settings-unsaved-bar {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #16191d;
+  border: 1px solid #2a2d32;
+  border-radius: 8px;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  z-index: 1100;
+  box-shadow: 0 4px 32px rgba(0, 0, 0, 0.6);
+  animation: bar-slide-up 0.18s ease;
+  white-space: nowrap;
+}
+
+@keyframes bar-slide-up {
+  from { transform: translateX(-50%) translateY(16px); opacity: 0; }
+  to   { transform: translateX(-50%) translateY(0);    opacity: 1; }
+}
+
+.settings-unsaved-text {
+  font-size: 13px;
+  color: #888;
+}
+
+/* ---- Close button ---- */
+
+.settings-close-wrap {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  z-index: 1050;
+}
+
+.settings-close-btn {
+  width: 36px;
+  height: 36px;
+  background: #1a1d22;
+  border: 1px solid #2a2d32;
+  border-radius: 50%;
+  color: #666;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+  line-height: 1;
+}
+
+.settings-close-btn:hover {
+  background: #2a2d32;
+  color: #ddd;
+  border-color: #444;
+}
+
+.settings-close-hint {
+  font-size: 10px;
+  color: #333;
+  letter-spacing: 0.5px;
+}
+
+/* ---- Vanity URL input ---- */
+
+.settings-vanity-wrap {
+  display: flex;
+  align-items: center;
+  background: #0a0c0f;
+  border: 1px solid #2a2d32;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.settings-vanity-prefix {
+  padding: 10px 12px;
+  font-size: 13px;
+  color: #444;
+  background: #0d0f12;
+  border-right: 1px solid #2a2d32;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.settings-vanity-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #ccc;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+/* ---- Invite display ---- */
+
+.settings-invite-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #0a0c0f;
+  border: 1px solid #1e2228;
+  border-radius: 6px;
+  margin-top: 8px;
+}
+
+.settings-invite-link {
+  flex: 1;
+  font-size: 13px;
+  color: #32CD32;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- Danger zone ---- */
+
+.settings-danger-zone {
+  background: #150d0d;
+  border: 1px solid #3a1a1a;
+  border-radius: 6px;
+  padding: 20px;
+}
+
+.settings-danger-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #cc4444;
+  margin-bottom: 8px;
+}
+
+.settings-danger-desc {
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 16px;
+}
+
+.settings-delete-confirm {
+  margin-top: 12px;
+  padding: 14px;
+  background: #1a0d0d;
+  border: 1px solid #5a1a1a;
+  border-radius: 6px;
+}
+
+.settings-delete-confirm p {
+  font-size: 13px;
+  color: #cc7777;
+  margin: 0 0 12px;
+}
+
+/* ---- Roles panel (inside ServerSettings) ---- */
+
+.roles-panel {
+  display: flex;
+  gap: 20px;
+  min-height: 360px;
+}
+
+.roles-list-col {
+  width: 180px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.roles-list-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  color: #888;
+  text-align: left;
+  font-family: inherit;
+  font-size: 13px;
+  transition: background 0.1s;
+  width: 100%;
+}
+
+.roles-list-item:hover {
+  background: #1a1d22;
+  color: #ccc;
+}
+
+.roles-list-item.active {
+  background: #1e2228;
+  color: #ddd;
+}
+
+.roles-list-color-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.roles-list-add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  background: none;
+  border: 1px dashed #2a2d32;
+  color: #555;
+  text-align: left;
+  font-family: inherit;
+  font-size: 12px;
+  transition: border-color 0.1s, color 0.1s;
+  margin-top: 8px;
+  width: 100%;
+}
+
+.roles-list-add:hover {
+  border-color: #32CD32;
+  color: #32CD32;
+}
+
+.roles-edit-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.roles-new-form {
+  padding: 16px;
+  background: #0d0f12;
+  border: 1px solid #1e2228;
+  border-radius: 6px;
+}
+
+.roles-edit-form {
+  padding: 16px;
+  background: #0d0f12;
+  border: 1px solid #1e2228;
+  border-radius: 6px;
+}
+
+.roles-edit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.roles-edit-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #bbb;
+  letter-spacing: 0.3px;
+}
+
+.roles-perms-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.roles-perm-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #0a0c0f;
+  border-radius: 4px;
+  border: 1px solid #1e2228;
+}
+
+.roles-perm-label {
+  font-size: 13px;
+  color: #aaa;
+}
+
+.roles-perm-desc {
+  font-size: 11px;
+  color: #555;
+  margin-top: 1px;
+}
+
+/* ---- Members assignment (inside Roles tab) ---- */
+
+.roles-members-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.roles-member-item {
+  border: 1px solid #1e2228;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.roles-member-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  background: #0d0f12;
+  transition: background 0.1s;
+}
+
+.roles-member-header:hover {
+  background: #14181e;
+}
+
+.roles-member-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #1a2a1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #32CD32;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.roles-member-name {
+  flex: 1;
+  font-size: 13px;
+  color: #bbb;
+}
+
+.roles-member-count {
+  font-size: 11px;
+  color: #555;
+}
+
+.roles-member-roles-body {
+  padding: 8px 12px 12px 48px;
+  background: #0a0c0f;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.roles-member-role-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #aaa;
+}
+
+/* ---- Phone/email sub-forms ---- */
+
+.settings-verify-banner {
+  margin-top: 8px;
+  padding: 10px 14px;
+  background: #2a1f00;
+  border: 1px solid #664400;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.settings-verify-text {
+  font-size: 13px;
+  color: #ffaa00;
+}
+
+.settings-verify-input-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.settings-verified-note {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #44cc44;
+}
+
+@media (max-width: 720px) {
+  .settings-sidebar {
+    width: 180px;
+  }
+  .settings-content {
+    padding: 48px 20px 80px;
+  }
+  .settings-profile-split {
+    flex-direction: column;
+  }
+  .settings-profile-preview {
+    width: 100%;
+  }
+}

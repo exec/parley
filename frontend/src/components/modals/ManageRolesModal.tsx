@@ -206,11 +206,12 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({
               <div style={{ fontSize: 12, color: '#555', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Permissions</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {PERMISSIONS.map(p => (
-                  <label key={p.value} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#aaa', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={(newRolePerms & p.value) !== 0}
-                      onChange={() => setNewRolePerms(prev => prev ^ p.value)}
+                  <label key={p.value} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#aaa', cursor: 'pointer' }}>
+                    <button
+                      type="button"
+                      className={`custom-toggle${(newRolePerms & p.value) !== 0 ? ' on' : ''}`}
+                      onClick={() => setNewRolePerms(prev => prev ^ p.value)}
+                      aria-pressed={(newRolePerms & p.value) !== 0}
                     />
                     {p.label}
                   </label>
@@ -230,9 +231,9 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({
                 const assigned = memberRoles[member.user_id] ?? new Set();
                 const isExpanded = expandedMember === member.user_id;
                 return (
-                  <div key={member.id} className="member-role-item">
+                  <div key={member.id} className="member-role-item" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
                     <div
-                      style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '6px 0' }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '6px 0', flexDirection: 'row' }}
                       onClick={() => setExpandedMember(isExpanded ? null : member.user_id)}
                     >
                       <div className="member-avatar-small">
@@ -251,12 +252,13 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({
                           return (
                             <label
                               key={role.id}
-                              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', cursor: 'pointer', fontSize: 13 }}
+                              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0', cursor: 'pointer', fontSize: 13 }}
                             >
-                              <input
-                                type="checkbox"
-                                checked={isAssigned}
-                                onChange={() => handleToggleRole(member.user_id, role.id, isAssigned)}
+                              <button
+                                type="button"
+                                className={`custom-toggle${isAssigned ? ' on' : ''}`}
+                                onClick={() => handleToggleRole(member.user_id, role.id, isAssigned)}
+                                aria-pressed={isAssigned}
                               />
                               <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: role.color, display: 'inline-block', flexShrink: 0 }} />
                               <span style={{ color: role.color }}>{role.name}</span>

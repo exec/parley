@@ -251,6 +251,10 @@ export async function apiDisbandServer(id: number): Promise<{ message: string; m
   return request<{ message: string; members_notified: number }>('DELETE', `/servers/${id}`)
 }
 
+export async function apiGenerateInvite(id: number): Promise<{ code: string }> {
+  return request<{ code: string }>('POST', `/servers/${id}/invite`)
+}
+
 // ---- Categories ----
 
 export interface Category {

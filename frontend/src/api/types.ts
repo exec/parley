@@ -34,6 +34,7 @@ export interface ServerMember {
   user_id: string;
   username: string;
   nickname?: string;
+  avatar_url?: string;
   joined_at: string;
   roles?: Role[];
 }
@@ -43,6 +44,7 @@ export interface Channel {
   server_id: string;
   name: string;
   type: number;
+  topic?: string;
   created_at: string;
   updated_at: string;
 }
@@ -107,4 +109,5 @@ export interface PublicUser {
   username: string;
   avatar_url: string;
   created_at: string;
+  banner_url?: string;
 }

@@ -39,13 +39,14 @@ type Role struct {
 
 // ServerMember represents a member of a server
 type ServerMember struct {
-	ID       string    `json:"id"`
-	ServerID string    `json:"server_id"`
-	UserID   string    `json:"user_id"`
-	Username string    `json:"username"`
-	Nickname string    `json:"nickname,omitempty"`
-	JoinedAt time.Time `json:"joined_at"`
-	Roles    []Role    `json:"roles"`
+	ID        string    `json:"id"`
+	ServerID  string    `json:"server_id"`
+	UserID    string    `json:"user_id"`
+	Username  string    `json:"username"`
+	Nickname  string    `json:"nickname,omitempty"`
+	AvatarURL string    `json:"avatar_url,omitempty"`
+	JoinedAt  time.Time `json:"joined_at"`
+	Roles     []Role    `json:"roles"`
 }
 
 // Invite represents an invite code
@@ -403,13 +404,14 @@ func (s *ServerService) GetMembers(ctx context.Context, serverID string) ([]*Ser
 	result := make([]*ServerMember, len(members))
 	for i, member := range members {
 		result[i] = &ServerMember{
-			ID:       int64ToID(member.ID),
-			ServerID: int64ToID(member.ServerID),
-			UserID:   int64ToID(member.UserID),
-			Username: member.Username,
-			Nickname: member.Nickname,
-			JoinedAt: member.JoinedAt,
-			Roles:    []Role{},
+			ID:        int64ToID(member.ID),
+			ServerID:  int64ToID(member.ServerID),
+			UserID:    int64ToID(member.UserID),
+			Username:  member.Username,
+			Nickname:  member.Nickname,
+			AvatarURL: member.AvatarURL,
+			JoinedAt:  member.JoinedAt,
+			Roles:     []Role{},
 		}
 	}
 
@@ -757,6 +759,24 @@ func (s *ServerService) DeleteServerRole(ctx context.Context, serverID, roleID s
 	return s.repo.DeleteServerRole(ctx, sID, rID)
 }
 
+// UpdateServerRole updates a role's name, color and permissions
+func (s *ServerService) UpdateServerRole(ctx context.Context, serverID, roleID, name, color string, permissions int64) (*Role, error) {
+	sID, err := idToInt64(serverID)
+	if err != nil {
+		return nil, errors.New("invalid server ID")
+	}
+	rID, err := idToInt64(roleID)
+	if err != nil {
+		return nil, errors.New("invalid role ID")
+	}
+	dbRole, err := s.repo.UpdateServerRole(ctx, sID, rID, name, color, permissions)
+	if err != nil {
+		return nil, err
+	}
+	r := dbRoleToRole(*dbRole)
+	return &r, nil
+}
+
 // GetMemberRoles returns all roles assigned to a member
 func (s *ServerService) GetMemberRoles(ctx context.Context, serverID, userID string) ([]Role, error) {
 	sID, err := idToInt64(serverID)
@@ -861,13 +881,14 @@ func (s *ServerService) GetMembersWithRoles(ctx context.Context, serverID string
 			roles[j] = dbRoleToRole(r)
 		}
 		members[i] = &ServerMember{
-			ID:       strconv.FormatInt(m.ID, 10),
-			ServerID: strconv.FormatInt(m.ServerID, 10),
-			UserID:   strconv.FormatInt(m.UserID, 10),
-			Username: m.Username,
-			Nickname: m.Nickname,
-			JoinedAt: m.JoinedAt,
-			Roles:    roles,
+			ID:        strconv.FormatInt(m.ID, 10),
+			ServerID:  strconv.FormatInt(m.ServerID, 10),
+			UserID:    strconv.FormatInt(m.UserID, 10),
+			Username:  m.Username,
+			Nickname:  m.Nickname,
+			AvatarURL: m.AvatarURL,
+			JoinedAt:  m.JoinedAt,
+			Roles:     roles,
 		}
 	}
 	return members, nil

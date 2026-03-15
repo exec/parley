@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Message as MessageType } from '../../api/types';
 import { Avatar } from '../ui/Avatar';
+import { EmojiPicker } from './EmojiPicker';
 import './Chat.css';
-
-const COMMON_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡', '🎉', '🔥', '👀', '✅', '💯', '🚀'];
 
 interface MessageProps {
   message: MessageType;
@@ -266,12 +265,8 @@ export const Message: React.FC<MessageProps> = ({
       )}
 
       {showEmojiPicker && (
-        <div ref={emojiPickerRef} className="emoji-picker">
-          {COMMON_EMOJIS.map(emoji => (
-            <button key={emoji} className="emoji-picker-btn" onClick={() => handleReact(emoji)}>
-              {emoji}
-            </button>
-          ))}
+        <div ref={emojiPickerRef}>
+          <EmojiPicker onSelect={handleReact} onClose={() => setShowEmojiPicker(false)} />
         </div>
       )}
 

@@ -154,8 +154,10 @@
   font-weight: 500;
   color: var(--text-primary);
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 4px;
 }
 
 .member-item:hover .member-name {
@@ -408,16 +410,10 @@
 
 .role-tag {
   display: inline-block;
+  flex-shrink: 0;
+  white-space: nowrap;
   font-size: 10px;
   padding: 1px 5px;
   border-radius: 3px;
   font-weight: 600;
-  margin-right: 3px;
-  margin-top: 2px;
-}
-
-.member-roles {
-  display: flex;
-  flex-wrap: wrap;
-  margin-top: 2px;
 }

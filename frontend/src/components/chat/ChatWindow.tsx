@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState, useRef, useEffect } from 'react';
 import { Channel, Message as MessageType } from '../../api/types';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
@@ -28,6 +28,8 @@ interface ChatWindowProps {
   onClearReply?: () => void;
   typingUsers?: TypingUser[];
   onTyping?: () => void;
+  canManageChannels?: boolean;
+  onUpdateTopic?: (channelId: string, topic: string) => void;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -48,8 +50,37 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onClearReply,
   typingUsers = [],
   onTyping,
+  canManageChannels = false,
+  onUpdateTopic,
 }) => {
   const replyValue = replyTo ? `@${replyTo.author_username} ` : '';
+  const [editingTopic, setEditingTopic] = useState(false);
+  const [topicValue, setTopicValue] = useState(channel.topic ?? '');
+  const topicInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setTopicValue(channel.topic ?? '');
+  }, [channel.topic, channel.id]);
+
+  useEffect(() => {
+    if (editingTopic) topicInputRef.current?.focus();
+  }, [editingTopic]);
+
+  const startEditTopic = () => {
+    if (!canManageChannels) return;
+    setTopicValue(channel.topic ?? '');
+    setEditingTopic(true);
+  };
+
+  const commitTopic = () => {
+    setEditingTopic(false);
+    onUpdateTopic?.(channel.id, topicValue.trim());
+  };
+
+  const handleTopicKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') { e.preventDefault(); commitTopic(); }
+    if (e.key === 'Escape') { setEditingTopic(false); setTopicValue(channel.topic ?? ''); }
+  };
 
   const handleSendMessage = useCallback(
     (content: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string) => {
@@ -63,6 +94,29 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   return (
     <div className="chat-window">
+      <div
+        className={`chat-header${canManageChannels ? ' chat-header-editable' : ''}`}
+        onClick={startEditTopic}
+        title={canManageChannels ? 'Click to edit topic' : undefined}
+      >
+        <span className="chat-header-name"># {channel.name}</span>
+        {editingTopic ? (
+          <input
+            ref={topicInputRef}
+            className="channel-topic-input"
+            value={topicValue}
+            onChange={e => setTopicValue(e.target.value)}
+            onBlur={commitTopic}
+            onKeyDown={handleTopicKeyDown}
+            placeholder="Set a topic..."
+            onClick={e => e.stopPropagation()}
+          />
+        ) : (
+          <div className="channel-topic">
+            {channel.topic || (canManageChannels ? <span className="channel-topic-placeholder">Add a topic...</span> : null)}
+          </div>
+        )}
+      </div>
       <MessageList
         messages={messages}
         currentUserId={currentUserId}

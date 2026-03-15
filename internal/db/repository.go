@@ -795,7 +795,7 @@ func (r *Repository) GetMember(ctx context.Context, serverID, userID int64) (*Se
 // GetServerMembers retrieves all members of a server
 func (r *Repository) GetServerMembers(ctx context.Context, serverID int64) ([]*ServerMember, error) {
 	query := `
-		SELECT sm.id, sm.server_id, sm.user_id, sm.nickname, sm.joined_at, u.username
+		SELECT sm.id, sm.server_id, sm.user_id, sm.nickname, sm.joined_at, u.username, COALESCE(u.avatar_url, '')
 		FROM server_members sm
 		JOIN users u ON u.id = sm.user_id
 		WHERE sm.server_id = $1
@@ -818,6 +818,7 @@ func (r *Repository) GetServerMembers(ctx context.Context, serverID int64) ([]*S
 			&member.Nickname,
 			&member.JoinedAt,
 			&member.Username,
+			&member.AvatarURL,
 		)
 		if err != nil {
 			return nil, err
@@ -835,8 +836,8 @@ func (r *Repository) GetServerMembers(ctx context.Context, serverID int64) ([]*S
 // CreateChannel creates a new channel in the database
 func (r *Repository) CreateChannel(ctx context.Context, channel *Channel) error {
 	query := `
-		INSERT INTO channels (server_id, name, channel_type, position, parent_id, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO channels (server_id, name, channel_type, position, parent_id, topic, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id
 	`
 
@@ -848,6 +849,7 @@ func (r *Repository) CreateChannel(ctx context.Context, channel *Channel) error 
 		channel.ChannelType,
 		channel.Position,
 		channel.ParentID,
+		channel.Topic,
 		channel.CreatedAt,
 	).Scan(&channel.ID)
 
@@ -861,7 +863,7 @@ func (r *Repository) CreateChannel(ctx context.Context, channel *Channel) error 
 // GetChannelByID retrieves a channel by its ID
 func (r *Repository) GetChannelByID(ctx context.Context, id int64) (*Channel, error) {
 	query := `
-		SELECT id, server_id, name, channel_type, position, parent_id, created_at, updated_at
+		SELECT id, server_id, name, channel_type, position, parent_id, topic, created_at, updated_at
 		FROM channels
 		WHERE id = $1
 	`
@@ -874,6 +876,7 @@ func (r *Repository) GetChannelByID(ctx context.Context, id int64) (*Channel, er
 		&channel.ChannelType,
 		&channel.Position,
 		&channel.ParentID,
+		&channel.Topic,
 		&channel.CreatedAt,
 		&channel.UpdatedAt,
 	)
@@ -891,7 +894,7 @@ func (r *Repository) GetChannelByID(ctx context.Context, id int64) (*Channel, er
 // GetChannelsByServerID retrieves all channels for a server
 func (r *Repository) GetChannelsByServerID(ctx context.Context, serverID int64) ([]*Channel, error) {
 	query := `
-		SELECT id, server_id, name, channel_type, position, parent_id, created_at, updated_at
+		SELECT id, server_id, name, channel_type, position, parent_id, topic, created_at, updated_at
 		FROM channels
 		WHERE server_id = $1
 		ORDER BY position, name
@@ -913,6 +916,7 @@ func (r *Repository) GetChannelsByServerID(ctx context.Context, serverID int64) 
 			&channel.ChannelType,
 			&channel.Position,
 			&channel.ParentID,
+			&channel.Topic,
 			&channel.CreatedAt,
 			&channel.UpdatedAt,
 		)
@@ -933,8 +937,8 @@ func (r *Repository) GetChannelsByServerID(ctx context.Context, serverID int64) 
 func (r *Repository) UpdateChannel(ctx context.Context, channel *Channel) error {
 	query := `
 		UPDATE channels
-		SET name = $1, channel_type = $2, position = $3, parent_id = $4, updated_at = NOW()
-		WHERE id = $5
+		SET name = $1, channel_type = $2, position = $3, parent_id = $4, topic = $5, updated_at = NOW()
+		WHERE id = $6
 	`
 
 	result, err := r.db.ExecContext(ctx, query,
@@ -942,6 +946,7 @@ func (r *Repository) UpdateChannel(ctx context.Context, channel *Channel) error 
 		channel.ChannelType,
 		channel.Position,
 		channel.ParentID,
+		channel.Topic,
 		channel.ID,
 	)
 	if err != nil {
@@ -1332,7 +1337,7 @@ func (r *Repository) GetDmMessages(ctx context.Context, dmChannelID int64, limit
 // GetPublicUser returns public profile info for a user
 func (r *Repository) GetPublicUser(ctx context.Context, userID int64) (*PublicUser, error) {
 	query := `
-		SELECT id, username, COALESCE(avatar_url, ''), created_at
+		SELECT id, username, COALESCE(avatar_url, ''), COALESCE(banner_url, ''), created_at
 		FROM users
 		WHERE id = $1
 	`
@@ -1342,6 +1347,7 @@ func (r *Repository) GetPublicUser(ctx context.Context, userID int64) (*PublicUs
 		&user.ID,
 		&user.Username,
 		&user.AvatarURL,
+		&user.BannerURL,
 		&user.CreatedAt,
 	)
 	if err == sql.ErrNoRows {
@@ -1677,6 +1683,21 @@ func (r *Repository) DeleteServerRole(ctx context.Context, serverID, roleID int6
 		return ErrNotFound
 	}
 	return nil
+}
+
+// UpdateServerRole updates a role's name, color and permissions
+func (r *Repository) UpdateServerRole(ctx context.Context, serverID, roleID int64, name, color string, permissions int64) (*ServerRole, error) {
+	var role ServerRole
+	err := r.db.QueryRowContext(ctx,
+		`UPDATE server_roles SET name = $1, color = $2, permissions = $3
+		 WHERE id = $4 AND server_id = $5
+		 RETURNING id, server_id, name, color, permissions, created_at`,
+		name, color, permissions, roleID, serverID,
+	).Scan(&role.ID, &role.ServerID, &role.Name, &role.Color, &role.Permissions, &role.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &role, nil
 }
 
 // GetMemberRoles returns all roles assigned to a member in a server

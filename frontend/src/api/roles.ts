@@ -13,6 +13,10 @@ export async function deleteServerRole(serverId: string, roleId: string): Promis
   return apiClient.delete<void>(`/servers/${serverId}/roles/${roleId}`);
 }
 
+export async function updateServerRole(serverId: string, roleId: string, name: string, color: string, permissions: number): Promise<Role> {
+  return apiClient.patch<Role>(`/servers/${serverId}/roles/${roleId}`, { name, color, permissions });
+}
+
 export async function getMemberRoles(serverId: string, userId: string): Promise<Role[]> {
   return apiClient.get<Role[]>(`/servers/${serverId}/members/${userId}/roles`);
 }

@@ -31,7 +31,7 @@ interface AppActions {
   updateServer: (server: Server) => void;
   deleteServer: (serverId: string) => void;
   leaveServer: (serverId: string) => Promise<void>;
-  createChannel: (name: string, type: number) => Promise<void>;
+  createChannel: (name: string, type: number, topic?: string) => Promise<void>;
   deleteChannel: (channelId: string) => Promise<void>;
   sendMessage: (content: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string) => Promise<void>;
   editMessage: (messageId: string, content: string) => Promise<void>;
@@ -58,6 +58,7 @@ interface AppActions {
   receiveMemberRemoved: (serverId: string, userId: string) => void; // for kick or ban of current user
   receiveMemberRoleUpdate: (update: MemberRoleUpdate) => void;
   receiveUserUpdate: (update: UserUpdate) => void;
+  reloadMembers: (serverId: string) => Promise<void>;
 }
 
 const AppContext = createContext<(AppState & AppActions) | null>(null);
@@ -240,9 +241,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const createChannel = useCallback(async (name: string, type: number) => {
+  const createChannel = useCallback(async (name: string, type: number, topic?: string) => {
     if (!activeServer) return;
-    const ch = await channelsApi.createChannel(activeServer.id, name, type);
+    const ch = await channelsApi.createChannel(activeServer.id, name, type, topic);
     setChannels(prev => [...prev, ch]);
   }, [activeServer]);
 
@@ -459,12 +460,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const receiveChannelUpdate = useCallback((channel: Channel) => {
     setChannels(prev => prev.map(c => c.id === channel.id ? channel : c));
+    setActiveChannel(prev => prev?.id === channel.id ? channel : prev);
   }, []);
 
   const receiveChannelDelete = useCallback((channelId: string, _serverId: string) => {
     setChannels(prev => prev.filter(c => c.id !== channelId));
     setActiveChannel(prev => prev?.id === channelId ? null : prev);
     setMessages(prev => prev.filter(() => true)); // keep messages, UI handles null channel
+  }, []);
+
+  const reloadMembers = useCallback(async (serverId: string) => {
+    try {
+      const mems = await serversApi.getMembers(serverId);
+      setMembers(mems ?? []);
+    } catch (err) {
+      console.error('Failed to reload members:', err);
+    }
   }, []);
 
   const receiveMemberLeave = useCallback((serverId: string, userId: string) => {
@@ -551,6 +562,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       receiveMemberRemoved,
       receiveMemberRoleUpdate,
       receiveUserUpdate,
+      reloadMembers,
     }}>
       {children}
     </AppContext.Provider>

@@ -44,6 +44,7 @@ type CreateChannelRequest struct {
 	Name     string  `json:"name"`
 	Type     int     `json:"type"`
 	ParentID *string `json:"parent_id"`
+	Topic    string  `json:"topic"`
 }
 
 // CreateChannel handles POST /servers/:serverID/channels
@@ -66,7 +67,7 @@ func (h *Handler) CreateChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ch, err := h.service.CreateChannel(r.Context(), serverID, req.Name, req.Type, req.ParentID, userID)
+	ch, err := h.service.CreateChannel(r.Context(), serverID, req.Name, req.Type, req.ParentID, req.Topic, userID)
 	if err != nil {
 		if err.Error() == "forbidden" {
 			http.Error(w, "you do not have permission to create channels", http.StatusForbidden)
@@ -119,7 +120,8 @@ func (h *Handler) GetServerChannels(w http.ResponseWriter, r *http.Request) {
 
 // UpdateChannelRequest represents the request body for updating a channel
 type UpdateChannelRequest struct {
-	Name string `json:"name"`
+	Name  string `json:"name"`
+	Topic string `json:"topic"`
 }
 
 // UpdateChannel handles PUT /channels/:id
@@ -142,7 +144,7 @@ func (h *Handler) UpdateChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ch, err := h.service.UpdateChannel(r.Context(), id, req.Name, userID)
+	ch, err := h.service.UpdateChannel(r.Context(), id, req.Name, req.Topic, userID)
 	if err != nil {
 		if err.Error() == "forbidden" {
 			http.Error(w, "you do not have permission to update channels", http.StatusForbidden)

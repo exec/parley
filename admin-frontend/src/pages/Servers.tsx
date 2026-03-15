@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { apiGetServers, apiDisbandServer, Server } from '../api'
+import { apiGetServers, apiDisbandServer, apiGenerateInvite, Server } from '../api'
 
 const PAGE_SIZE = 50
 
@@ -11,6 +11,7 @@ export default function Servers() {
   const [success, setSuccess] = useState('')
   const [q, setQ] = useState('')
   const [offset, setOffset] = useState(0)
+  const [inviteCode, setInviteCode] = useState<{ serverId: number; code: string } | null>(null)
 
   const load = useCallback(async (query: string, off: number) => {
     setLoading(true)
@@ -34,6 +35,15 @@ export default function Servers() {
     e.preventDefault()
     setOffset(0)
     load(q, 0)
+  }
+
+  const handleGenerateInvite = async (s: Server) => {
+    try {
+      const res = await apiGenerateInvite(s.id)
+      setInviteCode({ serverId: s.id, code: res.code })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to generate invite')
+    }
   }
 
   const handleDisband = async (s: Server) => {
@@ -68,6 +78,18 @@ export default function Servers() {
       {success && (
         <div className="alert alert-success" onClick={() => setSuccess('')} style={{ cursor: 'pointer' }}>
           [OK] {success}
+        </div>
+      )}
+      {inviteCode && (
+        <div className="alert alert-success" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span>INVITE LINK:</span>
+          <code style={{ flex: 1, background: '#0a0a0a', padding: '4px 8px', borderRadius: 3, userSelect: 'all' }}>
+            https://parley.x86-64.com/invite/{inviteCode.code}
+          </code>
+          <button className="btn btn-primary" onClick={() => { navigator.clipboard.writeText(`https://parley.x86-64.com/invite/${inviteCode.code}`); }}>
+            COPY
+          </button>
+          <button className="btn" onClick={() => setInviteCode(null)}>DISMISS</button>
         </div>
       )}
 
@@ -131,7 +153,14 @@ export default function Servers() {
                   <td style={{ fontSize: '11px', color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>
                     {new Date(s.created_at).toLocaleDateString()}
                   </td>
-                  <td>
+                  <td style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => handleGenerateInvite(s)}
+                      title="Generate invite link for this server"
+                    >
+                      INVITE
+                    </button>
                     <button
                       className="btn btn-danger"
                       onClick={() => handleDisband(s)}

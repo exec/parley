@@ -43,9 +43,9 @@ This is a living task list for Parley - a Discord clone.
 ### Pending
 
 - [x] Right-click context menu on usernames in sidebar (user sidebar) — "Manage Roles" context menu added
-- [ ] Right-click context menu on usernames in chat (channel messages)
-- [ ] DM from search doesn't show for the sender
-- [ ] User joining server doesn't refresh server sidebar for others immediately
+- [x] Right-click context menu on usernames in chat (channel messages) — View Profile / Send Message popup on avatar/username right-click
+- [x] DM from search doesn't show for the sender
+- [x] User joining server doesn't refresh server sidebar for others immediately — fixed: event type casing mismatch corrected, handler now calls reloadMembers for active server
 - [ ] Message editing in voice channels
 - [ ] Delete/edit messages in VC
 
@@ -57,12 +57,12 @@ This is a living task list for Parley - a Discord clone.
 - [x] Typing indicators
 - [x] Unread message badges on servers and DM channels
 - [x] Real-time online status indicators
-- [ ] Channel topics and descriptions
+- [x] Channel topics and descriptions
 - [x] Message reactions
-- [ ] Emoji picker
+- [x] Emoji picker (full categorized picker with search, 8 categories)
 - [x] Image/file upload in messages
 - [x] Server pictures and user profile pictures (DigitalOcean Spaces)
-- [ ] User banners (upload + storage done; profile modal doesn't display banner yet — `PublicUser` missing `banner_url`)
+- [x] User banners (banner now displays in profile modal)
 - [x] Email verification (Brevo HTTP API)
 
 ### Infrastructure
@@ -88,10 +88,12 @@ This is a living task list for Parley - a Discord clone.
   - Ban users (dissolve accounts with funny error message)
   - View logs/metrics
 
-- [x] Server-wide permissions/privileges system (scaffolding)
+- [x] Server-wide permissions/privileges system
   - Tab in server settings to control these
   - Multiple roles per user — done
   - Custom role interface — done (ManageRolesModal with color picker, permission flags, member assignment)
+  - Backend enforcement — done (PermManageChannels, PermKickMembers, PermManageMessages enforced on all relevant endpoints)
+  - Frontend gating — done (+ create channel, × delete channel, kick/ban buttons hidden when no permission)
 
 - [ ] Passkey authentication
   - Configurable in user settings

@@ -42,7 +42,19 @@ export function UserProfileModal({ isOpen, onClose, userId, currentUserId, onSta
           </div>
         ) : user ? (
           <>
-            <div className="user-profile-avatar">
+            <div
+              className="profile-banner"
+              style={{
+                height: 120,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundColor: '#1a2a1a',
+                backgroundImage: user.banner_url ? `url(${user.banner_url})` : undefined,
+                borderRadius: '4px 4px 0 0',
+                marginBottom: 0,
+              }}
+            />
+            <div className="user-profile-avatar" style={{ marginTop: -40, position: 'relative', zIndex: 1 }}>
               {user.avatar_url ? (
                 <img src={user.avatar_url} alt={user.username} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
               ) : (

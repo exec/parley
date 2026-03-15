@@ -1,0 +1,165 @@
+/* ---- Mini Profile Popup ---- */
+
+.mini-profile {
+  position: fixed;
+  width: 280px;
+  background: #111418;
+  border: 1px solid #1e2228;
+  border-radius: 8px;
+  overflow: hidden;
+  z-index: 900;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+  animation: mini-profile-in 0.12s ease;
+}
+
+@keyframes mini-profile-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.mini-profile-banner {
+  height: 72px;
+  background-color: #1a2a1a;
+  background-size: cover;
+  background-position: center;
+  flex-shrink: 0;
+}
+
+.mini-profile-avatar-row {
+  padding: 0 12px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-top: -28px;
+  margin-bottom: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.mini-profile-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 4px solid #111418;
+  background: #1a2a1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  color: #32CD32;
+  font-weight: bold;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.mini-profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mini-profile-status-dot {
+  position: absolute;
+  bottom: 2px;
+  left: 42px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 3px solid #111418;
+}
+
+.mini-profile-status-dot.online  { background: #44cc44; }
+.mini-profile-status-dot.offline { background: #555; }
+
+.mini-profile-body {
+  padding: 8px 14px 14px;
+}
+
+.mini-profile-username {
+  font-size: 16px;
+  font-weight: 700;
+  color: #ddd;
+  line-height: 1.2;
+}
+
+.mini-profile-nickname {
+  font-size: 12px;
+  color: #555;
+  margin-top: 1px;
+}
+
+.mini-profile-divider {
+  height: 1px;
+  background: #1e2228;
+  margin: 10px 0;
+}
+
+.mini-profile-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #444;
+  margin-bottom: 6px;
+}
+
+.mini-profile-roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.mini-profile-role-tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid;
+  white-space: nowrap;
+}
+
+.mini-profile-no-roles {
+  font-size: 12px;
+  color: #444;
+  font-style: italic;
+}
+
+.mini-profile-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.mini-profile-action-btn {
+  flex: 1;
+  padding: 7px 12px;
+  border-radius: 4px;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: 0.2px;
+  transition: background 0.1s;
+}
+
+.mini-profile-action-btn.primary {
+  background: #32CD32;
+  color: #000;
+}
+
+.mini-profile-action-btn.primary:hover {
+  background: #44dd44;
+}
+
+.mini-profile-action-btn.secondary {
+  background: #1a1d22;
+  color: #888;
+  border: 1px solid #2a2d32;
+}
+
+.mini-profile-action-btn.secondary:hover {
+  background: #2a2d32;
+  color: #ccc;
+}

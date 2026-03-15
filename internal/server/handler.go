@@ -548,6 +548,46 @@ func (h *Handler) DeleteServerRole(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// UpdateServerRole handles PATCH /servers/:id/roles/:roleId
+func (h *Handler) UpdateServerRole(w http.ResponseWriter, r *http.Request) {
+	serverID := chi.URLParam(r, "id")
+	roleID := chi.URLParam(r, "roleId")
+
+	userID, ok := r.Context().Value(UserIDKey).(string)
+	if !ok || userID == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+		return
+	}
+
+	server, err := h.service.GetServer(r.Context(), serverID)
+	if err != nil || server.OwnerID != userID {
+		w.WriteHeader(http.StatusForbidden)
+		render.JSON(w, r, ErrorResponse{Error: "only the server owner can manage roles"})
+		return
+	}
+
+	var req struct {
+		Name        string `json:"name"`
+		Color       string `json:"color"`
+		Permissions int64  `json:"permissions"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		render.JSON(w, r, ErrorResponse{Error: "name is required"})
+		return
+	}
+
+	role, err := h.service.UpdateServerRole(r.Context(), serverID, roleID, req.Name, req.Color, req.Permissions)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	render.JSON(w, r, role)
+}
+
 // GetMemberRoles handles GET /servers/:id/members/:userId/roles
 func (h *Handler) GetMemberRoles(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "id")

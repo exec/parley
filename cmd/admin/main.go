@@ -3,9 +3,11 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/big"
 	"net/http"
 	"os"
 	"strconv"
@@ -243,6 +245,7 @@ func runServer() {
 			// Servers
 			r.Get("/servers", handleListServers)
 			r.Delete("/servers/{id}", handleDisbandServer)
+			r.Post("/servers/{id}/invite", handleGenerateInvite)
 		})
 	})
 
@@ -624,6 +627,44 @@ func handleListServers(w http.ResponseWriter, r *http.Request) {
 		servers = []db.Server{}
 	}
 	jsonOK(w, servers)
+}
+
+func handleGenerateInvite(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		jsonError(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	code := make([]byte, 8)
+	for i := range code {
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		if err != nil {
+			jsonError(w, "failed to generate code", http.StatusInternalServerError)
+			return
+		}
+		code[i] = charset[n.Int64()]
+	}
+
+	// Get system user as invite creator
+	sysUser, err := repo.GetSystemUser(r.Context())
+	if err != nil {
+		jsonError(w, "could not get system user", http.StatusInternalServerError)
+		return
+	}
+
+	invite := &db.Invite{
+		ServerID:  id,
+		Code:      string(code),
+		CreatedBy: sysUser.ID,
+	}
+	if err := repo.CreateInvite(r.Context(), invite); err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	jsonOK(w, map[string]string{"code": invite.Code})
 }
 
 func handleDisbandServer(w http.ResponseWriter, r *http.Request) {
