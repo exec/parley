@@ -258,6 +258,56 @@ CREATE INDEX IF NOT EXISTS idx_reports_category ON reports(category_id);
 ALTER TABLE channels ADD COLUMN IF NOT EXISTS topic TEXT NOT NULL DEFAULT '';
 `,
 
+	`-- Random fixed-length ID generators
+-- Users: 12-digit (100000000000–999999999999), not in URLs so can be longer
+-- Servers, channels, dm_channels: 9-digit (100000000–999999999), appear in URLs
+
+CREATE OR REPLACE FUNCTION gen_user_id() RETURNS BIGINT LANGUAGE plpgsql VOLATILE AS $$
+DECLARE new_id BIGINT;
+BEGIN
+  LOOP
+    new_id := floor(random() * 900000000000 + 100000000000)::BIGINT;
+    EXIT WHEN NOT EXISTS (SELECT 1 FROM users WHERE id = new_id);
+  END LOOP;
+  RETURN new_id;
+END; $$;
+
+CREATE OR REPLACE FUNCTION gen_server_id() RETURNS BIGINT LANGUAGE plpgsql VOLATILE AS $$
+DECLARE new_id BIGINT;
+BEGIN
+  LOOP
+    new_id := floor(random() * 900000000 + 100000000)::BIGINT;
+    EXIT WHEN NOT EXISTS (SELECT 1 FROM servers WHERE id = new_id);
+  END LOOP;
+  RETURN new_id;
+END; $$;
+
+CREATE OR REPLACE FUNCTION gen_channel_id() RETURNS BIGINT LANGUAGE plpgsql VOLATILE AS $$
+DECLARE new_id BIGINT;
+BEGIN
+  LOOP
+    new_id := floor(random() * 900000000 + 100000000)::BIGINT;
+    EXIT WHEN NOT EXISTS (SELECT 1 FROM channels WHERE id = new_id);
+  END LOOP;
+  RETURN new_id;
+END; $$;
+
+CREATE OR REPLACE FUNCTION gen_dm_channel_id() RETURNS BIGINT LANGUAGE plpgsql VOLATILE AS $$
+DECLARE new_id BIGINT;
+BEGIN
+  LOOP
+    new_id := floor(random() * 900000000 + 100000000)::BIGINT;
+    EXIT WHEN NOT EXISTS (SELECT 1 FROM dm_channels WHERE id = new_id);
+  END LOOP;
+  RETURN new_id;
+END; $$;
+
+ALTER TABLE users      ALTER COLUMN id SET DEFAULT gen_user_id();
+ALTER TABLE servers    ALTER COLUMN id SET DEFAULT gen_server_id();
+ALTER TABLE channels   ALTER COLUMN id SET DEFAULT gen_channel_id();
+ALTER TABLE dm_channels ALTER COLUMN id SET DEFAULT gen_dm_channel_id();
+`,
+
 	`-- Server-level bans table
 CREATE TABLE IF NOT EXISTS server_bans (
     id BIGSERIAL PRIMARY KEY,
