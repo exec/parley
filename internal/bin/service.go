@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"parley/internal/db"
+	"parley/internal/permissions"
 	ws "parley/internal/websocket"
 )
 
@@ -30,6 +31,19 @@ func (s *Service) SetHub(hub *ws.Hub) {
 	s.mu.Lock()
 	s.hub = hub
 	s.mu.Unlock()
+}
+
+// getServerForChannel returns the server ID and owner ID for a channel.
+func (s *Service) getServerForChannel(ctx context.Context, channelIDInt int64) (serverID, ownerID int64, err error) {
+	ch, err := s.repo.GetChannelByID(ctx, channelIDInt)
+	if err != nil {
+		return 0, 0, err
+	}
+	srv, err := s.repo.GetServerByID(ctx, ch.ServerID)
+	if err != nil {
+		return 0, 0, err
+	}
+	return srv.ID, srv.OwnerID, nil
 }
 
 func (s *Service) broadcast(channelID string, event string, data interface{}) {
@@ -70,6 +84,26 @@ func (s *Service) CreatePost(ctx context.Context, channelID, userID string, titl
 	}
 	if ch.ChannelType != db.ChannelTypeBin {
 		return nil, errors.New("channel is not a bin channel")
+	}
+
+	// Permission checks: ViewChannel (404 if denied) and CreatePosts.
+	serverID, ownerID, err := s.getServerForChannel(ctx, chID)
+	if err != nil {
+		return nil, err
+	}
+	canView, err := permissions.HasChannelPermission(ctx, s.repo, serverID, uID, ownerID, chID, permissions.PermViewChannel)
+	if err != nil {
+		return nil, err
+	}
+	if !canView {
+		return nil, errors.New("channel not found")
+	}
+	canCreate, err := permissions.HasChannelPermission(ctx, s.repo, serverID, uID, ownerID, chID, permissions.PermCreatePosts)
+	if err != nil {
+		return nil, err
+	}
+	if !canCreate {
+		return nil, errors.New("forbidden")
 	}
 
 	// CreateBinPost also creates the thread channel and initial version 1.
@@ -116,7 +150,8 @@ func (s *Service) CreatePost(ctx context.Context, channelID, userID string, titl
 }
 
 // GetPost retrieves a bin post by ID including its files.
-func (s *Service) GetPost(ctx context.Context, postID string) (*db.BinPost, error) {
+// userID is used for ViewChannel check; pass "" to skip.
+func (s *Service) GetPost(ctx context.Context, postID, userID string) (*db.BinPost, error) {
 	id, err := strconv.ParseInt(postID, 10, 64)
 	if err != nil {
 		return nil, errors.New("invalid post ID")
@@ -130,6 +165,24 @@ func (s *Service) GetPost(ctx context.Context, postID string) (*db.BinPost, erro
 		return nil, err
 	}
 
+	// ViewChannel check.
+	if userID != "" {
+		uID, err := strconv.ParseInt(userID, 10, 64)
+		if err != nil {
+			return nil, errors.New("invalid user ID")
+		}
+		serverID, ownerID, err := s.getServerForChannel(ctx, post.ChannelID)
+		if err == nil {
+			canView, err := permissions.HasChannelPermission(ctx, s.repo, serverID, uID, ownerID, post.ChannelID, permissions.PermViewChannel)
+			if err != nil {
+				return nil, err
+			}
+			if !canView {
+				return nil, errors.New("post not found")
+			}
+		}
+	}
+
 	files, err := s.repo.GetBinPostFiles(ctx, id)
 	if err != nil {
 		return nil, err
@@ -140,7 +193,8 @@ func (s *Service) GetPost(ctx context.Context, postID string) (*db.BinPost, erro
 }
 
 // ListPosts retrieves bin posts for a channel with optional filters.
-func (s *Service) ListPosts(ctx context.Context, channelID string, tag, language, authorID, sort string, limit, offset int) ([]db.BinPost, error) {
+// userID is used for ViewChannel check; pass "" to skip.
+func (s *Service) ListPosts(ctx context.Context, channelID, userID string, tag, language, authorID, sort string, limit, offset int) ([]db.BinPost, error) {
 	chID, err := strconv.ParseInt(channelID, 10, 64)
 	if err != nil {
 		return nil, errors.New("invalid channel ID")
@@ -156,6 +210,24 @@ func (s *Service) ListPosts(ctx context.Context, channelID string, tag, language
 	}
 	if ch.ChannelType != db.ChannelTypeBin {
 		return nil, errors.New("channel is not a bin channel")
+	}
+
+	// ViewChannel check.
+	if userID != "" {
+		uID, err := strconv.ParseInt(userID, 10, 64)
+		if err != nil {
+			return nil, errors.New("invalid user ID")
+		}
+		serverID, ownerID, err := s.getServerForChannel(ctx, chID)
+		if err == nil {
+			canView, err := permissions.HasChannelPermission(ctx, s.repo, serverID, uID, ownerID, chID, permissions.PermViewChannel)
+			if err != nil {
+				return nil, err
+			}
+			if !canView {
+				return nil, errors.New("channel not found")
+			}
+		}
 	}
 
 	if limit <= 0 {
@@ -187,16 +259,31 @@ func (s *Service) EditPost(ctx context.Context, postID, userID string, title, de
 		return nil, errors.New("invalid user ID")
 	}
 
-	// Check author.
-	authorID, err := s.repo.GetBinPostAuthorID(ctx, id)
+	// Check author or ManagePosts permission.
+	postAuthorID, err := s.repo.GetBinPostAuthorID(ctx, id)
 	if err != nil {
 		if err == db.ErrNotFound {
 			return nil, errors.New("post not found")
 		}
 		return nil, err
 	}
-	if authorID != uID {
-		return nil, errors.New("forbidden")
+	if postAuthorID != uID {
+		// Not the author — check ManagePosts channel permission.
+		post, err := s.repo.GetBinPost(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		serverID, ownerID, err := s.getServerForChannel(ctx, post.ChannelID)
+		if err != nil {
+			return nil, err
+		}
+		canManage, err := permissions.HasChannelPermission(ctx, s.repo, serverID, uID, ownerID, post.ChannelID, permissions.PermManagePosts)
+		if err != nil {
+			return nil, err
+		}
+		if !canManage {
+			return nil, errors.New("forbidden")
+		}
 	}
 
 	// Snapshot current files as a new version.
@@ -260,16 +347,31 @@ func (s *Service) DeletePost(ctx context.Context, postID, userID string) error {
 		return errors.New("invalid user ID")
 	}
 
-	// Check author.
-	authorID, err := s.repo.GetBinPostAuthorID(ctx, id)
+	// Check author or ManagePosts permission.
+	postAuthorID, err := s.repo.GetBinPostAuthorID(ctx, id)
 	if err != nil {
 		if err == db.ErrNotFound {
 			return errors.New("post not found")
 		}
 		return err
 	}
-	if authorID != uID {
-		return errors.New("forbidden")
+	if postAuthorID != uID {
+		// Not the author — check ManagePosts channel permission.
+		post, err := s.repo.GetBinPost(ctx, id)
+		if err != nil {
+			return err
+		}
+		serverID, ownerID, err := s.getServerForChannel(ctx, post.ChannelID)
+		if err != nil {
+			return err
+		}
+		canManage, err := permissions.HasChannelPermission(ctx, s.repo, serverID, uID, ownerID, post.ChannelID, permissions.PermManagePosts)
+		if err != nil {
+			return err
+		}
+		if !canManage {
+			return errors.New("forbidden")
+		}
 	}
 
 	// Fetch post to get channelID for broadcast before deleting.

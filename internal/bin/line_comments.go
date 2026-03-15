@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"parley/internal/db"
+	"parley/internal/permissions"
 	ws "parley/internal/websocket"
 )
 
@@ -41,26 +42,77 @@ func (s *Service) CreateLineComment(ctx context.Context, postID, userID string, 
 		parentIDPtr = &pid
 	}
 
+	// Check SendMessages permission on the post's bin channel.
+	post, err := s.repo.GetBinPost(ctx, pID)
+	if err != nil {
+		if err == db.ErrNotFound {
+			return nil, errors.New("post not found")
+		}
+		return nil, err
+	}
+	serverID, ownerID, err := s.getServerForChannel(ctx, post.ChannelID)
+	if err != nil {
+		return nil, err
+	}
+	// ViewChannel check first (return 404).
+	canView, err := permissions.HasChannelPermission(ctx, s.repo, serverID, uID, ownerID, post.ChannelID, permissions.PermViewChannel)
+	if err != nil {
+		return nil, err
+	}
+	if !canView {
+		return nil, errors.New("post not found")
+	}
+	canSend, err := permissions.HasChannelPermission(ctx, s.repo, serverID, uID, ownerID, post.ChannelID, permissions.PermSendMessages)
+	if err != nil {
+		return nil, err
+	}
+	if !canSend {
+		return nil, errors.New("forbidden")
+	}
+
 	comment, err := s.repo.CreateBinLineComment(ctx, pID, vID, fID, lineNumber, uID, content, parentIDPtr)
 	if err != nil {
 		return nil, err
 	}
 
 	// Broadcast to the post's thread channel.
-	post, err := s.repo.GetBinPost(ctx, pID)
-	if err == nil {
-		threadChannelID := strconv.FormatInt(post.ThreadChannelID, 10)
-		s.broadcast(threadChannelID, ws.EventBinLineCommentCreate, comment)
-	}
+	threadChannelID := strconv.FormatInt(post.ThreadChannelID, 10)
+	s.broadcast(threadChannelID, ws.EventBinLineCommentCreate, comment)
 
 	return comment, nil
 }
 
 // GetLineComments retrieves line comments for a post with optional version/file filters.
-func (s *Service) GetLineComments(ctx context.Context, postID string, versionID, fileID *string) ([]db.BinLineComment, error) {
+// userID is used for ViewChannel check; pass "" to skip.
+func (s *Service) GetLineComments(ctx context.Context, postID, userID string, versionID, fileID *string) ([]db.BinLineComment, error) {
 	pID, err := strconv.ParseInt(postID, 10, 64)
 	if err != nil {
 		return nil, errors.New("invalid post ID")
+	}
+
+	// ViewChannel check.
+	if userID != "" {
+		uID, err := strconv.ParseInt(userID, 10, 64)
+		if err != nil {
+			return nil, errors.New("invalid user ID")
+		}
+		post, err := s.repo.GetBinPost(ctx, pID)
+		if err != nil {
+			if err == db.ErrNotFound {
+				return nil, errors.New("post not found")
+			}
+			return nil, err
+		}
+		serverID, ownerID, err := s.getServerForChannel(ctx, post.ChannelID)
+		if err == nil {
+			canView, err := permissions.HasChannelPermission(ctx, s.repo, serverID, uID, ownerID, post.ChannelID, permissions.PermViewChannel)
+			if err != nil {
+				return nil, err
+			}
+			if !canView {
+				return nil, errors.New("post not found")
+			}
+		}
 	}
 
 	var vIDPtr, fIDPtr *int64

@@ -99,7 +99,8 @@ func (h *Handler) ListPosts(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	posts, err := h.service.ListPosts(r.Context(), channelID, tag, language, authorID, sort, limit, offset)
+	userID := auth.GetUserIDFromContext(r)
+	posts, err := h.service.ListPosts(r.Context(), channelID, userID, tag, language, authorID, sort, limit, offset)
 	if err != nil {
 		switch err.Error() {
 		case "channel not found":
@@ -124,7 +125,8 @@ func (h *Handler) GetPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	post, err := h.service.GetPost(r.Context(), postID)
+	userID := auth.GetUserIDFromContext(r)
+	post, err := h.service.GetPost(r.Context(), postID, userID)
 	if err != nil {
 		if err.Error() == "post not found" {
 			http.Error(w, err.Error(), http.StatusNotFound)
@@ -301,7 +303,14 @@ func (h *Handler) CreateLineComment(w http.ResponseWriter, r *http.Request) {
 
 	comment, err := h.service.CreateLineComment(r.Context(), postID, userID, req.VersionID, req.FileID, req.LineNumber, req.Content, req.ParentID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		switch err.Error() {
+		case "post not found":
+			http.Error(w, err.Error(), http.StatusNotFound)
+		case "forbidden":
+			http.Error(w, err.Error(), http.StatusForbidden)
+		default:
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		}
 		return
 	}
 
@@ -326,7 +335,8 @@ func (h *Handler) GetLineComments(w http.ResponseWriter, r *http.Request) {
 		fileID = &f
 	}
 
-	comments, err := h.service.GetLineComments(r.Context(), postID, versionID, fileID)
+	commentUserID := auth.GetUserIDFromContext(r)
+	comments, err := h.service.GetLineComments(r.Context(), postID, commentUserID, versionID, fileID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -425,6 +435,12 @@ func (h *Handler) CreateTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	tagUserID := auth.GetUserIDFromContext(r)
+	if tagUserID == "" {
+		http.Error(w, "user not authenticated", http.StatusUnauthorized)
+		return
+	}
+
 	var req createTagRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -435,8 +451,12 @@ func (h *Handler) CreateTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tag, err := h.service.CreateTag(r.Context(), channelID, req.Name, req.Color)
+	tag, err := h.service.CreateTag(r.Context(), channelID, tagUserID, req.Name, req.Color)
 	if err != nil {
+		if err.Error() == "forbidden" {
+			http.Error(w, err.Error(), http.StatusForbidden)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -472,12 +492,21 @@ func (h *Handler) DeleteTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.service.DeleteTag(r.Context(), tagID); err != nil {
-		if err.Error() == "tag not found" {
+	deleteTagUserID := auth.GetUserIDFromContext(r)
+	if deleteTagUserID == "" {
+		http.Error(w, "user not authenticated", http.StatusUnauthorized)
+		return
+	}
+
+	if err := h.service.DeleteTag(r.Context(), tagID, deleteTagUserID); err != nil {
+		switch err.Error() {
+		case "tag not found":
 			http.Error(w, err.Error(), http.StatusNotFound)
-			return
+		case "forbidden":
+			http.Error(w, err.Error(), http.StatusForbidden)
+		default:
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
