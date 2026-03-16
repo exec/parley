@@ -241,27 +241,32 @@ export function useVoiceConnection(
       await room.localParticipant.publishTrack(micTrack);
 
       if (s.vadMode === 'vad') {
-        const vad = await MicVAD.new({
-          baseAssetPath: '/',
-          onnxWASMBasePath: '/',
-          getStream: () => Promise.resolve(stream!),
-          onSpeechStart: () => {
-            if (settingsRef.current.vadMode !== 'vad') return;
-            audioTrackRef.current?.unmute();
-            setMuted(false);
-            setSpeaking(true);
-          },
-          onSpeechEnd: (_audio: Float32Array) => {
-            if (settingsRef.current.vadMode !== 'vad') return;
-            audioTrackRef.current?.mute();
-            setMuted(true);
-            setSpeaking(false);
-          },
-        });
-        vadRef.current = vad;
-        vad.start();
-        micTrack.mute();
-        setMuted(true);
+        try {
+          const vad = await MicVAD.new({
+            baseAssetPath: '/',
+            onnxWASMBasePath: '/',
+            getStream: () => Promise.resolve(stream!),
+            onSpeechStart: () => {
+              if (settingsRef.current.vadMode !== 'vad') return;
+              audioTrackRef.current?.unmute();
+              setMuted(false);
+              setSpeaking(true);
+            },
+            onSpeechEnd: (_audio: Float32Array) => {
+              if (settingsRef.current.vadMode !== 'vad') return;
+              audioTrackRef.current?.mute();
+              setMuted(true);
+              setSpeaking(false);
+            },
+          });
+          vadRef.current = vad;
+          vad.start();
+          micTrack.mute();
+          setMuted(true);
+        } catch (vadErr) {
+          console.warn('VAD initialization failed, falling back to always-on mode:', vadErr);
+          // mic stays unmuted — voice still works, just without VAD
+        }
       }
 
       room.remoteParticipants.forEach(p => attachAudio(p));
