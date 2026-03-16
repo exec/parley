@@ -575,6 +575,8 @@ function MainApp() {
       activeVoiceChannelId={activeVoiceChannel}
       channelUnreadCounts={unreadCounts}
       canManageChannels={canManageChannels}
+      canMuteMembers={canMuteMembers}
+      canKickFromVoice={canKickFromVoice}
       onRenameChannel={async (channelId, newName) => {
         const ch = channels.find(c => c.id === channelId);
         if (!ch) return;

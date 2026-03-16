@@ -64,15 +64,24 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
+  const prevIsOpenRef = useRef(false);
 
-  // Reset state when opened
+  // Sync user data + full reset only when modal first opens (not after every save)
   useEffect(() => {
-    if (isOpen && currentUser) {
-      setUsername(currentUser.username || '');
-      setDisplayName(currentUser.display_name || '');
-      setAvatarUrl(currentUser.avatar_url || '');
-      setBannerUrl(currentUser.banner_url || '');
-      setBio(currentUser.bio || '');
+    const justOpened = isOpen && !prevIsOpenRef.current;
+    prevIsOpenRef.current = isOpen;
+
+    if (!isOpen || !currentUser) return;
+
+    // Always sync profile fields from latest user data
+    setUsername(currentUser.username || '');
+    setDisplayName(currentUser.display_name || '');
+    setAvatarUrl(currentUser.avatar_url || '');
+    setBannerUrl(currentUser.banner_url || '');
+    setBio(currentUser.bio || '');
+
+    // Only reset nav/sensitive state when the modal is freshly opened
+    if (justOpened) {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -191,12 +200,12 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
     setLoading(true);
     try {
       const updated = await updateProfile(req);
+      // Merge with existing stored user to preserve fields the server may omit (e.g. bio with omitempty)
       const stored = localStorage.getItem('user');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        localStorage.setItem('user', JSON.stringify({ ...parsed, username: updated.username, display_name: updated.display_name, avatar_url: updated.avatar_url, banner_url: updated.banner_url, bio: updated.bio }));
-      }
-      onUpdate(updated);
+      const parsed = stored ? JSON.parse(stored) : {};
+      const merged: typeof updated = { ...parsed, ...updated, bio: updated.bio ?? parsed.bio ?? currentUser?.bio };
+      localStorage.setItem('user', JSON.stringify(merged));
+      onUpdate(merged);
       setSuccess('Profile updated successfully');
       setCurrentPassword('');
       setNewPassword('');

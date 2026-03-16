@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Volume2, Mic, MicOff, PhoneOff, Hash, Code2, X, Plus, Settings, Video, VideoOff, Monitor, MonitorOff, Headphones, HeadphoneOff } from 'lucide-react';
+import { VoiceContextMenu } from '../voice/VoiceContextMenu';
+import { muteVoiceParticipant, kickVoiceParticipant } from '../../api/voice';
 import {
   DndContext,
   DragEndEvent,
@@ -151,11 +153,15 @@ const SortableChannelItem: React.FC<{
   onRenameBlur: () => void;
   onRenameKeyDown: (e: React.KeyboardEvent) => void;
   isDragging?: boolean;
+  canMuteMembers?: boolean;
+  canKickFromVoice?: boolean;
+  onParticipantContextMenu?: (channelId: string, participantId: string, x: number, y: number) => void;
 }> = ({
   channel, isActive, unread, isRenaming, renameValue, renameInputRef,
   hoveredChannel, canManageChannels, activeVoiceChannelId, voiceParticipants,
   onSelect, onContextMenu, onMouseEnter, onMouseLeave, onDelete, onVoiceClick,
   onRenameChange, onRenameBlur, onRenameKeyDown, isDragging,
+  canMuteMembers, canKickFromVoice, onParticipantContextMenu,
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging: sortableDragging } = useSortable({ id: channel.id, disabled: !canManageChannels });
   const style = {
@@ -186,7 +192,15 @@ const SortableChannelItem: React.FC<{
         {participants.length > 0 && (
           <div className="voice-participants-list">
             {participants.map(p => (
-              <div key={p.user_id} className="voice-participant-row">
+              <div
+                key={p.user_id}
+                className="voice-participant-row"
+                onContextMenu={(canMuteMembers || canKickFromVoice) ? (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onParticipantContextMenu?.(channel.id, p.user_id, e.clientX, e.clientY);
+                } : undefined}
+              >
                 <div className="voice-participant-avatar">
                   {p.avatar_url ? <img src={p.avatar_url} alt={p.username} /> : p.username.charAt(0).toUpperCase()}
                 </div>
@@ -318,6 +332,8 @@ interface ChannelListProps {
   onMarkChannelRead?: (channelId: string) => void;
   onReorderChannels?: (orders: ChannelOrder[]) => void;
   onChannelSettings?: (channelId: string) => void;
+  canMuteMembers?: boolean;
+  canKickFromVoice?: boolean;
   vcConnected?: boolean;
   vcMuted?: boolean;
   vcDeafened?: boolean;
@@ -339,11 +355,13 @@ const ChannelList: React.FC<ChannelListProps> = ({
   owner_id, currentUser, onLogout, onOpenSettings, onVoiceChannelClick,
   voiceParticipants = {}, activeVoiceChannelId = null, channelUnreadCounts = {},
   canManageChannels = false, onRenameChannel, onMarkChannelRead, onReorderChannels, onChannelSettings,
+  canMuteMembers, canKickFromVoice,
   vcConnected, vcMuted, vcDeafened, vcVideoEnabled, vcScreenSharing,
   onVcMuteToggle, onVcDeafenToggle, onVcVideoToggle, onVcScreenShareToggle, onVcLeave, onVcNavigate,
 }) => {
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [hoveredChannel, setHoveredChannel] = useState<string | null>(null);
+  const [vcParticipantMenu, setVcParticipantMenu] = useState<{ channelId: string; participantId: string; x: number; y: number } | null>(null);
   const [userContextMenu, setUserContextMenu] = useState<{ top: number; left: number } | null>(null);
   const [serverContextMenu, setServerContextMenu] = useState<{ top: number; left: number } | null>(null);
   const [channelContextMenu, setChannelContextMenu] = useState<{ channel: Channel; top: number; left: number } | null>(null);
@@ -454,6 +472,9 @@ const ChannelList: React.FC<ChannelListProps> = ({
       onRenameBlur={() => commitRename(ch.id)}
       onRenameKeyDown={renameKeyDown(ch.id)}
       isDragging={activeId === ch.id}
+      canMuteMembers={canMuteMembers}
+      canKickFromVoice={canKickFromVoice}
+      onParticipantContextMenu={(channelId, participantId, x, y) => setVcParticipantMenu({ channelId, participantId, x, y })}
     />
   );
 
@@ -620,6 +641,24 @@ const ChannelList: React.FC<ChannelListProps> = ({
           onDelete={() => onDeleteChannel(channelContextMenu.channel.id)}
           onMarkAsRead={() => onMarkChannelRead?.(channelContextMenu.channel.id)}
           onChannelSettings={onChannelSettings ? () => onChannelSettings(channelContextMenu.channel.id) : undefined}
+        />
+      )}
+      {vcParticipantMenu && (
+        <VoiceContextMenu
+          position={{ x: vcParticipantMenu.x, y: vcParticipantMenu.y }}
+          participantId={vcParticipantMenu.participantId}
+          canMute={!!canMuteMembers}
+          canKick={!!canKickFromVoice}
+          onMute={async () => {
+            try { await muteVoiceParticipant(vcParticipantMenu.channelId, vcParticipantMenu.participantId); } catch (e) { console.error(e); }
+            setVcParticipantMenu(null);
+          }}
+          onKick={async () => {
+            const id = vcParticipantMenu.participantId;
+            try { await kickVoiceParticipant(vcParticipantMenu.channelId, id); } catch (e) { console.error(e); }
+            setVcParticipantMenu(null);
+          }}
+          onClose={() => setVcParticipantMenu(null)}
         />
       )}
     </div>
