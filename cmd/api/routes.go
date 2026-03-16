@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -17,9 +18,19 @@ import (
 	"parley/internal/passkey"
 	"parley/internal/server"
 	"parley/internal/spaces"
+	"parley/internal/theme"
 	"parley/internal/voice"
 	ws "parley/internal/websocket"
 )
+
+// parseCDNHost extracts the hostname from a CDN URL string.
+func parseCDNHost(cdnURL string) string {
+	u, err := url.Parse(cdnURL)
+	if err != nil || u.Host == "" {
+		return cdnURL
+	}
+	return u.Host
+}
 
 // registerRoutes registers all API routes.
 func registerRoutes(
@@ -35,6 +46,8 @@ func registerRoutes(
 	binService *bin.Service,
 	tickets *ticketStore,
 	passkeySvc *passkey.Service,
+	cdnHost string,
+	siteURL string,
 ) {
 	// Cap request bodies at 64 KB for all routes except /api/upload,
 	// which applies its own 50 MB limit inside the handler.
@@ -202,6 +215,26 @@ func registerRoutes(
 
 			// File upload — 50 MB limit
 			r.With(maxBodyMiddleware(50 * 1024 * 1024)).Post("/upload", handleUpload(spacesClient))
+
+			// Theme routes
+			themeRepo := theme.NewRepository(repo.DB())
+			themeSvc := theme.NewService(themeRepo, cdnHost, siteURL)
+			themeHandler := theme.NewHandler(themeSvc)
+			r.Get("/me/preferences", themeHandler.GetPreferences)
+			r.Put("/me/preferences/theme", themeHandler.SetActiveTheme)
+			r.Post("/me/themes", themeHandler.CreateTheme)
+			r.Put("/me/themes/{id}", themeHandler.UpdateTheme)
+			r.Delete("/me/themes/{id}", themeHandler.DeleteTheme)
+			r.Post("/me/themes/{id}/share", themeHandler.ShareTheme)
+			r.Post("/me/themes/install/{token}", themeHandler.InstallTheme)
+		})
+
+		// Public theme route — no authentication required
+		r.Get("/themes/{token}", func(w http.ResponseWriter, r *http.Request) {
+			themeRepo := theme.NewRepository(repo.DB())
+			themeSvc := theme.NewService(themeRepo, cdnHost, siteURL)
+			themeHandler := theme.NewHandler(themeSvc)
+			themeHandler.GetPublicTheme(w, r)
 		})
 	})
 
