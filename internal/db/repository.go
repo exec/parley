@@ -51,3 +51,11 @@ func (r *Repository) RunMigrations(ctx context.Context) error {
 	_, err := r.db.ExecContext(ctx, MigrationSQL())
 	return err
 }
+
+// CreateUserPreferences inserts a default preferences row for a new user.
+func (r *Repository) CreateUserPreferences(ctx context.Context, userID int64) error {
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO user_preferences (user_id, active_theme)
+		 VALUES ($1, 'rory') ON CONFLICT DO NOTHING`, userID)
+	return err
+}

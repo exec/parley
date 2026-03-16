@@ -133,6 +133,11 @@ func (s *AuthService) Register(ctx context.Context, username, email_, phone, pas
 		return User{}, "", err
 	}
 
+	// Create default theme preferences (fail-open)
+	if prefErr := s.repo.CreateUserPreferences(ctx, dbUser.ID); prefErr != nil {
+		log.Printf("Register: failed to create user_preferences for user %d: %v", dbUser.ID, prefErr)
+	}
+
 	// Send verification email (fail-open)
 	if s.emailClient != nil && email_ != "" && verificationToken != "" {
 		if emailErr := s.emailClient.SendVerificationEmail(ctx, email_, username, verificationToken, s.siteURL); emailErr != nil {
