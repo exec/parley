@@ -679,6 +679,7 @@ function MainApp() {
             onLeave={vcDisconnect}
             onRetry={vcRetry}
             canMuteMembers={canMuteMembers}
+            canKickFromVoice={canKickMembers}
             onMuteParticipant={async (userId) => { try { await muteVoiceParticipant(activeVoiceChannel!, userId); } catch(e) { console.error(e); } }}
           />
         </div>

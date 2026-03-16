@@ -2,8 +2,9 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { RemoteParticipant, LocalParticipant, Track, TrackPublication } from 'livekit-client';
 import { LayoutGrid, Maximize2, Mic, MicOff, Headphones, HeadphoneOff, Video, VideoOff, Monitor, MonitorOff, PhoneOff, Volume2 } from 'lucide-react';
 import { Channel } from '../../api/types';
-import { VoiceParticipant } from '../../api/voice';
+import { VoiceParticipant, kickVoiceParticipant } from '../../api/voice';
 import { ParticipantTile } from './ParticipantTile';
+import { VoiceContextMenu } from './VoiceContextMenu';
 import './VoiceChannel.css';
 
 interface VoiceChannelProps {
@@ -28,6 +29,7 @@ interface VoiceChannelProps {
   onRetry: () => void;
   canMuteMembers?: boolean;
   onMuteParticipant?: (userId: string) => void;
+  canKickFromVoice?: boolean;
 }
 
 type ViewMode = 'grid' | 'speaker';
@@ -54,9 +56,11 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
   onRetry,
   canMuteMembers,
   onMuteParticipant,
+  canKickFromVoice,
 }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [pinnedIdentity, setPinnedIdentity] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ participantId: string; x: number; y: number } | null>(null);
 
   // Build tile list: local first, then remotes
   const allParticipants = useMemo(() => {
@@ -80,6 +84,15 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
       setPinnedIdentity(null);
     }
   }, [allParticipants, pinnedIdentity]);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setContextMenu(null);
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [contextMenu]);
 
   // In speaker view: find spotlight participant
   const spotlightIdentity = pinnedIdentity ?? (activeSpeakers.size > 0 ? Array.from(activeSpeakers)[0] : null);
@@ -158,6 +171,11 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
                   isSpeaking={isLocal ? false : activeSpeakers.has(participant.identity)}
                   displayName={meta.displayName}
                   avatarUrl={meta.avatarUrl}
+                  onContextMenu={!isLocal ? (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setContextMenu({ participantId: participant.identity, x: e.clientX, y: e.clientY });
+                  } : undefined}
                 />
                 {canMuteMembers && !isLocal && onMuteParticipant && (
                   <button
@@ -214,6 +232,11 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
                       isSpeaking={activeSpeakers.has(participant.identity)}
                       displayName={meta.displayName}
                       avatarUrl={meta.avatarUrl}
+                      onContextMenu={!isLocal ? (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setContextMenu({ participantId: participant.identity, x: e.clientX, y: e.clientY });
+                      } : undefined}
                     />
                     {canMuteMembers && !isLocal && onMuteParticipant && (
                       <button
@@ -230,6 +253,21 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
             </div>
           )}
         </div>
+      )}
+
+      {contextMenu && (
+        <VoiceContextMenu
+          position={{ x: contextMenu.x, y: contextMenu.y }}
+          participantId={contextMenu.participantId}
+          canMute={!!canMuteMembers}
+          canKick={!!canKickFromVoice}
+          onMute={() => { onMuteParticipant?.(contextMenu.participantId); setContextMenu(null); }}
+          onKick={async () => {
+            try { await kickVoiceParticipant(channel.id, contextMenu.participantId); } catch (e) { console.error(e); }
+            setContextMenu(null);
+          }}
+          onClose={() => setContextMenu(null)}
+        />
       )}
 
       {/* In-channel controls (secondary; main controls are in VoiceControls widget) */}

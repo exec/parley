@@ -10,6 +10,7 @@ interface ParticipantTileProps {
   isScreenShare?: boolean;
   displayName?: string;
   avatarUrl?: string;
+  onContextMenu?: (e: React.MouseEvent) => void;
 }
 
 export const ParticipantTile: React.FC<ParticipantTileProps> = ({
@@ -19,6 +20,7 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
   isScreenShare,
   displayName,
   avatarUrl,
+  onContextMenu,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -76,7 +78,7 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
   const initial = name.charAt(0).toUpperCase() || '?';
 
   return (
-    <div className={`participant-tile ${isSpeaking ? 'participant-tile--speaking' : ''} ${isScreenShare ? 'participant-tile--screen' : ''}`}>
+    <div className={`participant-tile ${isSpeaking ? 'participant-tile--speaking' : ''} ${isScreenShare ? 'participant-tile--screen' : ''}`} onContextMenu={onContextMenu}>
       <div className="participant-tile-media">
         {/* Video always mounted; hidden when no video so ref is stable for attach/detach */}
         <video
