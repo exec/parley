@@ -80,6 +80,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         email: u.email || u.Email || '',
         avatar_url: u.avatar_url || '',
         banner_url: u.banner_url || '',
+        display_name: u.display_name || undefined,
+        bio: u.bio || undefined,
         email_verified: u.email_verified ?? undefined,
         phone_number: u.phone_number || '',
         phone_verified: u.phone_verified ?? undefined,
@@ -539,7 +541,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const receiveUserUpdate = useCallback((update: UserUpdate) => {
     setMembers(prev => prev.map(m =>
       m.user_id === update.user_id
-        ? { ...m, username: update.username }
+        ? { ...m, username: update.username, avatar_url: update.avatar_url ?? m.avatar_url, display_name: update.display_name ?? m.display_name }
         : m
     ));
   }, []);

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { RemoteParticipant, LocalParticipant, Track, TrackPublication } from 'livekit-client';
-import { LayoutGrid, Maximize2, Mic, MicOff, Headphones, HeadphoneOff, Video, VideoOff, Monitor, MonitorOff, PhoneOff, Volume2 } from 'lucide-react';
+import { LayoutGrid, Maximize2, MessageSquare, Mic, MicOff, Headphones, HeadphoneOff, Video, VideoOff, Monitor, MonitorOff, PhoneOff, Volume2 } from 'lucide-react';
 import { Channel } from '../../api/types';
 import { VoiceParticipant, kickVoiceParticipant } from '../../api/voice';
 import { ParticipantTile } from './ParticipantTile';
@@ -30,6 +30,8 @@ interface VoiceChannelProps {
   canMuteMembers?: boolean;
   onMuteParticipant?: (userId: string) => void;
   canKickFromVoice?: boolean;
+  vcChatOpen?: boolean;
+  onToggleVcChat?: () => void;
 }
 
 type ViewMode = 'grid' | 'speaker';
@@ -57,6 +59,8 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
   canMuteMembers,
   onMuteParticipant,
   canKickFromVoice,
+  vcChatOpen,
+  onToggleVcChat,
 }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [pinnedIdentity, setPinnedIdentity] = useState<string | null>(null);
@@ -133,6 +137,15 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
           >
             <Maximize2 size={16} />
           </button>
+          {onToggleVcChat && (
+            <button
+              className={`vc-hdr-btn ${vcChatOpen ? 'active' : ''}`}
+              onClick={onToggleVcChat}
+              title={vcChatOpen ? 'Hide chat' : 'Show chat'}
+            >
+              <MessageSquare size={16} />
+            </button>
+          )}
         </div>
       </div>
 

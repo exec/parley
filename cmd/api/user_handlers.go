@@ -31,6 +31,7 @@ func handleGetMe(repo *db.Repository) http.HandlerFunc {
 			AvatarURL:     user.AvatarURL,
 			BannerURL:     user.BannerURL,
 			Bio:           user.Bio,
+			DisplayName:   user.DisplayName,
 			Badges:        user.Badges,
 			EmailVerified: user.EmailVerified,
 			PhoneNumber:   user.PhoneNumber,
@@ -139,9 +140,11 @@ func handleUpdateProfile(authService *auth.AuthService, repo *db.Repository, hub
 				servers, serversErr := repo.GetServersByUserID(r.Context(), userID)
 				if serversErr == nil {
 					payload, marshalErr := json.Marshal(map[string]string{
-						"user_id":    userIDStr,
-						"username":   user.Username,
-						"avatar_url": user.AvatarURL,
+						"user_id":      userIDStr,
+						"username":     user.Username,
+						"avatar_url":   user.AvatarURL,
+						"display_name": user.DisplayName,
+						"bio":          user.Bio,
 					})
 					if marshalErr == nil {
 						for _, srv := range servers {

@@ -39,6 +39,7 @@ export interface ServerMember {
   server_id: string;
   user_id: string;
   username: string;
+  display_name?: string;
   nickname?: string;
   avatar_url?: string;
   banner_url?: string;

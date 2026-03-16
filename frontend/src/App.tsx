@@ -102,6 +102,7 @@ function MainApp() {
   const [showServerSettings, setShowServerSettings] = useState(false);
   const [serverSettingsInitialTab, setServerSettingsInitialTab] = useState<'overview' | 'roles' | 'danger'>('overview');
   const [showUserSettings, setShowUserSettings] = useState(false);
+  const [vcChatOpen, setVcChatOpen] = useState(false);
   // Assign roles modal (from context menu on a specific user)
   const [showAssignRoles, setShowAssignRoles] = useState(false);
   const [assignRolesUserId, setAssignRolesUserId] = useState('');
@@ -611,36 +612,69 @@ function MainApp() {
     />
   );
 
-  // Build right panel
-  const rightPanel = view === 'server' ? (
-    <UserSidebar
-      members={members}
-      ownerId={activeServer?.owner_id}
-      currentUserId={currentUser?.id}
-      onViewProfile={handleViewProfile}
-      onSendMessage={openDmChannel}
-      onlineUserIds={onlineUsers}
-      currentUserIsOwner={isServerOwner}
-      canKickMembers={canKickMembers}
-      canBanMembers={canBanMembers}
-      onManageRoles={(userId) => {
-        const m = members.find(mem => mem.user_id === userId);
-        setAssignRolesUserId(userId);
-        setAssignRolesUsername(m?.username || userId);
-        setShowAssignRoles(true);
-      }}
-      onKick={activeServer ? (userId) => {
-        serversApi.kickMember(activeServer.id, userId).catch(console.error);
-      } : undefined}
-      onBan={activeServer ? (userId) => {
-        serversApi.banMember(activeServer.id, userId).catch(console.error);
-      } : undefined}
-    />
-  ) : undefined;
-
   // VC channel - is the user currently viewing the voice channel page?
   const vcChannel = activeVoiceChannel ? channels.find(c => c.id === activeVoiceChannel) ?? null : null;
   const isViewingVC = !!(vcChannel && activeChannel?.id === activeVoiceChannel && !activeDmChannel);
+
+  // Build right panel
+  let rightPanel: React.ReactNode;
+  if (view === 'server') {
+    if (isViewingVC && vcChatOpen && vcChannel && currentUser) {
+      rightPanel = (
+        <div className="vc-chat-sidebar">
+          <ChatWindow
+            channel={vcChannel}
+            messages={messages}
+            currentUserId={currentUser.id}
+            members={members}
+            memberMap={memberMap}
+            onSendMessage={sendMessage}
+            onEdit={(msg) => editMessage(msg.id, msg.content)}
+            onDelete={deleteMessage}
+            onReact={toggleReaction}
+            onReply={(msg) => setReplyTo(msg)}
+            onViewProfile={handleViewProfile}
+            onSendMessageToUser={(userId) => openDmChannel(userId)}
+            onLoadMore={loadMoreMessages}
+            hasMore={hasMoreMessages}
+            isLoading={isLoadingMessages}
+            typingUsers={typingUsers[vcChannel.id] ?? []}
+            onTyping={handleSendTyping}
+            canManageChannels={canManageChannels}
+            replyTo={replyTo}
+            onClearReply={() => setReplyTo(null)}
+            onlineUserIds={onlineUsers}
+          />
+        </div>
+      );
+    } else {
+      rightPanel = (
+        <UserSidebar
+          members={members}
+          ownerId={activeServer?.owner_id}
+          currentUserId={currentUser?.id}
+          onViewProfile={handleViewProfile}
+          onSendMessage={openDmChannel}
+          onlineUserIds={onlineUsers}
+          currentUserIsOwner={isServerOwner}
+          canKickMembers={canKickMembers}
+          canBanMembers={canBanMembers}
+          onManageRoles={(userId) => {
+            const m = members.find(mem => mem.user_id === userId);
+            setAssignRolesUserId(userId);
+            setAssignRolesUsername(m?.username || userId);
+            setShowAssignRoles(true);
+          }}
+          onKick={activeServer ? (userId) => {
+            serversApi.kickMember(activeServer.id, userId).catch(console.error);
+          } : undefined}
+          onBan={activeServer ? (userId) => {
+            serversApi.banMember(activeServer.id, userId).catch(console.error);
+          } : undefined}
+        />
+      );
+    }
+  }
 
   // Build main content
   let mainContent: React.ReactNode;
@@ -657,57 +691,34 @@ function MainApp() {
     );
   } else if (isViewingVC && vcChannel && currentUser) {
     mainContent = (
-      <div className="vc-layout">
-        <div className="vc-participants-panel">
-          <VoiceChannel
-            channel={vcChannel}
-            currentUser={{ id: currentUser.id, username: currentUser.username, avatar_url: currentUser.avatar_url }}
-            participants={vcParticipants}
-            localParticipant={vcLocalParticipant}
-            voiceParticipants={Object.fromEntries(
-              (voiceParticipants[activeVoiceChannel!] ?? []).map(p => [p.user_id, p])
-            )}
-            activeSpeakers={vcActiveSpeakers}
-            connected={vcConnected}
-            connecting={vcConnecting}
-            error={vcError}
-            muted={vcMuted}
-            deafened={vcDeafened}
-            videoEnabled={vcVideoEnabled}
-            screenSharing={vcScreenSharing}
-            onToggleMute={vcToggleMute}
-            onToggleDeafen={vcToggleDeafen}
-            onToggleVideo={vcToggleVideo}
-            onToggleScreenShare={vcToggleScreenShare}
-            onLeave={vcDisconnect}
-            onRetry={vcRetry}
-            canMuteMembers={canMuteMembers}
-            canKickFromVoice={canKickFromVoice}
-            onMuteParticipant={async (userId) => { try { await muteVoiceParticipant(activeVoiceChannel!, userId); } catch(e) { console.error(e); } }}
-          />
-        </div>
-        <div className="vc-chat-panel">
-          <ChatWindow
-            channel={vcChannel}
-            messages={messages}
-            currentUserId={currentUser.id}
-            members={members}
-            memberMap={memberMap}
-            onSendMessage={sendMessage}
-            onEdit={(msg) => editMessage(msg.id, msg.content)}
-            onDelete={deleteMessage}
-            onReact={toggleReaction}
-            onViewProfile={handleViewProfile}
-            onSendMessageToUser={(userId) => openDmChannel(userId)}
-            onLoadMore={loadMoreMessages}
-            hasMore={hasMoreMessages}
-            isLoading={isLoadingMessages}
-            typingUsers={typingUsers[vcChannel.id] ?? []}
-            onTyping={handleSendTyping}
-            onlineUserIds={onlineUsers}
-          />
-        </div>
-      </div>
+      <VoiceChannel
+        channel={vcChannel}
+        currentUser={{ id: currentUser.id, username: currentUser.username, avatar_url: currentUser.avatar_url }}
+        participants={vcParticipants}
+        localParticipant={vcLocalParticipant}
+        voiceParticipants={Object.fromEntries(
+          (voiceParticipants[activeVoiceChannel!] ?? []).map(p => [p.user_id, p])
+        )}
+        activeSpeakers={vcActiveSpeakers}
+        connected={vcConnected}
+        connecting={vcConnecting}
+        error={vcError}
+        muted={vcMuted}
+        deafened={vcDeafened}
+        videoEnabled={vcVideoEnabled}
+        screenSharing={vcScreenSharing}
+        onToggleMute={vcToggleMute}
+        onToggleDeafen={vcToggleDeafen}
+        onToggleVideo={vcToggleVideo}
+        onToggleScreenShare={vcToggleScreenShare}
+        onLeave={vcDisconnect}
+        onRetry={vcRetry}
+        canMuteMembers={canMuteMembers}
+        canKickFromVoice={canKickFromVoice}
+        onMuteParticipant={async (userId) => { try { await muteVoiceParticipant(activeVoiceChannel!, userId); } catch(e) { console.error(e); } }}
+        vcChatOpen={vcChatOpen}
+        onToggleVcChat={() => setVcChatOpen(v => !v)}
+      />
     );
   } else if (view === 'homepage') {
     mainContent = (

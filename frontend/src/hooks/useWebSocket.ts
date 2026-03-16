@@ -24,6 +24,8 @@ export interface UserUpdate {
   user_id: string;
   username: string;
   avatar_url: string;
+  display_name?: string;
+  bio?: string;
 }
 
 export interface VoiceStateUpdate {

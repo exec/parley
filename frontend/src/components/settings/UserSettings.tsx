@@ -64,45 +64,37 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
-  const prevIsOpenRef = useRef(false);
 
-  // Sync user data + full reset only when modal first opens (not after every save)
+  // Initialize form fields when modal opens. Intentionally excludes currentUser from deps
+  // so that saving (which updates currentUser) doesn't reset the tab or clear the form.
   useEffect(() => {
-    const justOpened = isOpen && !prevIsOpenRef.current;
-    prevIsOpenRef.current = isOpen;
-
     if (!isOpen || !currentUser) return;
-
-    // Always sync profile fields from latest user data
     setUsername(currentUser.username || '');
     setDisplayName(currentUser.display_name || '');
     setAvatarUrl(currentUser.avatar_url || '');
     setBannerUrl(currentUser.banner_url || '');
     setBio(currentUser.bio || '');
-
-    // Only reset nav/sensitive state when the modal is freshly opened
-    if (justOpened) {
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      setError('');
-      setSuccess('');
-      setShowChangeEmail(false);
-      setNewEmail('');
-      setEmailPassword('');
-      setEmailChangeMsg(null);
-      setShowChangePhone(false);
-      setNewPhone('');
-      setPhonePassword('');
-      setPhoneChangeMsg(null);
-      setPhoneVerifyCode('');
-      setSmsConsent(false);
-      setResendMsg('');
-      setPhoneResendMsg('');
-      setUnsavedConfirm(false);
-      setActiveTab('account');
-    }
-  }, [isOpen, currentUser]);
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setError('');
+    setSuccess('');
+    setShowChangeEmail(false);
+    setNewEmail('');
+    setEmailPassword('');
+    setEmailChangeMsg(null);
+    setShowChangePhone(false);
+    setNewPhone('');
+    setPhonePassword('');
+    setPhoneChangeMsg(null);
+    setPhoneVerifyCode('');
+    setSmsConsent(false);
+    setResendMsg('');
+    setPhoneResendMsg('');
+    setUnsavedConfirm(false);
+    setActiveTab('account');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   // ESC to close
   useEffect(() => {
