@@ -57,7 +57,7 @@
 /* Individual Message Styles */
 .message {
   display: flex;
-  padding: 8px 0;
+  padding: 8px 0 1px;
   border-radius: 4px;
   transition: background-color 0.15s ease;
   position: relative;
@@ -138,7 +138,7 @@
 }
 
 .message-text {
-  color: #ffffff;
+  color: #cccccc;
   word-wrap: break-word;
   white-space: pre-wrap;
   line-height: 1.5;

@@ -842,8 +842,9 @@ const ProfileTab: React.FC<ProfileTabProps> = (p) => {
               </div>
             </div>
             <div className="settings-preview-body">
-              <div className="settings-preview-name">{p.username || p.currentUser?.username || 'username'}</div>
+              <div className="settings-preview-name">{p.displayName || p.username || p.currentUser?.username || 'username'}</div>
               <div className="settings-preview-sub">@{(p.username || p.currentUser?.username || 'username').toLowerCase()}</div>
+              {p.bio && <div style={{ fontSize: 12, color: '#aaa', marginTop: 6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{p.bio}</div>}
             </div>
           </div>
         </div>
