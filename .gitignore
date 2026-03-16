@@ -33,3 +33,8 @@ frontend/dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Secrets / env files
+frontend/.env
+.env
+**/.env.local

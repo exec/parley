@@ -56,7 +56,10 @@ func main() {
 
 	// Optional Redis for kicking WS connections on ban/force-logout
 	if redisHost := os.Getenv("REDIS_HOST"); redisHost != "" {
-		opt := &redis.Options{Addr: redisHost + ":6379"}
+		opt := &redis.Options{
+			Addr:     redisHost + ":6379",
+			Password: os.Getenv("REDIS_PASSWORD"),
+		}
 		rc := redis.NewClient(opt)
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		if err := rc.Ping(ctx).Err(); err != nil {
