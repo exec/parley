@@ -179,9 +179,9 @@ func (r *Repository) AdminSearchUsers(ctx context.Context, query string, limit, 
 			       banned_at, COALESCE(ban_reason,''), force_logout_at, is_system,
 			       COALESCE(registration_ip,''), COALESCE(last_seen_ip,''),
 			       created_at, updated_at
-			FROM users WHERE username ILIKE $1 AND is_system = FALSE
-			ORDER BY created_at DESC LIMIT $2 OFFSET $3
-		`, "%"+query+"%", limit, offset)
+			FROM users WHERE (username ILIKE $1 OR CAST(id AS TEXT) = $2) AND is_system = FALSE
+			ORDER BY created_at DESC LIMIT $3 OFFSET $4
+		`, "%"+query+"%", query, limit, offset)
 	} else {
 		rows, err = r.db.QueryContext(ctx, `
 			SELECT id, username, COALESCE(email,''), password_hash, COALESCE(avatar_url,''), COALESCE(banner_url,''),

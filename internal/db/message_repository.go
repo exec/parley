@@ -177,9 +177,15 @@ func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, li
 // Results are ordered by message ID descending (newest first), limited to `limit` rows.
 // If beforeID > 0, only messages with id < beforeID are returned (cursor pagination).
 func (r *Repository) SearchMessages(ctx context.Context, serverID int64, query string, authorID int64, channelID int64, limit int, beforeID int64) ([]*Message, error) {
-	conds := []string{"c.server_id = $1"}
-	args := []any{serverID}
-	p := 2
+	var conds []string
+	var args []any
+	p := 1
+
+	if serverID > 0 {
+		conds = append(conds, fmt.Sprintf("c.server_id = $%d", p))
+		args = append(args, serverID)
+		p++
+	}
 
 	if query != "" {
 		escaped := strings.ReplaceAll(query, `\`, `\\`)
@@ -206,6 +212,10 @@ func (r *Repository) SearchMessages(ctx context.Context, serverID int64, query s
 	}
 	args = append(args, limit)
 
+	whereClause := "TRUE"
+	if len(conds) > 0 {
+		whereClause = strings.Join(conds, " AND ")
+	}
 	q := fmt.Sprintf(`
 		SELECT m.id, m.channel_id, m.author_id, m.content, COALESCE(m.nonce, ''),
 		       m.created_at, m.updated_at,
@@ -217,7 +227,7 @@ func (r *Repository) SearchMessages(ctx context.Context, serverID int64, query s
 		WHERE %s
 		ORDER BY m.id DESC
 		LIMIT $%d
-	`, strings.Join(conds, " AND "), p)
+	`, whereClause, p)
 
 	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {
