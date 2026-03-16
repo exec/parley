@@ -161,6 +161,10 @@ function MainApp() {
   // Reply-to state for nested replies
   const [replyTo, setReplyTo] = useState<Message | null>(null);
 
+  // Sidebar visibility
+  const [showMembers, setShowMembers] = useState(true);
+  const [showChannelList, setShowChannelList] = useState(false); // mobile drawer, starts closed
+
   // Bin channel state
   const [activePostId, setActivePostId] = useState<string | null>(null);
   const [showCreatePost, setShowCreatePost] = useState(false);
@@ -593,6 +597,7 @@ function MainApp() {
       }}
       onMarkChannelRead={(channelId) => setUnreadCounts(prev => ({ ...prev, [channelId]: 0 }))}
       onChannelSettings={(channelId) => { setChannelSettingsId(channelId); setShowChannelSettings(true); }}
+      isOpen={showChannelList}
       vcConnected={vcConnected}
       vcMuted={vcMuted}
       vcDeafened={vcDeafened}
@@ -683,6 +688,7 @@ function MainApp() {
           onBan={activeServer ? (userId) => {
             serversApi.banMember(activeServer.id, userId).catch(console.error);
           } : undefined}
+          isOpen={showMembers}
         />
       );
     }
@@ -806,6 +812,9 @@ function MainApp() {
         onNavigateToChannel={(channelId) => {
           selectChannel(channelId);
         }}
+        showMembers={showMembers}
+        onToggleMembers={() => setShowMembers(m => !m)}
+        onToggleChannelList={() => setShowChannelList(c => !c)}
         onUpdateTopic={async (channelId, topic) => {
           const updated = await channelsApi.updateChannel(channelId, activeChannel.name, topic);
           receiveChannelUpdate(updated);
@@ -862,6 +871,13 @@ function MainApp() {
         onLeaveServer={(serverId) => leaveServer(serverId)}
       >
         {mainContent}
+        {/* Mobile backdrop — closes drawers when tapping outside */}
+        {(showChannelList || showMembers) && (
+          <div
+            className="mobile-backdrop"
+            onClick={() => { setShowChannelList(false); setShowMembers(false); }}
+          />
+        )}
       </MainLayout>
 
 

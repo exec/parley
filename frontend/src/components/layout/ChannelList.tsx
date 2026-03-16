@@ -335,6 +335,7 @@ interface ChannelListProps {
   onChannelSettings?: (channelId: string) => void;
   canMuteMembers?: boolean;
   canKickFromVoice?: boolean;
+  isOpen?: boolean;
   vcConnected?: boolean;
   vcMuted?: boolean;
   vcDeafened?: boolean;
@@ -357,6 +358,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
   voiceParticipants = {}, activeVoiceChannelId = null, channelUnreadCounts = {},
   canManageChannels = false, onRenameChannel, onMarkChannelRead, onReorderChannels, onChannelSettings,
   canMuteMembers, canKickFromVoice,
+  isOpen = true,
   vcConnected, vcMuted, vcDeafened, vcVideoEnabled, vcScreenSharing,
   onVcMuteToggle, onVcDeafenToggle, onVcVideoToggle, onVcScreenShareToggle, onVcLeave, onVcNavigate,
 }) => {
@@ -482,7 +484,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
   const activeItem = activeId ? channels.find(c => c.id === activeId) : null;
 
   return (
-    <div className="channel-list">
+    <div className={`channel-list${isOpen ? ' channel-list--open' : ''}`}>
       <div
         className="server-header clickable"
         onClick={e => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setServerContextMenu({ top: r.top, left: r.left }); }}

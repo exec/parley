@@ -176,11 +176,13 @@ interface UserSidebarProps {
   onManageRoles?: (memberId: string) => void;
   onKick?: (userId: string) => void;
   onBan?: (userId: string) => void;
+  isOpen?: boolean;
 }
 
 const UserSidebar: React.FC<UserSidebarProps> = ({
   members, ownerId, currentUserId, onViewProfile, onSendMessage,
   onlineUserIds, currentUserIsOwner, canKickMembers, canBanMembers, onManageRoles, onKick, onBan,
+  isOpen = true,
 }) => {
   const [miniProfile, setMiniProfile] = useState<{ member: ServerMember; position: { top: number; left: number } } | null>(null);
   const [contextMenu, setContextMenu] = useState<{ member: ServerMember; position: { top: number; left: number } } | null>(null);
@@ -252,7 +254,7 @@ const UserSidebar: React.FC<UserSidebarProps> = ({
   const groups = buildGroups(members, ownerId, onlineUserIds);
 
   return (
-    <div className="user-sidebar">
+    <div className={`user-sidebar${isOpen ? ' user-sidebar--open' : ''}`}>
       <div className="user-sidebar-header">Members — {members.length}</div>
       <div className="members-container">
         {members.length === 0 ? (

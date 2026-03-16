@@ -113,21 +113,62 @@
   font-size: 14px;
 }
 
-/* Responsive adjustments */
-@media (max-width: 768px) {
-  .user-sidebar {
-    display: none;
-  }
-
-  .channel-list {
-    width: 200px;
-    min-width: 200px;
-  }
+/* Mobile backdrop */
+.mobile-backdrop {
+  display: none;
 }
 
-@media (max-width: 480px) {
+/* Hamburger hidden on desktop, shown on mobile */
+.chat-header-btn--hamburger {
+  display: none !important;
+}
+
+@media (max-width: 768px) {
+  .mobile-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 90;
+  }
+
+  /* Channel list becomes a fixed overlay slide-in from left */
   .channel-list {
-    display: none;
+    position: fixed;
+    left: 72px;
+    top: 0;
+    bottom: 0;
+    width: 240px;
+    min-width: 240px;
+    height: 100dvh;
+    z-index: 100;
+    transform: translateX(-110%);
+    transition: transform 0.22s ease;
+  }
+  .channel-list.channel-list--open {
+    transform: translateX(0);
+  }
+
+  /* Members sidebar becomes a fixed overlay slide-in from right */
+  .user-sidebar {
+    position: fixed;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 240px;
+    min-width: 240px;
+    height: 100dvh;
+    z-index: 100;
+    transform: translateX(110%);
+    transition: transform 0.22s ease;
+  }
+  .user-sidebar.user-sidebar--open {
+    transform: translateX(0);
+  }
+
+  /* Show hamburger on mobile */
+  .chat-header-btn--hamburger {
+    display: flex !important;
   }
 }
 
