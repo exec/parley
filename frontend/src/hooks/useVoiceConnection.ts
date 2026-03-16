@@ -3,70 +3,148 @@ import {
   Room,
   RoomEvent,
   LocalParticipant,
+  LocalVideoTrack,
   RemoteParticipant,
   Track,
-  createLocalTracks,
+  LocalAudioTrack,
+  createLocalVideoTrack,
+  VideoPresets,
+  Participant,
 } from 'livekit-client';
+import { MicVAD } from '@ricky0123/vad-web';
 import { getVoiceToken, joinVoiceChannel, leaveVoiceChannel } from '../api/voice';
 
-export interface VoiceConnectionState {
+export interface VoiceSettings {
+  micDeviceId?: string;
+  speakerDeviceId?: string;
+  cameraDeviceId?: string;
+  noiseSuppression: boolean;
+  vadMode: 'vad' | 'ptt' | 'always';
+  pttKey: string; // KeyboardEvent.code e.g. 'Space', 'KeyV'
+}
+
+const DEFAULT_SETTINGS: VoiceSettings = {
+  noiseSuppression: true,
+  vadMode: 'vad',
+  pttKey: 'Space',
+};
+
+export function loadVoiceSettings(): VoiceSettings {
+  try {
+    const raw = localStorage.getItem('parley_voice_settings');
+    return raw ? { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } : DEFAULT_SETTINGS;
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
+
+export function persistVoiceSettings(patch: Partial<VoiceSettings>) {
+  const current = loadVoiceSettings();
+  localStorage.setItem('parley_voice_settings', JSON.stringify({ ...current, ...patch }));
+}
+
+export interface VoiceConnectionReturn {
   connected: boolean;
   connecting: boolean;
   error: string | null;
   muted: boolean;
   deafened: boolean;
+  videoEnabled: boolean;
+  screenSharing: boolean;
+  speaking: boolean;
+  activeSpeakers: Set<string>;
+  participants: RemoteParticipant[];
+  localParticipant: LocalParticipant | null;
+  settings: VoiceSettings;
+  toggleMute: () => void;
+  toggleDeafen: () => void;
+  toggleVideo: () => Promise<void>;
+  toggleScreenShare: () => Promise<void>;
+  disconnect: () => void;
+  retry: () => void;
+  updateSettings: (patch: Partial<VoiceSettings>) => void;
 }
 
 export function useVoiceConnection(
   channelId: string | null,
   onDisconnected: () => void,
-): VoiceConnectionState & {
-  toggleMute: () => void;
-  toggleDeafen: () => void;
-  disconnect: () => void;
-  retry: () => void;
-} {
+): VoiceConnectionReturn {
   const roomRef = useRef<Room | null>(null);
   const bcRef = useRef<BroadcastChannel | null>(null);
-  const audioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
+  const audioRefsMap = useRef<Map<string, HTMLAudioElement>>(new Map());
+  const vadRef = useRef<MicVAD | null>(null);
+  const audioTrackRef = useRef<LocalAudioTrack | null>(null);
+  const videoTrackRef = useRef<LocalVideoTrack | null>(null);
   const channelIdRef = useRef<string | null>(null);
   const onDisconnectedRef = useRef(onDisconnected);
   onDisconnectedRef.current = onDisconnected;
+
+  const [settings, setSettings] = useState<VoiceSettings>(loadVoiceSettings);
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
 
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
   const [deafened, setDeafened] = useState(false);
+  const [videoEnabled, setVideoEnabled] = useState(false);
+  const [screenSharing, setScreenSharing] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
+  const [activeSpeakers, setActiveSpeakers] = useState<Set<string>>(new Set());
+  const [participants, setParticipants] = useState<RemoteParticipant[]>([]);
+  const [localParticipant, setLocalParticipant] = useState<LocalParticipant | null>(null);
+
+  const updateParticipantList = useCallback(() => {
+    if (!roomRef.current) { setParticipants([]); setLocalParticipant(null); return; }
+    setParticipants(Array.from(roomRef.current.remoteParticipants.values()));
+    setLocalParticipant(roomRef.current.localParticipant);
+  }, []);
+
+  const applyOutputDevice = useCallback((deviceId: string) => {
+    document.querySelectorAll('audio').forEach(el => {
+      if ('setSinkId' in el) (el as any).setSinkId(deviceId).catch(() => {});
+    });
+  }, []);
 
   const cleanupAudio = useCallback(() => {
-    audioRefs.current.forEach(el => el.remove());
-    audioRefs.current.clear();
+    audioRefsMap.current.forEach(el => el.remove());
+    audioRefsMap.current.clear();
   }, []);
 
   const attachAudio = useCallback((participant: RemoteParticipant) => {
     participant.getTrackPublications().forEach(pub => {
       if (pub.kind === Track.Kind.Audio && pub.track) {
-        let el = audioRefs.current.get(participant.identity);
+        let el = audioRefsMap.current.get(participant.identity);
         if (!el) {
           el = document.createElement('audio');
           el.autoplay = true;
           document.body.appendChild(el);
-          audioRefs.current.set(participant.identity, el);
+          audioRefsMap.current.set(participant.identity, el);
         }
         pub.track.attach(el);
+        el.muted = deafened;
+        const savedSpeaker = settingsRef.current.speakerDeviceId;
+        if (savedSpeaker && 'setSinkId' in el) (el as any).setSinkId(savedSpeaker).catch(() => {});
       }
     });
-  }, []);
+  }, [deafened]);
 
   const detachAudio = useCallback((identity: string) => {
-    const el = audioRefs.current.get(identity);
-    if (el) { el.remove(); audioRefs.current.delete(identity); }
+    const el = audioRefsMap.current.get(identity);
+    if (el) { el.remove(); audioRefsMap.current.delete(identity); }
   }, []);
 
   const doDisconnect = useCallback(() => {
+    vadRef.current?.destroy();
+    vadRef.current = null;
     bcRef.current?.close();
     bcRef.current = null;
+    if (videoTrackRef.current) {
+      videoTrackRef.current.stop();
+      videoTrackRef.current = null;
+    }
+    audioTrackRef.current = null;
     const cid = channelIdRef.current;
     if (cid) leaveVoiceChannel(cid).catch(() => {});
     roomRef.current?.disconnect();
@@ -76,6 +154,12 @@ export function useVoiceConnection(
     setConnected(false);
     setMuted(false);
     setDeafened(false);
+    setVideoEnabled(false);
+    setScreenSharing(false);
+    setSpeaking(false);
+    setActiveSpeakers(new Set());
+    setParticipants([]);
+    setLocalParticipant(null);
     onDisconnectedRef.current();
   }, [cleanupAudio]);
 
@@ -84,6 +168,7 @@ export function useVoiceConnection(
     channelIdRef.current = cid;
     setConnecting(true);
     setError(null);
+
     try {
       const { token, url } = await getVoiceToken(cid);
 
@@ -92,12 +177,46 @@ export function useVoiceConnection(
       bc.onmessage = (e) => { if (e.data?.action === 'claim') doDisconnect(); };
       bc.postMessage({ action: 'claim', channelId: cid });
 
+      const s = settingsRef.current;
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          deviceId: s.micDeviceId ? { exact: s.micDeviceId } : undefined,
+          noiseSuppression: s.noiseSuppression,
+          echoCancellation: s.noiseSuppression,
+          autoGainControl: true,
+        },
+      });
+
       const room = new Room({ adaptiveStream: true, dynacast: true });
       roomRef.current = room;
 
-      room.on(RoomEvent.TrackSubscribed, (_t, _p, participant) => attachAudio(participant as RemoteParticipant));
-      room.on(RoomEvent.TrackUnsubscribed, (_t, _p, participant) => detachAudio(participant.identity));
-      room.on(RoomEvent.ParticipantDisconnected, p => detachAudio(p.identity));
+      room.on(RoomEvent.ParticipantConnected, updateParticipantList);
+      room.on(RoomEvent.ParticipantDisconnected, (p) => {
+        detachAudio(p.identity);
+        updateParticipantList();
+      });
+      room.on(RoomEvent.TrackSubscribed, (_t, _p, participant) => {
+        attachAudio(participant as RemoteParticipant);
+        updateParticipantList();
+      });
+      room.on(RoomEvent.TrackUnsubscribed, (_t, _p, participant) => {
+        detachAudio(participant.identity);
+        updateParticipantList();
+      });
+      room.on(RoomEvent.TrackPublished, updateParticipantList);
+      room.on(RoomEvent.TrackUnpublished, updateParticipantList);
+      room.on(RoomEvent.LocalTrackPublished, (pub) => {
+        if (pub.source === Track.Source.ScreenShare) setScreenSharing(true);
+        updateParticipantList();
+      });
+      room.on(RoomEvent.LocalTrackUnpublished, (pub) => {
+        if (pub.source === Track.Source.ScreenShare) setScreenSharing(false);
+        updateParticipantList();
+      });
+      room.on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
+        const ids = new Set(speakers.map(sp => sp.identity));
+        setActiveSpeakers(ids);
+      });
       room.on(RoomEvent.Disconnected, () => {
         setConnected(false);
         leaveVoiceChannel(cid).catch(() => {});
@@ -105,53 +224,155 @@ export function useVoiceConnection(
       });
 
       await room.connect(url, token);
-      const tracks = await createLocalTracks({ audio: true, video: false });
-      for (const track of tracks) await room.localParticipant.publishTrack(track);
+
+      const micTrack = new LocalAudioTrack(stream.getAudioTracks()[0]);
+      audioTrackRef.current = micTrack;
+      await room.localParticipant.publishTrack(micTrack);
+
+      if (s.vadMode === 'vad') {
+        const vad = await MicVAD.new({
+          getStream: () => Promise.resolve(stream),
+          onSpeechStart: () => {
+            if (settingsRef.current.vadMode !== 'vad') return;
+            audioTrackRef.current?.unmute();
+            setMuted(false);
+            setSpeaking(true);
+          },
+          onSpeechEnd: (_audio: Float32Array) => {
+            if (settingsRef.current.vadMode !== 'vad') return;
+            audioTrackRef.current?.mute();
+            setMuted(true);
+            setSpeaking(false);
+          },
+        });
+        vadRef.current = vad;
+        vad.start();
+        micTrack.mute();
+        setMuted(true);
+      }
+
       room.remoteParticipants.forEach(p => attachAudio(p));
+      if (s.speakerDeviceId) applyOutputDevice(s.speakerDeviceId);
+
       await joinVoiceChannel(cid);
+      updateParticipantList();
       setConnected(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to connect');
+      roomRef.current?.disconnect();
       roomRef.current = null;
       bcRef.current?.close();
       bcRef.current = null;
     } finally {
       setConnecting(false);
     }
-  }, [attachAudio, detachAudio, doDisconnect]);
+  }, [attachAudio, detachAudio, doDisconnect, updateParticipantList, applyOutputDevice]);
 
-  // Connect when channelId is set, cleanup on unmount
   useEffect(() => {
     if (!channelId) return;
     connect(channelId);
     return () => {
+      vadRef.current?.destroy();
+      vadRef.current = null;
       bcRef.current?.close();
       bcRef.current = null;
       if (channelIdRef.current) leaveVoiceChannel(channelIdRef.current).catch(() => {});
       roomRef.current?.disconnect();
       roomRef.current = null;
+      videoTrackRef.current?.stop();
+      videoTrackRef.current = null;
       cleanupAudio();
     };
   }, [channelId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    if (!connected) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (settingsRef.current.vadMode !== 'ptt') return;
+      if (e.code !== settingsRef.current.pttKey) return;
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+      audioTrackRef.current?.unmute();
+      setMuted(false);
+      setSpeaking(true);
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (settingsRef.current.vadMode !== 'ptt') return;
+      if (e.code !== settingsRef.current.pttKey) return;
+      audioTrackRef.current?.mute();
+      setMuted(true);
+      setSpeaking(false);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [connected]);
+
   const toggleMute = useCallback(() => {
-    const local: LocalParticipant | undefined = roomRef.current?.localParticipant;
-    if (!local) return;
+    if (!audioTrackRef.current) return;
     const next = !muted;
-    local.setMicrophoneEnabled(!next);
+    if (next) audioTrackRef.current.mute(); else audioTrackRef.current.unmute();
     setMuted(next);
+    if (!next) setSpeaking(true); else setSpeaking(false);
   }, [muted]);
 
   const toggleDeafen = useCallback(() => {
     const next = !deafened;
-    audioRefs.current.forEach(el => { el.muted = next; });
+    audioRefsMap.current.forEach(el => { el.muted = next; });
     setDeafened(next);
   }, [deafened]);
 
+  const toggleVideo = useCallback(async () => {
+    if (!roomRef.current) return;
+    if (videoEnabled) {
+      await roomRef.current.localParticipant.setCameraEnabled(false);
+      videoTrackRef.current?.stop();
+      videoTrackRef.current = null;
+      setVideoEnabled(false);
+    } else {
+      const s = settingsRef.current;
+      const vt = await createLocalVideoTrack({
+        resolution: VideoPresets.h720.resolution,
+        deviceId: s.cameraDeviceId,
+      });
+      videoTrackRef.current = vt;
+      await roomRef.current.localParticipant.publishTrack(vt);
+      setVideoEnabled(true);
+    }
+    updateParticipantList();
+  }, [videoEnabled, updateParticipantList]);
+
+  const toggleScreenShare = useCallback(async () => {
+    if (!roomRef.current) return;
+    if (screenSharing) {
+      await roomRef.current.localParticipant.setScreenShareEnabled(false);
+      setScreenSharing(false);
+    } else {
+      await roomRef.current.localParticipant.setScreenShareEnabled(true, { audio: true });
+    }
+    updateParticipantList();
+  }, [screenSharing, updateParticipantList]);
+
+  const updateSettings = useCallback((patch: Partial<VoiceSettings>) => {
+    persistVoiceSettings(patch);
+    setSettings(prev => ({ ...prev, ...patch }));
+    if (patch.speakerDeviceId) applyOutputDevice(patch.speakerDeviceId);
+  }, [applyOutputDevice]);
+
   return {
-    connected, connecting, error, muted, deafened,
-    toggleMute, toggleDeafen,
+    connected, connecting, error,
+    muted, deafened, videoEnabled, screenSharing, speaking,
+    activeSpeakers, participants, localParticipant,
+    settings,
+    toggleMute, toggleDeafen, toggleVideo, toggleScreenShare,
     disconnect: doDisconnect,
     retry: () => { if (channelId) connect(channelId); },
+    updateSettings,
   };
 }
