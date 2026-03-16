@@ -3,9 +3,10 @@ import { User } from '../../api/types';
 import { updateProfile, resendVerification, changeEmail, verifyPhone, resendPhone, changePhone } from '../../api/auth';
 import { uploadFile } from '../../api/upload';
 import { DeveloperTab } from './DeveloperTab';
+import { VoiceSettingsTab } from './VoiceSettings';
 import './Settings.css';
 
-type Tab = 'account' | 'profile' | 'developer';
+type Tab = 'account' | 'profile' | 'developer' | 'voice';
 
 interface Props {
   isOpen: boolean;
@@ -223,6 +224,9 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
           <button className={`settings-nav-item${activeTab === 'developer' ? ' active' : ''}`} onClick={() => setActiveTab('developer')}>
             Developer
           </button>
+          <button className={`settings-nav-item${activeTab === 'voice' ? ' active' : ''}`} onClick={() => setActiveTab('voice')}>
+            Voice &amp; Video
+          </button>
         </div>
         <div className="settings-nav-divider" />
         <div className="settings-sidebar-spacer" />
@@ -287,6 +291,7 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
             hasChanges={hasChanges()}
           />}
           {activeTab === 'developer' && <DeveloperTab />}
+          {activeTab === 'voice' && <VoiceSettingsTab />}
         </div>
       </div>
 
