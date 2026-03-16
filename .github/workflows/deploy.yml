@@ -1,0 +1,39 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Deploy to production
+    runs-on: ubuntu-latest
+    env:
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H 174.138.51.177 159.203.111.52 167.71.186.109 >> ~/.ssh/known_hosts
+
+      - name: Deploy to all servers
+        run: |
+          for IP in 174.138.51.177 159.203.111.52 167.71.186.109; do
+            ssh -i ~/.ssh/deploy_key root@$IP '
+              set -e
+              cd /parley && git pull origin main
+              go build -mod=mod -o /usr/local/bin/parley-api ./cmd/api
+              cd frontend && npm run build && cp -r dist/* /var/www/parley/
+              systemctl restart parley-api
+              echo OK
+            ' &
+          done
+          wait
+
+      - name: Clean up SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
