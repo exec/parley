@@ -26,7 +26,7 @@ export interface ListPostsParams {
 }
 
 export async function createPost(channelId: string, data: CreatePostData): Promise<BinPost> {
-  return apiClient.post<BinPost>(`/bin/channels/${channelId}/posts`, data);
+  return apiClient.post<BinPost>(`/channels/${channelId}/posts`, data);
 }
 
 export async function listPosts(channelId: string, params?: ListPostsParams): Promise<BinPost[]> {
@@ -36,30 +36,30 @@ export async function listPosts(channelId: string, params?: ListPostsParams): Pr
   if (params?.tag) queryParams.append('tag', params.tag);
   if (params?.search) queryParams.append('search', params.search);
   const queryString = queryParams.toString();
-  const endpoint = `/bin/channels/${channelId}/posts${queryString ? `?${queryString}` : ''}`;
+  const endpoint = `/channels/${channelId}/posts${queryString ? `?${queryString}` : ''}`;
   return apiClient.get<BinPost[]>(endpoint);
 }
 
 export async function getPost(postId: string): Promise<BinPost> {
-  return apiClient.get<BinPost>(`/bin/posts/${postId}`);
+  return apiClient.get<BinPost>(`/posts/${postId}`);
 }
 
 export async function editPost(postId: string, data: EditPostData): Promise<BinPost> {
-  return apiClient.put<BinPost>(`/bin/posts/${postId}`, data);
+  return apiClient.put<BinPost>(`/posts/${postId}`, data);
 }
 
 export async function deletePost(postId: string): Promise<void> {
-  return apiClient.delete<void>(`/bin/posts/${postId}`);
+  return apiClient.delete<void>(`/posts/${postId}`);
 }
 
 // ── Versions ──────────────────────────────────────────────────────────────────
 
 export async function getVersions(postId: string): Promise<BinPostVersion[]> {
-  return apiClient.get<BinPostVersion[]>(`/bin/posts/${postId}/versions`);
+  return apiClient.get<BinPostVersion[]>(`/posts/${postId}/versions`);
 }
 
 export async function getVersion(postId: string, versionId: string): Promise<BinPostVersion> {
-  return apiClient.get<BinPostVersion>(`/bin/posts/${postId}/versions/${versionId}`);
+  return apiClient.get<BinPostVersion>(`/posts/${postId}/versions/${versionId}`);
 }
 
 // ── Line Comments ─────────────────────────────────────────────────────────────
@@ -79,7 +79,7 @@ export interface GetLineCommentsParams {
 }
 
 export async function createLineComment(postId: string, data: CreateLineCommentData): Promise<BinLineComment> {
-  return apiClient.post<BinLineComment>(`/bin/posts/${postId}/line-comments`, data);
+  return apiClient.post<BinLineComment>(`/posts/${postId}/line-comments`, data);
 }
 
 export async function getLineComments(postId: string, params?: GetLineCommentsParams): Promise<BinLineComment[]> {
@@ -88,28 +88,28 @@ export async function getLineComments(postId: string, params?: GetLineCommentsPa
   if (params?.file_id) queryParams.append('file_id', params.file_id);
   if (params?.line_number !== undefined) queryParams.append('line_number', params.line_number.toString());
   const queryString = queryParams.toString();
-  const endpoint = `/bin/posts/${postId}/line-comments${queryString ? `?${queryString}` : ''}`;
+  const endpoint = `/posts/${postId}/line-comments${queryString ? `?${queryString}` : ''}`;
   return apiClient.get<BinLineComment[]>(endpoint);
 }
 
 export async function updateLineComment(id: string, content: string): Promise<BinLineComment> {
-  return apiClient.put<BinLineComment>(`/bin/line-comments/${id}`, { content });
+  return apiClient.put<BinLineComment>(`/line-comments/${id}`, { content });
 }
 
 export async function deleteLineComment(id: string): Promise<void> {
-  return apiClient.delete<void>(`/bin/line-comments/${id}`);
+  return apiClient.delete<void>(`/line-comments/${id}`);
 }
 
 // ── Tags ──────────────────────────────────────────────────────────────────────
 
 export async function getTags(channelId: string): Promise<BinChannelTag[]> {
-  return apiClient.get<BinChannelTag[]>(`/bin/channels/${channelId}/tags`);
+  return apiClient.get<BinChannelTag[]>(`/channels/${channelId}/tags`);
 }
 
 export async function createTag(channelId: string, name: string, color: string): Promise<BinChannelTag> {
-  return apiClient.post<BinChannelTag>(`/bin/channels/${channelId}/tags`, { name, color });
+  return apiClient.post<BinChannelTag>(`/channels/${channelId}/tags`, { name, color });
 }
 
 export async function deleteTag(channelId: string, tagId: string): Promise<void> {
-  return apiClient.delete<void>(`/bin/channels/${channelId}/tags/${tagId}`);
+  return apiClient.delete<void>(`/channels/${channelId}/tags/${tagId}`);
 }

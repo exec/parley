@@ -32,6 +32,8 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
     participant.on(ParticipantEvent.TrackUnsubscribed, bump);
     participant.on(ParticipantEvent.TrackPublished, bump);
     participant.on(ParticipantEvent.TrackUnpublished, bump);
+    participant.on(ParticipantEvent.LocalTrackPublished, bump);
+    participant.on(ParticipantEvent.LocalTrackUnpublished, bump);
     return () => {
       participant.off(ParticipantEvent.TrackMuted, bump);
       participant.off(ParticipantEvent.TrackUnmuted, bump);
@@ -39,6 +41,8 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
       participant.off(ParticipantEvent.TrackUnsubscribed, bump);
       participant.off(ParticipantEvent.TrackPublished, bump);
       participant.off(ParticipantEvent.TrackUnpublished, bump);
+      participant.off(ParticipantEvent.LocalTrackPublished, bump);
+      participant.off(ParticipantEvent.LocalTrackUnpublished, bump);
     };
   }, [participant]);
 
