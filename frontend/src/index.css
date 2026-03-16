@@ -7,6 +7,7 @@
   --text-secondary: #228B22;
   --accent: #32CD32;
   --border: #1a3d1a;
+  --sidebar-width: 232px;
 
   /* === Aliases used by modal/ui components (styles.css) === */
   --discord-bg: #000000;
