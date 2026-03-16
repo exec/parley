@@ -14,25 +14,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Resolve API server IPs from DigitalOcean tags
+      - name: Resolve server IPs from DigitalOcean tags
         run: |
-          HOSTS=$(curl -sf \
+          ALL=$(curl -sf \
             -H "Authorization: Bearer $DO_TOKEN" \
-            "https://api.digitalocean.com/v2/droplets?tag_name=api&per_page=50" \
-            | jq -r '.droplets[] | select(.tags | contains(["parley"])) | .networks.v4[] | select(.type=="public") | .ip_address' \
-            | tr '\n' ' ')
-          echo "DEPLOY_HOSTS=$HOSTS" >> "$GITHUB_ENV"
+            "https://api.digitalocean.com/v2/droplets?tag_name=parley&per_page=50" \
+            | jq -r '.droplets[] | {tags: .tags, ip: (.networks.v4[] | select(.type=="public") | .ip_address)}')
+          API_HOSTS=$(echo "$ALL" | jq -r 'select(.tags | contains(["api"])) | .ip' | tr '\n' ' ')
+          ADMIN_HOST=$(echo "$ALL" | jq -r 'select(.tags | contains(["admin"])) | .ip' | tr '\n' ' ')
+          echo "API_HOSTS=$API_HOSTS" >> "$GITHUB_ENV"
+          echo "ADMIN_HOST=$ADMIN_HOST" >> "$GITHUB_ENV"
 
       - name: Set up SSH
         run: |
           mkdir -p ~/.ssh
           echo "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H $DEPLOY_HOSTS >> ~/.ssh/known_hosts
+          ssh-keyscan -H $API_HOSTS $ADMIN_HOST >> ~/.ssh/known_hosts
 
-      - name: Deploy to all servers
+      - name: Deploy API servers
         run: |
-          for IP in $DEPLOY_HOSTS; do
+          for IP in $API_HOSTS; do
             ssh -i ~/.ssh/deploy_key root@$IP '
               set -e
               cd /parley && git pull origin main
@@ -43,6 +45,16 @@ jobs:
             ' &
           done
           wait
+
+      - name: Deploy admin server
+        run: |
+          ssh -i ~/.ssh/deploy_key root@$ADMIN_HOST '
+            set -e
+            cd /parley && git pull origin main
+            go build -mod=mod -o /usr/local/bin/parley-admin ./cmd/admin
+            systemctl restart parley-admin
+            echo OK
+          '
 
       - name: Clean up SSH key
         if: always()
