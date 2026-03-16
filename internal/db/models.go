@@ -92,11 +92,12 @@ type ServerMember struct {
 	UserID    int64        `json:"user_id" db:"user_id"`
 	Nickname  string       `json:"nickname" db:"nickname"`
 	JoinedAt  time.Time    `json:"joined_at" db:"joined_at"`
-	Username  string       `json:"username" db:"-"`
-	AvatarURL string       `json:"avatar_url,omitempty" db:"-"`
-	BannerURL string       `json:"banner_url,omitempty" db:"-"`
-	Bio       string       `json:"bio,omitempty" db:"-"`
-	Badges    int          `json:"badges" db:"-"`
+	Username    string       `json:"username" db:"-"`
+	DisplayName string       `json:"display_name,omitempty" db:"-"`
+	AvatarURL   string       `json:"avatar_url,omitempty" db:"-"`
+	BannerURL   string       `json:"banner_url,omitempty" db:"-"`
+	Bio         string       `json:"bio,omitempty" db:"-"`
+	Badges      int          `json:"badges" db:"-"`
 	Roles     []ServerRole `json:"roles" db:"-"`
 }
 

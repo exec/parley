@@ -169,17 +169,18 @@ func (s *ServerService) GetMembers(ctx context.Context, serverID string) ([]*Ser
 	result := make([]*ServerMember, len(members))
 	for i, member := range members {
 		result[i] = &ServerMember{
-			ID:        int64ToID(member.ID),
-			ServerID:  int64ToID(member.ServerID),
-			UserID:    int64ToID(member.UserID),
-			Username:  member.Username,
-			Nickname:  member.Nickname,
-			AvatarURL: member.AvatarURL,
-			BannerURL: member.BannerURL,
-			Bio:       member.Bio,
-			Badges:    member.Badges,
-			JoinedAt:  member.JoinedAt,
-			Roles:     []Role{},
+			ID:          int64ToID(member.ID),
+			ServerID:    int64ToID(member.ServerID),
+			UserID:      int64ToID(member.UserID),
+			Username:    member.Username,
+			DisplayName: member.DisplayName,
+			Nickname:    member.Nickname,
+			AvatarURL:   member.AvatarURL,
+			BannerURL:   member.BannerURL,
+			Bio:         member.Bio,
+			Badges:      member.Badges,
+			JoinedAt:    member.JoinedAt,
+			Roles:       []Role{},
 		}
 	}
 	return result, nil
@@ -201,17 +202,18 @@ func (s *ServerService) GetMembersWithRoles(ctx context.Context, serverID string
 			roles[j] = dbRoleToRole(r)
 		}
 		members[i] = &ServerMember{
-			ID:        strconv.FormatInt(m.ID, 10),
-			ServerID:  strconv.FormatInt(m.ServerID, 10),
-			UserID:    strconv.FormatInt(m.UserID, 10),
-			Username:  m.Username,
-			Nickname:  m.Nickname,
-			AvatarURL: m.AvatarURL,
-			BannerURL: m.BannerURL,
-			Bio:       m.Bio,
-			Badges:    m.Badges,
-			JoinedAt:  m.JoinedAt,
-			Roles:     roles,
+			ID:          strconv.FormatInt(m.ID, 10),
+			ServerID:    strconv.FormatInt(m.ServerID, 10),
+			UserID:      strconv.FormatInt(m.UserID, 10),
+			Username:    m.Username,
+			DisplayName: m.DisplayName,
+			Nickname:    m.Nickname,
+			AvatarURL:   m.AvatarURL,
+			BannerURL:   m.BannerURL,
+			Bio:         m.Bio,
+			Badges:      m.Badges,
+			JoinedAt:    m.JoinedAt,
+			Roles:       roles,
 		}
 	}
 	return members, nil

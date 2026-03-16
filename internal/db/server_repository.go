@@ -217,7 +217,7 @@ func (r *Repository) GetMember(ctx context.Context, serverID, userID int64) (*Se
 
 func (r *Repository) GetServerMembers(ctx context.Context, serverID int64) ([]*ServerMember, error) {
 	query := `
-		SELECT sm.id, sm.server_id, sm.user_id, sm.nickname, sm.joined_at, u.username, COALESCE(u.avatar_url, ''), COALESCE(u.banner_url, ''), COALESCE(u.bio, ''), u.badges
+		SELECT sm.id, sm.server_id, sm.user_id, sm.nickname, sm.joined_at, u.username, COALESCE(u.display_name, ''), COALESCE(u.avatar_url, ''), COALESCE(u.banner_url, ''), COALESCE(u.bio, ''), u.badges
 		FROM server_members sm
 		JOIN users u ON u.id = sm.user_id
 		WHERE sm.server_id = $1
@@ -240,6 +240,7 @@ func (r *Repository) GetServerMembers(ctx context.Context, serverID int64) ([]*S
 			&member.Nickname,
 			&member.JoinedAt,
 			&member.Username,
+			&member.DisplayName,
 			&member.AvatarURL,
 			&member.BannerURL,
 			&member.Bio,

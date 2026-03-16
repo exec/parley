@@ -35,17 +35,18 @@ type Role struct {
 }
 
 type ServerMember struct {
-	ID        string    `json:"id"`
-	ServerID  string    `json:"server_id"`
-	UserID    string    `json:"user_id"`
-	Username  string    `json:"username"`
-	Nickname  string    `json:"nickname,omitempty"`
-	AvatarURL string    `json:"avatar_url,omitempty"`
-	BannerURL string    `json:"banner_url,omitempty"`
-	Bio       string    `json:"bio,omitempty"`
-	Badges    int       `json:"badges"`
-	JoinedAt  time.Time `json:"joined_at"`
-	Roles     []Role    `json:"roles"`
+	ID          string    `json:"id"`
+	ServerID    string    `json:"server_id"`
+	UserID      string    `json:"user_id"`
+	Username    string    `json:"username"`
+	DisplayName string    `json:"display_name,omitempty"`
+	Nickname    string    `json:"nickname,omitempty"`
+	AvatarURL   string    `json:"avatar_url,omitempty"`
+	BannerURL   string    `json:"banner_url,omitempty"`
+	Bio         string    `json:"bio,omitempty"`
+	Badges      int       `json:"badges"`
+	JoinedAt    time.Time `json:"joined_at"`
+	Roles       []Role    `json:"roles"`
 }
 
 type Invite struct {
