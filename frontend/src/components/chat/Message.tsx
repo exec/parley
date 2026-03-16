@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Reply, SmilePlus, Pencil, Trash2, X, Bot } from 'lucide-react';
 import { Message as MessageType } from '../../api/types';
 import { Avatar } from '../ui/Avatar';
 import { EmojiPicker } from './EmojiPicker';
@@ -274,7 +275,7 @@ export const Message: React.FC<MessageProps> = ({
     <>
     {message.parent_id && (
       <div className="reply-indicator">
-        <span>↳ replying to</span>
+        <span><Reply size={12} color="currentColor" /> replying to</span>
         <span className="reply-indicator-name">
           @{parentAuthor ?? message.parent_id}
         </span>
@@ -322,7 +323,7 @@ export const Message: React.FC<MessageProps> = ({
             <span className="msg-badge bot" title="Bot">BOT</span>
           )}
           {message.via_api && !message.author_is_bot && (
-            <span className="msg-badge selfbot" title="Selfbot">🤖</span>
+            <span className="msg-badge selfbot" title="Selfbot"><Bot size={12} color="currentColor" /></span>
           )}
           <span className="message-timestamp">{formatTimestamp(message.created_at)}</span>
           {wasEdited && (
@@ -427,18 +428,18 @@ export const Message: React.FC<MessageProps> = ({
 
       {showActions && !isEditing && (
         <div className="message-actions">
-          <button className="message-action-btn" onClick={handleReply} title="Reply">↩</button>
+          <button className="message-action-btn" onClick={handleReply} title="Reply"><Reply size={14} color="currentColor" /></button>
           {canAddReactions && (
-            <button className="message-action-btn" onClick={(e) => { e.stopPropagation(); setShowEmojiPicker(p => !p); }} title="Add reaction">😊</button>
+            <button className="message-action-btn" onClick={(e) => { e.stopPropagation(); setShowEmojiPicker(p => !p); }} title="Add reaction"><SmilePlus size={14} color="currentColor" /></button>
           )}
           {isOwnMessage && (
             <>
-              <button className="message-action-btn" onClick={handleEdit} title="Edit">✎</button>
-              <button className="message-action-btn delete" onClick={handleDelete} title="Delete">🗑</button>
+              <button className="message-action-btn" onClick={handleEdit} title="Edit"><Pencil size={14} color="currentColor" /></button>
+              <button className="message-action-btn delete" onClick={handleDelete} title="Delete"><Trash2 size={14} color="currentColor" /></button>
             </>
           )}
           {!isOwnMessage && canManageMessages && (
-            <button className="message-action-btn delete" onClick={handleDelete} title="Delete (Manage Messages)">🗑</button>
+            <button className="message-action-btn delete" onClick={handleDelete} title="Delete (Manage Messages)"><Trash2 size={14} color="currentColor" /></button>
           )}
         </div>
       )}
@@ -513,7 +514,7 @@ export const Message: React.FC<MessageProps> = ({
           }}
           title="Close"
         >
-          ×
+          <X size={18} color="currentColor" />
         </button>
         <img
           src={lightboxUrl}

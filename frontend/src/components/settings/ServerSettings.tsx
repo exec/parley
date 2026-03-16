@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { X, ChevronUp, ChevronDown } from 'lucide-react';
 import { Server, ServerMember, Role } from '../../api/types';
 import { updateServer, deleteServer, createInvite, setVanityURL, getMyPermissions } from '../../api/servers';
 import { uploadFile } from '../../api/upload';
@@ -676,7 +677,7 @@ export const ServerSettings: React.FC<Props> = ({
                             </div>
                             <span className="roles-member-name">{member.nickname || member.username}</span>
                             <span className="roles-member-count">
-                              {assigned.size > 0 ? `${assigned.size} role${assigned.size !== 1 ? 's' : ''}` : 'No roles'} {isExpanded ? '▲' : '▼'}
+                              {assigned.size > 0 ? `${assigned.size} role${assigned.size !== 1 ? 's' : ''}` : 'No roles'} {isExpanded ? <ChevronUp size={14} color="currentColor" /> : <ChevronDown size={14} color="currentColor" />}
                             </span>
                           </div>
                           {isExpanded && (
@@ -743,7 +744,7 @@ export const ServerSettings: React.FC<Props> = ({
 
       {/* Close button */}
       <div className="settings-close-wrap">
-        <button className="settings-close-btn" onClick={attemptClose} title="Close (ESC)">×</button>
+        <button className="settings-close-btn" onClick={attemptClose} title="Close (ESC)"><X size={16} color="currentColor" /></button>
         <span className="settings-close-hint">ESC</span>
       </div>
 

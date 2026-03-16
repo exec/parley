@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Volume2, Mic, MicOff, Bell, BellOff, PhoneOff, Hash, Code2, X, Plus, Settings } from 'lucide-react';
 import {
   DndContext,
   DragEndEvent,
@@ -124,9 +125,9 @@ const ChannelContextMenu: React.FC<{
 // ---- sortable channel item ----
 
 function channelIcon(type: number) {
-  if (type === 1) return '🔊';
-  if (type === 2) return '</>';
-  return '#';
+  if (type === 1) return <Volume2 size={13} color="currentColor" />;
+  if (type === 2) return <Code2 size={13} color="currentColor" />;
+  return <Hash size={13} color="currentColor" />;
 }
 
 const SortableChannelItem: React.FC<{
@@ -175,11 +176,11 @@ const SortableChannelItem: React.FC<{
           onMouseEnter={onMouseEnter}
           onMouseLeave={onMouseLeave}
         >
-          <span className="voice-icon">🔊</span>
+          <span className="voice-icon"><Volume2 size={13} color="currentColor" /></span>
           <span className="channel-name">{channel.name}</span>
           {participants.length > 0 && <span className="voice-count">{participants.length}</span>}
           {canManageChannels && hoveredChannel === channel.id && (
-            <button className="delete-channel-btn" onClick={e => { e.stopPropagation(); onDelete(); }} title="Delete">×</button>
+            <button className="delete-channel-btn" onClick={e => { e.stopPropagation(); onDelete(); }} title="Delete"><X size={12} color="currentColor" /></button>
           )}
         </div>
         {participants.length > 0 && (
@@ -285,7 +286,7 @@ const SortableCategoryHeader: React.FC<{
           )}
         </div>
         {canManageChannels && (
-          <button className="add-channel-btn" onClick={onCreateChannel} title="Create channel">+</button>
+          <button className="add-channel-btn" onClick={onCreateChannel} title="Create channel"><Plus size={13} color="currentColor" /></button>
         )}
       </div>
     </div>
@@ -546,13 +547,13 @@ const ChannelList: React.FC<ChannelListProps> = ({
         {categories.length === 0 && canManageChannels && (
           <div className="category-row">
             <div className="category-header" style={{ cursor: 'default' }}>Channels</div>
-            <button className="add-channel-btn" onClick={onCreateChannel} title="Create channel">+</button>
+            <button className="add-channel-btn" onClick={onCreateChannel} title="Create channel"><Plus size={13} color="currentColor" /></button>
           </div>
         )}
 
         {owner_id === currentUser?.id && (
           <div className="channel-item manage-roles-item" onClick={onManageRoles}>
-            <span className="channel-icon">⚙</span>
+            <span className="channel-icon"><Settings size={13} color="currentColor" /></span>
             <span className="channel-name">Manage Roles</span>
           </div>
         )}
@@ -566,12 +567,12 @@ const ChannelList: React.FC<ChannelListProps> = ({
           </div>
           {(() => {
             const vcCh = channels.find(c => c.id === activeVoiceChannelId);
-            return vcCh ? <div className="voice-bar-channel" onClick={onVcNavigate} title="Go to voice channel">🔊 {vcCh.name}</div> : null;
+            return vcCh ? <div className="voice-bar-channel" onClick={onVcNavigate} title="Go to voice channel"><Volume2 size={12} color="currentColor" /> {vcCh.name}</div> : null;
           })()}
           <div className="voice-bar-controls">
-            <button className={`voice-bar-btn${vcMuted ? ' active' : ''}`} onClick={onVcMuteToggle} title={vcMuted ? 'Unmute' : 'Mute'}>{vcMuted ? '🔇' : '🎙'}</button>
-            <button className={`voice-bar-btn${vcDeafened ? ' active' : ''}`} onClick={onVcDeafenToggle} title={vcDeafened ? 'Undeafen' : 'Deafen'}>{vcDeafened ? '🔕' : '🔔'}</button>
-            <button className="voice-bar-btn leave" onClick={onVcLeave} title="Leave voice">✕ Leave</button>
+            <button className={`voice-bar-btn${vcMuted ? ' active' : ''}`} onClick={onVcMuteToggle} title={vcMuted ? 'Unmute' : 'Mute'}>{vcMuted ? <MicOff size={12} color="#cc4444" /> : <Mic size={12} color="#32CD32" />}</button>
+            <button className={`voice-bar-btn${vcDeafened ? ' active' : ''}`} onClick={onVcDeafenToggle} title={vcDeafened ? 'Undeafen' : 'Deafen'}>{vcDeafened ? <BellOff size={12} color="#cc4444" /> : <Bell size={12} color="#32CD32" />}</button>
+            <button className="voice-bar-btn leave" onClick={onVcLeave} title="Leave voice"><PhoneOff size={12} color="#cc4444" /> Leave</button>
           </div>
         </div>
       )}
