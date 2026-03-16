@@ -279,7 +279,11 @@ func (h *Handler) KickParticipant(w http.ResponseWriter, r *http.Request) {
 		jsonErr(w, "failed to remove participant", http.StatusInternalServerError)
 		return
 	}
-	h.broadcastVoiceState(serverVirtualChannelID, channelIDStr, targetUserIDStr, targetMember.Username, targetMember.AvatarURL, "leave")
+	targetDisplayName := targetMember.DisplayName
+	if targetDisplayName == "" {
+		targetDisplayName = targetMember.Username
+	}
+	h.broadcastVoiceState(serverVirtualChannelID, channelIDStr, targetUserIDStr, targetDisplayName, targetMember.AvatarURL, "leave")
 
 	// Send disconnect event to the target user
 	payload, _ := json.Marshal(map[string]interface{}{

@@ -46,8 +46,8 @@ This is a living task list for Parley - a Discord clone.
 - [x] Right-click context menu on usernames in chat (channel messages) — View Profile / Send Message popup on avatar/username right-click
 - [x] DM from search doesn't show for the sender
 - [x] User joining server doesn't refresh server sidebar for others immediately — fixed: event type casing mismatch corrected, handler now calls reloadMembers for active server
-- [ ] Message editing in voice channels
-- [ ] Delete/edit messages in VC
+- [x] Message editing in voice channels
+- [x] Delete/edit messages in VC
 
 ---
 
@@ -66,7 +66,7 @@ This is a living task list for Parley - a Discord clone.
 - [x] Email verification (Brevo HTTP API)
 
 ### Infrastructure
-- [ ] CI/CD deploy script (auto-deploy on push to main)
+- [x] CI/CD deploy script (auto-deploy on push to main)
 - [x] WebSocket reconnection with exponential backoff
 
 ---

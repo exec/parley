@@ -570,7 +570,7 @@ function MainApp() {
           setVoiceParticipants(prev => {
             const list = prev[channelId] ?? [];
             if (list.some(p => p.user_id === currentUser.id)) return prev;
-            return { ...prev, [channelId]: [...list, { user_id: currentUser.id, username: currentUser.username, avatar_url: currentUser.avatar_url }] };
+            return { ...prev, [channelId]: [...list, { user_id: currentUser.id, username: currentUser.display_name || currentUser.username, avatar_url: currentUser.avatar_url }] };
           });
         }
       }}
@@ -695,7 +695,7 @@ function MainApp() {
     mainContent = (
       <VoiceChannel
         channel={vcChannel}
-        currentUser={{ id: currentUser.id, username: currentUser.username, avatar_url: currentUser.avatar_url }}
+        currentUser={{ id: currentUser.id, username: currentUser.display_name || currentUser.username, avatar_url: currentUser.avatar_url }}
         participants={vcParticipants}
         localParticipant={vcLocalParticipant}
         voiceParticipants={Object.fromEntries(
