@@ -37,6 +37,10 @@ type Hub struct {
 
 	// publisher is optional; if set, events are also published cross-node via Redis
 	publisher Publisher
+
+	// channelAccessChecker is an optional function to verify whether a user is
+	// allowed to subscribe to a channel. If nil, access is denied (fail closed).
+	channelAccessChecker func(userID, channelID string) bool
 }
 
 // NewHub creates a new Hub
@@ -57,6 +61,26 @@ func (h *Hub) SetPublisher(p Publisher) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.publisher = p
+}
+
+// SetChannelAccessChecker sets the function used to decide whether a user may
+// subscribe to a given channel. Call this before starting the hub's Run loop.
+func (h *Hub) SetChannelAccessChecker(fn func(userID, channelID string) bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.channelAccessChecker = fn
+}
+
+// CheckChannelAccess returns true only if the channelAccessChecker confirms the
+// user has access. Fails closed (returns false) when no checker is configured.
+func (h *Hub) CheckChannelAccess(userID, channelID string) bool {
+	h.mu.RLock()
+	fn := h.channelAccessChecker
+	h.mu.RUnlock()
+	if fn == nil {
+		return false
+	}
+	return fn(userID, channelID)
 }
 
 // Run starts the hub's main loop

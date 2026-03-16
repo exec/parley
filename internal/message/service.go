@@ -77,6 +77,9 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 	if content == "" && attachmentURL == "" {
 		return nil, errors.New("content or attachment is required")
 	}
+	if len(content) > 4000 {
+		return nil, errors.New("message content exceeds maximum length of 4000 characters")
+	}
 	if validation.HasSpoofedLink(content) {
 		return nil, errors.New("message contains a spoofed link")
 	}

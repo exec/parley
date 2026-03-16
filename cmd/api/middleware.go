@@ -1,8 +1,8 @@
 package main
 
 import (
+	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 )
@@ -77,17 +77,15 @@ func (rl *rateLimiter) cleanup() {
 }
 
 // rateLimitMiddleware rejects requests that exceed the limiter's threshold.
-// It uses X-Real-IP when present (set by the nginx reverse proxy).
+// It uses r.RemoteAddr exclusively to avoid trusting client-supplied headers.
+// When nginx sits in front, it overwrites X-Real-IP before forwarding, and
+// Chi's RealIP middleware has already copied that trusted value into RemoteAddr.
 func rateLimitMiddleware(rl *rateLimiter) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ip := r.Header.Get("X-Real-IP")
+			ip, _, _ := net.SplitHostPort(r.RemoteAddr)
 			if ip == "" {
-				// RemoteAddr is "host:port" — strip the port.
 				ip = r.RemoteAddr
-				if idx := strings.LastIndex(ip, ":"); idx != -1 {
-					ip = ip[:idx]
-				}
 			}
 			if !rl.Allow(ip) {
 				http.Error(w, "rate limit exceeded, please slow down", http.StatusTooManyRequests)

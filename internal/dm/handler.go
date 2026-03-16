@@ -232,6 +232,10 @@ func (h *Handler) SendDmMessage(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "content or attachment is required", http.StatusBadRequest)
 		return
 	}
+	if len(req.Content) > 4000 {
+		jsonError(w, "message content exceeds maximum length of 4000 characters", http.StatusBadRequest)
+		return
+	}
 	if validation.HasSpoofedLink(req.Content) {
 		jsonError(w, "message contains a spoofed link", http.StatusBadRequest)
 		return

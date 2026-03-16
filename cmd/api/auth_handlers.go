@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"strings"
 
 	"parley/internal/auth"
 )
@@ -187,6 +188,12 @@ func handleImpersonateToken(authService *auth.AuthService) http.HandlerFunc {
 		expectedSecret := os.Getenv("ADMIN_IMPERSONATE_SECRET")
 		if expectedSecret == "" || adminSecret != expectedSecret {
 			jsonError(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		targetUserID = strings.TrimSpace(targetUserID)
+		if targetUserID == "" {
+			jsonError(w, "target user ID is required", http.StatusBadRequest)
 			return
 		}
 

@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
 
 	"parley/internal/permissions"
@@ -20,42 +19,6 @@ type Handler struct {
 // NewHandler creates a new server handler
 func NewHandler(service *ServerService) *Handler {
 	return &Handler{service: service}
-}
-
-// Router returns a chi router with all server routes
-func (h *Handler) Router() *chi.Mux {
-	r := chi.NewRouter()
-
-	// Middleware
-	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
-	r.Use(render.SetContentType(render.ContentTypeJSON))
-
-	// Routes
-	r.Group(func(r chi.Router) {
-		r.Use(AuthMiddleware) // Require authentication for all routes
-
-		r.Post("/servers", h.CreateServer)
-		r.Get("/servers", h.GetUserServers)
-		r.Get("/servers/{id}", h.GetServer)
-		r.Put("/servers/{id}", h.UpdateServer)
-		r.Delete("/servers/{id}", h.DeleteServer)
-
-		// Member routes
-		r.Post("/servers/{id}/members", h.AddMember)
-		r.Delete("/servers/{id}/members/{userID}", h.RemoveMember)
-		r.Get("/servers/{id}/members", h.GetMembers)
-
-		// Invite routes
-		r.Post("/servers/{id}/invites", h.CreateInvite)
-	})
-
-	// Public invite route (doesn't require auth, but joins if authenticated)
-	r.Get("/invites/{code}", h.GetInvite)
-
-	return r
 }
 
 // Request/Response types
@@ -380,11 +343,28 @@ func (h *Handler) GetMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userID, ok := r.Context().Value(UserIDKey).(string)
+	if !ok || userID == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+		return
+	}
+
 	// Verify the server exists
 	_, err := h.service.GetServer(r.Context(), serverID)
 	if err != nil {
 		w.WriteHeader(http.StatusNotFound)
 		render.JSON(w, r, ErrorResponse{Error: "server not found"})
+		return
+	}
+
+	// Verify the requester is a member of the server
+	sIDInt, _ := idToInt64(serverID)
+	uIDInt, _ := idToInt64(userID)
+	_, err = h.service.Repo().GetMember(r.Context(), sIDInt, uIDInt)
+	if err != nil {
+		w.WriteHeader(http.StatusForbidden)
+		render.JSON(w, r, ErrorResponse{Error: "you are not a member of this server"})
 		return
 	}
 
@@ -419,11 +399,21 @@ func (h *Handler) CreateInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify the server exists and user is a member
+	// Verify the server exists
 	_, err := h.service.GetServer(r.Context(), serverID)
 	if err != nil {
 		w.WriteHeader(http.StatusNotFound)
 		render.JSON(w, r, ErrorResponse{Error: "server not found"})
+		return
+	}
+
+	// Verify the user is a member of the server
+	sIDInt, _ := idToInt64(serverID)
+	uIDInt, _ := idToInt64(userID)
+	_, err = h.service.Repo().GetMember(r.Context(), sIDInt, uIDInt)
+	if err != nil {
+		w.WriteHeader(http.StatusForbidden)
+		render.JSON(w, r, ErrorResponse{Error: "you are not a member of this server"})
 		return
 	}
 
@@ -476,6 +466,37 @@ func (h *Handler) GetInvite(w http.ResponseWriter, r *http.Request) {
 // GetServerRoles handles GET /servers/:id/roles
 func (h *Handler) GetServerRoles(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "id")
+	if serverID == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		render.JSON(w, r, ErrorResponse{Error: "server ID is required"})
+		return
+	}
+
+	userID, ok := r.Context().Value(UserIDKey).(string)
+	if !ok || userID == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+		return
+	}
+
+	// Verify the server exists
+	_, err := h.service.GetServer(r.Context(), serverID)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		render.JSON(w, r, ErrorResponse{Error: "server not found"})
+		return
+	}
+
+	// Verify the requester is a member of the server
+	sIDInt, _ := idToInt64(serverID)
+	uIDInt, _ := idToInt64(userID)
+	_, err = h.service.Repo().GetMember(r.Context(), sIDInt, uIDInt)
+	if err != nil {
+		w.WriteHeader(http.StatusForbidden)
+		render.JSON(w, r, ErrorResponse{Error: "you are not a member of this server"})
+		return
+	}
+
 	roles, err := h.service.GetServerRoles(r.Context(), serverID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)

@@ -176,7 +176,7 @@ func registerRoutes(
 	})
 
 	// WebSocket endpoint — token via query param (browser WS can't set headers)
-	router.Get("/ws", handleWebSocket(hub))
+	router.Get("/ws", handleWebSocket(hub, authService, repo))
 }
 
 // bridgeUserIDMiddleware copies the userID from auth.UserIDKey to server.UserIDKey

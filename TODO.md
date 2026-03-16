@@ -135,6 +135,23 @@ These are growing-pains issues identified from a structural inspection — not b
 
 ---
 
+## Security Suggestions (from 2026-03-16 audit)
+
+Lower-priority hardening items. Criticals and Importants have been resolved.
+
+- [ ] **S1 — Dependency CVE scanning** — Add `govulncheck ./...` to CI. Watch: `gorilla/websocket`, `golang-jwt/jwt`, `lib/pq`, `aws-sdk-go-v2`.
+- [ ] **S2 — bcrypt 72-byte truncation** — bcrypt silently truncates at 72 bytes. Document and enforce max password length of 72 chars at registration and password-change (`internal/auth/service.go`).
+- [ ] **S3 — Invite code entropy** — Codes are 32-bit (4 bytes). Increase to 6+ bytes in `internal/server/service.go:generateInviteCode`. Also rate-limit `GET /invites/{code}`.
+- [ ] **S4 — JWT in WebSocket URL query param is logged** — `wss://...?token=<JWT>` appears in Chi/nginx logs. Mitigation: exchange JWT for a short-lived (60s) single-use WS ticket via `POST /api/ws-ticket`.
+- [ ] **S5 — Upload keys use nanosecond timestamps (guessable)** — Replace `time.Now().UnixNano()` in `cmd/api/helpers.go:generateID` with `crypto/rand`.
+- [ ] **S6 — Phone number in localStorage** — `GET /auth/me` returns phone_number which lands in localStorage. Fetch on-demand in settings page instead.
+- [ ] **S7 — Security response headers** — Verify nginx sets `Content-Security-Policy`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`.
+- [ ] **S8 — No minimum password length** — Add 8-char minimum at registration in `internal/auth/service.go`.
+- [ ] **S9 — ADMIN_IMPERSONATE_SECRET has no startup warning** — Unlike JWT_SECRET there's no log warning when unset. Add one so operators know the feature is inactive.
+- [x] **S10 — Message content max length** — Only the 64KB global body cap applies. Add explicit max (e.g. 4000 chars) in `internal/message/service.go` and `internal/dm/handler.go`.
+
+---
+
 ## Already Implemented but Need Verification/Adjustment
 
 - [x] User-profile-username CSS (duplicate rule fixed — `margin: 25px 0 0` now applies correctly)

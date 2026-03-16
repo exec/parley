@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -112,6 +113,33 @@ func main() {
 
 	// Initialize WebSocket hub first
 	hub := websocket.NewHub()
+
+	// Enforce channel access: only server members may subscribe to a channel's events.
+	hub.SetChannelAccessChecker(func(userID, channelID string) bool {
+		chID, err := strconv.ParseInt(channelID, 10, 64)
+		if err != nil {
+			return false
+		}
+		uID, err := strconv.ParseInt(userID, 10, 64)
+		if err != nil {
+			return false
+		}
+		ctx := context.Background()
+		ch, err := repo.GetChannelByID(ctx, chID)
+		if err != nil {
+			return false
+		}
+		srv, err := repo.GetServerByID(ctx, ch.ServerID)
+		if err != nil {
+			return false
+		}
+		member, err := repo.GetMember(ctx, ch.ServerID, uID)
+		if err != nil || member == nil {
+			return false
+		}
+		_ = srv
+		return true
+	})
 
 	// Set up Redis pub/sub for cross-node broadcasting (graceful fallback if unavailable)
 	redisHub := websocket.NewRedisHub(hub)

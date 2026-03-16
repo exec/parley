@@ -37,15 +37,20 @@ type Client struct {
 
 	// User ID associated with this client
 	userID string
+
+	// displayName is the server-resolved display name for the user (COALESCE(display_name, username)).
+	// It is set at connection time and never overwritten by client-supplied data.
+	displayName string
 }
 
 // NewClient creates a new client
-func NewClient(hub *Hub, conn *websocket.Conn, userID string) *Client {
+func NewClient(hub *Hub, conn *websocket.Conn, userID string, displayName string) *Client {
 	return &Client{
-		hub:    hub,
-		conn:   conn,
-		send:   make(chan []byte, 256),
-		userID: userID,
+		hub:         hub,
+		conn:        conn,
+		send:        make(chan []byte, 256),
+		userID:      userID,
+		displayName: displayName,
 	}
 }
 
@@ -104,6 +109,10 @@ func (c *Client) handleMessage(msg WSMessage) {
 			log.Printf("CHANNEL_SUBSCRIBE from user %s: missing channel_id", c.userID)
 			return
 		}
+		if !c.hub.CheckChannelAccess(c.userID, payload.ChannelID) {
+			log.Printf("CHANNEL_SUBSCRIBE from user %s: access denied for channel %s", c.userID, payload.ChannelID)
+			return
+		}
 		c.hub.SubscribeToChannel(payload.ChannelID, c)
 
 	case "CHANNEL_UNSUBSCRIBE":
@@ -132,11 +141,11 @@ func (c *Client) handleMessage(msg WSMessage) {
 		if payload.ChannelID == "" {
 			return
 		}
-		// Build broadcast payload using the server-side user ID (not client-supplied)
+		// Build broadcast payload using server-side user ID and display name (not client-supplied)
 		broadcastPayload, err := json.Marshal(map[string]string{
 			"channel_id": payload.ChannelID,
 			"user_id":    c.userID,
-			"username":   payload.Username,
+			"username":   c.displayName,
 		})
 		if err != nil {
 			log.Printf("TYPING from user %s: failed to marshal broadcast payload: %v", c.userID, err)
