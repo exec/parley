@@ -7,6 +7,7 @@ interface Role {
   id: string;
   name: string;
   color: string;
+  is_everyone?: boolean;
 }
 
 interface MiniProfileMember {
@@ -121,9 +122,9 @@ const MiniProfile: React.FC<MiniProfileProps> = ({
           )}
         </div>
 
-        {member.roles && member.roles.length > 0 ? (
+        {member.roles && member.roles.filter(r => !r.is_everyone).length > 0 ? (
           <div className="mini-profile-roles">
-            {member.roles.map(role => (
+            {member.roles.filter(r => !r.is_everyone).map(role => (
               <span
                 key={role.id}
                 className="mini-profile-role-tag"

@@ -41,7 +41,7 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({
     if (!serverId) return;
     try {
       const r = await getServerRoles(serverId);
-      setRoles(r ?? []);
+      setRoles((r ?? []).filter(role => !role.is_everyone));
     } catch (e) {
       console.error('Failed to load roles', e);
     }

@@ -29,7 +29,7 @@ export const AssignRolesModal: React.FC<AssignRolesModalProps> = ({
         getServerRoles(serverId),
         getMemberRoles(serverId, userId),
       ]);
-      setRoles(allRoles ?? []);
+      setRoles((allRoles ?? []).filter((r: Role) => !r.is_everyone));
       setAssigned(new Set((memberRoles ?? []).map((r: Role) => r.id)));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load roles');

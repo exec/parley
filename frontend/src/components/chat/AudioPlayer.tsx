@@ -118,13 +118,11 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ url, isVoiceMessage, f
       setCurrentTime(0);
       audio.currentTime = 0;
     };
-    const onError = () => setLoadError(true);
     audio.addEventListener('loadedmetadata', onMeta);
     audio.addEventListener('timeupdate', onTime);
     audio.addEventListener('play', onPlay);
     audio.addEventListener('pause', onPause);
     audio.addEventListener('ended', onEnded);
-    audio.addEventListener('error', onError);
     if (audio.readyState >= 1) onMeta();
     return () => {
       audio.removeEventListener('loadedmetadata', onMeta);
@@ -132,7 +130,6 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ url, isVoiceMessage, f
       audio.removeEventListener('play', onPlay);
       audio.removeEventListener('pause', onPause);
       audio.removeEventListener('ended', onEnded);
-      audio.removeEventListener('error', onError);
     };
   }, []);
 
@@ -190,10 +187,10 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ url, isVoiceMessage, f
 
   const toggle = useCallback(() => {
     const audio = audioRef.current;
-    if (!audio || !ready) return;
-    if (audio.paused) audio.play().catch(() => {});
+    if (!audio) return;
+    if (audio.paused) audio.play().catch(() => setLoadError(true));
     else audio.pause();
-  }, [ready]);
+  }, []);
 
   // ── render ─────────────────────────────────────────────────────────────────
 
@@ -219,12 +216,11 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ url, isVoiceMessage, f
 
   return (
     <div className={`audio-player${isVoiceMessage ? ' audio-player--voice' : ' audio-player--file'}`}>
-      <audio ref={audioRef} src={url} preload="metadata" style={{ display: 'none' }} />
+      <audio ref={audioRef} src={url} preload="none" style={{ display: 'none' }} />
 
       <button
         className="audio-play-btn"
         onClick={toggle}
-        disabled={!ready}
         title={playing ? 'Pause' : 'Play'}
       >
         {playing ? <PauseIcon /> : <PlayIcon />}
