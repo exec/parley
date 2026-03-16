@@ -301,6 +301,8 @@ export function useVoiceConnection(
     const handleKeyUp = (e: KeyboardEvent) => {
       if (settingsRef.current.vadMode !== 'ptt') return;
       if (e.code !== settingsRef.current.pttKey) return;
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
       audioTrackRef.current?.mute();
       setMuted(true);
       setSpeaking(false);
