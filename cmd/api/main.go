@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -121,29 +122,33 @@ func main() {
 
 	// Enforce channel access: only server members may subscribe to a channel's events.
 	hub.SetChannelAccessChecker(func(userID, channelID string) bool {
-		chID, err := strconv.ParseInt(channelID, 10, 64)
-		if err != nil {
-			return false
-		}
 		uID, err := strconv.ParseInt(userID, 10, 64)
 		if err != nil {
 			return false
 		}
 		ctx := context.Background()
+
+		// "server:{serverID}" virtual channels: allow if user is a member of that server.
+		if serverIDStr, ok := strings.CutPrefix(channelID, "server:"); ok {
+			sID, err := strconv.ParseInt(serverIDStr, 10, 64)
+			if err != nil {
+				return false
+			}
+			member, err := repo.GetMember(ctx, sID, uID)
+			return err == nil && member != nil
+		}
+
+		// Regular channel: check the user is a member of the channel's server.
+		chID, err := strconv.ParseInt(channelID, 10, 64)
+		if err != nil {
+			return false
+		}
 		ch, err := repo.GetChannelByID(ctx, chID)
 		if err != nil {
 			return false
 		}
-		srv, err := repo.GetServerByID(ctx, ch.ServerID)
-		if err != nil {
-			return false
-		}
 		member, err := repo.GetMember(ctx, ch.ServerID, uID)
-		if err != nil || member == nil {
-			return false
-		}
-		_ = srv
-		return true
+		return err == nil && member != nil
 	})
 
 	// Set up Redis pub/sub for cross-node broadcasting (graceful fallback if unavailable)
