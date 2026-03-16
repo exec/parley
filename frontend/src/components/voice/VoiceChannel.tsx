@@ -171,7 +171,7 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
                   isSpeaking={isLocal ? false : activeSpeakers.has(participant.identity)}
                   displayName={meta.displayName}
                   avatarUrl={meta.avatarUrl}
-                  onContextMenu={!isLocal ? (e) => {
+                  onContextMenu={!isLocal && (canMuteMembers || canKickFromVoice) ? (e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     setContextMenu({ participantId: participant.identity, x: e.clientX, y: e.clientY });
@@ -232,7 +232,7 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
                       isSpeaking={activeSpeakers.has(participant.identity)}
                       displayName={meta.displayName}
                       avatarUrl={meta.avatarUrl}
-                      onContextMenu={!isLocal ? (e) => {
+                      onContextMenu={!isLocal && (canMuteMembers || canKickFromVoice) ? (e) => {
                         e.preventDefault();
                         e.stopPropagation();
                         setContextMenu({ participantId: participant.identity, x: e.clientX, y: e.clientY });
@@ -263,7 +263,8 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
           canKick={!!canKickFromVoice}
           onMute={() => { onMuteParticipant?.(contextMenu.participantId); setContextMenu(null); }}
           onKick={async () => {
-            try { await kickVoiceParticipant(channel.id, contextMenu.participantId); } catch (e) { console.error(e); }
+            const id = contextMenu.participantId;
+            try { await kickVoiceParticipant(channel.id, id); } catch (e) { console.error(e); }
             setContextMenu(null);
           }}
           onClose={() => setContextMenu(null)}
