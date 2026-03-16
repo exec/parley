@@ -239,7 +239,7 @@ export function useVoiceConnection(
 
       const micTrack = new LocalAudioTrack(stream.getAudioTracks()[0]);
       audioTrackRef.current = micTrack;
-      await room.localParticipant.publishTrack(micTrack);
+      await room.localParticipant.publishTrack(micTrack, { audioPreset: { maxBitrate: 24_000 } });
 
       if (s.vadMode === 'vad') {
         try {
