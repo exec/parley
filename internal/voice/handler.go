@@ -251,7 +251,7 @@ func (h *Handler) KickParticipant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ok, err := permissions.HasChannelPermission(ctx, h.repo, ch.ServerID, requesterID, srv.OwnerID, channelID, permissions.PermKickMembers)
+	ok, err := permissions.HasChannelPermission(ctx, h.repo, ch.ServerID, requesterID, srv.OwnerID, channelID, permissions.PermMoveMembers)
 	if err != nil || !ok {
 		jsonErr(w, "forbidden", http.StatusForbidden)
 		return

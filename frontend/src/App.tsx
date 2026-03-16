@@ -189,6 +189,7 @@ function MainApp() {
   const canBanMembers = isServerOwner || (effectivePermissions & (1 | 32)) !== 0;
   // PermMuteMembers = 1 << 34 — too large for bitwise int32, use BigInt comparison
   const canMuteMembers = isServerOwner || (BigInt(effectivePermissions) & (BigInt(1) << BigInt(34))) !== BigInt(0);
+  const canKickFromVoice = isServerOwner || (BigInt(effectivePermissions) & (BigInt(1) << BigInt(36))) !== BigInt(0);
 
   // Restore state from URL once servers are loaded
   useEffect(() => {
@@ -679,7 +680,7 @@ function MainApp() {
             onLeave={vcDisconnect}
             onRetry={vcRetry}
             canMuteMembers={canMuteMembers}
-            canKickFromVoice={canKickMembers}
+            canKickFromVoice={canKickFromVoice}
             onMuteParticipant={async (userId) => { try { await muteVoiceParticipant(activeVoiceChannel!, userId); } catch(e) { console.error(e); } }}
           />
         </div>
@@ -701,6 +702,7 @@ function MainApp() {
             isLoading={isLoadingMessages}
             typingUsers={typingUsers[vcChannel.id] ?? []}
             onTyping={handleSendTyping}
+            onlineUserIds={onlineUsers}
           />
         </div>
       </div>
@@ -778,6 +780,7 @@ function MainApp() {
           const updated = await channelsApi.updateChannel(channelId, activeChannel.name, topic);
           receiveChannelUpdate(updated);
         }}
+        onlineUserIds={onlineUsers}
       />
     );
   } else if (activeServer) {

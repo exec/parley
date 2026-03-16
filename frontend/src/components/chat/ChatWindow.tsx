@@ -38,6 +38,7 @@ interface ChatWindowProps {
   headerPrefix?: string;
   headerAvatar?: string;
   isOnline?: boolean;
+  onlineUserIds?: Set<string>;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -65,6 +66,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   headerPrefix = '#',
   headerAvatar,
   isOnline,
+  onlineUserIds,
 }) => {
   const { hasPerm: checkPerm } = usePermissions(channel.server_id || undefined, channel.id || undefined);
   const canManageMessages = !channel.server_id || checkPerm(PERM_MANAGE_MESSAGES);
@@ -194,7 +196,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         <MiniProfile
           member={miniProfile.member}
           isCurrentUser={miniProfile.member.user_id === currentUserId}
-          isOnline={false}
+          isOnline={onlineUserIds?.has(miniProfile.member.user_id) ?? false}
           position={miniProfile.position}
           onClose={() => setMiniProfile(null)}
           onSendMessage={(uid) => { onSendMessageToUser?.(uid); setMiniProfile(null); }}
