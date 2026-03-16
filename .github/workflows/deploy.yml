@@ -50,6 +50,7 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key root@$ADMIN_HOST '
             set -e
+            export PATH=$PATH:/usr/local/go/bin
             cd /parley && git pull origin main
             go build -mod=mod -o /usr/local/bin/parley-admin ./cmd/admin
             systemctl restart parley-admin
