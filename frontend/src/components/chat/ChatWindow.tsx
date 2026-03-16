@@ -91,14 +91,27 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   } | null>(null);
 
   const handleMiniProfile = useCallback((userId: string, e: React.MouseEvent) => {
-    const member = members?.find(m => m.user_id === userId);
-    if (!member) return;
+    let member = members?.find(m => m.user_id === userId);
+    if (!member) {
+      // DM / no-members context: build a minimal member from the message itself
+      const msg = messages.find(m => m.author_id === userId);
+      if (!msg) return;
+      member = {
+        id: userId,
+        server_id: '',
+        user_id: userId,
+        username: msg.author_username,
+        display_name: msg.author_display_name,
+        avatar_url: msg.author_avatar_url,
+        joined_at: '',
+      } as ServerMember;
+    }
     const x = e.clientX;
     const y = e.clientY;
     const left = Math.min(x + 10, window.innerWidth - 290);
     const top = Math.min(y, window.innerHeight - 330);
     setMiniProfile({ member, position: { top, left } });
-  }, [members]);
+  }, [members, messages]);
 
   const [showSearch, setShowSearch] = useState(false);
 

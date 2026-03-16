@@ -784,6 +784,7 @@ function MainApp() {
       channel_id: dm.dm_channel_id,
       author_id: dm.author_id,
       author_username: dm.author_username,
+      author_display_name: dm.author_id === currentUser?.id ? (currentUser?.display_name ?? '') : '',
       author_avatar_url: dm.author_avatar_url,
       content: dm.content,
       created_at: dm.created_at,
@@ -792,11 +793,36 @@ function MainApp() {
       attachment_name: dm.attachment_name,
       attachment_type: dm.attachment_type,
     }));
+    const dmMembers = [
+      // Other participant — use what DmChannel provides
+      {
+        id: activeDmChannel.other_user_id,
+        server_id: '',
+        user_id: activeDmChannel.other_user_id,
+        username: activeDmChannel.other_username,
+        avatar_url: activeDmChannel.other_avatar_url,
+        joined_at: '',
+      },
+      // Current user — full profile available
+      ...(currentUser ? [{
+        id: currentUser.id,
+        server_id: '',
+        user_id: currentUser.id,
+        username: currentUser.username,
+        display_name: currentUser.display_name,
+        avatar_url: currentUser.avatar_url,
+        banner_url: currentUser.banner_url,
+        bio: currentUser.bio,
+        badges: currentUser.badges,
+        joined_at: '',
+      }] : []),
+    ];
     mainContent = (
       <ChatWindow
         channel={dmChannel}
         messages={dmAsMessages}
         currentUserId={currentUser?.id}
+        members={dmMembers}
         onSendMessage={sendDmMessage}
         onLoadMore={loadMoreDmMessages}
         hasMore={hasMoreDmMessages}
@@ -805,6 +831,7 @@ function MainApp() {
         headerPrefix="@"
         headerAvatar={activeDmChannel.other_avatar_url}
         isOnline={onlineUsers.has(activeDmChannel.other_user_id)}
+        onlineUserIds={onlineUsers}
       />
     );
   } else if (activeChannel) {
