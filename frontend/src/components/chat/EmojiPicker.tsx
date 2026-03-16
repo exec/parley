@@ -1,4 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import data from '@emoji-mart/data';
+import { SearchIndex, init } from 'emoji-mart';
+init({ data });
 
 const EMOJI_CATEGORIES = [
   {
@@ -51,10 +54,19 @@ interface EmojiPickerProps {
 export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelect }) => {
   const [activeCategory, setActiveCategory] = useState(0);
   const [search, setSearch] = useState('');
+  const [searchResults, setSearchResults] = useState<string[]>([]);
 
-  const displayEmojis = search
-    ? EMOJI_CATEGORIES.flatMap(c => c.emojis).filter(e => e.includes(search))
-    : EMOJI_CATEGORIES[activeCategory].emojis;
+  useEffect(() => {
+    if (!search.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    (SearchIndex as any).search(search).then((results: any[]) => {
+      setSearchResults(results.map((r: any) => r.skins[0].native));
+    });
+  }, [search]);
+
+  const displayEmojis: string[] = search.trim() ? searchResults : EMOJI_CATEGORIES[activeCategory].emojis;
 
   return (
     <div className="emoji-picker-full" onClick={e => e.stopPropagation()}>
