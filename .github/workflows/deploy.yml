@@ -19,7 +19,8 @@ jobs:
           HOSTS=$(curl -sf \
             -H "Authorization: Bearer $DO_TOKEN" \
             "https://api.digitalocean.com/v2/droplets?tag_name=api&per_page=50" \
-            | jq -r '.droplets[] | select(.tags | contains(["parley"])) | .networks.v4[] | select(.type=="public") | .ip_address')
+            | jq -r '.droplets[] | select(.tags | contains(["parley"])) | .networks.v4[] | select(.type=="public") | .ip_address' \
+            | tr '\n' ' ')
           echo "DEPLOY_HOSTS=$HOSTS" >> "$GITHUB_ENV"
 
       - name: Set up SSH
