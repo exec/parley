@@ -87,6 +87,7 @@ interface UseWebSocketOptions {
   onUserUpdate?: (update: UserUpdate) => void;
   onVoiceStateUpdate?: (update: VoiceStateUpdate) => void;
   onVoiceForceMute?: (event: VoiceForceMuteEvent) => void;
+  onVoiceForceDisconnect?: () => void;
   onBinPostCreate?: (event: BinPostEvent) => void;
   onBinPostUpdate?: (event: BinPostEvent) => void;
   onBinPostDelete?: (event: BinPostEvent) => void;
@@ -97,7 +98,7 @@ interface UseWebSocketOptions {
   extraChannelIds?: string[]; // Additional channels to subscribe to for notifications
 }
 
-export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onServerMemberLeave, onServerMemberKick, onServerMemberBan, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, onChannelCreate, onChannelUpdate, onChannelDelete, onServerUpdate, onServerDelete, onMemberRoleUpdate, onUserUpdate, onVoiceStateUpdate, onVoiceForceMute, onBinPostCreate, onBinPostUpdate, onBinPostDelete, onChannelOverwriteUpdate, onRoleUpdate, onRoleDelete, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
+export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onServerMemberLeave, onServerMemberKick, onServerMemberBan, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, onChannelCreate, onChannelUpdate, onChannelDelete, onServerUpdate, onServerDelete, onMemberRoleUpdate, onUserUpdate, onVoiceStateUpdate, onVoiceForceMute, onVoiceForceDisconnect, onBinPostCreate, onBinPostUpdate, onBinPostDelete, onChannelOverwriteUpdate, onRoleUpdate, onRoleDelete, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const subscribedChannelsRef = useRef<Set<string>>(new Set());
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -128,6 +129,7 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
   const onUserUpdateRef = useRef(onUserUpdate);
   const onVoiceStateUpdateRef = useRef(onVoiceStateUpdate);
   const onVoiceForceMuteRef = useRef(onVoiceForceMute);
+  const onVoiceForceDisconnectRef = useRef(onVoiceForceDisconnect);
   const onBinPostCreateRef = useRef(onBinPostCreate);
   const onBinPostUpdateRef = useRef(onBinPostUpdate);
   const onBinPostDeleteRef = useRef(onBinPostDelete);
@@ -156,6 +158,7 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
   useEffect(() => { onUserUpdateRef.current = onUserUpdate; }, [onUserUpdate]);
   useEffect(() => { onVoiceStateUpdateRef.current = onVoiceStateUpdate; }, [onVoiceStateUpdate]);
   useEffect(() => { onVoiceForceMuteRef.current = onVoiceForceMute; }, [onVoiceForceMute]);
+  useEffect(() => { onVoiceForceDisconnectRef.current = onVoiceForceDisconnect; }, [onVoiceForceDisconnect]);
   useEffect(() => { onBinPostCreateRef.current = onBinPostCreate; }, [onBinPostCreate]);
   useEffect(() => { onBinPostUpdateRef.current = onBinPostUpdate; }, [onBinPostUpdate]);
   useEffect(() => { onBinPostDeleteRef.current = onBinPostDelete; }, [onBinPostDelete]);
@@ -297,6 +300,10 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
         } else if (wsMsg.type === 'VOICE_FORCE_MUTE') {
           if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null && onVoiceForceMuteRef.current) {
             onVoiceForceMuteRef.current(wsMsg.payload as VoiceForceMuteEvent);
+          }
+        } else if (wsMsg.type === 'VOICE_FORCE_DISCONNECT') {
+          if (onVoiceForceDisconnectRef.current) {
+            onVoiceForceDisconnectRef.current();
           }
         } else if (wsMsg.type === 'BIN_POST_CREATE') {
           if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {

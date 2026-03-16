@@ -30,3 +30,7 @@ export async function getVoiceParticipants(channelId: string): Promise<VoicePart
 export async function muteVoiceParticipant(channelId: string, targetUserId: string): Promise<void> {
   return apiClient.post<void>(`/channels/${channelId}/voice/participants/${targetUserId}/mute`, {});
 }
+
+export async function kickVoiceParticipant(channelId: string, targetUserId: string): Promise<void> {
+  return apiClient.post<void>(`/channels/${channelId}/voice/participants/${targetUserId}/kick`, {});
+}

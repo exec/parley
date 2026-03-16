@@ -324,6 +324,10 @@ function MainApp() {
     vcForceMute();
   }, [vcForceMute]);
 
+  const handleVoiceForceDisconnect = useCallback(() => {
+    vcDisconnect();
+  }, [vcDisconnect]);
+
   const handleVoiceStateUpdate = useCallback((update: VoiceStateUpdate) => {
     setVoiceParticipants(prev => {
       const list = prev[update.channel_id] ?? [];
@@ -505,6 +509,7 @@ function MainApp() {
     onUserUpdate: handleUserUpdate,
     onVoiceStateUpdate: handleVoiceStateUpdate,
     onVoiceForceMute: handleVoiceForceMute,
+    onVoiceForceDisconnect: handleVoiceForceDisconnect,
     activeChannelId: activeChannel?.id ?? null,
     extraChannelIds,
   });
