@@ -242,6 +242,8 @@ export function useVoiceConnection(
 
       if (s.vadMode === 'vad') {
         const vad = await MicVAD.new({
+          baseAssetPath: '/',
+          onnxWASMBasePath: '/',
           getStream: () => Promise.resolve(stream!),
           onSpeechStart: () => {
             if (settingsRef.current.vadMode !== 'vad') return;
