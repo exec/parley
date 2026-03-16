@@ -1,0 +1,111 @@
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import {
+  UserTheme, NewTheme,
+  getPreferences, setBuiltinTheme, setCustomTheme,
+  createTheme, updateTheme, deleteTheme,
+} from '../api/themes';
+
+export const BUILTIN_IDS = ['rory','citron-dark','citron-light','neon-nights','abyss','sakura'];
+
+interface ThemeContextValue {
+  activeTheme: string;
+  activeCustomThemeId: number | null;
+  customThemes: UserTheme[];
+  builtinIds: string[];
+  setBuiltin(id: string): Promise<void>;
+  setCustom(id: number): Promise<void>;
+  createCustomTheme(t: NewTheme): Promise<UserTheme>;
+  updateCustomTheme(id: number, t: NewTheme): Promise<UserTheme>;
+  deleteCustomTheme(id: number): Promise<void>;
+  applyTheme(id: string, css?: string): void;
+}
+
+const ThemeContext = createContext<ThemeContextValue | null>(null);
+
+function applyToDOM(id: string, css?: string | null) {
+  document.body.dataset.theme = id;
+  localStorage.setItem('parley-theme', id);
+  const existing = document.getElementById('custom-theme');
+  if (id === 'custom' && css) {
+    if (existing) { existing.textContent = css; }
+    else { const s = document.createElement('style'); s.id='custom-theme'; s.textContent=css; document.head.appendChild(s); }
+    localStorage.setItem('parley-custom-css', css);
+  } else {
+    existing?.remove();
+    localStorage.removeItem('parley-custom-css');
+  }
+}
+
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const [activeTheme, setActiveTheme] = useState(() => localStorage.getItem('parley-theme') || 'rory');
+  const [activeCustomThemeId, setActiveCustomThemeId] = useState<number | null>(null);
+  const [customThemes, setCustomThemes] = useState<UserTheme[]>([]);
+
+  useEffect(() => {
+    if (!localStorage.getItem('token')) return;
+    getPreferences().then(p => {
+      setActiveTheme(p.active_theme);
+      setActiveCustomThemeId(p.active_custom_theme_id);
+      setCustomThemes(p.custom_themes);
+      const css = p.active_theme === 'custom' && p.active_custom_theme_id
+        ? p.custom_themes.find(t => t.id === p.active_custom_theme_id)?.css
+        : undefined;
+      applyToDOM(p.active_theme, css);
+    }).catch(() => {});
+  }, []);
+
+  const setBuiltin = useCallback(async (id: string) => {
+    await setBuiltinTheme(id);
+    setActiveTheme(id); setActiveCustomThemeId(null); applyToDOM(id);
+  }, []);
+
+  const setCustom = useCallback(async (id: number) => {
+    await setCustomTheme(id);
+    setActiveTheme('custom'); setActiveCustomThemeId(id);
+    applyToDOM('custom', customThemes.find(t => t.id === id)?.css);
+  }, [customThemes]);
+
+  const createCustomTheme = useCallback(async (t: NewTheme) => {
+    const created = await createTheme(t);
+    setCustomThemes(prev => [...prev, created]);
+    return created;
+  }, []);
+
+  const updateCustomTheme = useCallback(async (id: number, t: NewTheme) => {
+    const updated = await updateTheme(id, t);
+    setCustomThemes(prev => prev.map(x => x.id === id ? updated : x));
+    if (activeTheme === 'custom' && activeCustomThemeId === id) applyToDOM('custom', updated.css);
+    return updated;
+  }, [activeTheme, activeCustomThemeId]);
+
+  const deleteCustomTheme = useCallback(async (id: number) => {
+    await deleteTheme(id);
+    setCustomThemes(prev => prev.filter(x => x.id !== id));
+    if (activeCustomThemeId === id) { setActiveTheme('rory'); setActiveCustomThemeId(null); applyToDOM('rory'); }
+  }, [activeCustomThemeId]);
+
+  const applyTheme = useCallback((id: string, css?: string) => {
+    applyToDOM(id, css); setActiveTheme(id);
+    if (id !== 'custom') setActiveCustomThemeId(null);
+  }, []);
+
+  return (
+    <ThemeContext.Provider value={{
+      activeTheme, activeCustomThemeId, customThemes, builtinIds: BUILTIN_IDS,
+      setBuiltin, setCustom, createCustomTheme, updateCustomTheme, deleteCustomTheme, applyTheme,
+    }}>
+      {children}
+    </ThemeContext.Provider>
+  );
+}
+
+export function useTheme() {
+  const ctx = useContext(ThemeContext);
+  if (!ctx) throw new Error('useTheme must be used within ThemeProvider');
+  return ctx;
+}
+
+/** Call on logout to clear theme state from localStorage. */
+export function resetThemeOnLogout() {
+  applyToDOM('rory', null);
+}

@@ -8,6 +8,7 @@ import { Impersonate } from './pages/Impersonate';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { ResetPassword } from './pages/ResetPassword';
 import { AppProvider, useApp } from './context/AppContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { Landing } from './pages/Landing';
 import { useWebSocket, MemberRoleUpdate, UserUpdate, VoiceStateUpdate, VoiceForceMuteEvent, RoleUpdateEvent, RoleDeleteEvent } from './hooks/useWebSocket';
 import { VoiceChannel } from './components/voice/VoiceChannel';
@@ -1022,11 +1023,13 @@ const AuthRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
 const ProtectedApp = (
   <ProtectedRoute>
-    <AppProvider>
-      <ErrorBoundary>
-        <MainApp />
-      </ErrorBoundary>
-    </AppProvider>
+    <ThemeProvider>
+      <AppProvider>
+        <ErrorBoundary>
+          <MainApp />
+        </ErrorBoundary>
+      </AppProvider>
+    </ThemeProvider>
   </ProtectedRoute>
 );
 
@@ -1045,9 +1048,11 @@ function App() {
         path="/invite/:code"
         element={
           <ProtectedRoute>
-            <AppProvider>
-              <InvitePage />
-            </AppProvider>
+            <ThemeProvider>
+              <AppProvider>
+                <InvitePage />
+              </AppProvider>
+            </ThemeProvider>
           </ProtectedRoute>
         }
       />
