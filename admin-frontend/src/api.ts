@@ -92,6 +92,8 @@ export interface User {
   force_logout_at?: string
   is_system: boolean
   badges: number
+  registration_ip?: string
+  last_seen_ip?: string
   created_at: string
   updated_at: string
 }

@@ -531,6 +531,11 @@ CREATE INDEX IF NOT EXISTS idx_passkeys_user_id ON passkeys(user_id);
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE INDEX IF NOT EXISTS idx_messages_content_trgm ON messages USING GIN(content gin_trgm_ops);
 `,
+
+	`-- Track registration IP and last seen IP per user
+ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_ip VARCHAR(45);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_ip VARCHAR(45);
+`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

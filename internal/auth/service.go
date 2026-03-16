@@ -58,7 +58,7 @@ func (s *AuthService) SetEmailClient(client *email.Client, siteURL string) {
 }
 
 // Register creates a new user and returns a token
-func (s *AuthService) Register(ctx context.Context, username, email_, phone, password string) (User, string, error) {
+func (s *AuthService) Register(ctx context.Context, username, email_, phone, password, registrationIP string) (User, string, error) {
 	// Validate input
 	if username == "" || password == "" {
 		return User{}, "", errors.New("username and password are required")
@@ -125,6 +125,7 @@ func (s *AuthService) Register(ctx context.Context, username, email_, phone, pas
 		PasswordHash:           hashedPassword,
 		EmailVerificationToken: verificationToken,
 		PhoneNumber:            phone,
+		RegistrationIP:         registrationIP,
 	}
 
 	err = s.repo.CreateUser(ctx, dbUser)
@@ -173,7 +174,7 @@ func (s *AuthService) Register(ctx context.Context, username, email_, phone, pas
 }
 
 // Login authenticates a user and returns a token
-func (s *AuthService) Login(ctx context.Context, emailOrPhone, password string) (User, string, error) {
+func (s *AuthService) Login(ctx context.Context, emailOrPhone, password, ip string) (User, string, error) {
 	if emailOrPhone == "" || password == "" {
 		return User{}, "", errors.New("email/phone and password are required")
 	}
@@ -203,6 +204,10 @@ func (s *AuthService) Login(ctx context.Context, emailOrPhone, password string) 
 
 	if !s.CheckPassword(dbUser.PasswordHash, password) {
 		return User{}, "", errors.New("invalid credentials")
+	}
+
+	if ip != "" {
+		_ = s.repo.UpdateLastSeenIP(ctx, dbUser.ID, ip)
 	}
 
 	userID := fmt.Sprintf("%d", dbUser.ID)

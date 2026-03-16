@@ -2,12 +2,21 @@ package main
 
 import (
 	"encoding/json"
+	"net"
 	"net/http"
 	"os"
 	"strings"
 
 	"parley/internal/auth"
 )
+
+func requestIP(r *http.Request) string {
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return ip
+}
 
 func handleAuthRegister(authService *auth.AuthService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -17,7 +26,7 @@ func handleAuthRegister(authService *auth.AuthService) http.HandlerFunc {
 			return
 		}
 
-		user, token, err := authService.Register(r.Context(), req.Username, req.Email, req.Phone, req.Password)
+		user, token, err := authService.Register(r.Context(), req.Username, req.Email, req.Phone, req.Password, requestIP(r))
 		if err != nil {
 			jsonError(w, err.Error(), http.StatusBadRequest)
 			return
@@ -41,7 +50,7 @@ func handleAuthLogin(authService *auth.AuthService) http.HandlerFunc {
 		if emailOrPhone == "" {
 			emailOrPhone = req.Phone
 		}
-		user, token, err := authService.Login(r.Context(), emailOrPhone, req.Password)
+		user, token, err := authService.Login(r.Context(), emailOrPhone, req.Password, requestIP(r))
 		if err != nil {
 			jsonError(w, err.Error(), http.StatusUnauthorized)
 			return

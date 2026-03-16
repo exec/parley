@@ -11,8 +11,8 @@ import (
 
 func (r *Repository) CreateUser(ctx context.Context, user *User) error {
 	query := `
-		INSERT INTO users (username, email, password_hash, avatar_url, banner_url, email_verification_token, phone_number, created_at, updated_at)
-		VALUES ($1, NULLIF($2, ''), $3, $4, $5, NULLIF($6, ''), NULLIF($7, ''), $8, $9)
+		INSERT INTO users (username, email, password_hash, avatar_url, banner_url, email_verification_token, phone_number, registration_ip, created_at, updated_at)
+		VALUES ($1, NULLIF($2, ''), $3, $4, $5, NULLIF($6, ''), NULLIF($7, ''), NULLIF($8, ''), $9, $10)
 		RETURNING id
 	`
 
@@ -28,6 +28,7 @@ func (r *Repository) CreateUser(ctx context.Context, user *User) error {
 		user.BannerURL,
 		user.EmailVerificationToken,
 		user.PhoneNumber,
+		user.RegistrationIP,
 		user.CreatedAt,
 		user.UpdatedAt,
 	).Scan(&user.ID)
@@ -42,6 +43,7 @@ func (r *Repository) GetUserByID(ctx context.Context, id int64) (*User, error) {
 		       email_verified, COALESCE(email_verification_token, ''),
 		       COALESCE(phone_number, ''), phone_verified,
 		       banned_at, COALESCE(ban_reason, ''), force_logout_at, is_system, badges,
+		       COALESCE(registration_ip, ''), COALESCE(last_seen_ip, ''),
 		       created_at, updated_at
 		FROM users
 		WHERE id = $1
@@ -67,6 +69,8 @@ func (r *Repository) GetUserByID(ctx context.Context, id int64) (*User, error) {
 		&forceLogoutAt,
 		&user.IsSystem,
 		&user.Badges,
+		&user.RegistrationIP,
+		&user.LastSeenIP,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -222,6 +226,14 @@ func (r *Repository) UpdateUser(ctx context.Context, user *User) error {
 	}
 
 	return nil
+}
+
+func (r *Repository) UpdateLastSeenIP(ctx context.Context, userID int64, ip string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE users SET last_seen_ip = NULLIF($2, '') WHERE id = $1`,
+		userID, ip,
+	)
+	return err
 }
 
 func (r *Repository) GetUserByVerificationToken(ctx context.Context, token string) (*User, error) {

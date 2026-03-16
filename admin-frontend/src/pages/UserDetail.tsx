@@ -197,6 +197,16 @@ export default function UserDetail() {
 
             <span className="detail-label">Joined</span>
             <span className="detail-value">{fmt(user.created_at)}</span>
+
+            <span className="detail-label">Reg. IP</span>
+            <span className="detail-value" style={{ fontFamily: 'var(--font)', fontSize: '11px' }}>
+              {user.registration_ip || '—'}
+            </span>
+
+            <span className="detail-label">Last IP</span>
+            <span className="detail-value" style={{ fontFamily: 'var(--font)', fontSize: '11px' }}>
+              {user.last_seen_ip || '—'}
+            </span>
           </div>
 
           {status === 'banned' && (

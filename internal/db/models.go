@@ -35,6 +35,8 @@ type User struct {
 	ForceLogoutAt           *time.Time `json:"force_logout_at,omitempty" db:"force_logout_at"`
 	IsSystem                bool       `json:"is_system" db:"is_system"`
 	Badges                  int        `json:"badges" db:"badges"`
+	RegistrationIP          string     `json:"registration_ip,omitempty" db:"registration_ip"`
+	LastSeenIP              string     `json:"last_seen_ip,omitempty" db:"last_seen_ip"`
 	CreatedAt               time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt               time.Time  `json:"updated_at" db:"updated_at"`
 }

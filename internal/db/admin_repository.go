@@ -165,6 +165,7 @@ func (r *Repository) AdminSearchUsers(ctx context.Context, query string, limit, 
 			       email_verified, COALESCE(email_verification_token,''),
 			       COALESCE(phone_number,''), phone_verified,
 			       banned_at, COALESCE(ban_reason,''), force_logout_at, is_system,
+			       COALESCE(registration_ip,''), COALESCE(last_seen_ip,''),
 			       created_at, updated_at
 			FROM users WHERE username ILIKE $1 AND is_system = FALSE
 			ORDER BY created_at DESC LIMIT $2 OFFSET $3
@@ -175,6 +176,7 @@ func (r *Repository) AdminSearchUsers(ctx context.Context, query string, limit, 
 			       email_verified, COALESCE(email_verification_token,''),
 			       COALESCE(phone_number,''), phone_verified,
 			       banned_at, COALESCE(ban_reason,''), force_logout_at, is_system,
+			       COALESCE(registration_ip,''), COALESCE(last_seen_ip,''),
 			       created_at, updated_at
 			FROM users WHERE is_system = FALSE
 			ORDER BY created_at DESC LIMIT $1 OFFSET $2
@@ -191,6 +193,7 @@ func (r *Repository) AdminSearchUsers(ctx context.Context, query string, limit, 
 		if err := rows.Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.AvatarURL, &u.BannerURL,
 			&u.EmailVerified, &u.EmailVerificationToken, &u.PhoneNumber, &u.PhoneVerified,
 			&bannedAt, &u.BanReason, &forceLogoutAt, &u.IsSystem,
+			&u.RegistrationIP, &u.LastSeenIP,
 			&u.CreatedAt, &u.UpdatedAt); err != nil {
 			return nil, err
 		}
