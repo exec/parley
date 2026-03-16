@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      DEPLOY_HOSTS: ${{ secrets.DEPLOY_HOSTS }}
     steps:
       - uses: actions/checkout@v4
 
@@ -18,11 +19,11 @@ jobs:
           mkdir -p ~/.ssh
           echo "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H 174.138.51.177 159.203.111.52 167.71.186.109 >> ~/.ssh/known_hosts
+          ssh-keyscan -H $DEPLOY_HOSTS >> ~/.ssh/known_hosts
 
       - name: Deploy to all servers
         run: |
-          for IP in 174.138.51.177 159.203.111.52 167.71.186.109; do
+          for IP in $DEPLOY_HOSTS; do
             ssh -i ~/.ssh/deploy_key root@$IP '
               set -e
               cd /parley && git pull origin main
