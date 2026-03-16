@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"time"
 )
 
 var ErrNotFound = errors.New("theme not found")
@@ -22,6 +21,9 @@ func (r *Repository) GetPreferences(ctx context.Context, userID int64) (*UserPre
 	err := r.db.QueryRowContext(ctx,
 		`SELECT active_theme, active_custom_theme_id FROM user_preferences WHERE user_id=$1`,
 		userID).Scan(&p.ActiveTheme, &p.ActiveCustomThemeID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -34,10 +36,17 @@ func (r *Repository) GetPreferences(ctx context.Context, userID int64) (*UserPre
 }
 
 func (r *Repository) SetActiveTheme(ctx context.Context, userID int64, theme string, customThemeID *int) error {
-	_, err := r.db.ExecContext(ctx,
+	res, err := r.db.ExecContext(ctx,
 		`UPDATE user_preferences SET active_theme=$2, active_custom_theme_id=$3 WHERE user_id=$1`,
 		userID, theme, customThemeID)
-	return err
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (r *Repository) CountUserThemes(ctx context.Context, userID int64) (int, error) {
@@ -153,9 +162,9 @@ func (r *Repository) InstallTheme(ctx context.Context, token string, userID int6
 	name := src.Name // verbatim copy, no "(copy)" suffix
 	t := &UserTheme{}
 	return t, r.db.QueryRowContext(ctx,
-		`INSERT INTO user_themes (user_id,name,css,background_url,created_at)
-		 VALUES ($1,$2,$3,$4,$5)
+		`INSERT INTO user_themes (user_id,name,css,background_url)
+		 VALUES ($1,$2,$3,$4)
 		 RETURNING id,user_id,name,css,background_url,share_token,created_at`,
-		userID, name, src.CSS, src.BackgroundURL, time.Now(),
+		userID, name, src.CSS, src.BackgroundURL,
 	).Scan(&t.ID, &t.UserID, &t.Name, &t.CSS, &t.BackgroundURL, &t.ShareToken, &t.CreatedAt)
 }
