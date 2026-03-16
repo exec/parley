@@ -14,6 +14,7 @@ import (
 	"parley/internal/db"
 	"parley/internal/dm"
 	"parley/internal/message"
+	"parley/internal/passkey"
 	"parley/internal/server"
 	"parley/internal/spaces"
 	"parley/internal/voice"
@@ -33,6 +34,7 @@ func registerRoutes(
 	voiceSvc *voice.Service,
 	binService *bin.Service,
 	tickets *ticketStore,
+	passkeySvc *passkey.Service,
 ) {
 	// Cap request bodies at 64 KB for all routes except /api/upload,
 	// which applies its own 50 MB limit inside the handler.
@@ -65,6 +67,10 @@ func registerRoutes(
 			r.Get("/verify-email", handleVerifyEmail(authService))
 			r.Post("/forgot-password", handleForgotPassword(authService))
 			r.Post("/reset-password", handleResetPassword(authService))
+			if passkeySvc != nil {
+				r.Post("/passkey/login/begin", handlePasskeyLoginBegin(passkeySvc))
+				r.Post("/passkey/login/finish", handlePasskeyLoginFinish(passkeySvc, authService))
+			}
 		})
 
 		// Protected routes — require authentication
@@ -170,6 +176,15 @@ func registerRoutes(
 			r.Put("/auth/phone", handleChangePhone(authService))
 			r.Get("/users/search", handleUserSearch(repo))
 			r.Get("/users/{id}", handleGetUser(repo))
+
+			// Passkey management routes (protected)
+			if passkeySvc != nil {
+				r.Post("/auth/passkey/register/begin", handlePasskeyRegisterBegin(passkeySvc))
+				r.Post("/auth/passkey/register/finish", handlePasskeyRegisterFinish(passkeySvc))
+				r.Get("/auth/passkeys", handleListPasskeys(passkeySvc))
+				r.Delete("/auth/passkeys/{id}", handleDeletePasskey(passkeySvc))
+				r.Put("/auth/passkeys/{id}", handleRenamePasskey(passkeySvc))
+			}
 
 			// Developer API key routes
 			r.Get("/developer/keys", handleListAPIKeys(repo))

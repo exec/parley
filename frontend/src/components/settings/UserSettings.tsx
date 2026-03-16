@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { User } from '../../api/types';
 import { updateProfile, resendVerification, changeEmail, verifyPhone, resendPhone, changePhone, getMyPhone } from '../../api/auth';
 import { uploadFile } from '../../api/upload';
+import { listPasskeys, registerPasskey, deletePasskey, renamePasskey, PasskeyInfo } from '../../api/passkeys';
 import { DeveloperTab } from './DeveloperTab';
 import { VoiceSettingsTab } from './VoiceSettings';
 import './Settings.css';
@@ -594,7 +595,120 @@ const AccountTab: React.FC<AccountTabProps> = (p) => {
           </button>
         )}
       </div>
+
+      <PasskeySection />
     </>
+  );
+};
+
+/* ---- Passkey Section (self-contained) ---- */
+const PasskeySection: React.FC = () => {
+  const [passkeys, setPasskeys] = React.useState<PasskeyInfo[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [adding, setAdding] = React.useState(false);
+  const [error, setError] = React.useState('');
+
+  React.useEffect(() => {
+    listPasskeys()
+      .then(setPasskeys)
+      .catch(() => {/* silently ignore */})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleAdd = async () => {
+    const name = prompt('Name this passkey (e.g. "MacBook Touch ID"):') ?? '';
+    if (!name.trim()) return;
+    setAdding(true);
+    setError('');
+    try {
+      await registerPasskey(name.trim());
+      const updated = await listPasskeys();
+      setPasskeys(updated);
+    } catch (e: unknown) {
+      setError((e as { message?: string })?.message || 'Failed to add passkey');
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('Remove this passkey?')) return;
+    try {
+      await deletePasskey(id);
+      setPasskeys(prev => prev.filter(p => p.id !== id));
+    } catch {
+      setError('Failed to delete passkey');
+    }
+  };
+
+  const handleRename = async (pk: PasskeyInfo) => {
+    const name = prompt('New name:', pk.name) ?? '';
+    if (!name.trim() || name.trim() === pk.name) return;
+    try {
+      await renamePasskey(pk.id, name.trim());
+      setPasskeys(prev => prev.map(p => p.id === pk.id ? { ...p, name: name.trim() } : p));
+    } catch {
+      setError('Failed to rename passkey');
+    }
+  };
+
+  if (!window.PublicKeyCredential) return null;
+
+  return (
+    <div className="settings-section">
+      <div className="settings-section-title">Passkeys</div>
+      <p style={{ fontSize: 13, color: 'var(--discord-text-muted)', marginBottom: 12 }}>
+        Sign in with your fingerprint, face, or device PIN instead of a password.
+      </p>
+      {error && <div className="settings-error">{error}</div>}
+      {loading ? (
+        <p style={{ fontSize: 13, color: 'var(--discord-text-muted)' }}>Loading…</p>
+      ) : (
+        <>
+          {passkeys.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              {passkeys.map(pk => (
+                <div key={pk.id} className="settings-row" style={{ alignItems: 'center' }}>
+                  <div className="settings-row-info" style={{ flex: 1 }}>
+                    <div className="settings-row-label">{pk.name}</div>
+                    <div className="settings-row-value">
+                      Added {new Date(pk.created_at).toLocaleDateString()}
+                      {pk.last_used && ` · Last used ${new Date(pk.last_used).toLocaleDateString()}`}
+                    </div>
+                  </div>
+                  <button
+                    className="settings-btn settings-btn-ghost"
+                    style={{ marginLeft: 8 }}
+                    onClick={() => handleRename(pk)}
+                  >
+                    Rename
+                  </button>
+                  <button
+                    className="settings-btn settings-btn-danger"
+                    style={{ marginLeft: 8 }}
+                    onClick={() => handleDelete(pk.id)}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {passkeys.length === 0 && (
+            <p style={{ fontSize: 13, color: 'var(--discord-text-muted)', marginBottom: 12 }}>
+              No passkeys registered yet.
+            </p>
+          )}
+          <button
+            className="settings-btn settings-btn-primary"
+            onClick={handleAdd}
+            disabled={adding}
+          >
+            {adding ? 'Adding…' : '+ Add passkey'}
+          </button>
+        </>
+      )}
+    </div>
   );
 };
 

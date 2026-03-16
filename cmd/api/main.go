@@ -22,6 +22,7 @@ import (
 	"parley/internal/db"
 	"parley/internal/email"
 	"parley/internal/message"
+	"parley/internal/passkey"
 	"parley/internal/server"
 	"parley/internal/spaces"
 	"parley/internal/voice"
@@ -155,6 +156,12 @@ func main() {
 		log.Println("Running in local-only WebSocket mode (no Redis)")
 	}
 
+	// Initialize passkey service (requires Redis for session storage)
+	var passkeySvc *passkey.Service
+	if redisHub != nil {
+		passkeySvc = passkey.New(repo, redisHub.Client(), siteURL)
+	}
+
 	// Set up hub broadcasting for message service
 	hubBroadcaster := &HubBroadcaster{hub: hub}
 	messageService.SetBroadcaster(hubBroadcaster)
@@ -204,7 +211,7 @@ func main() {
 	}
 
 	// Setup chi router
-	router := setupRouter(config, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService)
+	router := setupRouter(config, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, passkeySvc)
 
 	// Start version purge goroutine
 	go func() {
@@ -282,6 +289,7 @@ func setupRouter(
 	spacesClient *spaces.Client,
 	voiceSvc *voice.Service,
 	binService *bin.Service,
+	passkeySvc *passkey.Service,
 ) *chi.Mux {
 	router := chi.NewRouter()
 
@@ -296,7 +304,7 @@ func setupRouter(
 
 	// Mount routes
 	tickets := newTicketStore()
-	registerRoutes(router, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, tickets)
+	registerRoutes(router, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, tickets, passkeySvc)
 
 	return router
 }

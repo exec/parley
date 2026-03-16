@@ -512,6 +512,20 @@ WHERE NOT EXISTS (
     SELECT 1 FROM server_roles sr WHERE sr.server_id = s.id AND sr.is_everyone = TRUE
 );
 `,
+	`-- Add passkeys table for WebAuthn/passkey authentication
+CREATE TABLE IF NOT EXISTS passkeys (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    credential_id BYTEA NOT NULL UNIQUE,
+    public_key BYTEA NOT NULL,
+    sign_count BIGINT NOT NULL DEFAULT 0,
+    aaguid BYTEA NOT NULL DEFAULT '\x',
+    name VARCHAR(100) NOT NULL DEFAULT 'Passkey',
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    last_used_at TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_passkeys_user_id ON passkeys(user_id);
+`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

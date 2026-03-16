@@ -1,6 +1,7 @@
 import React, { useState, FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
+import { loginWithPasskey } from '../api/passkeys';
 import './Auth.css';
 
 interface LoginFormData {
@@ -22,6 +23,7 @@ export const Login: React.FC = () => {
   });
   const [errors, setErrors] = useState<LoginErrors>({});
   const [loading, setLoading] = useState(false);
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
 
   const validate = (): boolean => {
     const newErrors: LoginErrors = {};
@@ -79,6 +81,23 @@ export const Login: React.FC = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePasskeyLogin = async () => {
+    setErrors({});
+    setPasskeyLoading(true);
+    try {
+      const data = await loginWithPasskey();
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      navigate('/');
+    } catch (err) {
+      setErrors({
+        general: err instanceof Error ? err.message : 'Passkey authentication failed.',
+      });
+    } finally {
+      setPasskeyLoading(false);
     }
   };
 
@@ -151,6 +170,19 @@ export const Login: React.FC = () => {
               Login
             </Button>
           </form>
+
+          {typeof window !== 'undefined' && window.PublicKeyCredential && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="lg"
+              loading={passkeyLoading}
+              onClick={handlePasskeyLogin}
+              style={{ width: '100%', marginTop: 12 }}
+            >
+              🔑 Sign in with passkey
+            </Button>
+          )}
 
           <div className="auth-footer">
             <span className="auth-footer-text">Need an account?</span>{' '}

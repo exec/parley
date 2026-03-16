@@ -640,6 +640,34 @@ func (s *AuthService) generateToken(userID string) (string, error) {
 	return tokenString, nil
 }
 
+// GetUserByID loads a user by string ID and returns the API User struct.
+func (s *AuthService) GetUserByID(ctx context.Context, userIDStr string) (User, error) {
+	var id int64
+	if _, err := fmt.Sscan(userIDStr, &id); err != nil {
+		return User{}, errors.New("invalid user ID")
+	}
+	dbUser, err := s.repo.GetUserByID(ctx, id)
+	if err != nil {
+		return User{}, errors.New("user not found")
+	}
+	return User{
+		ID:            userIDStr,
+		Username:      dbUser.Username,
+		Email:         dbUser.Email,
+		AvatarURL:     dbUser.AvatarURL,
+		BannerURL:     dbUser.BannerURL,
+		Bio:           dbUser.Bio,
+		DisplayName:   dbUser.DisplayName,
+		Badges:        dbUser.Badges,
+		EmailVerified: dbUser.EmailVerified,
+	}, nil
+}
+
+// GenerateTokenForUser creates a JWT for a given user ID string.
+func (s *AuthService) GenerateTokenForUser(userIDStr string) (string, error) {
+	return s.generateToken(userIDStr)
+}
+
 // generateToken creates a cryptographically secure random token (64 hex chars).
 func generateToken() (string, error) {
 	b := make([]byte, 32)
