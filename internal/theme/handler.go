@@ -32,6 +32,7 @@ type errResp struct {
 }
 
 func writeErr(w http.ResponseWriter, r *http.Request, code int, msg string) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(code)
 	render.JSON(w, r, errResp{Error: msg})
 }
@@ -148,7 +149,10 @@ func (h *Handler) DeleteTheme(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, r, 401, "unauthorized")
 		return
 	}
-	id, _ := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		writeErr(w, r, 400, "invalid theme id"); return
+	}
 	if err := h.svc.DeleteTheme(r.Context(), id, uid); err != nil {
 		if errors.Is(err, ErrNotFound) {
 			writeErr(w, r, 404, "theme not found")
@@ -166,7 +170,10 @@ func (h *Handler) ShareTheme(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, r, 401, "unauthorized")
 		return
 	}
-	id, _ := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		writeErr(w, r, 400, "invalid theme id"); return
+	}
 	shareURL, err := h.svc.ShareTheme(r.Context(), id, uid)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
@@ -210,6 +217,7 @@ func (h *Handler) InstallTheme(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleThemeErr(w http.ResponseWriter, r *http.Request, err error) {
 	var ve *ValidationError
 	if errors.As(err, &ve) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(400)
 		render.JSON(w, r, map[string]interface{}{
 			"error":          "theme contains disallowed external URLs",

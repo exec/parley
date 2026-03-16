@@ -112,6 +112,11 @@ func registerRoutes(
 			})
 		})
 
+		// Theme handler — constructed once, used by both protected and public routes
+		themeRepo := theme.NewRepository(repo.DB())
+		themeSvc := theme.NewService(themeRepo, cdnHost, siteURL)
+		themeHandler := theme.NewHandler(themeSvc)
+
 		// Protected routes — require authentication
 		r.Group(func(r chi.Router) {
 			r.Use(auth.AuthMiddlewareWith(authService))
@@ -217,9 +222,6 @@ func registerRoutes(
 			r.With(maxBodyMiddleware(50 * 1024 * 1024)).Post("/upload", handleUpload(spacesClient))
 
 			// Theme routes
-			themeRepo := theme.NewRepository(repo.DB())
-			themeSvc := theme.NewService(themeRepo, cdnHost, siteURL)
-			themeHandler := theme.NewHandler(themeSvc)
 			r.Get("/me/preferences", themeHandler.GetPreferences)
 			r.Put("/me/preferences/theme", themeHandler.SetActiveTheme)
 			r.Post("/me/themes", themeHandler.CreateTheme)
@@ -230,12 +232,7 @@ func registerRoutes(
 		})
 
 		// Public theme route — no authentication required
-		r.Get("/themes/{token}", func(w http.ResponseWriter, r *http.Request) {
-			themeRepo := theme.NewRepository(repo.DB())
-			themeSvc := theme.NewService(themeRepo, cdnHost, siteURL)
-			themeHandler := theme.NewHandler(themeSvc)
-			themeHandler.GetPublicTheme(w, r)
-		})
+		r.Get("/themes/{token}", themeHandler.GetPublicTheme)
 	})
 
 	// WebSocket endpoint — prefers short-lived ticket, falls back to JWT query param

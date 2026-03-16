@@ -3,6 +3,7 @@ package theme
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -12,7 +13,7 @@ import (
 const maxCSSBytes = 51200
 const maxThemes = 20
 
-var ErrThemeLimit = fmt.Errorf("theme limit reached (%d max)", maxThemes)
+var ErrThemeLimit = errors.New(fmt.Sprintf("theme limit reached (%d max)", maxThemes))
 
 var urlRe = regexp.MustCompile(`(?i)url\(\s*['"]?([^'"\s)]+)['"]?\s*\)`)
 
@@ -71,6 +72,15 @@ func (s *Service) GetPreferences(ctx context.Context, userID int64) (*UserPrefer
 }
 
 func (s *Service) SetActiveTheme(ctx context.Context, userID int64, theme string, customThemeID *int) error {
+	if customThemeID != nil {
+		belongs, err := s.repo.ThemeBelongsToUser(ctx, int64(*customThemeID), userID)
+		if err != nil {
+			return err
+		}
+		if !belongs {
+			return ErrNotFound
+		}
+	}
 	return s.repo.SetActiveTheme(ctx, userID, theme, customThemeID)
 }
 

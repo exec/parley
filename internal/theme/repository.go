@@ -154,6 +154,13 @@ func (r *Repository) GetThemeByToken(ctx context.Context, token string) (*UserTh
 	return t, err
 }
 
+func (r *Repository) ThemeBelongsToUser(ctx context.Context, id int64, userID int64) (bool, error) {
+	var count int
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM user_themes WHERE id=$1 AND user_id=$2`, id, userID).Scan(&count)
+	return count > 0, err
+}
+
 func (r *Repository) InstallTheme(ctx context.Context, token string, userID int64) (*UserTheme, error) {
 	src, err := r.GetThemeByToken(ctx, token)
 	if err != nil {
