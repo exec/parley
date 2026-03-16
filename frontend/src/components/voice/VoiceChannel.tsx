@@ -1,92 +1,224 @@
-import React, { useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
+import { RemoteParticipant, LocalParticipant, Track } from 'livekit-client';
+import { LayoutGrid, Maximize2, Mic, MicOff, Headphones, HeadphoneOff, Video, VideoOff, Monitor, MonitorOff, PhoneOff, Volume2 } from 'lucide-react';
 import { Channel } from '../../api/types';
 import { VoiceParticipant } from '../../api/voice';
+import { ParticipantTile } from './ParticipantTile';
 import './VoiceChannel.css';
 
 interface VoiceChannelProps {
   channel: Channel;
-  currentUserId: string;
-  currentUsername: string;
-  currentAvatarUrl?: string;
-  participants: VoiceParticipant[];
+  currentUser: { id: string; username: string; avatar_url?: string };
+  participants: RemoteParticipant[];
+  localParticipant: LocalParticipant | null;
+  voiceParticipants: Record<string, VoiceParticipant>; // userID → metadata
+  activeSpeakers: Set<string>;
   connected: boolean;
   connecting: boolean;
   error: string | null;
   muted: boolean;
   deafened: boolean;
+  videoEnabled: boolean;
+  screenSharing: boolean;
   onToggleMute: () => void;
   onToggleDeafen: () => void;
+  onToggleVideo: () => Promise<void>;
+  onToggleScreenShare: () => Promise<void>;
   onLeave: () => void;
   onRetry: () => void;
 }
 
+type ViewMode = 'grid' | 'speaker';
+
 export const VoiceChannel: React.FC<VoiceChannelProps> = ({
   channel,
-  currentUserId,
-  currentUsername,
-  currentAvatarUrl,
+  currentUser,
   participants,
+  localParticipant,
+  voiceParticipants,
+  activeSpeakers,
   connected,
   connecting,
   error,
   muted,
   deafened,
+  videoEnabled,
+  screenSharing,
   onToggleMute,
   onToggleDeafen,
+  onToggleVideo,
+  onToggleScreenShare,
   onLeave,
   onRetry,
 }) => {
-  const allParticipants = useMemo(() => {
-    const self = { user_id: currentUserId, username: currentUsername, avatar_url: currentAvatarUrl };
-    const others = participants.filter(p => p.user_id !== currentUserId);
-    return [self, ...others];
-  }, [participants, currentUserId, currentUsername, currentAvatarUrl]);
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [pinnedIdentity, setPinnedIdentity] = useState<string | null>(null);
 
-  const statusLabel = connected ? 'connected' : connecting ? 'connecting…' : 'disconnected';
-  const statusClass = connected ? 'connected' : connecting ? 'connecting' : 'error';
+  // Build tile list: local first, then remotes
+  const allParticipants = useMemo(() => {
+    const list: Array<{ participant: LocalParticipant | RemoteParticipant; isLocal: boolean }> = [];
+    if (localParticipant) list.push({ participant: localParticipant, isLocal: true });
+    participants.forEach(p => list.push({ participant: p, isLocal: false }));
+    return list;
+  }, [localParticipant, participants]);
+
+  // Screen share tiles
+  const screenShares = useMemo(() => {
+    return allParticipants.filter(({ participant }) => {
+      return Array.from(participant.trackPublications.values() as Iterable<{ source: Track.Source; track: unknown; isMuted: boolean }>).some(
+        pub => pub.source === Track.Source.ScreenShare && pub.track && !pub.isMuted
+      );
+    });
+  }, [allParticipants]);
+
+  // In speaker view: find spotlight participant
+  const spotlightIdentity = pinnedIdentity ?? (activeSpeakers.size > 0 ? Array.from(activeSpeakers)[0] : null);
+  const spotlightParticipant = allParticipants.find(({ participant }) => participant.identity === spotlightIdentity) ?? allParticipants[0];
+  const filmstripParticipants = allParticipants.filter(({ participant }) => participant !== spotlightParticipant?.participant);
+
+  const getMeta = (identity: string) => {
+    const meta = voiceParticipants[identity];
+    return { displayName: meta?.username, avatarUrl: meta?.avatar_url };
+  };
+  const localMeta = { displayName: currentUser.username, avatarUrl: currentUser.avatar_url };
+
+  const statusLabel = connected ? 'Connected' : connecting ? 'Connecting…' : 'Disconnected';
 
   return (
-    <div className="voice-channel">
-      <div className="voice-channel-header">
-        <span className="voice-channel-icon">🔊</span>
-        <div className="voice-channel-header-info">
-          <span className="voice-channel-name">{channel.name}</span>
-          <span className={`voice-status-badge ${statusClass}`}>{statusLabel}</span>
+    <div className="vc-view">
+      {/* Header */}
+      <div className="vc-header">
+        <div className="vc-header-left">
+          <Volume2 size={16} color="#32CD32" />
+          <span className="vc-channel-name">{channel.name}</span>
+          <span className={`vc-status ${connected ? 'connected' : connecting ? 'connecting' : 'error'}`}>
+            {statusLabel}
+          </span>
         </div>
-        <div className="voice-header-controls">
-          <button className={`voice-ctrl-btn ${muted ? 'active' : ''}`} onClick={onToggleMute} title={muted ? 'Unmute' : 'Mute'}>
-            {muted ? '🔇' : '🎙'}
+        <div className="vc-header-controls">
+          <button
+            className={`vc-hdr-btn ${viewMode === 'grid' ? 'active' : ''}`}
+            onClick={() => setViewMode('grid')}
+            title="Grid view"
+          >
+            <LayoutGrid size={16} />
           </button>
-          <button className={`voice-ctrl-btn ${deafened ? 'active' : ''}`} onClick={onToggleDeafen} title={deafened ? 'Undeafen' : 'Deafen'}>
-            {deafened ? '🔕' : '🔔'}
-          </button>
-          <button className="voice-ctrl-btn disconnect" onClick={onLeave} title="Disconnect">
-            ✕ Leave
+          <button
+            className={`vc-hdr-btn ${viewMode === 'speaker' ? 'active' : ''}`}
+            onClick={() => setViewMode('speaker')}
+            title="Speaker view"
+          >
+            <Maximize2 size={16} />
           </button>
         </div>
       </div>
 
-      {error && <div className="voice-error">{error} — <button onClick={onRetry}>retry</button></div>}
+      {error && (
+        <div className="vc-error">
+          {error} — <button onClick={onRetry} className="vc-retry-btn">Retry</button>
+        </div>
+      )}
 
-      <div className="voice-participants">
-        {allParticipants.length === 0 ? (
-          <div className="voice-empty">No one here yet…</div>
-        ) : (
-          allParticipants.map(p => (
-            <div key={p.user_id} className={`voice-participant ${p.user_id === currentUserId ? 'self' : ''}`}>
-              <div className="voice-participant-avatar">
-                {p.avatar_url
-                  ? <img src={p.avatar_url} alt={p.username} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-                  : p.username.charAt(0).toUpperCase()
-                }
-              </div>
-              <div className="voice-participant-info">
-                <span className="voice-participant-name">{p.username}</span>
-                {p.user_id === currentUserId && <span className="voice-participant-you">you</span>}
-              </div>
+      {/* Main area */}
+      {viewMode === 'grid' ? (
+        <div className="vc-grid">
+          {/* Screen share tiles */}
+          {screenShares.map(({ participant, isLocal }) => {
+            const meta = isLocal ? localMeta : getMeta(participant.identity);
+            return (
+              <ParticipantTile
+                key={`screen-${participant.identity}`}
+                participant={participant}
+                isLocal={isLocal}
+                isSpeaking={activeSpeakers.has(participant.identity)}
+                isScreenShare
+                displayName={meta.displayName}
+                avatarUrl={meta.avatarUrl}
+              />
+            );
+          })}
+          {/* Participant tiles */}
+          {allParticipants.map(({ participant, isLocal }) => {
+            const meta = isLocal ? localMeta : getMeta(participant.identity);
+            return (
+              <ParticipantTile
+                key={participant.identity}
+                participant={participant}
+                isLocal={isLocal}
+                isSpeaking={isLocal ? false : activeSpeakers.has(participant.identity)}
+                displayName={meta.displayName}
+                avatarUrl={meta.avatarUrl}
+              />
+            );
+          })}
+          {allParticipants.length === 0 && (
+            <div className="vc-empty">No one else here yet…</div>
+          )}
+        </div>
+      ) : (
+        <div className="vc-speaker">
+          {spotlightParticipant ? (
+            <div
+              className="vc-spotlight"
+              onClick={() => setPinnedIdentity(
+                pinnedIdentity === spotlightParticipant.participant.identity
+                  ? null
+                  : spotlightParticipant.participant.identity
+              )}
+            >
+              <ParticipantTile
+                participant={spotlightParticipant.participant}
+                isLocal={spotlightParticipant.isLocal}
+                isSpeaking={activeSpeakers.has(spotlightParticipant.participant.identity)}
+                displayName={spotlightParticipant.isLocal ? localMeta.displayName : getMeta(spotlightParticipant.participant.identity).displayName}
+                avatarUrl={spotlightParticipant.isLocal ? localMeta.avatarUrl : getMeta(spotlightParticipant.participant.identity).avatarUrl}
+              />
             </div>
-          ))
-        )}
+          ) : (
+            <div className="vc-empty">No one here yet…</div>
+          )}
+          {filmstripParticipants.length > 0 && (
+            <div className="vc-filmstrip">
+              {filmstripParticipants.map(({ participant, isLocal }) => {
+                const meta = isLocal ? localMeta : getMeta(participant.identity);
+                return (
+                  <div
+                    key={participant.identity}
+                    className="vc-filmstrip-tile"
+                    onClick={() => setPinnedIdentity(participant.identity)}
+                  >
+                    <ParticipantTile
+                      participant={participant}
+                      isLocal={isLocal}
+                      isSpeaking={activeSpeakers.has(participant.identity)}
+                      displayName={meta.displayName}
+                      avatarUrl={meta.avatarUrl}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* In-channel controls (secondary; main controls are in VoiceControls widget) */}
+      <div className="vc-controls">
+        <button className={`vc-ctrl ${muted ? 'vc-ctrl--off' : ''}`} onClick={onToggleMute} title={muted ? 'Unmute' : 'Mute'}>
+          {muted ? <MicOff size={18} color="#cc4444" /> : <Mic size={18} color="#32CD32" />}
+        </button>
+        <button className={`vc-ctrl ${deafened ? 'vc-ctrl--off' : ''}`} onClick={onToggleDeafen} title={deafened ? 'Undeafen' : 'Deafen'}>
+          {deafened ? <HeadphoneOff size={18} color="#cc4444" /> : <Headphones size={18} color="#32CD32" />}
+        </button>
+        <button className={`vc-ctrl ${videoEnabled ? '' : 'vc-ctrl--off'}`} onClick={onToggleVideo} title={videoEnabled ? 'Turn off camera' : 'Turn on camera'}>
+          {videoEnabled ? <Video size={18} color="#32CD32" /> : <VideoOff size={18} color="#555" />}
+        </button>
+        <button className={`vc-ctrl ${screenSharing ? '' : 'vc-ctrl--off'}`} onClick={onToggleScreenShare} title={screenSharing ? 'Stop sharing' : 'Share screen'}>
+          {screenSharing ? <Monitor size={18} color="#32CD32" /> : <MonitorOff size={18} color="#555" />}
+        </button>
+        <button className="vc-ctrl vc-ctrl--leave" onClick={onLeave} title="Leave channel">
+          <PhoneOff size={18} color="#cc4444" />
+        </button>
       </div>
     </div>
   );
