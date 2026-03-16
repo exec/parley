@@ -511,7 +511,7 @@ func (r *Repository) UpdateUserEmail(ctx context.Context, userID int64, newEmail
 
 func (r *Repository) GetPublicUser(ctx context.Context, userID int64) (*PublicUser, error) {
 	query := `
-		SELECT id, username, COALESCE(avatar_url, ''), COALESCE(banner_url, ''), COALESCE(bio, ''), badges, created_at
+		SELECT id, username, COALESCE(display_name, ''), COALESCE(avatar_url, ''), COALESCE(banner_url, ''), COALESCE(bio, ''), badges, created_at
 		FROM users
 		WHERE id = $1
 	`
@@ -520,6 +520,7 @@ func (r *Repository) GetPublicUser(ctx context.Context, userID int64) (*PublicUs
 	err := r.db.QueryRowContext(ctx, query, userID).Scan(
 		&user.ID,
 		&user.Username,
+		&user.DisplayName,
 		&user.AvatarURL,
 		&user.BannerURL,
 		&user.Bio,

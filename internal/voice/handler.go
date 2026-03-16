@@ -65,7 +65,11 @@ func (h *Handler) Token(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.svc.IssueToken(userIDStr, member.Username, channelIDStr)
+	tokenName := member.DisplayName
+	if tokenName == "" {
+		tokenName = member.Username
+	}
+	token, err := h.svc.IssueToken(userIDStr, tokenName, channelIDStr)
 	if err != nil {
 		jsonErr(w, "failed to generate token", http.StatusInternalServerError)
 		return
@@ -157,7 +161,11 @@ func (h *Handler) parseVoiceRequest(w http.ResponseWriter, r *http.Request) (use
 	}
 
 	serverVirtualChannelID = "server:" + strconv.FormatInt(ch.ServerID, 10)
-	return userIDStr, member.Username, member.AvatarURL, channelIDStr, serverVirtualChannelID, true
+	displayName := member.DisplayName
+	if displayName == "" {
+		displayName = member.Username
+	}
+	return userIDStr, displayName, member.AvatarURL, channelIDStr, serverVirtualChannelID, true
 }
 
 // MuteParticipant force-mutes a participant in a voice channel.

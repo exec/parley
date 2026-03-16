@@ -164,13 +164,14 @@ type DmMessage struct {
 
 // PublicUser represents public user profile info
 type PublicUser struct {
-	ID        int64     `json:"id" db:"id"`
-	Username  string    `json:"username" db:"username"`
-	AvatarURL string    `json:"avatar_url" db:"avatar_url"`
-	BannerURL string    `json:"banner_url" db:"banner_url"`
-	Bio       string    `json:"bio,omitempty" db:"bio"`
-	Badges    int       `json:"badges" db:"badges"`
-	CreatedAt time.Time `json:"created_at" db:"created_at"`
+	ID          int64     `json:"id" db:"id"`
+	Username    string    `json:"username" db:"username"`
+	DisplayName string    `json:"display_name,omitempty" db:"display_name"`
+	AvatarURL   string    `json:"avatar_url" db:"avatar_url"`
+	BannerURL   string    `json:"banner_url" db:"banner_url"`
+	Bio         string    `json:"bio,omitempty" db:"bio"`
+	Badges      int       `json:"badges" db:"badges"`
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
 }
 
 // Badge bit constants

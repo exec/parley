@@ -36,24 +36,26 @@ type AuthResponse struct {
 
 // publicUserResponse is a version of PublicUser with string IDs for frontend compatibility.
 type publicUserResponse struct {
-	ID        string `json:"id"`
-	Username  string `json:"username"`
-	AvatarURL string `json:"avatar_url"`
-	BannerURL string `json:"banner_url,omitempty"`
-	Bio       string `json:"bio,omitempty"`
-	Badges    int    `json:"badges"`
-	CreatedAt string `json:"created_at"`
+	ID          string `json:"id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name,omitempty"`
+	AvatarURL   string `json:"avatar_url"`
+	BannerURL   string `json:"banner_url,omitempty"`
+	Bio         string `json:"bio,omitempty"`
+	Badges      int    `json:"badges"`
+	CreatedAt   string `json:"created_at"`
 }
 
 func toPublicUserResponse(u db.PublicUser) publicUserResponse {
 	return publicUserResponse{
-		ID:        strconv.FormatInt(u.ID, 10),
-		Username:  u.Username,
-		AvatarURL: u.AvatarURL,
-		BannerURL: u.BannerURL,
-		Bio:       u.Bio,
-		Badges:    u.Badges,
-		CreatedAt: u.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		ID:          strconv.FormatInt(u.ID, 10),
+		Username:    u.Username,
+		DisplayName: u.DisplayName,
+		AvatarURL:   u.AvatarURL,
+		BannerURL:   u.BannerURL,
+		Bio:         u.Bio,
+		Badges:      u.Badges,
+		CreatedAt:   u.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 }
 
