@@ -47,6 +47,10 @@ func DefaultConfig() *Config {
 		log.Fatal("JWT_SECRET environment variable is not set — refusing to start with an insecure default")
 	}
 
+	if os.Getenv("ADMIN_IMPERSONATE_SECRET") == "" {
+		log.Println("WARNING: ADMIN_IMPERSONATE_SECRET is not set — the impersonation endpoint is disabled")
+	}
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"

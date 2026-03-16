@@ -69,6 +69,12 @@ func (s *AuthService) Register(ctx context.Context, username, email_, phone, pas
 	if len(username) > 32 {
 		return User{}, "", errors.New("username must be 32 characters or fewer")
 	}
+	if len(password) < 8 {
+		return User{}, "", errors.New("password must be at least 8 characters")
+	}
+	if len(password) > 72 {
+		return User{}, "", errors.New("password must be 72 characters or fewer (bcrypt limit)")
+	}
 
 	// Check if user already exists by username
 	_, err := s.repo.GetUserByUsername(ctx, username)
@@ -255,6 +261,12 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername, cu
 		}
 		if !s.CheckPassword(dbUser.PasswordHash, currentPassword) {
 			return User{}, errors.New("current password is incorrect")
+		}
+		if len(newPassword) < 8 {
+			return User{}, errors.New("password must be at least 8 characters")
+		}
+		if len(newPassword) > 72 {
+			return User{}, errors.New("password must be 72 characters or fewer (bcrypt limit)")
 		}
 		hashed := s.HashPassword(newPassword)
 		if hashed == "" {

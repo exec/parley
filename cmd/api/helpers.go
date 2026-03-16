@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"mime/multipart"
@@ -67,9 +69,14 @@ func jsonError(w http.ResponseWriter, message string, code int) {
 	json.NewEncoder(w).Encode(map[string]string{"message": message})
 }
 
-// generateID returns a unique string ID based on the current time in nanoseconds.
+// generateID returns a cryptographically random 16-byte hex string for use as upload keys.
 func generateID() string {
-	return fmt.Sprintf("%d", time.Now().UnixNano())
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		// Extremely unlikely; rand.Read only fails if the OS entropy pool is broken.
+		panic(fmt.Sprintf("generateID: crypto/rand failed: %v", err))
+	}
+	return hex.EncodeToString(b)
 }
 
 // allowedFileExt inspects the magic bytes of data and returns the file extension
