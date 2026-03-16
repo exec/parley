@@ -411,9 +411,12 @@ func (s *MessageService) EditMessage(ctx context.Context, id, content string) (*
 		return nil, err
 	}
 
-	var authorUsername string
-	if err := s.repo.DB().QueryRowContext(ctx, "SELECT username FROM users WHERE id = $1", dbMsg.AuthorID).Scan(&authorUsername); err != nil {
-		log.Printf("EditMessage: failed to fetch username for author %d: %v", dbMsg.AuthorID, err)
+	var authorUsername, authorDisplayName, authorAvatarURL string
+	if err := s.repo.DB().QueryRowContext(ctx,
+		"SELECT username, COALESCE(display_name, ''), COALESCE(avatar_url, '') FROM users WHERE id = $1",
+		dbMsg.AuthorID,
+	).Scan(&authorUsername, &authorDisplayName, &authorAvatarURL); err != nil {
+		log.Printf("EditMessage: failed to fetch author info for %d: %v", dbMsg.AuthorID, err)
 	}
 
 	// Fetch current reactions to include in the broadcast
@@ -426,14 +429,16 @@ func (s *MessageService) EditMessage(ctx context.Context, id, content string) (*
 	}
 
 	msg := &Message{
-		ID:             id,
-		ChannelID:      strconv.FormatInt(dbMsg.ChannelID, 10),
-		AuthorID:       strconv.FormatInt(dbMsg.AuthorID, 10),
-		AuthorUsername: authorUsername,
-		Content:        content,
-		CreatedAt:      dbMsg.CreatedAt,
-		UpdatedAt:      dbMsg.UpdatedAt,
-		Reactions:      reactions,
+		ID:                id,
+		ChannelID:         strconv.FormatInt(dbMsg.ChannelID, 10),
+		AuthorID:          strconv.FormatInt(dbMsg.AuthorID, 10),
+		AuthorUsername:    authorUsername,
+		AuthorDisplayName: authorDisplayName,
+		AuthorAvatarURL:   authorAvatarURL,
+		Content:           content,
+		CreatedAt:         dbMsg.CreatedAt,
+		UpdatedAt:         dbMsg.UpdatedAt,
+		Reactions:         reactions,
 	}
 
 	// Broadcast the update if a broadcaster is set
