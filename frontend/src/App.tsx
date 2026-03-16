@@ -10,6 +10,7 @@ import { ResetPassword } from './pages/ResetPassword';
 import { AppProvider, useApp } from './context/AppContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { Landing } from './pages/Landing';
+import { SharedThemePage } from './pages/SharedThemePage';
 import { useWebSocket, MemberRoleUpdate, UserUpdate, VoiceStateUpdate, VoiceForceMuteEvent, RoleUpdateEvent, RoleDeleteEvent } from './hooks/useWebSocket';
 import { VoiceChannel } from './components/voice/VoiceChannel';
 
@@ -1063,6 +1064,7 @@ function App() {
       {/* Channel routes — all handled by MainApp which syncs URL with state */}
       <Route path="/" element={<HomeRoute />} />
       <Route path="/channels/*" element={ProtectedApp} />
+      <Route path="/theme/:token" element={<ThemeProvider><SharedThemePage /></ThemeProvider>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
