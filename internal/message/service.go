@@ -23,13 +23,14 @@ type Reaction struct {
 
 // Message represents a message in the system
 type Message struct {
-	ID              string     `json:"id"`
-	ChannelID       string     `json:"channel_id"`
-	AuthorID        string     `json:"author_id"`
-	AuthorUsername  string     `json:"author_username"`
-	AuthorAvatarURL string     `json:"author_avatar_url,omitempty"`
-	AuthorIsBot     bool       `json:"author_is_bot,omitempty"`
-	ViaApi          bool       `json:"via_api,omitempty"`
+	ID                 string     `json:"id"`
+	ChannelID          string     `json:"channel_id"`
+	AuthorID           string     `json:"author_id"`
+	AuthorUsername     string     `json:"author_username"`
+	AuthorDisplayName  string     `json:"author_display_name,omitempty"`
+	AuthorAvatarURL    string     `json:"author_avatar_url,omitempty"`
+	AuthorIsBot        bool       `json:"author_is_bot,omitempty"`
+	ViaApi             bool       `json:"via_api,omitempty"`
 	Content         string     `json:"content"`
 	Nonce           string     `json:"nonce,omitempty"`
 	ParentID        *int64     `json:"parent_id,omitempty"`
@@ -125,20 +126,21 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 		return nil, err
 	}
 
-	// Look up author username, avatar, and bot status
-	var authorUsername, authorAvatarURL string
+	// Look up author username, display_name, avatar, and bot status
+	var authorUsername, authorDisplayName, authorAvatarURL string
 	var authorIsBot bool
-	if err := s.repo.DB().QueryRowContext(ctx, "SELECT username, COALESCE(avatar_url, ''), is_bot FROM users WHERE id = $1", authorIDInt).Scan(&authorUsername, &authorAvatarURL, &authorIsBot); err != nil {
+	if err := s.repo.DB().QueryRowContext(ctx, "SELECT username, COALESCE(display_name, ''), COALESCE(avatar_url, ''), is_bot FROM users WHERE id = $1", authorIDInt).Scan(&authorUsername, &authorDisplayName, &authorAvatarURL, &authorIsBot); err != nil {
 		log.Printf("SendMessage: failed to fetch user info for author %d: %v", authorIDInt, err)
 	}
 
 	msg := &Message{
-		ID:              strconv.FormatInt(dbMsg.ID, 10),
-		ChannelID:       channelID,
-		AuthorID:        authorID,
-		AuthorUsername:  authorUsername,
-		AuthorAvatarURL: authorAvatarURL,
-		AuthorIsBot:     authorIsBot,
+		ID:                strconv.FormatInt(dbMsg.ID, 10),
+		ChannelID:         channelID,
+		AuthorID:          authorID,
+		AuthorUsername:    authorUsername,
+		AuthorDisplayName: authorDisplayName,
+		AuthorAvatarURL:   authorAvatarURL,
+		AuthorIsBot:       authorIsBot,
 		ViaApi:          viaAPI,
 		Content:         content,
 		Nonce:           dbMsg.Nonce,

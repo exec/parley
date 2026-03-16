@@ -243,7 +243,7 @@ const UserSidebar: React.FC<UserSidebarProps> = ({
               </span>
             )}
           </div>
-          {(member.display_name || member.nickname) && <div className="member-nickname-text">{member.username}</div>}
+          {member.nickname && !member.display_name && <div className="member-nickname-text">{member.username}</div>}
         </div>
       </div>
     );
