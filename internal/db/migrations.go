@@ -536,6 +536,30 @@ CREATE INDEX IF NOT EXISTS idx_messages_content_trgm ON messages USING GIN(conte
 ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_ip VARCHAR(45);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_ip VARCHAR(45);
 `,
+
+	`-- Theming: user_themes and user_preferences tables
+CREATE TABLE IF NOT EXISTS user_themes (
+    id             SERIAL PRIMARY KEY,
+    user_id        BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name           VARCHAR(64) NOT NULL,
+    css            TEXT NOT NULL DEFAULT '',
+    background_url VARCHAR(512),
+    share_token    UUID UNIQUE,
+    created_at     TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_user_themes_user_id ON user_themes(user_id);
+
+CREATE TABLE IF NOT EXISTS user_preferences (
+    user_id                BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    active_theme           VARCHAR(32) NOT NULL DEFAULT 'rory'
+                             CHECK (active_theme IN (
+                               'rory','citron-dark','citron-light',
+                               'neon-nights','abyss','sakura','custom'
+                             )),
+    -- active_custom_theme_id uses INT (not BIGINT): user_themes.id is SERIAL (4-byte)
+    active_custom_theme_id INT REFERENCES user_themes(id) ON DELETE SET NULL
+);
+`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string
