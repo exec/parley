@@ -295,6 +295,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       channel_id: activeChannel.id,
       author_id: currentUser.id,
       author_username: currentUser.username,
+      author_display_name: currentUser.display_name || undefined,
       content,
       nonce,
       created_at: new Date().toISOString(),
