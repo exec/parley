@@ -1,3 +1,8 @@
+@keyframes vc-dot-pulse {
+  0%, 100% { box-shadow: 0 0 4px #32CD32; opacity: 1; }
+  50% { box-shadow: 0 0 10px #32CD32, 0 0 20px rgba(50, 205, 50, 0.4); opacity: 0.7; }
+}
+
 .voice-widget {
   position: fixed;
   bottom: 0;
@@ -31,6 +36,7 @@
   background: #32CD32;
   flex-shrink: 0;
   box-shadow: 0 0 6px #32CD32;
+  animation: vc-dot-pulse 2s ease-in-out infinite;
 }
 
 .voice-widget-info {
