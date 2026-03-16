@@ -159,9 +159,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               className="chat-header-search-btn"
               onClick={e => { e.stopPropagation(); setShowSearch(s => !s); }}
               title="Search messages"
-              style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: showSearch ? '#32CD32' : '#555', fontSize: 16, padding: '2px 6px', borderRadius: 4, transition: 'color 0.15s' }}
+              style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: showSearch ? '#32CD32' : '#555', padding: '2px 6px', borderRadius: 4, transition: 'color 0.15s', display: 'flex', alignItems: 'center' }}
             >
-              🔍
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
             </button>
           )}
         </div>
