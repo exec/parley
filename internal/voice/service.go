@@ -2,14 +2,12 @@ package voice
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
+	lkauth "github.com/livekit/protocol/auth"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -43,34 +41,23 @@ func (s *Service) Configured() bool {
 
 // IssueToken generates a LiveKit JWT for the given user to join the given room (channel ID).
 func (s *Service) IssueToken(userID, username, channelID string) (string, error) {
-	jti := make([]byte, 8)
-	rand.Read(jti)
+	canPublish := true
+	canSubscribe := true
+	canPublishData := true
 
-	now := time.Now()
-	claims := jwt.MapClaims{
-		"iss": s.apiKey,
-		"sub": userID,
-		"iat": now.Unix(),
-		"exp": now.Add(6 * time.Hour).Unix(),
-		"jti": hex.EncodeToString(jti),
-		"name": username,
-		"video": map[string]interface{}{
-			"room":           channelID,
-			"roomJoin":       true,
-			"canPublish":     true,
-			"canSubscribe":   true,
-			"canPublishData": true,
-			"canPublishSources": []string{
-				"camera",
-				"microphone",
-				"screen_share",
-				"screen_share_audio",
-			},
-		},
-	}
+	at := lkauth.NewAccessToken(s.apiKey, s.apiSecret).
+		SetIdentity(userID).
+		SetName(username).
+		SetValidFor(6 * time.Hour).
+		SetVideoGrant(&lkauth.VideoGrant{
+			Room:           channelID,
+			RoomJoin:       true,
+			CanPublish:     &canPublish,
+			CanSubscribe:   &canSubscribe,
+			CanPublishData: &canPublishData,
+		})
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(s.apiSecret))
+	return at.ToJWT()
 }
 
 func (s *Service) ServerURL() string { return s.serverURL }
