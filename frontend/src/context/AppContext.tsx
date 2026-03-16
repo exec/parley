@@ -544,12 +544,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const receiveUserUpdate = useCallback((update: UserUpdate) => {
     setMembers(prev => prev.map(m =>
       m.user_id === update.user_id
-        ? { ...m, username: update.username, avatar_url: update.avatar_url ?? m.avatar_url, display_name: update.display_name ?? m.display_name, bio: update.bio ?? m.bio }
+        ? { ...m, username: update.username, avatar_url: update.avatar_url ?? m.avatar_url, banner_url: update.banner_url ?? m.banner_url, display_name: update.display_name ?? m.display_name, bio: update.bio ?? m.bio }
         : m
     ));
     setCurrentUser(prev => {
       if (!prev || prev.id !== update.user_id) return prev;
-      return { ...prev, username: update.username, avatar_url: update.avatar_url ?? prev.avatar_url, display_name: update.display_name ?? prev.display_name, bio: update.bio ?? prev.bio };
+      return { ...prev, username: update.username, avatar_url: update.avatar_url ?? prev.avatar_url, banner_url: update.banner_url ?? prev.banner_url, display_name: update.display_name ?? prev.display_name, bio: update.bio ?? prev.bio };
     });
     setMessages(prev => prev.map(m =>
       m.author_id === update.user_id

@@ -161,6 +161,7 @@ func handleUpdateProfile(authService *auth.AuthService, repo *db.Repository, hub
 						"user_id":      userIDStr,
 						"username":     user.Username,
 						"avatar_url":   user.AvatarURL,
+						"banner_url":   user.BannerURL,
 						"display_name": user.DisplayName,
 						"bio":          user.Bio,
 					})

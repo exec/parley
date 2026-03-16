@@ -35,7 +35,7 @@ import { ServerSettings } from './components/settings/ServerSettings';
 import { NotificationSettingsModal, getNotifPref } from './components/modals/NotificationSettingsModal';
 import { ChannelSettingsModal } from './components/modals/ChannelSettingsModal';
 import { useNotifications } from './hooks/useNotifications';
-import { invalidatePermCache } from './hooks/usePermissions';
+import { invalidatePermCache, clearAllPermCaches } from './hooks/usePermissions';
 import { useVoiceConnection } from './hooks/useVoiceConnection';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
@@ -535,6 +535,7 @@ function MainApp() {
     onMemberRoleUpdate: handleMemberRoleUpdate,
     onRoleUpdate: handleRoleUpdate,
     onRoleDelete: handleRoleDelete,
+    onConnect: clearAllPermCaches,
     onUserUpdate: handleUserUpdate,
     onVoiceStateUpdate: handleVoiceStateUpdate,
     onVoiceForceMute: handleVoiceForceMute,

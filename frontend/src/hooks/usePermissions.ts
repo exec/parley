@@ -93,11 +93,8 @@ export function usePermissions(serverId?: string, channelId?: string): Permissio
           if (!cancelled) setChannelPerms(sPerms);
         }
       } catch {
-        // On error, fall back to no permissions (safe default)
-        if (!cancelled) {
-          setServerPerms(0n);
-          setChannelPerms(0n);
-        }
+        // On error keep existing permissions — transient API failures (e.g. server
+        // restart) should not silently revoke access until we get a real response.
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -119,5 +116,12 @@ export function usePermissions(serverId?: string, channelId?: string): Permissio
 export function invalidatePermCache(serverId?: string, channelId?: string) {
   if (serverId) serverPermCache.delete(serverId);
   if (channelId) channelPermCache.delete(channelId);
+  invalidationListeners.forEach(fn => fn());
+}
+
+/** Clear ALL permission caches (e.g. after WS reconnect) and force re-fetch. */
+export function clearAllPermCaches() {
+  serverPermCache.clear();
+  channelPermCache.clear();
   invalidationListeners.forEach(fn => fn());
 }

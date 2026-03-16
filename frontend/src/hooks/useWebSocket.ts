@@ -25,6 +25,7 @@ export interface UserUpdate {
   user_id: string;
   username: string;
   avatar_url: string;
+  banner_url?: string;
   display_name?: string;
   bio?: string;
 }
@@ -99,9 +100,10 @@ interface UseWebSocketOptions {
   onRoleDelete?: (event: RoleDeleteEvent) => void;
   activeChannelId: string | null;
   extraChannelIds?: string[]; // Additional channels to subscribe to for notifications
+  onConnect?: () => void; // Called on every successful (re)connect
 }
 
-export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onServerMemberLeave, onServerMemberKick, onServerMemberBan, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, onChannelCreate, onChannelUpdate, onChannelDelete, onServerUpdate, onServerDelete, onMemberRoleUpdate, onUserUpdate, onVoiceStateUpdate, onVoiceForceMute, onVoiceForceDisconnect, onBinPostCreate, onBinPostUpdate, onBinPostDelete, onChannelOverwriteUpdate, onRoleUpdate, onRoleDelete, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
+export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onServerMemberLeave, onServerMemberKick, onServerMemberBan, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, onChannelCreate, onChannelUpdate, onChannelDelete, onServerUpdate, onServerDelete, onMemberRoleUpdate, onUserUpdate, onVoiceStateUpdate, onVoiceForceMute, onVoiceForceDisconnect, onBinPostCreate, onBinPostUpdate, onBinPostDelete, onChannelOverwriteUpdate, onRoleUpdate, onRoleDelete, onConnect, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const subscribedChannelsRef = useRef<Set<string>>(new Set());
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -139,6 +141,8 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
   const onChannelOverwriteUpdateRef = useRef(onChannelOverwriteUpdate);
   const onRoleUpdateRef = useRef(onRoleUpdate);
   const onRoleDeleteRef = useRef(onRoleDelete);
+  const onConnectRef = useRef(onConnect);
+  useEffect(() => { onConnectRef.current = onConnect; }, [onConnect]);
   useEffect(() => { onMessageRef.current = onMessage; }, [onMessage]);
   useEffect(() => { onDmMessageRef.current = onDmMessage; }, [onDmMessage]);
   useEffect(() => { onServerMemberJoinRef.current = onServerMemberJoin; }, [onServerMemberJoin]);
@@ -201,6 +205,7 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
 
     ws.onopen = () => {
       reconnectAttemptsRef.current = 0; // reset backoff on successful connection
+      onConnectRef.current?.();
       // Subscribe to all channels we care about
       const channelsToSubscribe = new Set<string>();
       const currentActiveChannel = activeChannelIdRef.current;
