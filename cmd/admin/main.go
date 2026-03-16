@@ -26,7 +26,8 @@ func main() {
 		fmt.Println("Usage: parley-admin <command>")
 		fmt.Println("Commands:")
 		fmt.Println("  serve              Start the admin HTTP server")
-		fmt.Println("  create-user <name> Create a new admin user (prompts for password)")
+		fmt.Println("  create-user <name>      Create a new admin user (prompts for password)")
+		fmt.Println("  reset-password <name>   Reset an admin user's password")
 		fmt.Println("  activate <name>    Activate an admin user")
 		fmt.Println("  deactivate <name>  Deactivate an admin user")
 		fmt.Println("  list-users         List all admin users")
@@ -80,6 +81,12 @@ func main() {
 			os.Exit(1)
 		}
 		cliCreateUser(os.Args[2])
+	case "reset-password":
+		if len(os.Args) < 3 {
+			fmt.Println("Usage: parley-admin reset-password <username>")
+			os.Exit(1)
+		}
+		cliResetPassword(os.Args[2])
 	case "activate":
 		if len(os.Args) < 3 {
 			fmt.Println("Usage: parley-admin activate <username>")
@@ -140,6 +147,29 @@ func cliCreateUser(username string) {
 		log.Fatalf("Failed to create user: %v", err)
 	}
 	fmt.Printf("Created admin user '%s' (ID: %d) — inactive. Run 'activate %s' to enable login.\n", u.Username, u.ID, u.Username)
+}
+
+func cliResetPassword(username string) {
+	fmt.Printf("New password for %s: ", username)
+	reader := bufio.NewReader(os.Stdin)
+	password, _ := reader.ReadString('\n')
+	password = strings.TrimSpace(password)
+	if password == "" {
+		fmt.Println("Password cannot be empty")
+		os.Exit(1)
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := repo.AdminResetPassword(context.Background(), username, string(hash)); err != nil {
+		if err == db.ErrNotFound {
+			fmt.Printf("Admin user '%s' not found\n", username)
+			os.Exit(1)
+		}
+		log.Fatalf("Failed to reset password: %v", err)
+	}
+	fmt.Printf("Password updated for admin user '%s'.\n", username)
 }
 
 func cliSetActive(username string, active bool) {

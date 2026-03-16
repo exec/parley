@@ -78,6 +78,18 @@ func (r *Repository) AdminSetActive(ctx context.Context, username string, active
 	return nil
 }
 
+func (r *Repository) AdminResetPassword(ctx context.Context, username, passwordHash string) error {
+	result, err := r.db.ExecContext(ctx, `UPDATE admin_users SET password_hash = $2 WHERE username = $1`, username, passwordHash)
+	if err != nil {
+		return err
+	}
+	n, _ := result.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (r *Repository) AdminUpdateLastLogin(ctx context.Context, id int64) error {
 	_, err := r.db.ExecContext(ctx, `UPDATE admin_users SET last_login_at = NOW() WHERE id = $1`, id)
 	return err
