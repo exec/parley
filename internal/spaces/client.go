@@ -48,6 +48,14 @@ func (c *Client) Upload(ctx context.Context, key string, r io.Reader, size int64
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
+	// The system MIME database maps .webm → video/webm, but all WebM files
+	// in this app come from the voice recorder (MediaRecorder API) and are
+	// audio-only.  Serving them as video/webm causes <audio> elements to
+	// receive a MIME-type mismatch and fire an error event instead of
+	// loadedmetadata, leaving the play button permanently disabled.
+	if contentType == "video/webm" {
+		contentType = "audio/webm"
+	}
 
 	_, err := c.s3.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:        aws.String(c.bucket),

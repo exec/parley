@@ -31,6 +31,7 @@ type Role struct {
 	Permissions int64     `json:"permissions"`
 	Hoist       bool      `json:"hoist"`
 	Position    int       `json:"position"`
+	IsEveryone  bool      `json:"is_everyone"`
 	CreatedAt   time.Time `json:"created_at"`
 }
 
@@ -90,14 +91,19 @@ func dbServerToService(s *db.Server) *Server {
 }
 
 func dbRoleToRole(r db.ServerRole) Role {
+	name := r.Name
+	if r.IsEveryone {
+		name = "@everyone"
+	}
 	return Role{
 		ID:          strconv.FormatInt(r.ID, 10),
 		ServerID:    strconv.FormatInt(r.ServerID, 10),
-		Name:        r.Name,
+		Name:        name,
 		Color:       r.Color,
 		Permissions: r.Permissions,
 		Hoist:       r.Hoist,
 		Position:    r.Position,
+		IsEveryone:  r.IsEveryone,
 		CreatedAt:   r.CreatedAt,
 	}
 }

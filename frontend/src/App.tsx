@@ -9,7 +9,7 @@ import { ForgotPassword } from './pages/ForgotPassword';
 import { ResetPassword } from './pages/ResetPassword';
 import { AppProvider, useApp } from './context/AppContext';
 import { Landing } from './pages/Landing';
-import { useWebSocket, MemberRoleUpdate, UserUpdate, VoiceStateUpdate, VoiceForceMuteEvent } from './hooks/useWebSocket';
+import { useWebSocket, MemberRoleUpdate, UserUpdate, VoiceStateUpdate, VoiceForceMuteEvent, RoleUpdateEvent, RoleDeleteEvent } from './hooks/useWebSocket';
 import { VoiceChannel } from './components/voice/VoiceChannel';
 
 import { DmMessage, Message, BinChannelTag } from './api/types';
@@ -35,6 +35,7 @@ import { ServerSettings } from './components/settings/ServerSettings';
 import { NotificationSettingsModal, getNotifPref } from './components/modals/NotificationSettingsModal';
 import { ChannelSettingsModal } from './components/modals/ChannelSettingsModal';
 import { useNotifications } from './hooks/useNotifications';
+import { invalidatePermCache } from './hooks/usePermissions';
 import { useVoiceConnection } from './hooks/useVoiceConnection';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
@@ -110,9 +111,12 @@ function MainApp() {
   const [assignRolesUserId, setAssignRolesUserId] = useState('');
   const [assignRolesUsername, setAssignRolesUsername] = useState('');
 
-  // Channel settings modal
+  // Channel settings modal — snapshot name/parentId at open time so WS events
+  // don't cause ChannelPermissions to re-fetch while the modal is open
   const [showChannelSettings, setShowChannelSettings] = useState(false);
   const [channelSettingsId, setChannelSettingsId] = useState('');
+  const [channelSettingsName, setChannelSettingsName] = useState('');
+  const [channelSettingsParentId, setChannelSettingsParentId] = useState<string | undefined>(undefined);
 
   // Notification settings modal
   const [showNotifSettings, setShowNotifSettings] = useState(false);
@@ -303,7 +307,17 @@ function MainApp() {
 
   const handleMemberRoleUpdate = useCallback((update: MemberRoleUpdate) => {
     receiveMemberRoleUpdate(update);
+    // Bust the permission cache for the affected server so usePermissions re-fetches
+    if (update.server_id) invalidatePermCache(update.server_id);
   }, [receiveMemberRoleUpdate]);
+
+  const handleRoleUpdate = useCallback((event: RoleUpdateEvent) => {
+    if (event.server_id) invalidatePermCache(event.server_id);
+  }, []);
+
+  const handleRoleDelete = useCallback((event: RoleDeleteEvent) => {
+    if (event.server_id) invalidatePermCache(event.server_id);
+  }, []);
 
   const handleUserUpdate = useCallback((update: UserUpdate) => {
     receiveUserUpdate(update);
@@ -519,6 +533,8 @@ function MainApp() {
     onServerUpdate: handleServerUpdate,
     onServerDelete: handleServerDelete,
     onMemberRoleUpdate: handleMemberRoleUpdate,
+    onRoleUpdate: handleRoleUpdate,
+    onRoleDelete: handleRoleDelete,
     onUserUpdate: handleUserUpdate,
     onVoiceStateUpdate: handleVoiceStateUpdate,
     onVoiceForceMute: handleVoiceForceMute,
@@ -596,7 +612,13 @@ function MainApp() {
         receiveChannelUpdate(updated);
       }}
       onMarkChannelRead={(channelId) => setUnreadCounts(prev => ({ ...prev, [channelId]: 0 }))}
-      onChannelSettings={(channelId) => { setChannelSettingsId(channelId); setShowChannelSettings(true); }}
+      onChannelSettings={(channelId) => {
+        const ch = channels.find(c => c.id === channelId);
+        setChannelSettingsId(channelId);
+        setChannelSettingsName(ch?.name ?? '');
+        setChannelSettingsParentId(ch?.parent_id);
+        setShowChannelSettings(true);
+      }}
       isOpen={showChannelList}
       vcConnected={vcConnected}
       vcMuted={vcMuted}
@@ -935,9 +957,9 @@ function MainApp() {
           isOpen={showChannelSettings}
           onClose={() => setShowChannelSettings(false)}
           channelId={channelSettingsId}
-          channelName={channels.find(c => c.id === channelSettingsId)?.name ?? ''}
+          channelName={channelSettingsName}
           serverId={activeServer.id}
-          parentId={channels.find(c => c.id === channelSettingsId)?.parent_id}
+          parentId={channelSettingsParentId}
         />
       )}
 

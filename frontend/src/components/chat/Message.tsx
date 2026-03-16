@@ -26,6 +26,7 @@ interface MessageProps {
   onViewProfile?: (userId: string, username: string) => void;
   onSendMessage?: (userId: string) => void;
   onMiniProfile?: (userId: string, e: React.MouseEvent) => void;
+  onScrollToMessage?: (messageId: string) => void;
   canManageMessages?: boolean;
   canAddReactions?: boolean;
 }
@@ -136,6 +137,7 @@ export const Message: React.FC<MessageProps> = ({
   onViewProfile,
   onSendMessage,
   onMiniProfile,
+  onScrollToMessage,
   canManageMessages = true,
   canAddReactions = true,
 }) => {
@@ -278,7 +280,11 @@ export const Message: React.FC<MessageProps> = ({
   return (
     <>
     {message.parent_id && (
-      <div className="reply-indicator">
+      <div
+        className="reply-indicator"
+        style={{ cursor: 'pointer' }}
+        onClick={() => onScrollToMessage?.(message.parent_id!)}
+      >
         <span><Reply size={12} color="currentColor" /> replying to</span>
         <span className="reply-indicator-name">
           @{parentAuthor ?? 'unknown'}
@@ -286,6 +292,7 @@ export const Message: React.FC<MessageProps> = ({
       </div>
     )}
     <div
+      id={`message-${message.id}`}
       className={`message${message.pending ? ' message-pending' : ''}${isGrouped ? ' message-grouped' : ''}`}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}

@@ -127,20 +127,29 @@ func (r *Repository) DeleteOverwritesByTarget(ctx context.Context, targetType in
 	return err
 }
 
-// CopyOverwrites replaces all overwrites on toChannelID with copies from fromChannelID.
+// CopyOverwrites replaces all overwrites on toChannelID with copies from fromChannelID,
+// using a transaction so a partial failure never leaves the child with no overwrites.
 func (r *Repository) CopyOverwrites(ctx context.Context, fromChannelID, toChannelID int64) error {
-	_, err := r.db.ExecContext(ctx,
-		`DELETE FROM permission_overwrites WHERE channel_id = $1`,
-		toChannelID)
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
+	defer tx.Rollback() //nolint:errcheck
 
-	_, err = r.db.ExecContext(ctx,
+	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM permission_overwrites WHERE channel_id = $1`,
+		toChannelID); err != nil {
+		return err
+	}
+
+	if _, err := tx.ExecContext(ctx,
 		`INSERT INTO permission_overwrites (channel_id, target_type, target_id, allow, deny)
          SELECT $1, target_type, target_id, allow, deny
          FROM permission_overwrites WHERE channel_id = $2`,
-		toChannelID, fromChannelID)
-	return err
+		toChannelID, fromChannelID); err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 

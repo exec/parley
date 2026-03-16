@@ -1079,3 +1079,14 @@
   background: none;
   cursor: help;
 }
+
+@keyframes message-highlight-flash {
+  0%   { background-color: rgba(50, 205, 50, 0.18); }
+  60%  { background-color: rgba(50, 205, 50, 0.18); }
+  100% { background-color: transparent; }
+}
+
+.message-highlight {
+  animation: message-highlight-flash 1.5s ease-out forwards;
+  border-radius: 4px;
+}

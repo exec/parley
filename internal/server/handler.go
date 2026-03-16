@@ -723,6 +723,11 @@ func (h *Handler) UpdateServerRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// @everyone cannot be renamed; always keep the canonical name.
+	if isEveryoneRole {
+		req.Name = "@everyone"
+	}
+
 	// Non-owners can only grant permissions they themselves have.
 	if !isOwner {
 		actorPerms, _ := permissions.GetEffectivePermissions(r.Context(), h.service.Repo(), sID, aID, ownerID)

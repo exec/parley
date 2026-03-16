@@ -14,14 +14,30 @@ interface PermissionsResult {
 const serverPermCache = new Map<string, bigint>();
 const channelPermCache = new Map<string, bigint>();
 
+// Listeners notified when the cache is invalidated so all hook instances re-fetch
+const invalidationListeners = new Set<() => void>();
+
 export function usePermissions(serverId?: string, channelId?: string): PermissionsResult {
   const [serverPerms, setServerPerms] = useState<bigint>(0n);
   const [channelPerms, setChannelPerms] = useState<bigint>(0n);
   const [loading, setLoading] = useState(false);
+  // Bumped by invalidatePermCache to force the effect to re-run
+  const [invalidateCount, setInvalidateCount] = useState(0);
 
-  // Track which IDs we've fetched so we can refetch when they change
   const prevServerIdRef = useRef<string | undefined>(undefined);
   const prevChannelIdRef = useRef<string | undefined>(undefined);
+
+  // Subscribe to cache invalidation events for the lifetime of this hook instance
+  useEffect(() => {
+    const listener = () => {
+      // Reset refs so the fetch effect treats this as a new server/channel
+      prevServerIdRef.current = undefined;
+      prevChannelIdRef.current = undefined;
+      setInvalidateCount(c => c + 1);
+    };
+    invalidationListeners.add(listener);
+    return () => { invalidationListeners.delete(listener); };
+  }, []);
 
   useEffect(() => {
     if (!serverId) {
@@ -89,7 +105,7 @@ export function usePermissions(serverId?: string, channelId?: string): Permissio
 
     fetchPerms();
     return () => { cancelled = true; };
-  }, [serverId, channelId]);
+  }, [serverId, channelId, invalidateCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const checkPerm = (perm: bigint): boolean => {
     const effectivePerms = channelId ? channelPerms : serverPerms;
@@ -99,8 +115,9 @@ export function usePermissions(serverId?: string, channelId?: string): Permissio
   return { serverPerms, channelPerms, hasPerm: checkPerm, loading };
 }
 
-/** Invalidate the permission caches for a server and/or channel. */
+/** Invalidate the permission caches for a server and/or channel, then notify all hook instances. */
 export function invalidatePermCache(serverId?: string, channelId?: string) {
   if (serverId) serverPermCache.delete(serverId);
   if (channelId) channelPermCache.delete(channelId);
+  invalidationListeners.forEach(fn => fn());
 }

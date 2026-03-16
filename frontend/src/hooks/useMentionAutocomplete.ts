@@ -36,7 +36,7 @@ export function useMentionSuggestions(
       .filter(t => t.slice(1).startsWith(q)) // strip leading '@' for comparison
       .map(t => ({ kind: 'special', tag: t }));
     const memberSuggestions: MentionSuggestion[] = members
-      .filter(m => m.username.toLowerCase().startsWith(q))
+      .filter(m => m.username.toLowerCase().startsWith(q) || (m.display_name ?? '').toLowerCase().startsWith(q))
       .slice(0, 8 - specials.length)
       .map(m => ({ kind: 'member', member: m }));
     return [...specials, ...memberSuggestions];

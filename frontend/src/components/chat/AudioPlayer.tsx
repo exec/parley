@@ -63,6 +63,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ url, isVoiceMessage, f
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [ready, setReady] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [fileSize, setFileSize] = useState<number | null>(null);
 
   const bars = useMemo(() => seededBars(url, 120), [url]);
@@ -117,11 +118,13 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ url, isVoiceMessage, f
       setCurrentTime(0);
       audio.currentTime = 0;
     };
+    const onError = () => setLoadError(true);
     audio.addEventListener('loadedmetadata', onMeta);
     audio.addEventListener('timeupdate', onTime);
     audio.addEventListener('play', onPlay);
     audio.addEventListener('pause', onPause);
     audio.addEventListener('ended', onEnded);
+    audio.addEventListener('error', onError);
     if (audio.readyState >= 1) onMeta();
     return () => {
       audio.removeEventListener('loadedmetadata', onMeta);
@@ -129,6 +132,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ url, isVoiceMessage, f
       audio.removeEventListener('play', onPlay);
       audio.removeEventListener('pause', onPause);
       audio.removeEventListener('ended', onEnded);
+      audio.removeEventListener('error', onError);
     };
   }, []);
 
@@ -199,6 +203,19 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ url, isVoiceMessage, f
   }, [filename]);
 
   const displayTime = playing ? currentTime : duration;
+
+  if (loadError) {
+    return (
+      <a
+        href={url}
+        download={filename || (isVoiceMessage ? 'voice_message' : undefined)}
+        className="message-attachment-file"
+        style={{ marginTop: 4 }}
+      >
+        <PlayIcon /> {filename || (isVoiceMessage ? 'Voice message' : 'Audio file')} (download)
+      </a>
+    );
+  }
 
   return (
     <div className={`audio-player${isVoiceMessage ? ' audio-player--voice' : ' audio-player--file'}`}>

@@ -21,6 +21,7 @@ interface MessageListProps {
   allMessages?: MessageType[];
   canManageMessages?: boolean;
   canAddReactions?: boolean;
+  onScrollToMessage?: (messageId: string) => void;
 }
 
 export const MessageList: React.FC<MessageListProps> = ({
@@ -41,9 +42,18 @@ export const MessageList: React.FC<MessageListProps> = ({
   allMessages,
   canManageMessages = true,
   canAddReactions = true,
+  onScrollToMessage: onScrollToMessageProp,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true);
+
+  const handleScrollToMessage = useCallback((messageId: string) => {
+    const el = document.getElementById(`message-${messageId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('message-highlight');
+    setTimeout(() => el.classList.remove('message-highlight'), 1500);
+  }, []);
 
   // Group messages by date
   const groupMessagesByDate = useCallback(
@@ -187,6 +197,7 @@ export const MessageList: React.FC<MessageListProps> = ({
               onViewProfile={onViewProfile}
               onSendMessage={onSendMessage}
               onMiniProfile={onMiniProfile}
+              onScrollToMessage={onScrollToMessageProp ?? handleScrollToMessage}
               canManageMessages={canManageMessages}
               canAddReactions={canAddReactions}
             />

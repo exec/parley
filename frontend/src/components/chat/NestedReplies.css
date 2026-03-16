@@ -6,6 +6,11 @@
   color: #555;
   margin-bottom: 2px;
   padding-left: 56px;
+  cursor: pointer;
+}
+
+.reply-indicator:hover {
+  color: #888;
 }
 
 .reply-indicator-name {
