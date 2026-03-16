@@ -60,6 +60,12 @@ func (s *Service) IssueToken(userID, username, channelID string) (string, error)
 			"canPublish":     true,
 			"canSubscribe":   true,
 			"canPublishData": true,
+			"canPublishSources": []string{
+				"camera",
+				"microphone",
+				"screen_share",
+				"screen_share_audio",
+			},
 		},
 	}
 
