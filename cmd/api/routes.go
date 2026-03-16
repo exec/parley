@@ -59,18 +59,44 @@ func registerRoutes(
 	inviteLimiter := newRateLimiter(30, time.Minute)
 
 	router.Route("/api", func(r chi.Router) {
-		// Auth routes (no auth required)
+		// Auth routes
 		r.Route("/auth", func(r chi.Router) {
-			r.Use(rateLimitMiddleware(authLimiter))
-			r.Post("/register", handleAuthRegister(authService))
-			r.Post("/login", handleAuthLogin(authService))
-			r.Get("/verify-email", handleVerifyEmail(authService))
-			r.Post("/forgot-password", handleForgotPassword(authService))
-			r.Post("/reset-password", handleResetPassword(authService))
-			if passkeySvc != nil {
-				r.Post("/passkey/login/begin", handlePasskeyLoginBegin(passkeySvc))
-				r.Post("/passkey/login/finish", handlePasskeyLoginFinish(passkeySvc, authService))
-			}
+			// Unauthenticated auth routes (rate-limited)
+			r.Group(func(r chi.Router) {
+				r.Use(rateLimitMiddleware(authLimiter))
+				r.Post("/register", handleAuthRegister(authService))
+				r.Post("/login", handleAuthLogin(authService))
+				r.Get("/verify-email", handleVerifyEmail(authService))
+				r.Post("/forgot-password", handleForgotPassword(authService))
+				r.Post("/reset-password", handleResetPassword(authService))
+				if passkeySvc != nil {
+					r.Post("/passkey/login/begin", handlePasskeyLoginBegin(passkeySvc))
+					r.Post("/passkey/login/finish", handlePasskeyLoginFinish(passkeySvc, authService))
+				}
+			})
+
+			// Authenticated auth routes
+			r.Group(func(r chi.Router) {
+				r.Use(auth.AuthMiddlewareWith(authService))
+				r.Use(bridgeUserIDMiddleware)
+				r.Get("/me", handleGetMe(repo))
+				r.Get("/me/phone", handleGetMePhone(repo))
+				r.Post("/ws-ticket", handleWsTicket(authService, tickets))
+				r.Post("/impersonate-token", handleImpersonateToken(authService))
+				r.Put("/profile", handleUpdateProfile(authService, repo, hub))
+				r.Put("/email", handleChangeEmail(authService))
+				r.Post("/resend-verification", handleResendVerification(authService))
+				r.Post("/verify-phone", handleVerifyPhone(authService))
+				r.Post("/resend-phone", handleResendPhone(authService))
+				r.Put("/phone", handleChangePhone(authService))
+				if passkeySvc != nil {
+					r.Post("/passkey/register/begin", handlePasskeyRegisterBegin(passkeySvc))
+					r.Post("/passkey/register/finish", handlePasskeyRegisterFinish(passkeySvc))
+					r.Get("/passkeys", handleListPasskeys(passkeySvc))
+					r.Delete("/passkeys/{id}", handleDeletePasskey(passkeySvc))
+					r.Put("/passkeys/{id}", handleRenamePasskey(passkeySvc))
+				}
+			})
 		})
 
 		// Protected routes — require authentication
@@ -164,28 +190,9 @@ func registerRoutes(
 			r.With(rateLimitMiddleware(inviteLimiter)).Get("/invites/{code}", serverHandler.GetInvite)
 			r.Put("/servers/{id}/vanity", serverHandler.SetVanityURL)
 
-			// Auth / user routes
-			r.Get("/auth/me", handleGetMe(repo))
-			r.Get("/auth/me/phone", handleGetMePhone(repo))
-			r.Post("/auth/ws-ticket", handleWsTicket(authService, tickets))
-			r.Post("/auth/impersonate-token", handleImpersonateToken(authService))
-			r.Put("/auth/profile", handleUpdateProfile(authService, repo, hub))
-			r.Put("/auth/email", handleChangeEmail(authService))
-			r.Post("/auth/resend-verification", handleResendVerification(authService))
-			r.Post("/auth/verify-phone", handleVerifyPhone(authService))
-			r.Post("/auth/resend-phone", handleResendPhone(authService))
-			r.Put("/auth/phone", handleChangePhone(authService))
+			// User routes
 			r.Get("/users/search", handleUserSearch(repo))
 			r.Get("/users/{id}", handleGetUser(repo))
-
-			// Passkey management routes (protected)
-			if passkeySvc != nil {
-				r.Post("/auth/passkey/register/begin", handlePasskeyRegisterBegin(passkeySvc))
-				r.Post("/auth/passkey/register/finish", handlePasskeyRegisterFinish(passkeySvc))
-				r.Get("/auth/passkeys", handleListPasskeys(passkeySvc))
-				r.Delete("/auth/passkeys/{id}", handleDeletePasskey(passkeySvc))
-				r.Put("/auth/passkeys/{id}", handleRenamePasskey(passkeySvc))
-			}
 
 			// Developer API key routes
 			r.Get("/developer/keys", handleListAPIKeys(repo))

@@ -125,7 +125,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     dmsApi.getDmChannels()
       .then(data => setDmChannels(data ?? []))
       .catch(console.error);
-  }, [currentUser]);
+  }, [currentUser?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadServers = useCallback(async () => {
     if (!currentUser) return;
