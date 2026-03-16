@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Volume2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 
@@ -57,7 +58,7 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({ isOpen, 
               className={`channel-type-option ${type === 1 ? 'selected' : ''}`}
               onClick={() => setType(1)}
             >
-              <span className="channel-type-icon">🔊</span>
+              <span className="channel-type-icon"><Volume2 size={14} color="currentColor" /></span>
               <div>
                 <div className="channel-type-name">Voice Channel</div>
                 <div className="channel-type-desc">Hang out together with voice</div>

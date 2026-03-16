@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { X, ChevronUp, ChevronDown } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { ServerMember, Role } from '../../api/types';
@@ -177,7 +178,7 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({
                     disabled={loading}
                     title="Delete role"
                   >
-                    ×
+                    <X size={16} color="currentColor" />
                   </button>
                 </div>
               ))}
@@ -242,7 +243,7 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({
                       </div>
                       <span className="member-name-small">{member.username || member.user_id}</span>
                       <span style={{ fontSize: 11, color: '#555', marginLeft: 'auto' }}>
-                        {assigned.size > 0 ? `${assigned.size} role${assigned.size > 1 ? 's' : ''}` : 'No roles'} {isExpanded ? '▲' : '▼'}
+                        {assigned.size > 0 ? `${assigned.size} role${assigned.size > 1 ? 's' : ''}` : 'No roles'} {isExpanded ? <ChevronUp size={14} color="currentColor" /> : <ChevronDown size={14} color="currentColor" />}
                       </span>
                     </div>
                     {isExpanded && (

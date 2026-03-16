@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { X } from 'lucide-react';
 import { ChannelPermissions } from '../settings/ChannelPermissions';
 import './ChannelSettingsModal.css';
 
@@ -54,7 +55,7 @@ export const ChannelSettingsModal: React.FC<Props> = ({
 
         {/* Close button */}
         <div className="csm-close-wrap">
-          <button className="csm-close-btn" onClick={onClose} title="Close (ESC)">×</button>
+          <button className="csm-close-btn" onClick={onClose} title="Close (ESC)"><X size={16} color="currentColor" /></button>
           <span className="csm-close-hint">ESC</span>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { X } from 'lucide-react';
 import { User } from '../../api/types';
 import { updateProfile, resendVerification, changeEmail, verifyPhone, resendPhone, changePhone } from '../../api/auth';
 import { uploadFile } from '../../api/upload';
@@ -297,7 +298,7 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
 
       {/* Close button */}
       <div className="settings-close-wrap">
-        <button className="settings-close-btn" onClick={attemptClose} title="Close (ESC)">×</button>
+        <button className="settings-close-btn" onClick={attemptClose} title="Close (ESC)"><X size={16} color="currentColor" /></button>
         <span className="settings-close-hint">ESC</span>
       </div>
 
