@@ -79,6 +79,8 @@ export function useVoiceConnection(
   const onDisconnectedRef = useRef(onDisconnected);
   onDisconnectedRef.current = onDisconnected;
 
+  const deafenedRef = useRef(false);
+
   const [settings, setSettings] = useState<VoiceSettings>(loadVoiceSettings);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
@@ -123,12 +125,12 @@ export function useVoiceConnection(
           audioRefsMap.current.set(participant.identity, el);
         }
         pub.track.attach(el);
-        el.muted = deafened;
+        el.muted = deafenedRef.current;
         const savedSpeaker = settingsRef.current.speakerDeviceId;
         if (savedSpeaker && 'setSinkId' in el) (el as any).setSinkId(savedSpeaker).catch(() => {});
       }
     });
-  }, [deafened]);
+  }, []);
 
   const detachAudio = useCallback((identity: string) => {
     const el = audioRefsMap.current.get(identity);
@@ -146,10 +148,10 @@ export function useVoiceConnection(
     }
     audioTrackRef.current = null;
     const cid = channelIdRef.current;
+    channelIdRef.current = null; // null BEFORE disconnect so Disconnected handler is a no-op
     if (cid) leaveVoiceChannel(cid).catch(() => {});
     roomRef.current?.disconnect();
     roomRef.current = null;
-    channelIdRef.current = null;
     cleanupAudio();
     setConnected(false);
     setMuted(false);
@@ -169,6 +171,7 @@ export function useVoiceConnection(
     setConnecting(true);
     setError(null);
 
+    let stream: MediaStream | null = null;
     try {
       const { token, url } = await getVoiceToken(cid);
 
@@ -178,7 +181,7 @@ export function useVoiceConnection(
       bc.postMessage({ action: 'claim', channelId: cid });
 
       const s = settingsRef.current;
-      const stream = await navigator.mediaDevices.getUserMedia({
+      stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           deviceId: s.micDeviceId ? { exact: s.micDeviceId } : undefined,
           noiseSuppression: s.noiseSuppression,
@@ -218,6 +221,7 @@ export function useVoiceConnection(
         setActiveSpeakers(ids);
       });
       room.on(RoomEvent.Disconnected, () => {
+        if (!channelIdRef.current) return; // was already handled by doDisconnect
         setConnected(false);
         leaveVoiceChannel(cid).catch(() => {});
         onDisconnectedRef.current();
@@ -231,7 +235,7 @@ export function useVoiceConnection(
 
       if (s.vadMode === 'vad') {
         const vad = await MicVAD.new({
-          getStream: () => Promise.resolve(stream),
+          getStream: () => Promise.resolve(stream!),
           onSpeechStart: () => {
             if (settingsRef.current.vadMode !== 'vad') return;
             audioTrackRef.current?.unmute();
@@ -258,6 +262,7 @@ export function useVoiceConnection(
       updateParticipantList();
       setConnected(true);
     } catch (err) {
+      stream?.getTracks().forEach(t => t.stop());
       setError(err instanceof Error ? err.message : 'Failed to connect');
       roomRef.current?.disconnect();
       roomRef.current = null;
@@ -321,11 +326,12 @@ export function useVoiceConnection(
     const next = !muted;
     if (next) audioTrackRef.current.mute(); else audioTrackRef.current.unmute();
     setMuted(next);
-    if (!next) setSpeaking(true); else setSpeaking(false);
+    // DO NOT set speaking here — speaking is managed by VAD/PTT
   }, [muted]);
 
   const toggleDeafen = useCallback(() => {
     const next = !deafened;
+    deafenedRef.current = next;
     audioRefsMap.current.forEach(el => { el.muted = next; });
     setDeafened(next);
   }, [deafened]);
@@ -333,9 +339,11 @@ export function useVoiceConnection(
   const toggleVideo = useCallback(async () => {
     if (!roomRef.current) return;
     if (videoEnabled) {
-      await roomRef.current.localParticipant.setCameraEnabled(false);
-      videoTrackRef.current?.stop();
-      videoTrackRef.current = null;
+      if (videoTrackRef.current) {
+        await roomRef.current.localParticipant.unpublishTrack(videoTrackRef.current);
+        videoTrackRef.current.stop();
+        videoTrackRef.current = null;
+      }
       setVideoEnabled(false);
     } else {
       const s = settingsRef.current;
@@ -367,6 +375,10 @@ export function useVoiceConnection(
     if (patch.speakerDeviceId) applyOutputDevice(patch.speakerDeviceId);
   }, [applyOutputDevice]);
 
+  const retry = useCallback(() => {
+    if (channelId) connect(channelId);
+  }, [channelId, connect]);
+
   return {
     connected, connecting, error,
     muted, deafened, videoEnabled, screenSharing, speaking,
@@ -374,7 +386,7 @@ export function useVoiceConnection(
     settings,
     toggleMute, toggleDeafen, toggleVideo, toggleScreenShare,
     disconnect: doDisconnect,
-    retry: () => { if (channelId) connect(channelId); },
+    retry,
     updateSettings,
   };
 }
