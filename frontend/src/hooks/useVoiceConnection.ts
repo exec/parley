@@ -137,7 +137,7 @@ export function useVoiceConnection(
     if (el) { el.remove(); audioRefsMap.current.delete(identity); }
   }, []);
 
-  const doDisconnect = useCallback(() => {
+  const doCleanup = useCallback(() => {
     vadRef.current?.destroy();
     vadRef.current = null;
     bcRef.current?.close();
@@ -147,15 +147,13 @@ export function useVoiceConnection(
       videoTrackRef.current = null;
     }
     audioTrackRef.current = null;
-    const cid = channelIdRef.current;
-    channelIdRef.current = null; // null BEFORE disconnect so Disconnected handler is a no-op
-    if (cid) leaveVoiceChannel(cid).catch(() => {});
-    roomRef.current?.disconnect();
+    channelIdRef.current = null;
     roomRef.current = null;
     cleanupAudio();
     setConnected(false);
     setMuted(false);
     setDeafened(false);
+    deafenedRef.current = false;
     setVideoEnabled(false);
     setScreenSharing(false);
     setSpeaking(false);
@@ -164,6 +162,15 @@ export function useVoiceConnection(
     setLocalParticipant(null);
     onDisconnectedRef.current();
   }, [cleanupAudio]);
+
+  const doDisconnect = useCallback(() => {
+    const cid = channelIdRef.current;
+    channelIdRef.current = null; // null first so Disconnected handler is a no-op
+    if (cid) leaveVoiceChannel(cid).catch(() => {});
+    const room = roomRef.current;
+    doCleanup();
+    room?.disconnect(); // call disconnect AFTER cleanup (room ref already nulled in doCleanup)
+  }, [doCleanup]);
 
   const connect = useCallback(async (cid: string) => {
     if (roomRef.current) return;
@@ -221,10 +228,10 @@ export function useVoiceConnection(
         setActiveSpeakers(ids);
       });
       room.on(RoomEvent.Disconnected, () => {
-        if (!channelIdRef.current) return; // was already handled by doDisconnect
-        setConnected(false);
-        leaveVoiceChannel(cid).catch(() => {});
-        onDisconnectedRef.current();
+        if (!channelIdRef.current) return; // user-initiated, already handled
+        const serverCid = channelIdRef.current;
+        leaveVoiceChannel(serverCid).catch(() => {});
+        doCleanup();
       });
 
       await room.connect(url, token);
@@ -271,23 +278,12 @@ export function useVoiceConnection(
     } finally {
       setConnecting(false);
     }
-  }, [attachAudio, detachAudio, doDisconnect, updateParticipantList, applyOutputDevice]);
+  }, [attachAudio, detachAudio, doCleanup, doDisconnect, updateParticipantList, applyOutputDevice]);
 
   useEffect(() => {
     if (!channelId) return;
     connect(channelId);
-    return () => {
-      vadRef.current?.destroy();
-      vadRef.current = null;
-      bcRef.current?.close();
-      bcRef.current = null;
-      if (channelIdRef.current) leaveVoiceChannel(channelIdRef.current).catch(() => {});
-      roomRef.current?.disconnect();
-      roomRef.current = null;
-      videoTrackRef.current?.stop();
-      videoTrackRef.current = null;
-      cleanupAudio();
-    };
+    return () => { doDisconnect(); };
   }, [channelId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
