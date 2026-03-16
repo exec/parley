@@ -78,6 +78,47 @@ func (c *Client) SendVerificationEmail(ctx context.Context, toEmail, toName, tok
 	return nil
 }
 
+// SendPasswordResetEmail sends a password reset link to the given address.
+func (c *Client) SendPasswordResetEmail(ctx context.Context, toEmail, toName, token, siteURL string) error {
+	link := fmt.Sprintf("%s/reset-password?token=%s", siteURL, token)
+	htmlContent := fmt.Sprintf(`<p>Hi %s,</p>
+<p>You requested a password reset for your Parley account.</p>
+<p>Click the link below to set a new password (valid for 24 hours):</p>
+<p><a href="%s">Reset Password</a></p>
+<p>If you didn't request this, you can safely ignore this email.</p>`, toName, link)
+
+	reqBody := sendEmailRequest{
+		Sender:      emailAddr{Email: c.fromEmail, Name: c.fromName},
+		To:          []emailAddr{{Email: toEmail, Name: toName}},
+		Subject:     "Reset your Parley password",
+		HtmlContent: htmlContent,
+	}
+
+	data, err := json.Marshal(reqBody)
+	if err != nil {
+		return fmt.Errorf("email: marshal: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.brevo.com/v3/smtp/email", bytes.NewReader(data))
+	if err != nil {
+		return fmt.Errorf("email: new request: %w", err)
+	}
+	req.Header.Set("accept", "application/json")
+	req.Header.Set("api-key", c.apiKey)
+	req.Header.Set("content-type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("email: do request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("email: brevo returned status %d", resp.StatusCode)
+	}
+	return nil
+}
+
 // SendVerificationSMS sends a 6-digit OTP via Brevo transactional SMS.
 func (c *Client) SendVerificationSMS(ctx context.Context, toPhone, code string) error {
 	payload := map[string]string{

@@ -509,6 +509,42 @@ func (r *Repository) UpdateUserEmail(ctx context.Context, userID int64, newEmail
 	return nil
 }
 
+func (r *Repository) SetPasswordResetToken(ctx context.Context, userID int64, token string, expiresAt time.Time) error {
+	query := `UPDATE users SET password_reset_token = $2, password_reset_expires_at = $3, updated_at = NOW() WHERE id = $1`
+	result, err := r.db.ExecContext(ctx, query, userID, token, expiresAt)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (r *Repository) ConsumePasswordResetToken(ctx context.Context, token, newHash string) error {
+	query := `
+		UPDATE users
+		SET password_hash = $2, password_reset_token = NULL, password_reset_expires_at = NULL, updated_at = NOW()
+		WHERE password_reset_token = $1 AND password_reset_expires_at > NOW()
+	`
+	result, err := r.db.ExecContext(ctx, query, token, newHash)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrInvalidOperation
+	}
+	return nil
+}
+
 func (r *Repository) GetPublicUser(ctx context.Context, userID int64) (*PublicUser, error) {
 	query := `
 		SELECT id, username, COALESCE(display_name, ''), COALESCE(avatar_url, ''), COALESCE(banner_url, ''), COALESCE(bio, ''), badges, created_at

@@ -449,6 +449,59 @@ func (s *AuthService) ChangeEmail(ctx context.Context, userID, newEmail, passwor
 	}, nil
 }
 
+// RequestPasswordReset sends a password reset email to the given address.
+// Always returns nil to prevent user enumeration.
+func (s *AuthService) RequestPasswordReset(ctx context.Context, email string) error {
+	if email == "" {
+		return nil
+	}
+	dbUser, err := s.repo.GetUserByEmail(ctx, email)
+	if err != nil {
+		return nil // user not found — don't reveal this
+	}
+	if s.emailClient == nil {
+		return nil
+	}
+	token, err := generateToken()
+	if err != nil {
+		log.Printf("RequestPasswordReset: failed to generate token: %v", err)
+		return nil
+	}
+	expiresAt := time.Now().Add(24 * time.Hour)
+	if err := s.repo.SetPasswordResetToken(ctx, dbUser.ID, token, expiresAt); err != nil {
+		log.Printf("RequestPasswordReset: failed to set token: %v", err)
+		return nil
+	}
+	if err := s.emailClient.SendPasswordResetEmail(ctx, dbUser.Email, dbUser.Username, token, s.siteURL); err != nil {
+		log.Printf("RequestPasswordReset: failed to send email to %s: %v", dbUser.Email, err)
+	}
+	return nil
+}
+
+// ResetPassword sets a new password using a valid reset token.
+func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword string) error {
+	if token == "" {
+		return errors.New("reset token is required")
+	}
+	if len(newPassword) < 8 {
+		return errors.New("password must be at least 8 characters")
+	}
+	if len(newPassword) > 72 {
+		return errors.New("password must be 72 characters or fewer (bcrypt limit)")
+	}
+	hashed := s.HashPassword(newPassword)
+	if hashed == "" {
+		return errors.New("failed to hash password")
+	}
+	if err := s.repo.ConsumePasswordResetToken(ctx, token, hashed); err != nil {
+		if err == db.ErrInvalidOperation {
+			return errors.New("invalid or expired reset token")
+		}
+		return err
+	}
+	return nil
+}
+
 // HashPassword creates a bcrypt hash of the password
 func (s *AuthService) HashPassword(password string) string {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)

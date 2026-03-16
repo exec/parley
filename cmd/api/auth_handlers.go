@@ -180,6 +180,43 @@ func handleChangePhone(authService *auth.AuthService) http.HandlerFunc {
 	}
 }
 
+func handleForgotPassword(authService *auth.AuthService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Email string `json:"email"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			jsonError(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		// Always succeed to prevent user enumeration
+		_ = authService.RequestPasswordReset(r.Context(), req.Email)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"message": "If an account with that email exists, a reset link has been sent.",
+		})
+	}
+}
+
+func handleResetPassword(authService *auth.AuthService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Token    string `json:"token"`
+			Password string `json:"password"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			jsonError(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if err := authService.ResetPassword(r.Context(), req.Token, req.Password); err != nil {
+			jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"message": "Password reset successfully. You can now log in."})
+	}
+}
+
 func handleImpersonateToken(authService *auth.AuthService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		targetUserID := r.Header.Get("X-Admin-Impersonate")

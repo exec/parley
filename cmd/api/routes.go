@@ -63,6 +63,8 @@ func registerRoutes(
 			r.Post("/register", handleAuthRegister(authService))
 			r.Post("/login", handleAuthLogin(authService))
 			r.Get("/verify-email", handleVerifyEmail(authService))
+			r.Post("/forgot-password", handleForgotPassword(authService))
+			r.Post("/reset-password", handleResetPassword(authService))
 		})
 
 		// Protected routes — require authentication

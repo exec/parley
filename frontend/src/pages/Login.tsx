@@ -124,9 +124,14 @@ export const Login: React.FC = () => {
             </div>
 
             <div className="input-wrapper">
-              <label htmlFor="password" className="input-label">
-                Password
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <label htmlFor="password" className="input-label">
+                  Password
+                </label>
+                <Link to="/forgot-password" className="auth-forgot-link">
+                  Forgot password?
+                </Link>
+              </div>
               <input
                 id="password"
                 name="password"

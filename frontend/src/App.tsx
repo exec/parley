@@ -5,6 +5,8 @@ import { Register } from './pages/Register';
 import { InvitePage } from './pages/InvitePage';
 import { VerifyEmail } from './pages/VerifyEmail';
 import { Impersonate } from './pages/Impersonate';
+import { ForgotPassword } from './pages/ForgotPassword';
+import { ResetPassword } from './pages/ResetPassword';
 import { AppProvider, useApp } from './context/AppContext';
 import { Landing } from './pages/Landing';
 import { useWebSocket, MemberRoleUpdate, UserUpdate, VoiceStateUpdate, VoiceForceMuteEvent } from './hooks/useWebSocket';
@@ -969,6 +971,8 @@ function App() {
         }
       />
       <Route path="/verify-email" element={<VerifyEmail />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/impersonate" element={<Impersonate />} />
       {/* Channel routes — all handled by MainApp which syncs URL with state */}
       <Route path="/" element={<HomeRoute />} />

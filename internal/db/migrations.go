@@ -461,6 +461,12 @@ CREATE TABLE IF NOT EXISTS bin_channel_tags (
 CREATE INDEX IF NOT EXISTS idx_bin_channel_tags_channel_id ON bin_channel_tags(channel_id);
 `,
 
+	`-- Add password reset support
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_token VARCHAR(64);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_expires_at TIMESTAMP;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_password_reset_token ON users(password_reset_token) WHERE password_reset_token IS NOT NULL;
+`,
+
 	`-- Add is_everyone flag to server_roles
 ALTER TABLE server_roles ADD COLUMN IF NOT EXISTS is_everyone BOOLEAN NOT NULL DEFAULT FALSE;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_server_roles_everyone ON server_roles(server_id) WHERE is_everyone = TRUE;
