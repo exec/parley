@@ -118,6 +118,7 @@ func registerRoutes(
 
 			// Message routes
 			messageHandler := message.NewHandler(messageService)
+			r.Get("/servers/{id}/messages/search", messageHandler.SearchMessages)
 			r.Get("/channels/{channelID}/messages", messageHandler.GetChannelMessages)
 			r.Post("/channels/{channelID}/messages", messageHandler.SendMessage)
 			r.Put("/messages/{id}", messageHandler.EditMessage)

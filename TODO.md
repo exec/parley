@@ -73,11 +73,11 @@ This is a living task list for Parley - a Discord clone.
 
 ## Lower Priority
 
-- [ ] Voice channels/voice chat (high priority but complex - need voice server architecture decision)
+- [x] Voice channels/voice chat
 - [ ] Server discovery / public servers list
-- [ ] Message search
+- [x] Message search
 - [ ] Notification system (browser push + in-app)
-- [ ] User profile page with custom display name
+- [x] User profile page with custom display name
 
 ---
 
@@ -95,14 +95,14 @@ This is a living task list for Parley - a Discord clone.
   - Backend enforcement — done (PermManageChannels, PermKickMembers, PermManageMessages enforced on all relevant endpoints)
   - Frontend gating — done (+ create channel, × delete channel, kick/ban buttons hidden when no permission)
 
-- [ ] Passkey authentication
+- [x] Passkey authentication
   - Configurable in user settings
   - Logic to determine passkey vs password before prompting
 
 - [ ] 2FA (Google Authenticator first)
   - Large undertaking
 
-- [ ] Message search in messages
+- [x] Message search in messages
 
 ---
 

@@ -6,6 +6,7 @@ import { TypingIndicator } from './TypingIndicator';
 import { usePermissions } from '../../hooks/usePermissions';
 import { PERM_MANAGE_MESSAGES, PERM_ADD_REACTIONS } from '../../lib/permissions';
 import MiniProfile from '../layout/MiniProfile';
+import { SearchPanel } from '../search/SearchPanel';
 import './Chat.css';
 
 interface TypingUser {
@@ -18,7 +19,9 @@ interface ChatWindowProps {
   messages: MessageType[];
   currentUserId?: string;
   members?: ServerMember[];
+  channels?: Channel[];
   memberMap?: Map<string, string>;
+  channelMap?: Map<string, string>;
   onSendMessage: (content: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string, parentId?: string) => void;
   onLoadMore?: () => void;
   onEdit?: (message: MessageType) => void;
@@ -35,6 +38,7 @@ interface ChatWindowProps {
   onTyping?: () => void;
   canManageChannels?: boolean;
   onUpdateTopic?: (channelId: string, topic: string) => void;
+  onNavigateToChannel?: (channelId: string) => void;
   headerPrefix?: string;
   headerAvatar?: string;
   isOnline?: boolean;
@@ -46,7 +50,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   messages,
   currentUserId,
   members,
+  channels = [],
   memberMap,
+  channelMap,
   onSendMessage,
   onLoadMore,
   onEdit,
@@ -63,6 +69,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onTyping,
   canManageChannels = false,
   onUpdateTopic,
+  onNavigateToChannel,
   headerPrefix = '#',
   headerAvatar,
   isOnline,
@@ -86,6 +93,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     const top = Math.min(y, window.innerHeight - 330);
     setMiniProfile({ member, position: { top, left } });
   }, [members]);
+
+  const [showSearch, setShowSearch] = useState(false);
 
   const replyValue = replyTo ? `@${replyTo.author_username} ` : '';
   const [editingTopic, setEditingTopic] = useState(false);
@@ -127,7 +136,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   );
 
   return (
-    <div className="chat-window">
+    <div className="chat-window-outer" style={{ display: 'flex', flex: 1, overflow: 'hidden', minWidth: 0 }}>
+    <div className="chat-window" style={{ flex: 1, minWidth: 0 }}>
       <div
         className={`chat-header${canManageChannels ? ' chat-header-editable' : ''}`}
         onClick={startEditTopic}
@@ -143,6 +153,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           <span className="chat-header-name">{headerPrefix} {channel.name}</span>
           {isOnline !== undefined && (
             <span className={`chat-header-status-dot ${isOnline ? 'online' : 'offline'}`} title={isOnline ? 'Online' : 'Offline'} />
+          )}
+          {channel.server_id && (
+            <button
+              className="chat-header-search-btn"
+              onClick={e => { e.stopPropagation(); setShowSearch(s => !s); }}
+              title="Search messages"
+              style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: showSearch ? '#32CD32' : '#555', fontSize: 16, padding: '2px 6px', borderRadius: 4, transition: 'color 0.15s' }}
+            >
+              🔍
+            </button>
           )}
         </div>
         {editingTopic ? (
@@ -167,6 +187,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         messages={messages}
         currentUserId={currentUserId}
         memberMap={memberMap}
+        channelMap={channelMap}
         onLoadMore={onLoadMore}
         onEdit={onEdit}
         onDelete={onDelete}
@@ -188,6 +209,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         onTyping={onTyping}
         initialValue={replyValue}
         members={members}
+        channels={channels}
         replyTo={replyTo}
         serverId={channel.server_id || undefined}
         channelId={channel.id || undefined}
@@ -207,6 +229,21 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           canManageRoles={false}
         />
       )}
+    </div>
+    {showSearch && channel.server_id && (
+      <SearchPanel
+        serverId={channel.server_id}
+        members={members ?? []}
+        channels={channels}
+        memberMap={memberMap ?? new Map()}
+        channelMap={channelMap ?? new Map()}
+        onClose={() => setShowSearch(false)}
+        onNavigateToChannel={(channelId) => {
+          onNavigateToChannel?.(channelId);
+          setShowSearch(false);
+        }}
+      />
+    )}
     </div>
   );
 };

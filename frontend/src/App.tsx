@@ -434,6 +434,11 @@ function MainApp() {
     [members],
   );
 
+  const channelMap = useMemo(
+    () => new Map(channels.map(c => [c.id, c.name])),
+    [channels],
+  );
+
   // Channel IDs for the active server (for unread notifications)
   const allChannelIds = channels.map(c => c.id);
 
@@ -629,7 +634,9 @@ function MainApp() {
             messages={messages}
             currentUserId={currentUser.id}
             members={members}
+            channels={channels}
             memberMap={memberMap}
+            channelMap={channelMap}
             onSendMessage={sendMessage}
             onEdit={(msg) => editMessage(msg.id, msg.content)}
             onDelete={deleteMessage}
@@ -646,6 +653,9 @@ function MainApp() {
             replyTo={replyTo}
             onClearReply={() => setReplyTo(null)}
             onlineUserIds={onlineUsers}
+            onNavigateToChannel={(channelId) => {
+              selectChannel(channelId);
+            }}
           />
         </div>
       );
@@ -775,7 +785,9 @@ function MainApp() {
         messages={messages}
         currentUserId={currentUser?.id}
         members={members}
+        channels={channels}
         memberMap={memberMap}
+        channelMap={channelMap}
         onSendMessage={sendMessage}
         onEdit={(msg) => editMessage(msg.id, msg.content)}
         onDelete={deleteMessage}
@@ -791,6 +803,9 @@ function MainApp() {
         canManageChannels={canManageChannels}
         replyTo={replyTo}
         onClearReply={() => setReplyTo(null)}
+        onNavigateToChannel={(channelId) => {
+          selectChannel(channelId);
+        }}
         onUpdateTopic={async (channelId, topic) => {
           const updated = await channelsApi.updateChannel(channelId, activeChannel.name, topic);
           receiveChannelUpdate(updated);

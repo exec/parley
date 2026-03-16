@@ -165,6 +165,74 @@ func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, li
 	return messages, nil
 }
 
+// SearchMessages searches messages within a server with optional content, author, and channel filters.
+// Results are ordered by message ID descending (newest first), limited to `limit` rows.
+// If beforeID > 0, only messages with id < beforeID are returned (cursor pagination).
+func (r *Repository) SearchMessages(ctx context.Context, serverID int64, query string, authorID int64, channelID int64, limit int, beforeID int64) ([]*Message, error) {
+	conds := []string{"c.server_id = $1"}
+	args := []any{serverID}
+	p := 2
+
+	if query != "" {
+		escaped := strings.ReplaceAll(query, `\`, `\\`)
+		escaped = strings.ReplaceAll(escaped, `%`, `\%`)
+		escaped = strings.ReplaceAll(escaped, `_`, `\_`)
+		conds = append(conds, fmt.Sprintf("m.content ILIKE $%d ESCAPE '\\'", p))
+		args = append(args, "%"+escaped+"%")
+		p++
+	}
+	if authorID > 0 {
+		conds = append(conds, fmt.Sprintf("m.author_id = $%d", p))
+		args = append(args, authorID)
+		p++
+	}
+	if channelID > 0 {
+		conds = append(conds, fmt.Sprintf("m.channel_id = $%d", p))
+		args = append(args, channelID)
+		p++
+	}
+	if beforeID > 0 {
+		conds = append(conds, fmt.Sprintf("m.id < $%d", p))
+		args = append(args, beforeID)
+		p++
+	}
+	args = append(args, limit)
+
+	q := fmt.Sprintf(`
+		SELECT m.id, m.channel_id, m.author_id, m.content, COALESCE(m.nonce, ''),
+		       m.created_at, m.updated_at,
+		       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
+		       u.username, COALESCE(u.avatar_url, ''), u.is_bot, COALESCE(u.display_name, ''), m.parent_id
+		FROM messages m
+		JOIN users u ON u.id = m.author_id
+		JOIN channels c ON c.id = m.channel_id
+		WHERE %s
+		ORDER BY m.id DESC
+		LIMIT $%d
+	`, strings.Join(conds, " AND "), p)
+
+	rows, err := r.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var messages []*Message
+	for rows.Next() {
+		var msg Message
+		if err := rows.Scan(
+			&msg.ID, &msg.ChannelID, &msg.AuthorID, &msg.Content, &msg.Nonce,
+			&msg.CreatedAt, &msg.UpdatedAt,
+			&msg.AttachmentURL, &msg.AttachmentName, &msg.AttachmentType,
+			&msg.AuthorUsername, &msg.AuthorAvatarURL, &msg.AuthorIsBot, &msg.AuthorDisplayName, &msg.ParentID,
+		); err != nil {
+			return nil, err
+		}
+		messages = append(messages, &msg)
+	}
+	return messages, rows.Err()
+}
+
 // EditMessage saves the current content as a version then updates the message content.
 func (r *Repository) EditMessage(ctx context.Context, messageID int64, newContent string) (*Message, error) {
 	// Save current content as a version before editing
@@ -268,41 +336,3 @@ func (r *Repository) GetMessageContext(ctx context.Context, messageID int64, bef
 	return msgs, rows.Err()
 }
 
-// SearchMessages searches messages by content and/or author username, paginated.
-func (r *Repository) SearchMessages(ctx context.Context, query string, userID int64, limit, offset int) ([]Message, error) {
-	args := []interface{}{}
-	where := []string{}
-	if query != "" {
-		args = append(args, "%"+query+"%")
-		where = append(where, fmt.Sprintf("m.content ILIKE $%d", len(args)))
-	}
-	if userID > 0 {
-		args = append(args, userID)
-		where = append(where, fmt.Sprintf("m.author_id = $%d", len(args)))
-	}
-	sqlStr := `SELECT m.id, m.channel_id, m.author_id, m.content, COALESCE(m.nonce,''),
-	                  COALESCE(m.attachment_url,''), COALESCE(m.attachment_name,''), COALESCE(m.attachment_type,''),
-	                  m.created_at, m.updated_at, u.username
-	           FROM messages m JOIN users u ON u.id = m.author_id`
-	if len(where) > 0 {
-		sqlStr += " WHERE " + strings.Join(where, " AND ")
-	}
-	args = append(args, limit, offset)
-	sqlStr += fmt.Sprintf(` ORDER BY m.created_at DESC LIMIT $%d OFFSET $%d`, len(args)-1, len(args))
-	rows, err := r.db.QueryContext(ctx, sqlStr, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var msgs []Message
-	for rows.Next() {
-		var m Message
-		if err := rows.Scan(&m.ID, &m.ChannelID, &m.AuthorID, &m.Content, &m.Nonce,
-			&m.AttachmentURL, &m.AttachmentName, &m.AttachmentType,
-			&m.CreatedAt, &m.UpdatedAt, &m.AuthorUsername); err != nil {
-			return nil, err
-		}
-		msgs = append(msgs, m)
-	}
-	return msgs, rows.Err()
-}

@@ -526,6 +526,11 @@ CREATE TABLE IF NOT EXISTS passkeys (
 );
 CREATE INDEX IF NOT EXISTS idx_passkeys_user_id ON passkeys(user_id);
 `,
+
+	`-- pg_trgm extension + GIN index for fast message content search
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX IF NOT EXISTS idx_messages_content_trgm ON messages USING GIN(content gin_trgm_ops);
+`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

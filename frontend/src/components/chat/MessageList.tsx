@@ -7,6 +7,7 @@ interface MessageListProps {
   messages: MessageType[];
   currentUserId?: string;
   memberMap?: Map<string, string>;
+  channelMap?: Map<string, string>;
   onLoadMore?: () => void;
   onEdit?: (message: MessageType) => void;
   onDelete?: (messageId: string) => void;
@@ -26,6 +27,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   messages,
   currentUserId,
   memberMap,
+  channelMap,
   onLoadMore,
   onEdit,
   onDelete,
@@ -176,6 +178,7 @@ export const MessageList: React.FC<MessageListProps> = ({
               currentUserId={currentUserId}
               isGrouped={groupedFlags[idx]}
               memberMap={memberMap}
+              channelMap={channelMap}
               messages={allMessages}
               onEdit={onEdit}
               onDelete={onDelete}

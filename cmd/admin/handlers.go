@@ -198,16 +198,16 @@ func handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 
 func handleSearchMessages(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
-	userID, _ := strconv.ParseInt(r.URL.Query().Get("user_id"), 10, 64)
+	authorID, _ := strconv.ParseInt(r.URL.Query().Get("user_id"), 10, 64)
+	serverID, _ := strconv.ParseInt(r.URL.Query().Get("server_id"), 10, 64)
 	limit := queryInt(r, "limit", 50)
-	offset := queryInt(r, "offset", 0)
-	msgs, err := repo.SearchMessages(r.Context(), q, userID, limit, offset)
+	msgs, err := repo.SearchMessages(r.Context(), serverID, q, authorID, 0, limit, 0)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if msgs == nil {
-		msgs = []db.Message{}
+		msgs = []*db.Message{}
 	}
 	jsonOK(w, msgs)
 }

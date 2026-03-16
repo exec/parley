@@ -293,6 +293,83 @@ func (s *MessageService) GetChannelMessages(ctx context.Context, channelID, user
 	return messages, nil
 }
 
+// SearchMessages searches messages across a server with optional filters.
+func (s *MessageService) SearchMessages(ctx context.Context, serverID, userID, query, fromUserID, inChannelID string, limit int, beforeID int64) ([]*Message, error) {
+	srvIDInt, err := strconv.ParseInt(serverID, 10, 64)
+	if err != nil {
+		return nil, errors.New("invalid server ID")
+	}
+
+	// Ensure the requesting user is a member of the server.
+	userIDInt, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		return nil, errors.New("invalid user ID")
+	}
+	if _, err := s.repo.GetMember(ctx, srvIDInt, userIDInt); err != nil {
+		return nil, errors.New("forbidden")
+	}
+
+	var fromInt, inChInt int64
+	if fromUserID != "" {
+		if v, err := strconv.ParseInt(fromUserID, 10, 64); err == nil {
+			fromInt = v
+		}
+	}
+	if inChannelID != "" {
+		if v, err := strconv.ParseInt(inChannelID, 10, 64); err == nil {
+			inChInt = v
+		}
+	}
+
+	if limit <= 0 || limit > 50 {
+		limit = 25
+	}
+
+	dbMessages, err := s.repo.SearchMessages(ctx, srvIDInt, query, fromInt, inChInt, limit, beforeID)
+	if err != nil {
+		return nil, err
+	}
+
+	messageIDs := make([]int64, len(dbMessages))
+	for i, m := range dbMessages {
+		messageIDs[i] = m.ID
+	}
+	reactionMap, err := s.repo.GetReactionsForMessages(ctx, messageIDs)
+	if err != nil {
+		reactionMap = map[int64][]db.ReactionGroup{}
+	}
+
+	messages := make([]*Message, 0, len(dbMessages))
+	for _, dbMsg := range dbMessages {
+		reactions := []Reaction{}
+		if groups, ok := reactionMap[dbMsg.ID]; ok {
+			for _, g := range groups {
+				reactions = append(reactions, Reaction{Emoji: g.Emoji, Count: g.Count, UserIDs: g.UserIDs})
+			}
+		}
+		messages = append(messages, &Message{
+			ID:                strconv.FormatInt(dbMsg.ID, 10),
+			ChannelID:         strconv.FormatInt(dbMsg.ChannelID, 10),
+			AuthorID:          strconv.FormatInt(dbMsg.AuthorID, 10),
+			AuthorUsername:    dbMsg.AuthorUsername,
+			AuthorDisplayName: dbMsg.AuthorDisplayName,
+			AuthorAvatarURL:   dbMsg.AuthorAvatarURL,
+			AuthorIsBot:       dbMsg.AuthorIsBot,
+			Content:           dbMsg.Content,
+			Nonce:             dbMsg.Nonce,
+			ParentID:          dbMsg.ParentID,
+			AttachmentURL:     dbMsg.AttachmentURL,
+			AttachmentName:    dbMsg.AttachmentName,
+			AttachmentType:    dbMsg.AttachmentType,
+			CreatedAt:         dbMsg.CreatedAt,
+			UpdatedAt:         dbMsg.UpdatedAt,
+			Reactions:         reactions,
+		})
+	}
+
+	return messages, nil
+}
+
 // EditMessage updates a message's content
 func (s *MessageService) EditMessage(ctx context.Context, id, content string) (*Message, error) {
 	if content == "" {

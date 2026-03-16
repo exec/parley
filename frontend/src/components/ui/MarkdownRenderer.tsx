@@ -13,7 +13,10 @@ interface Props {
   className?: string;
   /** userid → username map for rendering <@userid> mention tokens */
   memberMap?: Map<string, string>;
+  /** channelid → channel name map for rendering <#channelid> tokens */
+  channelMap?: Map<string, string>;
   onMiniProfile?: (userId: string, e: React.MouseEvent) => void;
+  onChannelClick?: (channelId: string) => void;
 }
 
 // Detects display text that looks like a URL or URL-fragment.
@@ -81,14 +84,16 @@ const INLINE_COMPONENTS: Partial<Components> = {
 
 const REMARK_PLUGINS = [remarkGfm];
 
-const MENTION_RE = /(<@[^>]+>|@everyone|@here)/;
+const MENTION_RE = /(<@[^>]+>|<#[^>]+>|@everyone|@here)/;
 
-/** Split content on mention tokens and render as inline elements + mention pills */
+/** Split content on mention/channel tokens and render as inline elements + pills */
 function renderWithMentions(
   content: string,
   memberMap: Map<string, string>,
   wrapClass: string,
+  channelMap?: Map<string, string>,
   onMiniProfile?: (userId: string, e: React.MouseEvent) => void,
+  onChannelClick?: (channelId: string) => void,
 ): React.ReactElement {
   const segments = content.split(MENTION_RE);
 
@@ -108,6 +113,21 @@ function renderWithMentions(
               onClick={onMiniProfile ? (e) => onMiniProfile(userMatch[1], e) : undefined}
             >
               @{username}
+            </span>
+          );
+        }
+        // Channel tag
+        const channelMatch = seg.match(/^<#([^>]+)>$/);
+        if (channelMatch) {
+          const channelName = channelMap?.get(channelMatch[1]) ?? 'unknown-channel';
+          return (
+            <span
+              key={i}
+              className="mention-pill mention-channel"
+              style={onChannelClick ? { cursor: 'pointer' } : undefined}
+              onClick={onChannelClick ? () => onChannelClick(channelMatch[1]) : undefined}
+            >
+              #{channelName}
             </span>
           );
         }
@@ -132,19 +152,14 @@ function renderWithMentions(
   );
 }
 
-const MarkdownRenderer: React.FC<Props> = ({ content, mode, className, memberMap, onMiniProfile }) => {
+const MarkdownRenderer: React.FC<Props> = ({ content, mode, className, memberMap, channelMap, onMiniProfile, onChannelClick }) => {
   const modeClass = mode === 'chat' ? 'md-chat' : 'md-bio';
   const wrapClass = `md ${modeClass}${className ? ` ${className}` : ''}`;
   const components = mode === 'chat' ? CHAT_COMPONENTS : BIO_COMPONENTS;
 
-  // If there are mention tokens in the content, split and render inline
-  if (memberMap && MENTION_RE.test(content)) {
-    return renderWithMentions(content, memberMap, wrapClass, onMiniProfile);
-  }
-
-  // Also render standalone @everyone / @here as pills even without a memberMap
-  if ((content.includes('@everyone') || content.includes('@here')) && MENTION_RE.test(content)) {
-    return renderWithMentions(content, memberMap ?? new Map(), wrapClass, onMiniProfile);
+  // If there are mention or channel tokens, split and render inline
+  if (MENTION_RE.test(content)) {
+    return renderWithMentions(content, memberMap ?? new Map(), wrapClass, channelMap, onMiniProfile, onChannelClick);
   }
 
   return (

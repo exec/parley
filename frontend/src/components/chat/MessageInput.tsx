@@ -3,10 +3,12 @@ import { uploadFile } from '../../api/upload';
 import { AudioPlayer } from './AudioPlayer';
 import { GifPicker } from './GifPicker';
 import { MentionDropdown } from './MentionDropdown';
+import { ChannelTagDropdown } from './ChannelTagDropdown';
 import { detectMention, useMentionSuggestions, insertMentionText, resolveMentions, MentionSuggestion } from '../../hooks/useMentionAutocomplete';
+import { detectChannelTag, useChannelSuggestions, insertChannelTag, resolveChannelTags } from '../../hooks/useChannelAutocomplete';
 import { detectEmojiTrigger, useEmojiSuggestions, insertEmoji, resolveEmojis, EmojiSuggestion } from '../../hooks/useEmojiAutocomplete';
 import { EmojiDropdown } from './EmojiDropdown';
-import { Message as MessageType, ServerMember } from '../../api/types';
+import { Channel, Message as MessageType, ServerMember } from '../../api/types';
 import { usePermissions } from '../../hooks/usePermissions';
 import { PERM_SEND_MESSAGES, PERM_ATTACH_FILES } from '../../lib/permissions';
 import './Chat.css';
@@ -19,6 +21,7 @@ interface MessageInputProps {
   placeholder?: string;
   initialValue?: string;
   members?: ServerMember[];
+  channels?: Channel[];
   replyTo?: MessageType | null;
   serverId?: string;
   channelId?: string;
@@ -62,6 +65,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   disabled = false,
   initialValue = '',
   members = [],
+  channels = [],
   replyTo,
   serverId,
   channelId,
@@ -80,11 +84,19 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const mentionMatch = useMemo(() => detectMention(message, cursorPos), [message, cursorPos]);
   const mentionSuggestions = useMentionSuggestions(mentionMatch, members);
 
-  // Emoji autocomplete state (mutually exclusive with mention dropdown)
+  // Channel tag autocomplete (mutually exclusive with mention dropdown)
+  const [channelSelIdx, setChannelSelIdx] = useState(0);
+  const channelMatch = useMemo(
+    () => mentionSuggestions.length === 0 ? detectChannelTag(message, cursorPos) : null,
+    [message, cursorPos, mentionSuggestions.length],
+  );
+  const channelSuggestions = useChannelSuggestions(channelMatch, channels);
+
+  // Emoji autocomplete state (mutually exclusive with mention and channel dropdowns)
   const [emojiSelIdx, setEmojiSelIdx] = useState(0);
   const emojiMatch = useMemo(
-    () => mentionSuggestions.length === 0 ? detectEmojiTrigger(message, cursorPos) : null,
-    [message, cursorPos, mentionSuggestions.length],
+    () => mentionSuggestions.length === 0 && channelSuggestions.length === 0 ? detectEmojiTrigger(message, cursorPos) : null,
+    [message, cursorPos, mentionSuggestions.length, channelSuggestions.length],
   );
   const emojiSuggestions = useEmojiSuggestions(emojiMatch);
 
@@ -146,7 +158,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   }, [emojiMatch, message]);
 
   const handleSend = useCallback(async () => {
-    const trimmedMessage = resolveEmojis(resolveMentions(message.trim(), members));
+    const trimmedMessage = resolveEmojis(resolveMentions(resolveChannelTags(message.trim(), channels), members));
     if (!trimmedMessage && !pendingFile && !voiceBlob) return;
 
     setIsUploading(true);
@@ -180,6 +192,23 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
   }, [message, pendingFile, voiceBlob, onSendMessage]);
 
+  const handleChannelSelect = useCallback((channel: import('../../api/types').Channel) => {
+    if (!channelMatch) return;
+    const { text: newText, cursor } = insertChannelTag(message, channelMatch, channel);
+    setMessage(newText);
+    setCursorPos(cursor);
+    setChannelSelIdx(0);
+    requestAnimationFrame(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.selectionStart = cursor;
+        textareaRef.current.selectionEnd = cursor;
+        textareaRef.current.style.height = 'auto';
+        textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
+      }
+    });
+  }, [channelMatch, message]);
+
   const handleMentionSelect = useCallback((suggestion: MentionSuggestion) => {
     if (!mentionMatch) return;
     const { text: newText, cursor } = insertMentionText(message, mentionMatch, suggestion);
@@ -207,6 +236,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         if (e.key === 'Tab' || e.key === 'Enter') { e.preventDefault(); handleMentionSelect(mentionSuggestions[mentionSelIdx]); return; }
         if (e.key === 'Escape') { setCursorPos(message.length); return; }
       }
+      // Channel tag dropdown navigation
+      if (channelSuggestions.length > 0) {
+        if (e.key === 'ArrowDown') { e.preventDefault(); setChannelSelIdx(i => (i + 1) % channelSuggestions.length); return; }
+        if (e.key === 'ArrowUp') { e.preventDefault(); setChannelSelIdx(i => (i - 1 + channelSuggestions.length) % channelSuggestions.length); return; }
+        if (e.key === 'Tab' || e.key === 'Enter') { e.preventDefault(); handleChannelSelect(channelSuggestions[channelSelIdx]); return; }
+        if (e.key === 'Escape') { setCursorPos(message.length); return; }
+      }
       // Emoji dropdown navigation
       if (emojiSuggestions.length > 0) {
         if (e.key === 'ArrowDown') { e.preventDefault(); setEmojiSelIdx(i => (i + 1) % emojiSuggestions.length); return; }
@@ -216,7 +252,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       }
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
     },
-    [handleSend, mentionSuggestions, mentionSelIdx, handleMentionSelect, emojiSuggestions, emojiSelIdx, handleEmojiSelect, message.length],
+    [handleSend, mentionSuggestions, mentionSelIdx, handleMentionSelect, channelSuggestions, channelSelIdx, handleChannelSelect, emojiSuggestions, emojiSelIdx, handleEmojiSelect, message.length],
   );
 
   const handleChange = useCallback(
@@ -224,6 +260,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       setMessage(e.target.value);
       setCursorPos(e.target.selectionStart ?? 0);
       setMentionSelIdx(0);
+      setChannelSelIdx(0);
       setEmojiSelIdx(0);
       const ta = e.target;
       ta.style.height = 'auto';
@@ -369,6 +406,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             suggestions={mentionSuggestions}
             selectedIdx={mentionSelIdx}
             onSelect={handleMentionSelect}
+          />
+        )}
+        {channelSuggestions.length > 0 && (
+          <ChannelTagDropdown
+            suggestions={channelSuggestions}
+            selectedIdx={channelSelIdx}
+            onSelect={handleChannelSelect}
           />
         )}
         {emojiSuggestions.length > 0 && (

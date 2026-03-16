@@ -141,3 +141,12 @@
 .mention-everyone:hover {
   background: rgba(250, 166, 26, 0.3);
 }
+
+.mention-channel {
+  background: rgba(88, 101, 242, 0.15);
+  color: #7289da;
+}
+.mention-channel:hover {
+  background: rgba(88, 101, 242, 0.3);
+  color: #fff;
+}

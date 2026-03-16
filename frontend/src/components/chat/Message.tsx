@@ -17,6 +17,7 @@ interface MessageProps {
   currentUserId?: string;
   isGrouped?: boolean;
   memberMap?: Map<string, string>;
+  channelMap?: Map<string, string>;
   messages?: MessageType[];
   onEdit?: (message: MessageType) => void;
   onDelete?: (messageId: string) => void;
@@ -126,6 +127,7 @@ export const Message: React.FC<MessageProps> = ({
   currentUserId,
   isGrouped = false,
   memberMap,
+  channelMap,
   messages,
   onEdit,
   onDelete,
@@ -367,7 +369,7 @@ export const Message: React.FC<MessageProps> = ({
           <>
             {getEmojiOnlyCount(message.content)
               ? <div className="message-text message-text--jumbo">{message.content}</div>
-              : <div className="message-text"><MarkdownRenderer content={message.content} mode="chat" memberMap={memberMap} onMiniProfile={onMiniProfile} /></div>
+              : <div className="message-text"><MarkdownRenderer content={message.content} mode="chat" memberMap={memberMap} channelMap={channelMap} onMiniProfile={onMiniProfile} /></div>
             }
             {message.attachment_url && (() => {
               const isVoice = message.attachment_name?.startsWith('voice_message_');

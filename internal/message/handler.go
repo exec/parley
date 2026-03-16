@@ -235,6 +235,49 @@ func (h *Handler) GetMessageVersions(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(versions)
 }
 
+// SearchMessages handles GET /servers/{serverID}/messages/search
+func (h *Handler) SearchMessages(w http.ResponseWriter, r *http.Request) {
+	serverID := chi.URLParam(r, "id")
+	if serverID == "" {
+		http.Error(w, "server ID is required", http.StatusBadRequest)
+		return
+	}
+	userID, _ := r.Context().Value("userID").(string)
+
+	q := r.URL.Query().Get("q")
+	fromUserID := r.URL.Query().Get("from")
+	inChannelID := r.URL.Query().Get("in")
+
+	limit := 25
+	if ls := r.URL.Query().Get("limit"); ls != "" {
+		if v, err := strconv.Atoi(ls); err == nil && v > 0 && v <= 50 {
+			limit = v
+		}
+	}
+	var beforeID int64
+	if bs := r.URL.Query().Get("before"); bs != "" {
+		if v, err := strconv.ParseInt(bs, 10, 64); err == nil && v > 0 {
+			beforeID = v
+		}
+	}
+
+	messages, err := h.service.SearchMessages(r.Context(), serverID, userID, q, fromUserID, inChannelID, limit, beforeID)
+	if err != nil {
+		if err.Error() == "forbidden" {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if messages == nil {
+		messages = []*Message{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(messages)
+}
+
 // ToggleReactionRequest is the body for POST /messages/:id/reactions
 type ToggleReactionRequest struct {
 	Emoji string `json:"emoji"`
