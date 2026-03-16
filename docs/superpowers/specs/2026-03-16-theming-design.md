@@ -41,6 +41,8 @@ For custom themes, a `<style id="custom-theme">` tag is injected into `<head>` c
 
 This sets the theme attribute and injects any custom CSS before the first paint, eliminating any flash of the default theme.
 
+**CSP compatibility:** The inline boot script requires either `'unsafe-inline'` or a per-request nonce in `script-src`. Since the app has no CSP header today and this script contains no secrets, the recommended approach is to include `'unsafe-inline'` in `script-src` when the CSP header is added. If a stricter policy is desired in the future, the script can be moved to a hashed inline script or served as a separate file from the same origin.
+
 ### ThemeContext
 
 A React context (`ThemeContext`) wraps the entire app. It holds:
@@ -131,6 +133,7 @@ CREATE TABLE user_preferences (
                              'neon-nights', 'abyss', 'sakura', 'custom'
                            )),
   active_custom_theme_id INT REFERENCES user_themes(id) ON DELETE SET NULL
+  -- INT is correct here: user_themes.id is SERIAL (4-byte integer), not BIGSERIAL
 );
 ```
 
@@ -252,7 +255,7 @@ A new "Appearance" tab is added to User Settings alongside the existing Account 
 
 **Custom Theme Editor (inline panel, not a modal):**
 - Name field (max 64 chars; server returns `400 {"error": "Name must be 64 characters or fewer"}` if exceeded)
-- Background image upload button (reuses `/api/upload`; images only; max 50MB per existing limit). When an image is uploaded, the returned CDN URL is stored in the `background_url` field of the theme and a `body { background-image: url(...); background-size: cover; background-repeat: tile; }` rule is automatically inserted or replaced at the top of the CSS textarea. The user may edit or remove this rule manually. `background_url` is **UI metadata only** — it lets the editor show the current image and a "Remove background" button without parsing the CSS. At theme activation time, only the `css` string is used; `background_url` is not applied separately by the application layer.
+- Background image upload button (reuses `/api/upload`; images only; max 50MB per existing limit). When an image is uploaded, the returned CDN URL is stored in the `background_url` field of the theme and a `body { background-image: url(...); background-size: cover; background-repeat: no-repeat; background-attachment: fixed; }` rule is automatically inserted or replaced at the top of the CSS textarea. The user may edit or remove this rule manually. `background_url` is **UI metadata only** — it lets the editor show the current image and a "Remove background" button without parsing the CSS. At theme activation time, only the `css` string is used; `background_url` is not applied separately by the application layer.
 - CSS textarea with placeholder example and a note: _"Google Fonts allowed via `@import url(...)`. All other external URLs are blocked."_
 - Live preview pane: a sandboxed `<iframe>` with `sandbox=""` (no flags). The iframe's `<style>` is updated in real time as the user types (debounced 300ms). The iframe is isolated from the host page — in-progress CSS does not affect the main app until Save. **Trade-off:** The empty `sandbox` attribute prevents `@import` from loading Google Fonts inside the preview (CORS is blocked for unique-origin sandboxed frames). The preview will show the correct layout and colors but not custom fonts. This is an accepted trade-off; the font will render correctly in the actual applied theme.
 - Save button: runs URL validation client-side first for fast feedback, then sends to server
@@ -279,6 +282,8 @@ Clicking any item applies the theme immediately and closes the popover.
 
 ### Shared Theme Route (`/theme/:token`)
 
+A new route `<Route path="/theme/:token" element={<SharedThemePage />} />` must be added to `App.tsx` **before** the existing catch-all `<Route path="*" ...>` entry, or it will be silently swallowed by the redirect-to-home fallback.
+
 A standalone route rendered outside the main authenticated app layout, accessible without login.
 
 **On load:**
@@ -294,7 +299,7 @@ A standalone route rendered outside the main authenticated app layout, accessibl
 - If logged in: call `POST /api/me/themes/install/:token`, then optionally `PUT /api/me/preferences/theme` to make it active. Show success confirmation.
 - If not logged in: redirect to `/login?redirect=/theme/:token`. After successful authentication, the login/register page reads the `?redirect=` query parameter and redirects to it. The theme route page re-applies the preview and re-opens the install modal on arrival.
 
-The login and register pages must be updated to read the `?redirect=` query parameter and redirect to it after successful auth. (The existing invite flow at `InvitePage.tsx` already uses `?redirect=` — align with this convention.)
+The login and register pages must be updated to read the `?redirect=` query parameter and redirect to it after successful auth. (The existing invite flow at `InvitePage.tsx` already uses `?redirect=` — align with this convention.) The redirect target must be validated as a same-origin relative path before following: accept only values that start with `/` and do not start with `//`, to prevent open-redirect attacks via crafted share links.
 
 ---
 
