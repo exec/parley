@@ -83,8 +83,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         display_name: u.display_name || undefined,
         bio: u.bio || undefined,
         email_verified: u.email_verified ?? undefined,
-        phone_number: u.phone_number || '',
-        phone_verified: u.phone_verified ?? undefined,
+        // phone_number and phone_verified are intentionally excluded from localStorage
+        // to avoid persisting sensitive data. They are fetched on-demand in settings.
       };
     } catch {
       return null;
@@ -441,7 +441,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const updateCurrentUser = useCallback((user: User) => {
     setCurrentUser(user);
-    localStorage.setItem('user', JSON.stringify(user));
+    // Omit phone fields from localStorage to avoid persisting sensitive contact info.
+    const { phone_number: _p, phone_verified: _pv, ...safeUser } = user;
+    localStorage.setItem('user', JSON.stringify(safeUser));
   }, []);
 
   const receiveMessageUpdate = useCallback((msg: Message) => {

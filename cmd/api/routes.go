@@ -32,6 +32,7 @@ func registerRoutes(
 	spacesClient *spaces.Client,
 	voiceSvc *voice.Service,
 	binService *bin.Service,
+	tickets *ticketStore,
 ) {
 	// Cap request bodies at 64 KB for all routes except /api/upload,
 	// which applies its own 50 MB limit inside the handler.
@@ -52,6 +53,8 @@ func registerRoutes(
 
 	// Rate limiter for auth endpoints: 10 attempts per IP per minute.
 	authLimiter := newRateLimiter(10, time.Minute)
+	// Rate limiter for invite code lookups: 30 per IP per minute.
+	inviteLimiter := newRateLimiter(30, time.Minute)
 
 	router.Route("/api", func(r chi.Router) {
 		// Auth routes (no auth required)
@@ -149,11 +152,13 @@ func registerRoutes(
 
 			// Invite routes
 			r.Post("/servers/{id}/invites", serverHandler.CreateInvite)
-			r.Get("/invites/{code}", serverHandler.GetInvite)
+			r.With(rateLimitMiddleware(inviteLimiter)).Get("/invites/{code}", serverHandler.GetInvite)
 			r.Put("/servers/{id}/vanity", serverHandler.SetVanityURL)
 
 			// Auth / user routes
 			r.Get("/auth/me", handleGetMe(repo))
+			r.Get("/auth/me/phone", handleGetMePhone(repo))
+			r.Post("/auth/ws-ticket", handleWsTicket(authService, tickets))
 			r.Post("/auth/impersonate-token", handleImpersonateToken(authService))
 			r.Put("/auth/profile", handleUpdateProfile(authService, repo, hub))
 			r.Put("/auth/email", handleChangeEmail(authService))
@@ -175,8 +180,8 @@ func registerRoutes(
 		})
 	})
 
-	// WebSocket endpoint — token via query param (browser WS can't set headers)
-	router.Get("/ws", handleWebSocket(hub, authService, repo))
+	// WebSocket endpoint — prefers short-lived ticket, falls back to JWT query param
+	router.Get("/ws", handleWebSocket(hub, authService, repo, tickets))
 }
 
 // bridgeUserIDMiddleware copies the userID from auth.UserIDKey to server.UserIDKey

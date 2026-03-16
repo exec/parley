@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { Message, DmMessage, Channel, Server, Role } from '../api/types';
+import { getWsTicket } from '../api/auth';
 
 interface WSMessage {
   type: string;
@@ -177,12 +178,23 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
     }));
   }, []);
 
-  const connect = useCallback(() => {
+  const connect = useCallback(async () => {
     const token = localStorage.getItem('token');
     if (!token) return;
 
+    // Exchange the long-lived JWT for a short-lived single-use ticket so the
+    // JWT never appears in nginx access logs. Falls back to the token param
+    // (e.g. during the deploy window before the backend is updated).
+    let wsParam: string;
+    try {
+      const ticket = await getWsTicket();
+      wsParam = `ticket=${encodeURIComponent(ticket)}`;
+    } catch {
+      wsParam = `token=${encodeURIComponent(token)}`;
+    }
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws?token=${encodeURIComponent(token)}`;
+    const wsUrl = `${protocol}//${window.location.host}/ws?${wsParam}`;
 
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;

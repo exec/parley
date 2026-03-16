@@ -34,8 +34,26 @@ func handleGetMe(repo *db.Repository) http.HandlerFunc {
 			DisplayName:   user.DisplayName,
 			Badges:        user.Badges,
 			EmailVerified: user.EmailVerified,
-			PhoneNumber:   user.PhoneNumber,
-			PhoneVerified: user.PhoneVerified,
+		})
+	}
+}
+
+// handleGetMePhone returns phone number and verification status for the authenticated user.
+// Fetched on-demand in settings so that phone number is never written to localStorage.
+func handleGetMePhone(repo *db.Repository) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userIDStr := auth.GetUserIDFromContext(r)
+		var id int64
+		fmt.Sscan(userIDStr, &id)
+		user, err := repo.GetUserByID(r.Context(), id)
+		if err != nil {
+			jsonError(w, "not found", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"phone_number":   user.PhoneNumber,
+			"phone_verified": user.PhoneVerified,
 		})
 	}
 }

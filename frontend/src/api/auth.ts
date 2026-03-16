@@ -84,3 +84,12 @@ export async function resendPhone(): Promise<{ message: string }> {
 export async function changePhone(phone: string, password: string): Promise<User> {
   return apiClient.put<User>('/auth/phone', { phone, password });
 }
+
+export async function getMyPhone(): Promise<{ phone_number: string; phone_verified: boolean }> {
+  return apiClient.get('/auth/me/phone');
+}
+
+export async function getWsTicket(): Promise<string> {
+  const data = await apiClient.post<{ ticket: string }>('/auth/ws-ticket', {});
+  return data.ticket;
+}

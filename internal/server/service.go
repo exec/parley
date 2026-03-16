@@ -125,7 +125,7 @@ func idToInt64(id string) (int64, error) {
 }
 
 func generateInviteCode() (string, error) {
-	b := make([]byte, 4)
+	b := make([]byte, 6)
 	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}

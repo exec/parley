@@ -13,38 +13,50 @@ import (
 	ws "parley/internal/websocket"
 )
 
-func handleWebSocket(hub *ws.Hub, authService *auth.AuthService, repo *db.Repository) http.HandlerFunc {
+func handleWebSocket(hub *ws.Hub, authService *auth.AuthService, repo *db.Repository, tickets *ticketStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Accept token from Authorization header OR query param (browser WS can't set headers)
-		tokenString := ""
-		authHeader := r.Header.Get("Authorization")
-		if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
-			tokenString = authHeader[7:]
+		var userID string
+
+		if ticketStr := r.URL.Query().Get("ticket"); ticketStr != "" {
+			// Preferred path: short-lived single-use ticket (JWT never hits the URL)
+			var ok bool
+			userID, ok = tickets.Consume(ticketStr)
+			if !ok {
+				http.Error(w, "invalid or expired ticket", http.StatusUnauthorized)
+				return
+			}
 		} else {
-			tokenString = r.URL.Query().Get("token")
-		}
+			// Legacy path: JWT in query param or Authorization header (kept for compatibility)
+			tokenString := ""
+			authHeader := r.Header.Get("Authorization")
+			if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+				tokenString = authHeader[7:]
+			} else {
+				tokenString = r.URL.Query().Get("token")
+			}
+			if tokenString == "" {
+				http.Error(w, "authorization required", http.StatusUnauthorized)
+				return
+			}
 
-		if tokenString == "" {
-			http.Error(w, "authorization required", http.StatusUnauthorized)
-			return
-		}
+			var iat int64
+			var err error
+			userID, iat, err = authService.ValidateTokenFull(tokenString)
+			if err != nil {
+				http.Error(w, "invalid or expired token", http.StatusUnauthorized)
+				return
+			}
 
-		userID, iat, err := authService.ValidateTokenFull(tokenString)
-		if err != nil {
-			http.Error(w, "invalid or expired token", http.StatusUnauthorized)
-			return
-		}
-
-		// Check whether the user has been force-logged out since this token was issued
-		forceLoggedOut, err := authService.IsForceLoggedOut(r.Context(), userID, iat)
-		if err != nil {
-			log.Printf("handleWebSocket: IsForceLoggedOut error for user %s: %v", userID, err)
-			http.Error(w, "authorization check failed", http.StatusInternalServerError)
-			return
-		}
-		if forceLoggedOut {
-			http.Error(w, "session has been invalidated", http.StatusUnauthorized)
-			return
+			forceLoggedOut, err := authService.IsForceLoggedOut(r.Context(), userID, iat)
+			if err != nil {
+				log.Printf("handleWebSocket: IsForceLoggedOut error for user %s: %v", userID, err)
+				http.Error(w, "authorization check failed", http.StatusInternalServerError)
+				return
+			}
+			if forceLoggedOut {
+				http.Error(w, "session has been invalidated", http.StatusUnauthorized)
+				return
+			}
 		}
 
 		// Resolve server-side display name so the client cannot spoof it

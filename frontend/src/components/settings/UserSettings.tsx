@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { X } from 'lucide-react';
 import { User } from '../../api/types';
-import { updateProfile, resendVerification, changeEmail, verifyPhone, resendPhone, changePhone } from '../../api/auth';
+import { updateProfile, resendVerification, changeEmail, verifyPhone, resendPhone, changePhone, getMyPhone } from '../../api/auth';
 import { uploadFile } from '../../api/upload';
 import { DeveloperTab } from './DeveloperTab';
 import { VoiceSettingsTab } from './VoiceSettings';
@@ -93,6 +93,10 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
     setPhoneResendMsg('');
     setUnsavedConfirm(false);
     setActiveTab('account');
+    // Fetch phone on-demand so it's never stored in localStorage
+    getMyPhone().then(d => {
+      onUpdate({ ...currentUser, phone_number: d.phone_number, phone_verified: d.phone_verified });
+    }).catch(() => {/* non-critical */});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
@@ -519,8 +523,6 @@ const AccountTab: React.FC<AccountTabProps> = (p) => {
                   try {
                     await verifyPhone(p.phoneVerifyCode);
                     p.onUpdate({ ...p.currentUser!, phone_verified: true });
-                    const stored = localStorage.getItem('user');
-                    if (stored) localStorage.setItem('user', JSON.stringify({ ...JSON.parse(stored), phone_verified: true }));
                     p.setPhoneVerifyCode('');
                   } catch (e: unknown) { p.setPhoneResendMsg((e as {message?:string})?.message || 'Invalid code'); }
                   finally { p.setPhoneVerifyLoading(false); }
@@ -556,8 +558,6 @@ const AccountTab: React.FC<AccountTabProps> = (p) => {
                   p.setPhoneChangeLoading(true); p.setPhoneChangeMsg(null);
                   try {
                     const updated = await changePhone(p.newPhone.trim().replace(/[\s\-()]/g, ''), p.phonePassword);
-                    const stored = localStorage.getItem('user');
-                    if (stored) localStorage.setItem('user', JSON.stringify({ ...JSON.parse(stored), phone_number: updated.phone_number, phone_verified: false }));
                     p.onUpdate(updated);
                     p.setPhoneChangeMsg({ text: 'Phone updated — enter the code we just sent to verify.', ok: true });
                     p.setNewPhone(''); p.setPhonePassword(''); p.setShowChangePhone(false);

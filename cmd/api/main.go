@@ -295,7 +295,8 @@ func setupRouter(
 	router.Use(corsMiddleware())
 
 	// Mount routes
-	registerRoutes(router, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService)
+	tickets := newTicketStore()
+	registerRoutes(router, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, tickets)
 
 	return router
 }
