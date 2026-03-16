@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { RemoteParticipant, LocalParticipant, Track } from 'livekit-client';
+import React, { useState, useMemo, useEffect } from 'react';
+import { RemoteParticipant, LocalParticipant, Track, TrackPublication } from 'livekit-client';
 import { LayoutGrid, Maximize2, Mic, MicOff, Headphones, HeadphoneOff, Video, VideoOff, Monitor, MonitorOff, PhoneOff, Volume2 } from 'lucide-react';
 import { Channel } from '../../api/types';
 import { VoiceParticipant } from '../../api/voice';
@@ -65,11 +65,17 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
   // Screen share tiles
   const screenShares = useMemo(() => {
     return allParticipants.filter(({ participant }) => {
-      return Array.from(participant.trackPublications.values() as Iterable<{ source: Track.Source; track: unknown; isMuted: boolean }>).some(
+      return Array.from(participant.trackPublications.values() as Iterable<TrackPublication>).some(
         pub => pub.source === Track.Source.ScreenShare && pub.track && !pub.isMuted
       );
     });
   }, [allParticipants]);
+
+  useEffect(() => {
+    if (pinnedIdentity && !allParticipants.some(({ participant }) => participant.identity === pinnedIdentity)) {
+      setPinnedIdentity(null);
+    }
+  }, [allParticipants, pinnedIdentity]);
 
   // In speaker view: find spotlight participant
   const spotlightIdentity = pinnedIdentity ?? (activeSpeakers.size > 0 ? Array.from(activeSpeakers)[0] : null);
@@ -210,10 +216,10 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
         <button className={`vc-ctrl ${deafened ? 'vc-ctrl--off' : ''}`} onClick={onToggleDeafen} title={deafened ? 'Undeafen' : 'Deafen'}>
           {deafened ? <HeadphoneOff size={18} color="#cc4444" /> : <Headphones size={18} color="#32CD32" />}
         </button>
-        <button className={`vc-ctrl ${videoEnabled ? '' : 'vc-ctrl--off'}`} onClick={onToggleVideo} title={videoEnabled ? 'Turn off camera' : 'Turn on camera'}>
+        <button className={`vc-ctrl ${videoEnabled ? '' : 'vc-ctrl--off'}`} onClick={() => onToggleVideo().catch(console.error)} title={videoEnabled ? 'Turn off camera' : 'Turn on camera'}>
           {videoEnabled ? <Video size={18} color="#32CD32" /> : <VideoOff size={18} color="#555" />}
         </button>
-        <button className={`vc-ctrl ${screenSharing ? '' : 'vc-ctrl--off'}`} onClick={onToggleScreenShare} title={screenSharing ? 'Stop sharing' : 'Share screen'}>
+        <button className={`vc-ctrl ${screenSharing ? '' : 'vc-ctrl--off'}`} onClick={() => onToggleScreenShare().catch(console.error)} title={screenSharing ? 'Stop sharing' : 'Share screen'}>
           {screenSharing ? <Monitor size={18} color="#32CD32" /> : <MonitorOff size={18} color="#555" />}
         </button>
         <button className="vc-ctrl vc-ctrl--leave" onClick={onLeave} title="Leave channel">
