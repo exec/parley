@@ -15,7 +15,7 @@ A complete theming system for Parley: 6 built-in themes, user-created custom the
 
 Themes are implemented as `[data-theme="id"] { }` CSS blocks defining custom properties. JavaScript sets `document.body.dataset.theme` to activate a theme. No stylesheet swaps, no flash.
 
-The existing `:root { }` variable block in `index.css` is converted to `[data-theme="terminal"] { }`. All other built-in themes are added as additional blocks in the same file.
+The existing `:root { }` variable block in `index.css` is converted to `[data-theme="rory"] { }`. All other built-in themes are added as additional blocks in the same file.
 
 For custom themes, a `<style id="custom-theme">` tag is injected into `<head>` containing the user's validated CSS. This tag is only present when a custom theme is active.
 
@@ -26,7 +26,7 @@ For custom themes, a `<style id="custom-theme">` tag is injected into `<head>` c
 ```html
 <script>
   (function(){
-    var t = localStorage.getItem('parley-theme') || 'terminal';
+    var t = localStorage.getItem('parley-theme') || 'rory';
     document.body.dataset.theme = t;
     var css = localStorage.getItem('parley-custom-css');
     if (css && t === 'custom') {
@@ -75,7 +75,7 @@ interface NewTheme {
 }
 ```
 
-On login, `ThemeContext` calls `GET /api/me/preferences`, applies the stored theme, and syncs `localStorage` (`parley-theme` for the theme ID, `parley-custom-css` for the active custom CSS). On logout it resets to `"terminal"` and clears `parley-custom-css`.
+On login, `ThemeContext` calls `GET /api/me/preferences`, applies the stored theme, and syncs `localStorage` (`parley-theme` for the theme ID, `parley-custom-css` for the active custom CSS). On logout it resets to `"rory"` and clears `parley-custom-css`.
 
 ---
 
@@ -85,7 +85,7 @@ Six built-in themes ship with the app:
 
 | ID | Name | Description |
 |----|------|-------------|
-| `terminal` | Terminal | Default. Pure black bg, lime green (#32CD32) text. Retro terminal aesthetic. |
+| `rory` | Rory | Default. Pure black bg, lime green (#32CD32) text. Retro terminal aesthetic. |
 | `citron-dark` | Citron Dark | Discord dark clone. #36393F bg, #2C2F33 sidebar, #7289DA blurple accent, white text. |
 | `citron-light` | Citron Light | Light theme. Off-white bg, light gray sidebars, #7289DA blurple accents, dark text. |
 | `neon-nights` | Neon Nights | Synthwave/cyberpunk. Deep purple bg, hot pink + cyan accents, subtle glow on active elements. |
@@ -127,9 +127,9 @@ CREATE TABLE user_themes (
 ```sql
 CREATE TABLE user_preferences (
   user_id                BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  active_theme           VARCHAR(32) NOT NULL DEFAULT 'terminal'
+  active_theme           VARCHAR(32) NOT NULL DEFAULT 'rory'
                            CHECK (active_theme IN (
-                             'terminal', 'citron-dark', 'citron-light',
+                             'rory', 'citron-dark', 'citron-light',
                              'neon-nights', 'abyss', 'sakura', 'custom'
                            )),
   active_custom_theme_id INT REFERENCES user_themes(id) ON DELETE SET NULL
@@ -139,9 +139,9 @@ CREATE TABLE user_preferences (
 
 `active_theme` is constrained to the 6 built-in IDs or `"custom"`. When `"custom"`, `active_custom_theme_id` identifies the active `user_themes` row.
 
-**Row creation:** A `user_preferences` row is inserted at user registration with the defaults (`active_theme = 'terminal'`, `active_custom_theme_id = NULL`). The `GET /api/me/preferences` endpoint does not need to handle a missing row.
+**Row creation:** A `user_preferences` row is inserted at user registration with the defaults (`active_theme = 'rory'`, `active_custom_theme_id = NULL`). The `GET /api/me/preferences` endpoint does not need to handle a missing row.
 
-**Theme deletion cascade:** When `DELETE /api/me/themes/:id` is called and the deleted theme is currently active (`active_custom_theme_id = id`), the handler must atomically update both `active_custom_theme_id = NULL` and `active_theme = 'terminal'` in the same transaction. The FK `ON DELETE SET NULL` handles `active_custom_theme_id` but does not reset `active_theme` — the application layer must do this explicitly.
+**Theme deletion cascade:** When `DELETE /api/me/themes/:id` is called and the deleted theme is currently active (`active_custom_theme_id = id`), the handler must atomically update both `active_custom_theme_id = NULL` and `active_theme = 'rory'` in the same transaction. The FK `ON DELETE SET NULL` handles `active_custom_theme_id` but does not reset `active_theme` — the application layer must do this explicitly.
 
 **Per-user theme limit:** A user may own at most 20 custom themes. Both the `POST /api/me/themes` (create) and `POST /api/me/themes/install/:token` (install) handlers must count existing rows for the user and return `400` with `{"error": "Theme limit reached (20 max)"}` if the limit is exceeded.
 
@@ -359,7 +359,7 @@ Every built-in theme must define this complete set of custom properties. Custom 
 }
 ```
 
-**Note on missing variables:** During implementation, the full set of variables actively referenced in component CSS files must be audited. `--discord-dark`, `--discord-hover`, and `--discord-gray` are referenced in `styles.css` and `Auth.css` but are not currently defined in `index.css`. They must be added to all 6 built-in theme blocks (not just Terminal) as part of this work.
+**Note on missing variables:** During implementation, the full set of variables actively referenced in component CSS files must be audited. `--discord-dark`, `--discord-hover`, and `--discord-gray` are referenced in `styles.css` and `Auth.css` but are not currently defined in `index.css`. They must be added to all 6 built-in theme blocks (not just Rory) as part of this work.
 
 **Note on `styles.css` `:root` conflict:** `frontend/src/components/ui/styles.css` contains its own `:root { }` block with hardcoded Discord dark color values (e.g., `--discord-bg: #313338`). Because `:root` has equal specificity to `[data-theme="..."]` when declared later in the cascade, these hardcoded values will override theme variables for any variable defined in both places. This `:root` block in `styles.css` must be removed entirely during implementation — its values must be folded into each built-in theme's `[data-theme]` block in `index.css`.
 
