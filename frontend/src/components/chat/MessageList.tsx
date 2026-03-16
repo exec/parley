@@ -14,6 +14,7 @@ interface MessageListProps {
   onReply?: (message: MessageType) => void;
   onViewProfile?: (userId: string, username: string) => void;
   onSendMessage?: (userId: string) => void;
+  onMiniProfile?: (userId: string, e: React.MouseEvent) => void;
   hasMore?: boolean;
   isLoading?: boolean;
   allMessages?: MessageType[];
@@ -32,6 +33,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   onReply,
   onViewProfile,
   onSendMessage,
+  onMiniProfile,
   hasMore = false,
   isLoading = false,
   allMessages,
@@ -181,6 +183,7 @@ export const MessageList: React.FC<MessageListProps> = ({
               onReply={onReply}
               onViewProfile={onViewProfile}
               onSendMessage={onSendMessage}
+              onMiniProfile={onMiniProfile}
               canManageMessages={canManageMessages}
               canAddReactions={canAddReactions}
             />

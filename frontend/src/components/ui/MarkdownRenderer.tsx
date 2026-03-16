@@ -13,6 +13,7 @@ interface Props {
   className?: string;
   /** userid → username map for rendering <@userid> mention tokens */
   memberMap?: Map<string, string>;
+  onMiniProfile?: (userId: string, e: React.MouseEvent) => void;
 }
 
 // Detects display text that looks like a URL or URL-fragment.
@@ -87,6 +88,7 @@ function renderWithMentions(
   content: string,
   memberMap: Map<string, string>,
   wrapClass: string,
+  onMiniProfile?: (userId: string, e: React.MouseEvent) => void,
 ): React.ReactElement {
   const segments = content.split(MENTION_RE);
 
@@ -98,7 +100,16 @@ function renderWithMentions(
         const userMatch = seg.match(/^<@([^>]+)>$/);
         if (userMatch) {
           const username = memberMap.get(userMatch[1]) ?? 'unknown';
-          return <span key={i} className="mention-pill mention-user">@{username}</span>;
+          return (
+            <span
+              key={i}
+              className="mention-pill mention-user"
+              style={onMiniProfile ? { cursor: 'pointer' } : undefined}
+              onClick={onMiniProfile ? (e) => onMiniProfile(userMatch[1], e) : undefined}
+            >
+              @{username}
+            </span>
+          );
         }
         // @everyone / @here
         if (seg === '@everyone' || seg === '@here') {
@@ -121,19 +132,19 @@ function renderWithMentions(
   );
 }
 
-const MarkdownRenderer: React.FC<Props> = ({ content, mode, className, memberMap }) => {
+const MarkdownRenderer: React.FC<Props> = ({ content, mode, className, memberMap, onMiniProfile }) => {
   const modeClass = mode === 'chat' ? 'md-chat' : 'md-bio';
   const wrapClass = `md ${modeClass}${className ? ` ${className}` : ''}`;
   const components = mode === 'chat' ? CHAT_COMPONENTS : BIO_COMPONENTS;
 
   // If there are mention tokens in the content, split and render inline
   if (memberMap && MENTION_RE.test(content)) {
-    return renderWithMentions(content, memberMap, wrapClass);
+    return renderWithMentions(content, memberMap, wrapClass, onMiniProfile);
   }
 
   // Also render standalone @everyone / @here as pills even without a memberMap
   if ((content.includes('@everyone') || content.includes('@here')) && MENTION_RE.test(content)) {
-    return renderWithMentions(content, memberMap ?? new Map(), wrapClass);
+    return renderWithMentions(content, memberMap ?? new Map(), wrapClass, onMiniProfile);
   }
 
   return (

@@ -24,6 +24,7 @@ interface MessageProps {
   onReply?: (message: MessageType) => void;
   onViewProfile?: (userId: string, username: string) => void;
   onSendMessage?: (userId: string) => void;
+  onMiniProfile?: (userId: string, e: React.MouseEvent) => void;
   canManageMessages?: boolean;
   canAddReactions?: boolean;
 }
@@ -132,6 +133,7 @@ export const Message: React.FC<MessageProps> = ({
   onReply,
   onViewProfile,
   onSendMessage,
+  onMiniProfile,
   canManageMessages = true,
   canAddReactions = true,
 }) => {
@@ -295,7 +297,7 @@ export const Message: React.FC<MessageProps> = ({
         <div className="message-avatar">
           <div
             className="message-avatar-clickable"
-            onClick={() => onViewProfile?.(message.author_id, message.author_username)}
+            onClick={(e) => onMiniProfile ? onMiniProfile(message.author_id, e) : onViewProfile?.(message.author_id, message.author_username)}
             onContextMenu={handleUsernameContextMenu}
             title="Left-click to view profile · Right-click for options"
           >
@@ -313,7 +315,7 @@ export const Message: React.FC<MessageProps> = ({
         <div className="message-header">
           <span
             className="message-author"
-            onClick={() => onViewProfile?.(message.author_id, message.author_username)}
+            onClick={(e) => onMiniProfile ? onMiniProfile(message.author_id, e) : onViewProfile?.(message.author_id, message.author_username)}
             onContextMenu={handleUsernameContextMenu}
             title="Left-click to view profile · Right-click for options"
           >
@@ -365,7 +367,7 @@ export const Message: React.FC<MessageProps> = ({
           <>
             {getEmojiOnlyCount(message.content)
               ? <div className="message-text message-text--jumbo">{message.content}</div>
-              : <div className="message-text"><MarkdownRenderer content={message.content} mode="chat" memberMap={memberMap} /></div>
+              : <div className="message-text"><MarkdownRenderer content={message.content} mode="chat" memberMap={memberMap} onMiniProfile={onMiniProfile} /></div>
             }
             {message.attachment_url && (() => {
               const isVoice = message.attachment_name?.startsWith('voice_message_');

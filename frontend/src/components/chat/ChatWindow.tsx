@@ -5,6 +5,7 @@ import { MessageInput } from './MessageInput';
 import { TypingIndicator } from './TypingIndicator';
 import { usePermissions } from '../../hooks/usePermissions';
 import { PERM_MANAGE_MESSAGES, PERM_ADD_REACTIONS } from '../../lib/permissions';
+import MiniProfile from '../layout/MiniProfile';
 import './Chat.css';
 
 interface TypingUser {
@@ -68,6 +69,21 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const { hasPerm: checkPerm } = usePermissions(channel.server_id || undefined, channel.id || undefined);
   const canManageMessages = !channel.server_id || checkPerm(PERM_MANAGE_MESSAGES);
   const canAddReactions = !channel.server_id || checkPerm(PERM_ADD_REACTIONS);
+
+  const [miniProfile, setMiniProfile] = useState<{
+    member: ServerMember;
+    position: { top: number; left: number };
+  } | null>(null);
+
+  const handleMiniProfile = useCallback((userId: string, e: React.MouseEvent) => {
+    const member = members?.find(m => m.user_id === userId);
+    if (!member) return;
+    const x = e.clientX;
+    const y = e.clientY;
+    const left = Math.min(x + 10, window.innerWidth - 290);
+    const top = Math.min(y, window.innerHeight - 330);
+    setMiniProfile({ member, position: { top, left } });
+  }, [members]);
 
   const replyValue = replyTo ? `@${replyTo.author_username} ` : '';
   const [editingTopic, setEditingTopic] = useState(false);
@@ -156,6 +172,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         onReply={onReply}
         onViewProfile={onViewProfile}
         onSendMessage={onSendMessageToUser}
+        onMiniProfile={handleMiniProfile}
         hasMore={hasMore}
         isLoading={isLoading}
         allMessages={messages}
@@ -173,6 +190,21 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         serverId={channel.server_id || undefined}
         channelId={channel.id || undefined}
       />
+      {miniProfile && (
+        <MiniProfile
+          member={miniProfile.member}
+          isCurrentUser={miniProfile.member.user_id === currentUserId}
+          isOnline={false}
+          position={miniProfile.position}
+          onClose={() => setMiniProfile(null)}
+          onSendMessage={(uid) => { onSendMessageToUser?.(uid); setMiniProfile(null); }}
+          onViewProfile={(uid) => {
+            onViewProfile?.(uid, miniProfile.member.username);
+            setMiniProfile(null);
+          }}
+          canManageRoles={false}
+        />
+      )}
     </div>
   );
 };
