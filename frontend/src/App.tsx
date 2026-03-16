@@ -9,6 +9,7 @@ import { AppProvider, useApp } from './context/AppContext';
 import { Landing } from './pages/Landing';
 import { useWebSocket, MemberRoleUpdate, UserUpdate, VoiceStateUpdate } from './hooks/useWebSocket';
 import { VoiceChannel } from './components/voice/VoiceChannel';
+import { VoiceControls } from './components/voice/VoiceControls';
 import { DmMessage, Message, BinChannelTag } from './api/types';
 import * as serversApi from './api/servers';
 import * as channelsApi from './api/channels';
@@ -139,8 +140,16 @@ function MainApp() {
     error: vcError,
     muted: vcMuted,
     deafened: vcDeafened,
+    videoEnabled: vcVideoEnabled,
+    screenSharing: vcScreenSharing,
+    activeSpeakers: vcActiveSpeakers,
+    participants: vcParticipants,
+    localParticipant: vcLocalParticipant,
+    settings: vcSettings,
     toggleMute: vcToggleMute,
     toggleDeafen: vcToggleDeafen,
+    toggleVideo: vcToggleVideo,
+    toggleScreenShare: vcToggleScreenShare,
     disconnect: vcDisconnect,
     retry: vcRetry,
   } = useVoiceConnection(activeVoiceChannel, handleVcLeave);
@@ -632,17 +641,24 @@ function MainApp() {
         <div className="vc-participants-panel">
           <VoiceChannel
             channel={vcChannel}
-            currentUserId={currentUser.id}
-            currentUsername={currentUser.username}
-            currentAvatarUrl={currentUser.avatar_url}
-            participants={voiceParticipants[activeVoiceChannel!] ?? []}
+            currentUser={{ id: currentUser.id, username: currentUser.username, avatar_url: currentUser.avatar_url }}
+            participants={vcParticipants}
+            localParticipant={vcLocalParticipant}
+            voiceParticipants={Object.fromEntries(
+              (voiceParticipants[activeVoiceChannel!] ?? []).map(p => [p.user_id, p])
+            )}
+            activeSpeakers={vcActiveSpeakers}
             connected={vcConnected}
             connecting={vcConnecting}
             error={vcError}
             muted={vcMuted}
             deafened={vcDeafened}
+            videoEnabled={vcVideoEnabled}
+            screenSharing={vcScreenSharing}
             onToggleMute={vcToggleMute}
             onToggleDeafen={vcToggleDeafen}
+            onToggleVideo={vcToggleVideo}
+            onToggleScreenShare={vcToggleScreenShare}
             onLeave={vcDisconnect}
             onRetry={vcRetry}
           />
@@ -791,9 +807,28 @@ function MainApp() {
           setShowServerSettings(true);
         }}
         onLeaveServer={(serverId) => leaveServer(serverId)}
+        voiceConnected={vcConnected}
       >
         {mainContent}
       </MainLayout>
+
+      {vcConnected && vcChannel && (
+        <VoiceControls
+          channelName={vcChannel.name}
+          muted={vcMuted}
+          deafened={vcDeafened}
+          videoEnabled={vcVideoEnabled}
+          screenSharing={vcScreenSharing}
+          vadMode={vcSettings.vadMode}
+          pttKey={vcSettings.pttKey}
+          onNavigate={() => { if (activeVoiceChannel) selectChannel(activeVoiceChannel); }}
+          onToggleMute={vcToggleMute}
+          onToggleDeafen={vcToggleDeafen}
+          onToggleVideo={() => vcToggleVideo().catch(console.error)}
+          onToggleScreenShare={() => vcToggleScreenShare().catch(console.error)}
+          onDisconnect={vcDisconnect}
+        />
+      )}
 
       <CreateServerModal
         isOpen={showCreateServer}

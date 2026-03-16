@@ -119,3 +119,7 @@
     display: none;
   }
 }
+
+.main-content--voice-connected {
+  padding-bottom: 96px;
+}
