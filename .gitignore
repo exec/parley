@@ -38,3 +38,4 @@ Thumbs.db
 frontend/.env
 .env
 **/.env.local
+.worktrees/
