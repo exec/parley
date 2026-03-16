@@ -1,0 +1,35 @@
+.appearance-tab { padding: 0 16px 24px; }
+.appearance-section-title {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .5px; color: var(--discord-text-muted); margin: 20px 0 8px;
+}
+.appearance-theme-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 8px; }
+.appearance-theme-swatch {
+  border: 2px solid transparent; border-radius: 8px; padding: 8px;
+  cursor: pointer; background: var(--discord-bg-secondary); transition: border-color .15s;
+}
+.appearance-theme-swatch:hover,.appearance-theme-swatch.active { border-color: var(--discord-accent); }
+.appearance-swatch-colors { display: flex; gap: 3px; margin-bottom: 6px; border-radius: 4px; overflow: hidden; height: 28px; }
+.appearance-swatch-colors span { flex: 1; }
+.appearance-swatch-name { font-size: 11px; font-weight: 600; color: var(--discord-text-normal); text-align: center; }
+.appearance-custom-list { display: flex; flex-direction: column; gap: 6px; }
+.appearance-custom-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; background: var(--discord-bg-secondary);
+  border-radius: 6px; border: 1px solid var(--discord-border);
+}
+.appearance-custom-item.active { border-color: var(--discord-accent); }
+.appearance-custom-name { font-size: 14px; color: var(--discord-text-normal); flex: 1; }
+.appearance-custom-actions { display: flex; gap: 6px; }
+.appearance-custom-actions button {
+  font-size: 12px; padding: 3px 8px; border-radius: 4px; border: none;
+  cursor: pointer; background: var(--discord-bg-hover); color: var(--discord-text-normal);
+}
+.appearance-custom-actions button:hover { background: var(--discord-accent); color: #fff; }
+.appearance-custom-actions button.danger:hover { background: var(--discord-danger); color: #fff; }
+.appearance-theme-counter { font-size: 11px; color: var(--discord-text-muted); text-align: right; margin-bottom: 8px; }
+.appearance-create-btn {
+  width: 100%; padding: 8px; background: var(--discord-accent); color: #fff;
+  border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 4px;
+}
+.appearance-create-btn:hover { background: var(--discord-accent-hover); }
