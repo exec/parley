@@ -7,13 +7,13 @@ import { VerifyEmail } from './pages/VerifyEmail';
 import { Impersonate } from './pages/Impersonate';
 import { AppProvider, useApp } from './context/AppContext';
 import { Landing } from './pages/Landing';
-import { useWebSocket, MemberRoleUpdate, UserUpdate, VoiceStateUpdate } from './hooks/useWebSocket';
+import { useWebSocket, MemberRoleUpdate, UserUpdate, VoiceStateUpdate, VoiceForceMuteEvent } from './hooks/useWebSocket';
 import { VoiceChannel } from './components/voice/VoiceChannel';
 
 import { DmMessage, Message, BinChannelTag } from './api/types';
 import * as serversApi from './api/servers';
 import * as channelsApi from './api/channels';
-import { getVoiceParticipants } from './api/voice';
+import { getVoiceParticipants, muteVoiceParticipant } from './api/voice';
 import { getTags } from './api/bin';
 import MainLayout from './components/layout/MainLayout';
 import ChannelList from './components/layout/ChannelList';
@@ -147,6 +147,7 @@ function MainApp() {
     localParticipant: vcLocalParticipant,
 
     toggleMute: vcToggleMute,
+    forceMute: vcForceMute,
     toggleDeafen: vcToggleDeafen,
     toggleVideo: vcToggleVideo,
     toggleScreenShare: vcToggleScreenShare,
@@ -186,6 +187,8 @@ function MainApp() {
   const canManageChannels = isServerOwner || (effectivePermissions & (1 | 8)) !== 0;
   const canKickMembers = isServerOwner || (effectivePermissions & (1 | 16)) !== 0;
   const canBanMembers = isServerOwner || (effectivePermissions & (1 | 32)) !== 0;
+  // PermMuteMembers = 1 << 34 — too large for bitwise int32, use BigInt comparison
+  const canMuteMembers = isServerOwner || (BigInt(effectivePermissions) & (BigInt(1) << BigInt(34))) !== BigInt(0);
 
   // Restore state from URL once servers are loaded
   useEffect(() => {
@@ -316,6 +319,10 @@ function MainApp() {
       });
     });
   }, [channels]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleVoiceForceMute = useCallback((_event: VoiceForceMuteEvent) => {
+    vcForceMute();
+  }, [vcForceMute]);
 
   const handleVoiceStateUpdate = useCallback((update: VoiceStateUpdate) => {
     setVoiceParticipants(prev => {
@@ -497,6 +504,7 @@ function MainApp() {
     onMemberRoleUpdate: handleMemberRoleUpdate,
     onUserUpdate: handleUserUpdate,
     onVoiceStateUpdate: handleVoiceStateUpdate,
+    onVoiceForceMute: handleVoiceForceMute,
     activeChannelId: activeChannel?.id ?? null,
     extraChannelIds,
   });
@@ -665,6 +673,8 @@ function MainApp() {
             onToggleScreenShare={vcToggleScreenShare}
             onLeave={vcDisconnect}
             onRetry={vcRetry}
+            canMuteMembers={canMuteMembers}
+            onMuteParticipant={async (userId) => { try { await muteVoiceParticipant(activeVoiceChannel!, userId); } catch(e) { console.error(e); } }}
           />
         </div>
         <div className="vc-chat-panel">

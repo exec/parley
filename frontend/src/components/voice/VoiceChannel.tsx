@@ -26,6 +26,8 @@ interface VoiceChannelProps {
   onToggleScreenShare: () => Promise<void>;
   onLeave: () => void;
   onRetry: () => void;
+  canMuteMembers?: boolean;
+  onMuteParticipant?: (userId: string) => void;
 }
 
 type ViewMode = 'grid' | 'speaker';
@@ -50,6 +52,8 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
   onToggleScreenShare,
   onLeave,
   onRetry,
+  canMuteMembers,
+  onMuteParticipant,
 }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [pinnedIdentity, setPinnedIdentity] = useState<string | null>(null);
@@ -147,14 +151,24 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
           {allParticipants.map(({ participant, isLocal }) => {
             const meta = isLocal ? localMeta : getMeta(participant.identity);
             return (
-              <ParticipantTile
-                key={participant.identity}
-                participant={participant}
-                isLocal={isLocal}
-                isSpeaking={isLocal ? false : activeSpeakers.has(participant.identity)}
-                displayName={meta.displayName}
-                avatarUrl={meta.avatarUrl}
-              />
+              <div key={participant.identity} style={{ position: 'relative' }}>
+                <ParticipantTile
+                  participant={participant}
+                  isLocal={isLocal}
+                  isSpeaking={isLocal ? false : activeSpeakers.has(participant.identity)}
+                  displayName={meta.displayName}
+                  avatarUrl={meta.avatarUrl}
+                />
+                {canMuteMembers && !isLocal && onMuteParticipant && (
+                  <button
+                    style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: 4, padding: '2px 4px', cursor: 'pointer' }}
+                    title="Force mute"
+                    onClick={() => onMuteParticipant(participant.identity)}
+                  >
+                    <MicOff size={14} color="#cc4444" />
+                  </button>
+                )}
+              </div>
             );
           })}
           {allParticipants.length === 0 && (
@@ -191,6 +205,7 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
                   <div
                     key={participant.identity}
                     className="vc-filmstrip-tile"
+                    style={{ position: 'relative' }}
                     onClick={() => setPinnedIdentity(participant.identity)}
                   >
                     <ParticipantTile
@@ -200,6 +215,15 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
                       displayName={meta.displayName}
                       avatarUrl={meta.avatarUrl}
                     />
+                    {canMuteMembers && !isLocal && onMuteParticipant && (
+                      <button
+                        style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: 4, padding: '2px 4px', cursor: 'pointer' }}
+                        title="Force mute"
+                        onClick={(e) => { e.stopPropagation(); onMuteParticipant(participant.identity); }}
+                      >
+                        <MicOff size={14} color="#cc4444" />
+                      </button>
+                    )}
                   </div>
                 );
               })}

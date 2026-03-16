@@ -8,6 +8,7 @@ import (
 
 	"parley/internal/auth"
 	"parley/internal/db"
+	"parley/internal/permissions"
 	ws "parley/internal/websocket"
 )
 
@@ -157,6 +158,60 @@ func (h *Handler) parseVoiceRequest(w http.ResponseWriter, r *http.Request) (use
 
 	serverVirtualChannelID = "server:" + strconv.FormatInt(ch.ServerID, 10)
 	return userIDStr, member.Username, member.AvatarURL, channelIDStr, serverVirtualChannelID, true
+}
+
+// MuteParticipant force-mutes a participant in a voice channel.
+// POST /channels/{channelId}/voice/participants/{targetUserId}/mute
+func (h *Handler) MuteParticipant(w http.ResponseWriter, r *http.Request) {
+	requesterIDStr := auth.GetUserIDFromContext(r)
+	requesterID, err := strconv.ParseInt(requesterIDStr, 10, 64)
+	if err != nil {
+		jsonErr(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	channelIDStr := r.PathValue("channelId")
+	channelID, err := strconv.ParseInt(channelIDStr, 10, 64)
+	if err != nil {
+		jsonErr(w, "invalid channel id", http.StatusBadRequest)
+		return
+	}
+
+	targetUserIDStr := r.PathValue("targetUserId")
+	if _, err := strconv.ParseInt(targetUserIDStr, 10, 64); err != nil {
+		jsonErr(w, "invalid target user id", http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+	ch, err := h.repo.GetChannelByID(ctx, channelID)
+	if err != nil {
+		jsonErr(w, "channel not found", http.StatusNotFound)
+		return
+	}
+
+	srv, err := h.repo.GetServerByID(ctx, ch.ServerID)
+	if err != nil {
+		jsonErr(w, "server not found", http.StatusNotFound)
+		return
+	}
+
+	ok, err := permissions.HasChannelPermission(ctx, h.repo, ch.ServerID, requesterID, srv.OwnerID, channelID, permissions.PermMuteMembers)
+	if err != nil || !ok {
+		jsonErr(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	payload, _ := json.Marshal(map[string]interface{}{
+		"channel_id": channelIDStr,
+		"muted":      true,
+	})
+	if err := h.hub.SendToUser(targetUserIDStr, ws.EventVoiceForceMute, payload); err != nil {
+		jsonErr(w, "failed to send mute event", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) broadcastVoiceState(serverVirtualChannelID, channelID, userID, username, avatarURL, action string) {

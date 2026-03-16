@@ -120,6 +120,7 @@ func registerRoutes(
 			r.Post("/channels/{channelId}/voice/join", voiceHandler.Join)
 			r.Post("/channels/{channelId}/voice/leave", voiceHandler.Leave)
 			r.Get("/channels/{channelId}/voice/participants", voiceHandler.Participants)
+			r.Post("/channels/{channelId}/voice/participants/{targetUserId}/mute", voiceHandler.MuteParticipant)
 
 			// DM routes
 			dmHandler := dm.NewHandler(repo, hub)

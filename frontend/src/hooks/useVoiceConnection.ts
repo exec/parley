@@ -57,6 +57,7 @@ export interface VoiceConnectionReturn {
   localParticipant: LocalParticipant | null;
   settings: VoiceSettings;
   toggleMute: () => void;
+  forceMute: () => void;
   toggleDeafen: () => void;
   toggleVideo: () => Promise<void>;
   toggleScreenShare: () => Promise<void>;
@@ -327,10 +328,31 @@ export function useVoiceConnection(
   const toggleMute = useCallback(() => {
     if (!audioTrackRef.current) return;
     const next = !muted;
-    if (next) audioTrackRef.current.mute(); else audioTrackRef.current.unmute();
+    if (next) {
+      audioTrackRef.current.mute();
+    } else {
+      // User explicitly unmuting — destroy VAD so it stops auto-muting
+      if (vadRef.current) {
+        vadRef.current.destroy();
+        vadRef.current = null;
+      }
+      audioTrackRef.current.unmute();
+    }
     setMuted(next);
     // DO NOT set speaking here — speaking is managed by VAD/PTT
   }, [muted]);
+
+  const forceMute = useCallback(() => {
+    if (!audioTrackRef.current) return;
+    // Destroy VAD so it doesn't interfere
+    if (vadRef.current) {
+      vadRef.current.destroy();
+      vadRef.current = null;
+    }
+    audioTrackRef.current.mute();
+    setMuted(true);
+    setSpeaking(false);
+  }, []);
 
   const toggleDeafen = useCallback(() => {
     const next = !deafened;
@@ -387,7 +409,7 @@ export function useVoiceConnection(
     muted, deafened, videoEnabled, screenSharing, speaking,
     activeSpeakers, participants, localParticipant,
     settings,
-    toggleMute, toggleDeafen, toggleVideo, toggleScreenShare,
+    toggleMute, forceMute, toggleDeafen, toggleVideo, toggleScreenShare,
     disconnect: doDisconnect,
     retry,
     updateSettings,

@@ -42,6 +42,7 @@ const (
 
 	// Voice events
 	EventVoiceStateUpdate = "VOICE_STATE_UPDATE"
+	EventVoiceForceMute   = "VOICE_FORCE_MUTE"
 
 	// Bin events
 	EventBinPostCreate        = "BIN_POST_CREATE"

@@ -26,3 +26,7 @@ export async function leaveVoiceChannel(channelId: string): Promise<void> {
 export async function getVoiceParticipants(channelId: string): Promise<VoiceParticipant[]> {
   return apiClient.get<VoiceParticipant[]>(`/channels/${channelId}/voice/participants`);
 }
+
+export async function muteVoiceParticipant(channelId: string, targetUserId: string): Promise<void> {
+  return apiClient.post<void>(`/channels/${channelId}/voice/participants/${targetUserId}/mute`, {});
+}
