@@ -226,7 +226,7 @@ const SortableChannelItem: React.FC<{
           <span className="channel-unread-badge">{unread > 99 ? '99+' : unread}</span>
         )}
         {canManageChannels && hoveredChannel === channel.id && !isRenaming && (
-          <button className="delete-channel-btn" onClick={e => { e.stopPropagation(); onDelete(); }} title="Delete">×</button>
+          <button className="delete-channel-btn" onClick={e => { e.stopPropagation(); onDelete(); }} title="Delete"><X size={14} /></button>
         )}
       </div>
     </div>
