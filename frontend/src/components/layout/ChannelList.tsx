@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Volume2, Mic, MicOff, Bell, BellOff, PhoneOff, Hash, Code2, X, Plus, Settings } from 'lucide-react';
+import { Volume2, Mic, MicOff, PhoneOff, Hash, Code2, X, Plus, Settings, Video, VideoOff, Monitor, MonitorOff, Headphones, HeadphoneOff } from 'lucide-react';
 import {
   DndContext,
   DragEndEvent,
@@ -321,8 +321,12 @@ interface ChannelListProps {
   vcConnected?: boolean;
   vcMuted?: boolean;
   vcDeafened?: boolean;
+  vcVideoEnabled?: boolean;
+  vcScreenSharing?: boolean;
   onVcMuteToggle?: () => void;
   onVcDeafenToggle?: () => void;
+  onVcVideoToggle?: () => void;
+  onVcScreenShareToggle?: () => void;
   onVcLeave?: () => void;
   onVcNavigate?: () => void;
 }
@@ -335,7 +339,8 @@ const ChannelList: React.FC<ChannelListProps> = ({
   owner_id, currentUser, onLogout, onOpenSettings, onVoiceChannelClick,
   voiceParticipants = {}, activeVoiceChannelId = null, channelUnreadCounts = {},
   canManageChannels = false, onRenameChannel, onMarkChannelRead, onReorderChannels, onChannelSettings,
-  vcConnected, vcMuted, vcDeafened, onVcMuteToggle, onVcDeafenToggle, onVcLeave, onVcNavigate,
+  vcConnected, vcMuted, vcDeafened, vcVideoEnabled, vcScreenSharing,
+  onVcMuteToggle, onVcDeafenToggle, onVcVideoToggle, onVcScreenShareToggle, onVcLeave, onVcNavigate,
 }) => {
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [hoveredChannel, setHoveredChannel] = useState<string | null>(null);
@@ -570,9 +575,11 @@ const ChannelList: React.FC<ChannelListProps> = ({
             return vcCh ? <div className="voice-bar-channel" onClick={onVcNavigate} title="Go to voice channel"><Volume2 size={12} color="currentColor" /> {vcCh.name}</div> : null;
           })()}
           <div className="voice-bar-controls">
-            <button className={`voice-bar-btn${vcMuted ? ' active' : ''}`} onClick={onVcMuteToggle} title={vcMuted ? 'Unmute' : 'Mute'}>{vcMuted ? <MicOff size={12} color="#cc4444" /> : <Mic size={12} color="#32CD32" />}</button>
-            <button className={`voice-bar-btn${vcDeafened ? ' active' : ''}`} onClick={onVcDeafenToggle} title={vcDeafened ? 'Undeafen' : 'Deafen'}>{vcDeafened ? <BellOff size={12} color="#cc4444" /> : <Bell size={12} color="#32CD32" />}</button>
-            <button className="voice-bar-btn leave" onClick={onVcLeave} title="Leave voice"><PhoneOff size={12} color="#cc4444" /> Leave</button>
+            <button className={`voice-bar-btn${vcMuted ? ' active' : ''}`} onClick={onVcMuteToggle} title={vcMuted ? 'Unmute' : 'Mute'}>{vcMuted ? <MicOff size={13} color="#cc4444" /> : <Mic size={13} color="#32CD32" />}</button>
+            <button className={`voice-bar-btn${vcDeafened ? ' active' : ''}`} onClick={onVcDeafenToggle} title={vcDeafened ? 'Undeafen' : 'Deafen'}>{vcDeafened ? <HeadphoneOff size={13} color="#cc4444" /> : <Headphones size={13} color="#32CD32" />}</button>
+            <button className={`voice-bar-btn${vcVideoEnabled ? '' : ' active'}`} onClick={onVcVideoToggle} title={vcVideoEnabled ? 'Camera off' : 'Camera on'}>{vcVideoEnabled ? <Video size={13} color="#32CD32" /> : <VideoOff size={13} color="#555" />}</button>
+            <button className={`voice-bar-btn${vcScreenSharing ? '' : ' active'}`} onClick={onVcScreenShareToggle} title={vcScreenSharing ? 'Stop sharing' : 'Share screen'}>{vcScreenSharing ? <Monitor size={13} color="#32CD32" /> : <MonitorOff size={13} color="#555" />}</button>
+            <button className="voice-bar-btn leave" onClick={onVcLeave} title="Leave voice"><PhoneOff size={13} color="#cc4444" /></button>
           </div>
         </div>
       )}

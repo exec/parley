@@ -9,7 +9,7 @@ import { AppProvider, useApp } from './context/AppContext';
 import { Landing } from './pages/Landing';
 import { useWebSocket, MemberRoleUpdate, UserUpdate, VoiceStateUpdate } from './hooks/useWebSocket';
 import { VoiceChannel } from './components/voice/VoiceChannel';
-import { VoiceControls } from './components/voice/VoiceControls';
+
 import { DmMessage, Message, BinChannelTag } from './api/types';
 import * as serversApi from './api/servers';
 import * as channelsApi from './api/channels';
@@ -145,7 +145,7 @@ function MainApp() {
     activeSpeakers: vcActiveSpeakers,
     participants: vcParticipants,
     localParticipant: vcLocalParticipant,
-    settings: vcSettings,
+
     toggleMute: vcToggleMute,
     toggleDeafen: vcToggleDeafen,
     toggleVideo: vcToggleVideo,
@@ -572,8 +572,12 @@ function MainApp() {
       vcConnected={vcConnected}
       vcMuted={vcMuted}
       vcDeafened={vcDeafened}
+      vcVideoEnabled={vcVideoEnabled}
+      vcScreenSharing={vcScreenSharing}
       onVcMuteToggle={vcToggleMute}
       onVcDeafenToggle={vcToggleDeafen}
+      onVcVideoToggle={() => vcToggleVideo().catch(console.error)}
+      onVcScreenShareToggle={() => vcToggleScreenShare().catch(console.error)}
       onVcLeave={vcDisconnect}
       onVcNavigate={() => { if (activeVoiceChannel) selectChannel(activeVoiceChannel); }}
       onReorderChannels={reorderChannels}
@@ -807,28 +811,10 @@ function MainApp() {
           setShowServerSettings(true);
         }}
         onLeaveServer={(serverId) => leaveServer(serverId)}
-        voiceConnected={vcConnected}
       >
         {mainContent}
       </MainLayout>
 
-      {vcConnected && vcChannel && (
-        <VoiceControls
-          channelName={vcChannel.name}
-          muted={vcMuted}
-          deafened={vcDeafened}
-          videoEnabled={vcVideoEnabled}
-          screenSharing={vcScreenSharing}
-          vadMode={vcSettings.vadMode}
-          pttKey={vcSettings.pttKey}
-          onNavigate={() => { if (activeVoiceChannel) selectChannel(activeVoiceChannel); }}
-          onToggleMute={vcToggleMute}
-          onToggleDeafen={vcToggleDeafen}
-          onToggleVideo={() => vcToggleVideo().catch(console.error)}
-          onToggleScreenShare={() => vcToggleScreenShare().catch(console.error)}
-          onDisconnect={vcDisconnect}
-        />
-      )}
 
       <CreateServerModal
         isOpen={showCreateServer}

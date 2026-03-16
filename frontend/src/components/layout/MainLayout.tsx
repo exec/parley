@@ -24,7 +24,6 @@ interface MainLayoutProps {
   onNotificationSettings?: (serverId: string) => void;
   onServerSettings?: (serverId: string) => void;
   onLeaveServer?: (serverId: string) => void;
-  voiceConnected?: boolean;
 }
 
 const MainLayout: React.FC<MainLayoutProps> = ({
@@ -42,7 +41,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({
   onNotificationSettings,
   onServerSettings,
   onLeaveServer,
-  voiceConnected,
 }) => {
   return (
     <div className="main-layout">
@@ -60,7 +58,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
         onLeaveServer={onLeaveServer}
       />
       {leftPanel}
-      <div className={`main-content${voiceConnected ? ' main-content--voice-connected' : ''}`}>
+      <div className="main-content">
         {children}
       </div>
       {rightPanel}
