@@ -1,5 +1,5 @@
-import React, { useRef, useEffect, useMemo } from 'react';
-import { Participant, Track } from 'livekit-client';
+import React, { useRef, useEffect, useMemo, useState } from 'react';
+import { Participant, Track, ParticipantEvent } from 'livekit-client';
 import { MicOff, Monitor } from 'lucide-react';
 import './ParticipantTile.css';
 
@@ -22,21 +22,41 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  // trackVersion bumps on any track state change to force memo recomputation
+  const [trackVersion, setTrackVersion] = useState(0);
+  useEffect(() => {
+    const bump = () => setTrackVersion(v => v + 1);
+    participant.on(ParticipantEvent.TrackMuted, bump);
+    participant.on(ParticipantEvent.TrackUnmuted, bump);
+    participant.on(ParticipantEvent.TrackSubscribed, bump);
+    participant.on(ParticipantEvent.TrackUnsubscribed, bump);
+    participant.on(ParticipantEvent.TrackPublished, bump);
+    participant.on(ParticipantEvent.TrackUnpublished, bump);
+    return () => {
+      participant.off(ParticipantEvent.TrackMuted, bump);
+      participant.off(ParticipantEvent.TrackUnmuted, bump);
+      participant.off(ParticipantEvent.TrackSubscribed, bump);
+      participant.off(ParticipantEvent.TrackUnsubscribed, bump);
+      participant.off(ParticipantEvent.TrackPublished, bump);
+      participant.off(ParticipantEvent.TrackUnpublished, bump);
+    };
+  }, [participant]);
+
   const videoPublication = useMemo(() => {
     const source = isScreenShare ? Track.Source.ScreenShare : Track.Source.Camera;
-    return Array.from(participant.trackPublications.values()).find(
-      p => p.source === source
-    );
+    return Array.from(participant.trackPublications.values()).find(p => p.source === source);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [participant, participant.trackPublications.size, isScreenShare]);
+  }, [participant, isScreenShare, trackVersion]);
 
   const hasVideo = !!(videoPublication?.track && !videoPublication.isMuted);
 
+  // Always mount <video> — toggle visibility so ref stays stable and effect can always attach
   useEffect(() => {
-    if (!videoRef.current || !videoPublication?.track) return;
-    videoPublication.track.attach(videoRef.current);
+    const el = videoRef.current;
+    if (!el || !videoPublication?.track) return;
+    videoPublication.track.attach(el);
     return () => {
-      videoPublication.track?.detach(videoRef.current!);
+      videoPublication.track?.detach(el);
     };
   }, [videoPublication?.track]);
 
@@ -45,24 +65,25 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
       p => p.source === Track.Source.Microphone
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [participant, participant.trackPublications.size]);
+  }, [participant, trackVersion]);
 
   const isMuted = micPublication ? micPublication.isMuted : true;
-  const name = displayName ?? participant.name ?? participant.identity;
-  const initial = name.charAt(0).toUpperCase();
+  const name = displayName ?? participant.name ?? participant.identity ?? '?';
+  const initial = name.charAt(0).toUpperCase() || '?';
 
   return (
     <div className={`participant-tile ${isSpeaking ? 'participant-tile--speaking' : ''} ${isScreenShare ? 'participant-tile--screen' : ''}`}>
       <div className="participant-tile-media">
-        {hasVideo ? (
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted={isLocal}
-            className="participant-tile-video"
-          />
-        ) : (
+        {/* Video always mounted; hidden when no video so ref is stable for attach/detach */}
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className="participant-tile-video"
+          style={{ display: hasVideo ? 'block' : 'none' }}
+        />
+        {!hasVideo && (
           <div className="participant-tile-avatar">
             {isScreenShare ? (
               <Monitor size={40} color="#32CD32" />
