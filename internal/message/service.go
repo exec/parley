@@ -26,14 +26,16 @@ type Message struct {
 	ID                 string     `json:"id"`
 	ChannelID          string     `json:"channel_id"`
 	AuthorID           string     `json:"author_id"`
-	AuthorUsername     string     `json:"author_username"`
-	AuthorDisplayName  string     `json:"author_display_name,omitempty"`
-	AuthorAvatarURL    string     `json:"author_avatar_url,omitempty"`
-	AuthorIsBot        bool       `json:"author_is_bot,omitempty"`
-	ViaApi             bool       `json:"via_api,omitempty"`
-	Content         string     `json:"content"`
-	Nonce           string     `json:"nonce,omitempty"`
-	ParentID        *int64     `json:"parent_id,omitempty"`
+	AuthorUsername          string     `json:"author_username"`
+	AuthorDisplayName       string     `json:"author_display_name,omitempty"`
+	AuthorAvatarURL         string     `json:"author_avatar_url,omitempty"`
+	AuthorIsBot             bool       `json:"author_is_bot,omitempty"`
+	ViaApi                  bool       `json:"via_api,omitempty"`
+	Content                 string     `json:"content"`
+	Nonce                   string     `json:"nonce,omitempty"`
+	ParentID                *int64     `json:"parent_id,omitempty"`
+	ParentAuthorUsername    string     `json:"parent_author_username,omitempty"`
+	ParentAuthorDisplayName string     `json:"parent_author_display_name,omitempty"`
 	AttachmentURL   string     `json:"attachment_url,omitempty"`
 	AttachmentName  string     `json:"attachment_name,omitempty"`
 	AttachmentType  string     `json:"attachment_type,omitempty"`
@@ -136,24 +138,35 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 		log.Printf("SendMessage: failed to fetch user info for author %d: %v", authorIDInt, err)
 	}
 
+	// Look up parent author info if this is a reply
+	var parentAuthorUsername, parentAuthorDisplayName string
+	if dbMsg.ParentID != nil {
+		s.repo.DB().QueryRowContext(ctx, // nolint: errcheck
+			"SELECT COALESCE(u.username, ''), COALESCE(u.display_name, '') FROM messages pm JOIN users u ON u.id = pm.author_id WHERE pm.id = $1",
+			*dbMsg.ParentID,
+		).Scan(&parentAuthorUsername, &parentAuthorDisplayName)
+	}
+
 	msg := &Message{
-		ID:                strconv.FormatInt(dbMsg.ID, 10),
-		ChannelID:         channelID,
-		AuthorID:          authorID,
-		AuthorUsername:    authorUsername,
-		AuthorDisplayName: authorDisplayName,
-		AuthorAvatarURL:   authorAvatarURL,
-		AuthorIsBot:       authorIsBot,
-		ViaApi:          viaAPI,
-		Content:         content,
-		Nonce:           dbMsg.Nonce,
-		ParentID:        dbMsg.ParentID,
-		AttachmentURL:   dbMsg.AttachmentURL,
-		AttachmentName:  dbMsg.AttachmentName,
-		AttachmentType:  dbMsg.AttachmentType,
-		CreatedAt:       dbMsg.CreatedAt,
-		UpdatedAt:       dbMsg.UpdatedAt,
-		Reactions:       []Reaction{},
+		ID:                      strconv.FormatInt(dbMsg.ID, 10),
+		ChannelID:               channelID,
+		AuthorID:                authorID,
+		AuthorUsername:          authorUsername,
+		AuthorDisplayName:       authorDisplayName,
+		AuthorAvatarURL:         authorAvatarURL,
+		AuthorIsBot:             authorIsBot,
+		ViaApi:                  viaAPI,
+		Content:                 content,
+		Nonce:                   dbMsg.Nonce,
+		ParentID:                dbMsg.ParentID,
+		ParentAuthorUsername:    parentAuthorUsername,
+		ParentAuthorDisplayName: parentAuthorDisplayName,
+		AttachmentURL:           dbMsg.AttachmentURL,
+		AttachmentName:          dbMsg.AttachmentName,
+		AttachmentType:          dbMsg.AttachmentType,
+		CreatedAt:               dbMsg.CreatedAt,
+		UpdatedAt:               dbMsg.UpdatedAt,
+		Reactions:               []Reaction{},
 	}
 
 	// Broadcast the message if a broadcaster is set
@@ -270,23 +283,25 @@ func (s *MessageService) GetChannelMessages(ctx context.Context, channelID, user
 			}
 		}
 		messages = append(messages, &Message{
-			ID:                strconv.FormatInt(dbMsg.ID, 10),
-			ChannelID:         channelID,
-			AuthorID:          strconv.FormatInt(dbMsg.AuthorID, 10),
-			AuthorUsername:    dbMsg.AuthorUsername,
-			AuthorDisplayName: dbMsg.AuthorDisplayName,
-			AuthorAvatarURL:   dbMsg.AuthorAvatarURL,
-			AuthorIsBot:       dbMsg.AuthorIsBot,
-			ViaApi:            dbMsg.ViaApi,
-			Content:           dbMsg.Content,
-			Nonce:             dbMsg.Nonce,
-			ParentID:          dbMsg.ParentID,
-			AttachmentURL:   dbMsg.AttachmentURL,
-			AttachmentName:  dbMsg.AttachmentName,
-			AttachmentType:  dbMsg.AttachmentType,
-			CreatedAt:       dbMsg.CreatedAt,
-			UpdatedAt:       dbMsg.UpdatedAt,
-			Reactions:       reactions,
+			ID:                      strconv.FormatInt(dbMsg.ID, 10),
+			ChannelID:               channelID,
+			AuthorID:                strconv.FormatInt(dbMsg.AuthorID, 10),
+			AuthorUsername:          dbMsg.AuthorUsername,
+			AuthorDisplayName:       dbMsg.AuthorDisplayName,
+			AuthorAvatarURL:         dbMsg.AuthorAvatarURL,
+			AuthorIsBot:             dbMsg.AuthorIsBot,
+			ViaApi:                  dbMsg.ViaApi,
+			Content:                 dbMsg.Content,
+			Nonce:                   dbMsg.Nonce,
+			ParentID:                dbMsg.ParentID,
+			ParentAuthorUsername:    dbMsg.ParentAuthorUsername,
+			ParentAuthorDisplayName: dbMsg.ParentAuthorDisplayName,
+			AttachmentURL:           dbMsg.AttachmentURL,
+			AttachmentName:          dbMsg.AttachmentName,
+			AttachmentType:          dbMsg.AttachmentType,
+			CreatedAt:               dbMsg.CreatedAt,
+			UpdatedAt:               dbMsg.UpdatedAt,
+			Reactions:               reactions,
 		})
 	}
 
@@ -348,22 +363,24 @@ func (s *MessageService) SearchMessages(ctx context.Context, serverID, userID, q
 			}
 		}
 		messages = append(messages, &Message{
-			ID:                strconv.FormatInt(dbMsg.ID, 10),
-			ChannelID:         strconv.FormatInt(dbMsg.ChannelID, 10),
-			AuthorID:          strconv.FormatInt(dbMsg.AuthorID, 10),
-			AuthorUsername:    dbMsg.AuthorUsername,
-			AuthorDisplayName: dbMsg.AuthorDisplayName,
-			AuthorAvatarURL:   dbMsg.AuthorAvatarURL,
-			AuthorIsBot:       dbMsg.AuthorIsBot,
-			Content:           dbMsg.Content,
-			Nonce:             dbMsg.Nonce,
-			ParentID:          dbMsg.ParentID,
-			AttachmentURL:     dbMsg.AttachmentURL,
-			AttachmentName:    dbMsg.AttachmentName,
-			AttachmentType:    dbMsg.AttachmentType,
-			CreatedAt:         dbMsg.CreatedAt,
-			UpdatedAt:         dbMsg.UpdatedAt,
-			Reactions:         reactions,
+			ID:                      strconv.FormatInt(dbMsg.ID, 10),
+			ChannelID:               strconv.FormatInt(dbMsg.ChannelID, 10),
+			AuthorID:                strconv.FormatInt(dbMsg.AuthorID, 10),
+			AuthorUsername:          dbMsg.AuthorUsername,
+			AuthorDisplayName:       dbMsg.AuthorDisplayName,
+			AuthorAvatarURL:         dbMsg.AuthorAvatarURL,
+			AuthorIsBot:             dbMsg.AuthorIsBot,
+			Content:                 dbMsg.Content,
+			Nonce:                   dbMsg.Nonce,
+			ParentID:                dbMsg.ParentID,
+			ParentAuthorUsername:    dbMsg.ParentAuthorUsername,
+			ParentAuthorDisplayName: dbMsg.ParentAuthorDisplayName,
+			AttachmentURL:           dbMsg.AttachmentURL,
+			AttachmentName:          dbMsg.AttachmentName,
+			AttachmentType:          dbMsg.AttachmentType,
+			CreatedAt:               dbMsg.CreatedAt,
+			UpdatedAt:               dbMsg.UpdatedAt,
+			Reactions:               reactions,
 		})
 	}
 

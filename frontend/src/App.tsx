@@ -432,9 +432,9 @@ function MainApp() {
     }
   }, [receiveDmMessage, activeDmChannel?.id, notify]);
 
-  // userid → username map for rendering mention tokens in messages
+  // userid → display name map for rendering mention tokens in messages
   const memberMap = useMemo(
-    () => new Map(members.map(m => [m.user_id, m.username])),
+    () => new Map(members.map(m => [m.user_id, m.display_name || m.username])),
     [members],
   );
 

@@ -103,9 +103,12 @@ func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, li
 			SELECT * FROM (
 				SELECT m.id, m.channel_id, m.author_id, m.content, COALESCE(m.nonce, ''), m.created_at, m.updated_at,
 				       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
-				       u.username, COALESCE(u.avatar_url, ''), u.is_bot, COALESCE(u.display_name, ''), m.parent_id
+				       u.username, COALESCE(u.avatar_url, ''), u.is_bot, COALESCE(u.display_name, ''), m.parent_id,
+				       COALESCE(pu.username, ''), COALESCE(pu.display_name, '')
 				FROM messages m
 				JOIN users u ON u.id = m.author_id
+				LEFT JOIN messages pm ON pm.id = m.parent_id
+				LEFT JOIN users pu ON pu.id = pm.author_id
 				WHERE m.channel_id = $1 AND m.id < $3
 				ORDER BY m.id DESC
 				LIMIT $2
@@ -118,9 +121,12 @@ func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, li
 			SELECT * FROM (
 				SELECT m.id, m.channel_id, m.author_id, m.content, COALESCE(m.nonce, ''), m.created_at, m.updated_at,
 				       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
-				       u.username, COALESCE(u.avatar_url, ''), u.is_bot, COALESCE(u.display_name, ''), m.parent_id
+				       u.username, COALESCE(u.avatar_url, ''), u.is_bot, COALESCE(u.display_name, ''), m.parent_id,
+				       COALESCE(pu.username, ''), COALESCE(pu.display_name, '')
 				FROM messages m
 				JOIN users u ON u.id = m.author_id
+				LEFT JOIN messages pm ON pm.id = m.parent_id
+				LEFT JOIN users pu ON pu.id = pm.author_id
 				WHERE m.channel_id = $1
 				ORDER BY m.id DESC
 				LIMIT $2
@@ -153,6 +159,8 @@ func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, li
 			&message.AuthorIsBot,
 			&message.AuthorDisplayName,
 			&message.ParentID,
+			&message.ParentAuthorUsername,
+			&message.ParentAuthorDisplayName,
 		)
 		if err != nil {
 			return nil, err

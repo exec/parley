@@ -272,7 +272,7 @@ export const Message: React.FC<MessageProps> = ({
   const wasEdited = message.updated_at !== message.created_at;
 
   const parentAuthor = message.parent_id && messages
-    ? getParentAuthor(message.parent_id, messages)
+    ? getParentAuthor(message, messages)
     : null;
 
   return (
@@ -281,7 +281,7 @@ export const Message: React.FC<MessageProps> = ({
       <div className="reply-indicator">
         <span><Reply size={12} color="currentColor" /> replying to</span>
         <span className="reply-indicator-name">
-          @{parentAuthor ?? message.parent_id}
+          @{parentAuthor ?? 'unknown'}
         </span>
       </div>
     )}

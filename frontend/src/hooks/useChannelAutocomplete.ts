@@ -41,7 +41,7 @@ export function insertChannelTag(
   match: ChannelTagMatch,
   channel: Channel,
 ): { text: string; cursor: number } {
-  const inserted = `<#${channel.id}> `;
+  const inserted = `#${channel.name} `;
   return {
     text: text.slice(0, match.start) + inserted + text.slice(match.end),
     cursor: match.start + inserted.length,

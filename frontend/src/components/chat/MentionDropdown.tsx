@@ -38,9 +38,9 @@ export const MentionDropdown: React.FC<Props> = ({ suggestions, selectedIdx, onS
             <div className="mention-option-avatar">
               {m.avatar_url
                 ? <img src={m.avatar_url} alt={m.username} />
-                : m.username.charAt(0).toUpperCase()}
+                : (m.display_name || m.username).charAt(0).toUpperCase()}
             </div>
-            <span className="mention-option-name">{m.username}</span>
+            <span className="mention-option-name">{m.display_name || m.username}</span>
           </div>
         );
       })}

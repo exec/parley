@@ -86,6 +86,8 @@ export interface Message {
   attachment_name?: string;
   attachment_type?: string;
   parent_id?: string;
+  parent_author_username?: string;
+  parent_author_display_name?: string;
 }
 
 export interface AuthResponse {

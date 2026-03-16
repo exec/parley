@@ -30,11 +30,15 @@ export function buildReplyTree(messages: Message[]): MessageTreeNode[] {
 }
 
 /**
- * Finds the display name or username of the author of the parent message.
- * Returns null if the parent is not found in the messages list.
+ * Returns the display name of the author of a reply's parent message.
+ * Prefers parent_author_display_name/username embedded on the message itself
+ * (always populated by the API), then falls back to searching the messages list
+ * for messages loaded in the current window.
  */
-export function getParentAuthor(parentId: string, messages: Message[]): string | null {
-  const parent = messages.find((m) => m.id === parentId);
+export function getParentAuthor(msg: Message, messages: Message[]): string | null {
+  if (msg.parent_author_display_name) return msg.parent_author_display_name;
+  if (msg.parent_author_username) return msg.parent_author_username;
+  const parent = messages.find((m) => m.id === msg.parent_id);
   if (!parent) return null;
   return parent.author_display_name || parent.author_username;
 }

@@ -130,11 +130,13 @@ type Message struct {
 	AttachmentType  string    `json:"attachment_type,omitempty" db:"attachment_type"`
 	CreatedAt       time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at" db:"updated_at"`
-	AuthorUsername     string    `json:"author_username" db:"-"`
-	AuthorDisplayName  string    `json:"author_display_name" db:"-"`
-	AuthorAvatarURL    string    `json:"author_avatar_url,omitempty" db:"-"`
-	AuthorIsBot        bool      `json:"author_is_bot,omitempty"`
-	ViaApi          bool      `json:"via_api,omitempty"`
+	AuthorUsername          string    `json:"author_username" db:"-"`
+	AuthorDisplayName       string    `json:"author_display_name" db:"-"`
+	AuthorAvatarURL         string    `json:"author_avatar_url,omitempty" db:"-"`
+	AuthorIsBot             bool      `json:"author_is_bot,omitempty"`
+	ViaApi                  bool      `json:"via_api,omitempty"`
+	ParentAuthorUsername    string    `json:"parent_author_username,omitempty" db:"-"`
+	ParentAuthorDisplayName string    `json:"parent_author_display_name,omitempty" db:"-"`
 }
 
 // DmChannel represents a direct message channel between two users
