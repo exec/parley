@@ -35,6 +35,7 @@ interface Channel {
 interface User {
   id: string;
   username: string;
+  display_name?: string;
   avatar?: string;
   avatar_url?: string;
 }
@@ -614,7 +615,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
             }
           </div>
           <div className="user-details">
-            <div className="username">{currentUser?.username || 'User'}</div>
+            <div className="username">{currentUser?.display_name || currentUser?.username || 'User'}</div>
             <div className="user-status">Online</div>
           </div>
           <div className="cl-settings-icon" title="User settings">

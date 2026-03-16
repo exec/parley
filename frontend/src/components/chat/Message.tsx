@@ -489,7 +489,7 @@ export const Message: React.FC<MessageProps> = ({
           style={{ top: userContextMenu.y, left: userContextMenu.x }}
           onClick={e => e.stopPropagation()}
         >
-          <div className="context-menu-username">{message.author_username}</div>
+          <div className="context-menu-username">{message.author_display_name || message.author_username}</div>
           <div className="context-menu-divider" />
           <button className="context-menu-item" onClick={handleViewProfile}>View Profile</button>
           {message.author_id !== currentUserId && (

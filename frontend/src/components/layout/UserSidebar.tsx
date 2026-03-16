@@ -14,6 +14,7 @@ interface ServerMember {
   id: string;
   user_id: string;
   username: string;
+  display_name?: string;
   nickname?: string;
   avatar_url?: string;
   banner_url?: string;
@@ -55,7 +56,7 @@ const UserContextMenu: React.FC<UserContextMenuProps> = ({
 
   return (
     <div ref={ref} className="user-context-menu" style={{ top: position.top, left }}>
-      <div className="user-context-menu-header">{member.username}</div>
+      <div className="user-context-menu-header">{member.display_name || member.username}</div>
       <div className="user-context-menu-divider" />
       {!isCurrentUser && (
         <button className="user-context-menu-item" onClick={() => { onSendMessage?.(member.user_id); onClose(); }}>
@@ -132,7 +133,7 @@ function buildGroups(members: ServerMember[], ownerId?: string, onlineIds?: Set<
     group.sort((a, b) => {
       if (a.user_id === ownerId) return -1;
       if (b.user_id === ownerId) return 1;
-      return (a.nickname || a.username).localeCompare(b.nickname || b.username);
+      return (a.display_name || a.nickname || a.username).localeCompare(b.display_name || b.nickname || b.username);
     });
     groups.push({ label: role.name, color: role.color, members: group });
     group.forEach(m => placed.add(m.user_id));
@@ -144,7 +145,7 @@ function buildGroups(members: ServerMember[], ownerId?: string, onlineIds?: Set<
     ungroupedOnline.sort((a, b) => {
       if (a.user_id === ownerId) return -1;
       if (b.user_id === ownerId) return 1;
-      return (a.nickname || a.username).localeCompare(b.nickname || b.username);
+      return (a.display_name || a.nickname || a.username).localeCompare(b.display_name || b.nickname || b.username);
     });
     groups.push({ label: `Online — ${ungroupedOnline.length}`, color: null, members: ungroupedOnline });
   }
@@ -225,7 +226,7 @@ const UserSidebar: React.FC<UserSidebarProps> = ({
         </div>
         <div className="member-info">
           <div className="member-name">
-            {member.nickname || member.username}
+            {member.display_name || member.nickname || member.username}
             {isOwner && (
               <span className="owner-hat" title="Server Owner" aria-label="Server Owner">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'inline-block', verticalAlign: 'middle', marginLeft: '4px' }}>
@@ -242,7 +243,7 @@ const UserSidebar: React.FC<UserSidebarProps> = ({
               </span>
             )}
           </div>
-          {member.nickname && <div className="member-nickname-text">{member.username}</div>}
+          {(member.display_name || member.nickname) && <div className="member-nickname-text">{member.username}</div>}
         </div>
       </div>
     );

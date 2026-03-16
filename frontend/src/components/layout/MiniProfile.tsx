@@ -13,6 +13,7 @@ interface MiniProfileMember {
   id: string;
   user_id: string;
   username: string;
+  display_name?: string;
   nickname?: string;
   avatar_url?: string;
   banner_url?: string;
@@ -69,8 +70,8 @@ const MiniProfile: React.FC<MiniProfileProps> = ({
   const left = Math.max(8, Math.min(position.left, vpW - popupW - 8));
   const top  = Math.max(8, Math.min(position.top,  vpH - popupH - 8));
 
-  const displayName = member.nickname || member.username;
-  const subName = member.nickname ? member.username : null;
+  const displayName = member.display_name || member.nickname || member.username;
+  const subName = (member.display_name || member.nickname) ? member.username : null;
   const showAddRole = canManageRoles && !isCurrentUser;
 
   return (
