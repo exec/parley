@@ -214,6 +214,77 @@ func (h *Handler) MuteParticipant(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// KickParticipant force-disconnects a participant from a voice channel.
+// POST /channels/{channelId}/voice/participants/{targetUserId}/kick
+func (h *Handler) KickParticipant(w http.ResponseWriter, r *http.Request) {
+	requesterIDStr := auth.GetUserIDFromContext(r)
+	requesterID, err := strconv.ParseInt(requesterIDStr, 10, 64)
+	if err != nil {
+		jsonErr(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	channelIDStr := r.PathValue("channelId")
+	channelID, err := strconv.ParseInt(channelIDStr, 10, 64)
+	if err != nil {
+		jsonErr(w, "invalid channel id", http.StatusBadRequest)
+		return
+	}
+
+	targetUserIDStr := r.PathValue("targetUserId")
+	targetUserID, err := strconv.ParseInt(targetUserIDStr, 10, 64)
+	if err != nil {
+		jsonErr(w, "invalid target user id", http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+	ch, err := h.repo.GetChannelByID(ctx, channelID)
+	if err != nil {
+		jsonErr(w, "channel not found", http.StatusNotFound)
+		return
+	}
+
+	srv, err := h.repo.GetServerByID(ctx, ch.ServerID)
+	if err != nil {
+		jsonErr(w, "server not found", http.StatusNotFound)
+		return
+	}
+
+	ok, err := permissions.HasChannelPermission(ctx, h.repo, ch.ServerID, requesterID, srv.OwnerID, channelID, permissions.PermKickMembers)
+	if err != nil || !ok {
+		jsonErr(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	// Look up target member for the broadcast payload
+	targetMember, err := h.repo.GetMember(ctx, ch.ServerID, targetUserID)
+	if err != nil || targetMember == nil {
+		jsonErr(w, "target member not found", http.StatusNotFound)
+		return
+	}
+
+	serverVirtualChannelID := "server:" + strconv.FormatInt(ch.ServerID, 10)
+
+	// Remove from DB and broadcast leave state
+	if err := h.svc.Leave(ctx, channelIDStr, targetUserIDStr); err != nil {
+		jsonErr(w, "failed to remove participant", http.StatusInternalServerError)
+		return
+	}
+	h.broadcastVoiceState(serverVirtualChannelID, channelIDStr, targetUserIDStr, targetMember.Username, targetMember.AvatarURL, "leave")
+
+	// Send disconnect event to the target user
+	payload, _ := json.Marshal(map[string]interface{}{
+		"channel_id": channelIDStr,
+	})
+	if err := h.hub.SendToUser(targetUserIDStr, ws.EventVoiceForceDisconnect, payload); err != nil {
+		// Non-fatal: user may have already left; state is already cleaned up
+		_ = err
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *Handler) broadcastVoiceState(serverVirtualChannelID, channelID, userID, username, avatarURL, action string) {
 	payload, _ := json.Marshal(map[string]string{
 		"channel_id": channelID,
