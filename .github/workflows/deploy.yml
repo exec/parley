@@ -10,9 +10,25 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-      DEPLOY_HOSTS: ${{ secrets.DEPLOY_HOSTS }}
+      DO_TOKEN: ${{ secrets.DO_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Resolve API server IPs from DigitalOcean tags
+        run: |
+          HOSTS=$(curl -sf \
+            -H "Authorization: Bearer $DO_TOKEN" \
+            "https://api.digitalocean.com/v2/droplets?tag_name=api&per_page=50" \
+            | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+for d in data['droplets']:
+    if 'parley' in d['tags']:
+        for n in d['networks']['v4']:
+            if n['type'] == 'public':
+                print(n['ip_address'])
+")
+          echo "DEPLOY_HOSTS=$HOSTS" >> "$GITHUB_ENV"
 
       - name: Set up SSH
         run: |
