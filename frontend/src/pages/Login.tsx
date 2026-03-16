@@ -2,6 +2,7 @@ import React, { useState, FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { loginWithPasskey } from '../api/passkeys';
+import { apiClient } from '../api/client';
 import './Auth.css';
 
 interface LoginFormData {
@@ -73,6 +74,7 @@ export const Login: React.FC = () => {
 
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
+      apiClient.setToken(data.token);
 
       navigate('/');
     } catch (err) {
@@ -91,6 +93,7 @@ export const Login: React.FC = () => {
       const data = await loginWithPasskey();
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
+      apiClient.setToken(data.token);
       navigate('/');
     } catch (err) {
       setErrors({
