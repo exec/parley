@@ -164,10 +164,10 @@ func (r *Repository) InstallTheme(ctx context.Context, token string, userID int6
 	}
 	t := &UserTheme{}
 	return t, r.db.QueryRowContext(ctx,
-		`INSERT INTO user_themes (user_id,name,css,base_theme,background_url)
-		 VALUES ($1,$2,$3,$4,$5)
+		`INSERT INTO user_themes (user_id,name,css,base_theme,background_url,share_token)
+		 VALUES ($1,$2,$3,$4,$5,$6)
 		 RETURNING id,user_id,name,css,base_theme,background_url,share_token,is_published,is_featured,created_at`,
-		userID, src.Name, src.CSS, src.BaseTheme, src.BackgroundURL,
+		userID, src.Name, src.CSS, src.BaseTheme, src.BackgroundURL, src.ShareToken,
 	).Scan(&t.ID, &t.UserID, &t.Name, &t.CSS, &t.BaseTheme, &t.BackgroundURL, &t.ShareToken, &t.IsPublished, &t.IsFeatured, &t.CreatedAt)
 }
 

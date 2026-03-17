@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getThemeRepo, installTheme, featureTheme, RepoTheme } from '../api/themes';
+import { getThemeRepo, installTheme, featureTheme, RepoTheme, UserTheme } from '../api/themes';
 import { apiClient } from '../api/client';
+import { useTheme } from '../context/ThemeContext';
 import './ThemeRepoPage.css';
 
 // Helper: extract a CSS variable value from a CSS string
@@ -13,14 +14,14 @@ function extractCSSVar(css: string, varName: string): string {
 
 const SWATCH_VARS = ['--parley-bg', '--parley-bg-secondary', '--parley-accent', '--parley-sidebar', '--parley-text'];
 
-function ThemeCard({ theme, isAdmin, onFeatureToggle, onInstalled, installed }: {
+function ThemeCard({ theme, isAdmin, onFeatureToggle, existingTheme }: {
   theme: RepoTheme;
   isAdmin: boolean;
   onFeatureToggle: (id: number, featured: boolean) => void;
-  onInstalled: (id: number) => void;
-  installed: boolean;
+  existingTheme: UserTheme | undefined;
 }) {
   const navigate = useNavigate();
+  const themeCtx = useTheme();
   const [installing, setInstalling] = useState(false);
   const [installError, setInstallError] = useState('');
   const [featuring, setFeaturing] = useState(false);
@@ -32,12 +33,18 @@ function ThemeCard({ theme, isAdmin, onFeatureToggle, onInstalled, installed }: 
       navigate('/login');
       return;
     }
+    // Already installed — just apply it
+    if (existingTheme) {
+      await themeCtx.setCustom(existingTheme.id, existingTheme);
+      navigate('/');
+      return;
+    }
     if (!theme.share_token) return;
     setInstalling(true);
     setInstallError('');
     try {
-      await installTheme(theme.share_token);
-      onInstalled(theme.id);
+      const installed = await installTheme(theme.share_token);
+      themeCtx.setCustom(installed.id, installed);
     } catch {
       setInstallError('Install failed');
     } finally {
@@ -77,9 +84,9 @@ function ThemeCard({ theme, isAdmin, onFeatureToggle, onInstalled, installed }: 
           </div>
         )}
         <div className="theme-card-actions">
-          {installed ? (
-            <button className="theme-card-install-btn installed" disabled>
-              Installed!
+          {existingTheme ? (
+            <button className="theme-card-install-btn" onClick={handleInstall}>
+              Apply (already installed)
             </button>
           ) : (
             <button
@@ -108,6 +115,7 @@ function ThemeCard({ theme, isAdmin, onFeatureToggle, onInstalled, installed }: 
 
 export const ThemeRepoPage: React.FC = () => {
   const navigate = useNavigate();
+  const { customThemes } = useTheme();
   const [themes, setThemes] = useState<RepoTheme[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -115,8 +123,12 @@ export const ThemeRepoPage: React.FC = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
-  const [installedIds, setInstalledIds] = useState<Set<number>>(new Set());
   const LIMIT = 24;
+
+  // Build a map of share_token → UserTheme for already-installed themes
+  const installedByToken = new Map(
+    customThemes.filter(t => t.share_token).map(t => [t.share_token!, t])
+  );
 
   // Check admin status
   useEffect(() => {
@@ -147,10 +159,6 @@ export const ThemeRepoPage: React.FC = () => {
 
   const handleFeatureToggle = (id: number, featured: boolean) => {
     setThemes(prev => prev.map(t => t.id === id ? { ...t, is_featured: featured } : t));
-  };
-
-  const handleInstalled = (id: number) => {
-    setInstalledIds(prev => new Set(prev).add(id));
   };
 
   const handleLoadMore = () => {
@@ -197,8 +205,7 @@ export const ThemeRepoPage: React.FC = () => {
                       theme={theme}
                       isAdmin={isAdmin}
                       onFeatureToggle={handleFeatureToggle}
-                      onInstalled={handleInstalled}
-                      installed={installedIds.has(theme.id)}
+                      existingTheme={installedByToken.get(theme.share_token ?? '')}
                     />
                   ))}
                 </div>
@@ -214,8 +221,7 @@ export const ThemeRepoPage: React.FC = () => {
                     theme={theme}
                     isAdmin={isAdmin}
                     onFeatureToggle={handleFeatureToggle}
-                    onInstalled={handleInstalled}
-                    installed={installedIds.has(theme.id)}
+                    existingTheme={installedByToken.get(theme.share_token ?? '')}
                   />
                 ))}
               </div>
