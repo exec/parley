@@ -24,6 +24,7 @@ function extractThemeTokens(content: string): string[] {
 }
 
 function stripThemeURLs(content: string): string {
+  THEME_URL_RE.lastIndex = 0;
   return content.replace(THEME_URL_RE, '').trim();
 }
 
