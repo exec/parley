@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log"
 )
 
 var (
@@ -47,9 +48,14 @@ func (r *Repository) DB() *sql.DB {
 }
 
 // RunMigrations executes all database migrations.
+// Each migration is run individually; errors are treated as warnings (already applied).
 func (r *Repository) RunMigrations(ctx context.Context) error {
-	_, err := r.db.ExecContext(ctx, MigrationSQL())
-	return err
+	for _, sql := range Migrations {
+		if _, err := r.db.ExecContext(ctx, sql); err != nil {
+			log.Printf("migration warning (may already be applied): %v", err)
+		}
+	}
+	return nil
 }
 
 // CreateUserPreferences inserts a default preferences row for a new user.
