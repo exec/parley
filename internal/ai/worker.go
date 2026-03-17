@@ -73,6 +73,7 @@ Non-prefixed aliases used by some components (mirror the --parley-* values):
 You may use Google Fonts via @import at the top: @import url('https://fonts.googleapis.com/css2?family=...');
 No other external URLs are permitted.
 If you use a Google Font, also set font-family on [data-theme].
+Do NOT use display or decorative fonts that render in all-caps (e.g. Bebas Neue, Russo One, Anton). Only use fonts that have proper mixed-case rendering.
 
 Output ONLY raw CSS. No markdown code fences. No explanation. No comments.
 Start immediately with [data-theme] { (or a Google Fonts @import followed by [data-theme] {) and end with }.`
