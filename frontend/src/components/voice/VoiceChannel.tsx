@@ -32,6 +32,7 @@ interface VoiceChannelProps {
   canKickFromVoice?: boolean;
   vcChatOpen?: boolean;
   onToggleVcChat?: () => void;
+  onParticipantClick?: (userId: string, e: React.MouseEvent) => void;
 }
 
 type ViewMode = 'grid' | 'speaker';
@@ -61,6 +62,7 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
   canKickFromVoice,
   vcChatOpen,
   onToggleVcChat,
+  onParticipantClick,
 }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [pinnedIdentity, setPinnedIdentity] = useState<string | null>(null);
@@ -190,6 +192,7 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
                     e.stopPropagation();
                     setContextMenu({ participantId: participant.identity, x: e.clientX, y: e.clientY });
                   } : undefined}
+                  onClick={!isLocal ? (e) => onParticipantClick?.(participant.identity, e) : undefined}
                 />
                 {canMuteMembers && !isLocal && onMuteParticipant && (
                   <button

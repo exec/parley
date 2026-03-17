@@ -16,7 +16,7 @@ import { BotInvitePage } from './pages/BotInvitePage';
 import { useWebSocket, MemberRoleUpdate, UserUpdate, VoiceStateUpdate, VoiceForceMuteEvent, RoleUpdateEvent, RoleDeleteEvent, BotStatusUpdate } from './hooks/useWebSocket';
 import { VoiceChannel } from './components/voice/VoiceChannel';
 
-import { DmMessage, Message, BinChannelTag } from './api/types';
+import { DmMessage, Message, BinChannelTag, ServerMember } from './api/types';
 import * as serversApi from './api/servers';
 import * as channelsApi from './api/channels';
 import { getVoiceParticipants, muteVoiceParticipant } from './api/voice';
@@ -25,6 +25,7 @@ import MainLayout from './components/layout/MainLayout';
 import ChannelList from './components/layout/ChannelList';
 import DmPanel from './components/layout/DmPanel';
 import UserSidebar from './components/layout/UserSidebar';
+import MiniProfile from './components/layout/MiniProfile';
 import { ChatWindow } from './components/chat/ChatWindow';
 import { BinChannel } from './components/bin/BinChannel';
 import { PostView } from './components/bin/PostView';
@@ -107,6 +108,7 @@ function MainApp() {
   const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
+  const [vcMiniProfile, setVcMiniProfile] = useState<{ member: ServerMember; position: { top: number; left: number } } | null>(null);
   const [showServerSettings, setShowServerSettings] = useState(false);
   const [serverSettingsInitialTab, setServerSettingsInitialTab] = useState<'overview' | 'roles' | 'danger'>('overview');
   const [showUserSettings, setShowUserSettings] = useState(false);
@@ -579,6 +581,14 @@ function MainApp() {
     setShowProfile(true);
   };
 
+  const handleVcParticipantClick = (userId: string, clientX: number, clientY: number) => {
+    const member = members.find(m => m.user_id === userId);
+    if (!member) return;
+    const left = Math.min(clientX + 10, window.innerWidth - 295);
+    const top = Math.min(clientY, window.innerHeight - 330);
+    setVcMiniProfile({ member, position: { top, left } });
+  };
+
   const handleGoHome = () => {
     selectServer('__none__');
   };
@@ -643,6 +653,7 @@ function MainApp() {
       onVcLeave={vcDisconnect}
       onVcNavigate={() => { if (activeVoiceChannel) selectChannel(activeVoiceChannel); }}
       onReorderChannels={reorderChannels}
+      onVcParticipantClick={handleVcParticipantClick}
     />
   ) : (
     <DmPanel
@@ -769,6 +780,7 @@ function MainApp() {
         onMuteParticipant={async (userId) => { try { await muteVoiceParticipant(activeVoiceChannel!, userId); } catch(e) { console.error(e); } }}
         vcChatOpen={vcChatOpen}
         onToggleVcChat={() => setVcChatOpen(v => !v)}
+        onParticipantClick={(userId, e) => handleVcParticipantClick(userId, e.clientX, e.clientY)}
       />
     );
   } else if (view === 'homepage') {
@@ -959,6 +971,17 @@ function MainApp() {
         onStartDm={openDmChannel}
         isOnline={profileUserId ? onlineUsers.has(profileUserId) : undefined}
       />
+      {vcMiniProfile && (
+        <MiniProfile
+          member={vcMiniProfile.member}
+          isCurrentUser={vcMiniProfile.member.user_id === currentUser?.id}
+          isOnline={onlineUsers.has(vcMiniProfile.member.user_id)}
+          position={vcMiniProfile.position}
+          onClose={() => setVcMiniProfile(null)}
+          onSendMessage={openDmChannel}
+          onViewProfile={(userId) => { setVcMiniProfile(null); handleViewProfile(userId); }}
+        />
+      )}
       <AssignRolesModal
         isOpen={showAssignRoles}
         onClose={() => setShowAssignRoles(false)}

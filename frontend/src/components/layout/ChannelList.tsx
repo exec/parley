@@ -158,12 +158,13 @@ const SortableChannelItem: React.FC<{
   canMuteMembers?: boolean;
   canKickFromVoice?: boolean;
   onParticipantContextMenu?: (channelId: string, participantId: string, x: number, y: number) => void;
+  onParticipantClick?: (userId: string, clientX: number, clientY: number) => void;
 }> = ({
   channel, isActive, unread, isRenaming, renameValue, renameInputRef,
   hoveredChannel, canManageChannels, activeVoiceChannelId, voiceParticipants,
   onSelect, onContextMenu, onMouseEnter, onMouseLeave, onDelete, onVoiceClick,
   onRenameChange, onRenameBlur, onRenameKeyDown, isDragging,
-  canMuteMembers, canKickFromVoice, onParticipantContextMenu,
+  canMuteMembers, canKickFromVoice, onParticipantContextMenu, onParticipantClick,
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging: sortableDragging } = useSortable({ id: channel.id, disabled: !canManageChannels });
   const style = {
@@ -197,6 +198,8 @@ const SortableChannelItem: React.FC<{
               <div
                 key={p.user_id}
                 className="voice-participant-row"
+                style={{ cursor: 'pointer' }}
+                onClick={(e) => { e.stopPropagation(); onParticipantClick?.(p.user_id, e.clientX, e.clientY); }}
                 onContextMenu={(canMuteMembers || canKickFromVoice) ? (e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -336,6 +339,7 @@ interface ChannelListProps {
   onChannelSettings?: (channelId: string) => void;
   canMuteMembers?: boolean;
   canKickFromVoice?: boolean;
+  onVcParticipantClick?: (userId: string, clientX: number, clientY: number) => void;
   isOpen?: boolean;
   vcConnected?: boolean;
   vcMuted?: boolean;
@@ -358,7 +362,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
   owner_id, currentUser, onLogout, onOpenSettings, onVoiceChannelClick,
   voiceParticipants = {}, activeVoiceChannelId = null, channelUnreadCounts = {},
   canManageChannels = false, onRenameChannel, onMarkChannelRead, onReorderChannels, onChannelSettings,
-  canMuteMembers, canKickFromVoice,
+  canMuteMembers, canKickFromVoice, onVcParticipantClick,
   isOpen = true,
   vcConnected, vcMuted, vcDeafened, vcVideoEnabled, vcScreenSharing,
   onVcMuteToggle, onVcDeafenToggle, onVcVideoToggle, onVcScreenShareToggle, onVcLeave, onVcNavigate,
@@ -479,6 +483,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
       canMuteMembers={canMuteMembers}
       canKickFromVoice={canKickFromVoice}
       onParticipantContextMenu={(channelId, participantId, x, y) => setVcParticipantMenu({ channelId, participantId, x, y })}
+      onParticipantClick={onVcParticipantClick}
     />
   );
 
