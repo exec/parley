@@ -71,3 +71,12 @@ func (c *Client) Upload(ctx context.Context, key string, r io.Reader, size int64
 
 	return fmt.Sprintf("%s/%s", c.cdnURL, key), nil
 }
+
+// Delete removes an object from the bucket by key.
+func (c *Client) Delete(ctx context.Context, key string) error {
+	_, err := c.s3.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: aws.String(c.bucket),
+		Key:    aws.String(key),
+	})
+	return err
+}

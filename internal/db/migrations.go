@@ -579,6 +579,17 @@ CREATE INDEX IF NOT EXISTS idx_user_themes_source_token ON user_themes(user_id, 
 	`-- Track cumulative upload bytes per user for storage quota enforcement
 ALTER TABLE users ADD COLUMN IF NOT EXISTS upload_bytes_used BIGINT NOT NULL DEFAULT 0;
 `,
+
+	`-- Track individual uploads per user for rolling eviction when quota is hit
+CREATE TABLE IF NOT EXISTS user_uploads (
+    id         BIGSERIAL PRIMARY KEY,
+    user_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    spaces_key VARCHAR(512) NOT NULL,
+    file_size  BIGINT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_user_uploads_user_age ON user_uploads(user_id, created_at ASC);
+`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string
