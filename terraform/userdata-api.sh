@@ -221,12 +221,12 @@ server {
         proxy_read_timeout 60s;
     }
 
-    # Redirect old docs URL
-    location /docs/developer {
-        return 301 /docs/;
+    # Docs site (VitePress) — served at both /docs/ and /docs/developer/
+    location /docs/developer/ {
+        alias /parley/docs/.vitepress/dist/;
+        try_files \$uri \$uri/ \$uri.html =404;
     }
 
-    # Docs site (VitePress)
     location /docs/ {
         alias /parley/docs/.vitepress/dist/;
         try_files \$uri \$uri/ \$uri.html =404;

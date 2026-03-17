@@ -107,7 +107,7 @@ export const DeveloperTab: React.FC = () => {
         <p className="settings-form-hint" style={{ marginBottom: 10 }}>
           Build bots and integrations on Parley.{' '}
           <a href="https://parley.x86-64.com/docs/developer" target="_blank" rel="noopener noreferrer"
-            style={{ color: '#32CD32' }}>
+            style={{ color: 'var(--accent)' }}>
             View the API docs &rarr;
           </a>
         </p>
