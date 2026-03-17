@@ -17,6 +17,7 @@ interface ThemeContextValue {
   createCustomTheme(t: NewTheme): Promise<UserTheme>;
   updateCustomTheme(id: number, t: NewTheme): Promise<UserTheme>;
   deleteCustomTheme(id: number): Promise<void>;
+  setThemePublished(id: number, published: boolean): void;
   applyTheme(id: string, css?: string, baseTheme?: string): void;
 }
 
@@ -99,10 +100,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     if (id !== 'custom') setActiveCustomThemeId(null);
   }, []);
 
+  const setThemePublished = useCallback((id: number, published: boolean) => {
+    setCustomThemes(prev => prev.map(x => x.id === id ? { ...x, is_published: published } : x));
+  }, []);
+
   return (
     <ThemeContext.Provider value={{
       activeTheme, activeCustomThemeId, customThemes, builtinIds: BUILTIN_IDS,
-      setBuiltin, setCustom, createCustomTheme, updateCustomTheme, deleteCustomTheme, applyTheme,
+      setBuiltin, setCustom, createCustomTheme, updateCustomTheme, deleteCustomTheme, setThemePublished, applyTheme,
     }}>
       {children}
     </ThemeContext.Provider>

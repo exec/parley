@@ -27,6 +27,8 @@
 }
 .appearance-custom-actions button:hover { background: var(--parley-accent); color: #fff; }
 .appearance-custom-actions button.danger:hover { background: var(--parley-danger); color: #fff; }
+.appearance-custom-actions button.published { background: var(--parley-accent); color: #fff; }
+.appearance-custom-actions button.published:hover { background: var(--parley-danger); color: #fff; }
 .appearance-theme-counter { font-size: 11px; color: var(--parley-text-muted); text-align: right; margin-bottom: 8px; }
 .appearance-create-btn {
   width: 100%; padding: 8px; background: var(--parley-accent); color: #fff;

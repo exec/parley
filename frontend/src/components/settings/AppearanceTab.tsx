@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
-import { shareTheme } from '../../api/themes';
+import { shareTheme, publishTheme } from '../../api/themes';
 import { CustomThemeEditor } from './CustomThemeEditor';
 import './AppearanceTab.css';
 
@@ -24,6 +24,7 @@ export const AppearanceTab: React.FC = () => {
   const [editingId, setEditingId] = useState<number | 'new' | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const [publishingId, setPublishingId] = useState<number | null>(null);
 
   const handleShare = async (id: number) => {
     try {
@@ -31,6 +32,15 @@ export const AppearanceTab: React.FC = () => {
       await navigator.clipboard.writeText(share_url);
       setCopiedId(id); setTimeout(() => setCopiedId(null), 2000);
     } catch {}
+  };
+
+  const handleTogglePublish = async (id: number, currentlyPublished: boolean) => {
+    setPublishingId(id);
+    try {
+      await publishTheme(id, !currentlyPublished);
+      theme.setThemePublished(id, !currentlyPublished);
+    } catch {}
+    finally { setPublishingId(null); }
   };
 
   if (editingId !== null) {
@@ -87,6 +97,11 @@ export const AppearanceTab: React.FC = () => {
                 {!isActive && <button onClick={() => theme.setCustom(t.id)}>Apply</button>}
                 <button onClick={() => setEditingId(t.id)}>Edit</button>
                 <button onClick={() => handleShare(t.id)}>{copiedId===t.id?'Copied!':'Share'}</button>
+                <button
+                  className={t.is_published ? 'published' : ''}
+                  disabled={publishingId===t.id}
+                  onClick={() => handleTogglePublish(t.id, !!t.is_published)}
+                >{publishingId===t.id ? '…' : t.is_published ? 'Published' : 'Publish'}</button>
                 <button className="danger" title="Remove theme" onClick={() => setConfirmDeleteId(t.id)}>✕</button>
               </div>
             </div>
