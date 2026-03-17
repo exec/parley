@@ -25,6 +25,7 @@ import { getTags } from './api/bin';
 import MainLayout from './components/layout/MainLayout';
 import ChannelList from './components/layout/ChannelList';
 import DmPanel from './components/layout/DmPanel';
+import FriendsView from './components/layout/FriendsView';
 import UserSidebar from './components/layout/UserSidebar';
 import MiniProfile from './components/layout/MiniProfile';
 import { ChatWindow } from './components/chat/ChatWindow';
@@ -103,6 +104,16 @@ function MainApp() {
     reloadMembers,
     reloadChannels,
     reorderChannels,
+    friends,
+    friendRequests,
+    pendingRequestCount,
+    sendFriendRequest,
+    acceptFriendRequest,
+    declineOrCancelRequest,
+    removeFriend,
+    receiveFriendRequest,
+    receiveFriendAccept,
+    receiveFriendRemove,
   } = useApp();
 
   const navigate = useNavigate();
@@ -197,6 +208,9 @@ function MainApp() {
   // Online presence: set of user IDs currently connected via WebSocket
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
 
+  // Friends view toggle
+  const [activeFriendsView, setActiveFriendsView] = useState(false);
+
   // Determine current view
   const view: View = activeDmChannel ? 'dm' : activeServer ? 'server' : 'homepage';
 
@@ -280,6 +294,13 @@ function MainApp() {
       return rest;
     });
   }, [activeDmChannel?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset friends view when navigating to a server or DM channel
+  useEffect(() => {
+    if (activeServer || activeDmChannel) {
+      setActiveFriendsView(false);
+    }
+  }, [activeServer, activeDmChannel]);
 
   const handleServerMemberJoin = useCallback((serverId: string, _userId: string) => {
     loadServers();
@@ -577,6 +598,9 @@ function MainApp() {
     onVoiceStateUpdate: handleVoiceStateUpdate,
     onVoiceForceMute: handleVoiceForceMute,
     onVoiceForceDisconnect: handleVoiceForceDisconnect,
+    onFriendRequest: receiveFriendRequest,
+    onFriendAccept: receiveFriendAccept,
+    onFriendRemove: receiveFriendRemove,
     onDmMessageDelete: useCallback((messageId: string) => {
       receiveDmMessageDelete(messageId);
     }, [receiveDmMessageDelete]),
@@ -628,6 +652,16 @@ function MainApp() {
 
   const handleGoHome = () => {
     selectServer('__none__');
+  };
+
+  const handleOpenFriends = () => {
+    setActiveFriendsView(true);
+    selectServer('__none__');
+  };
+
+  const handleFriendMessage = async (userId: string) => {
+    await openDmChannel(userId);
+    setActiveFriendsView(false);
   };
 
   // Build left panel based on view
@@ -702,6 +736,9 @@ function MainApp() {
       onOpenSettings={() => setShowUserSettings(true)}
       dmUnreadCounts={unreadCounts}
       onlineUserIds={onlineUsers}
+      onOpenFriends={handleOpenFriends}
+      pendingRequestCount={pendingRequestCount}
+      isFriendsActive={activeFriendsView}
     />
   );
 
@@ -777,7 +814,21 @@ function MainApp() {
 
   // Build main content
   let mainContent: React.ReactNode;
-  if (activeChannel?.type === 2) {
+  if (activeFriendsView) {
+    mainContent = (
+      <FriendsView
+        friends={friends}
+        friendRequests={friendRequests}
+        onlineUserIds={onlineUsers}
+        currentUserId={currentUser?.id ?? ''}
+        onMessage={handleFriendMessage}
+        onAccept={acceptFriendRequest}
+        onDeclineOrCancel={declineOrCancelRequest}
+        onRemove={removeFriend}
+        onSendRequest={sendFriendRequest}
+      />
+    );
+  } else if (activeChannel?.type === 2) {
     mainContent = activePostId ? (
       <PostView postId={activePostId} onBack={() => setActivePostId(null)} />
     ) : (
