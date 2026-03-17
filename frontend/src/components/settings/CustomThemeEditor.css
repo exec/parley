@@ -51,6 +51,7 @@
 .theme-editor-ai-btn:not(:disabled):hover { background: var(--parley-accent-hover, #28a428); }
 .theme-editor-ai-status { font-size: 13px; color: var(--parley-text-muted, #666); font-style: italic; }
 .theme-editor-ai-error { font-size: 13px; color: var(--parley-danger, #ed4245); }
+.theme-editor-ai-modify-label { display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--parley-text-muted, #666); cursor: pointer; user-select: none; }
 
 /* Publish toggle */
 .theme-editor-publish-row { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }

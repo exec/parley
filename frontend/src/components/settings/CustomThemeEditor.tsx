@@ -68,6 +68,7 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
   const [publishedState, setPublishedState] = useState<boolean>(existing?.is_published ?? false);
   const [publishing, setPublishing] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
+  const [aiModify, setAiModify] = useState(false);
   const [aiStatus, setAiStatus] = useState<
     null | { type: 'queued'; position: number } | { type: 'generating' } | { type: 'error'; message: string }
   >(null);
@@ -122,7 +123,7 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
           'Content-Type': 'application/json',
           Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
         },
-        body: JSON.stringify({ prompt: aiPrompt, current_css: css }),
+        body: JSON.stringify({ prompt: aiPrompt, current_css: aiModify ? css : '' }),
         signal: abortRef.current.signal,
       });
       if (!resp.ok || !resp.body) {
@@ -270,6 +271,17 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
           >
             Generate
           </button>
+          {css.trim() && (
+            <label className="theme-editor-ai-modify-label">
+              <input
+                type="checkbox"
+                checked={aiModify}
+                onChange={e => setAiModify(e.target.checked)}
+                disabled={aiStatus?.type === 'queued' || aiStatus?.type === 'generating'}
+              />
+              Modify existing
+            </label>
+          )}
           {(aiStatus?.type === 'queued' || aiStatus?.type === 'generating') && (
             <span className="theme-editor-ai-status">
               {aiStatus.type === 'queued'
