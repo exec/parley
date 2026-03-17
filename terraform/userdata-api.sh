@@ -243,7 +243,7 @@ server {
         add_header X-Frame-Options DENY always;
         add_header X-Content-Type-Options nosniff always;
         add_header Referrer-Policy strict-origin-when-cross-origin always;
-        add_header Content-Security-Policy "default-src 'self'; connect-src 'self' wss: https:; img-src 'self' data: https:; media-src 'self' https:; font-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline';" always;
+        add_header Content-Security-Policy "default-src 'self'; connect-src 'self' wss: https:; img-src 'self' data: https:; media-src 'self' https:; font-src 'self' data: https://fonts.gstatic.com; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;" always;
         try_files \$uri \$uri/ /index.html;
     }
 }
