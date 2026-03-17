@@ -298,6 +298,9 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername, cu
 		dbUser.Bio = *bio
 	}
 	if displayName != nil {
+		if len(*displayName) > 32 {
+			return User{}, errors.New("display name must be 32 characters or fewer")
+		}
 		dbUser.DisplayName = *displayName
 	}
 

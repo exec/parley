@@ -55,9 +55,10 @@ export function usePermissions(serverId?: string, channelId?: string): Permissio
     prevChannelIdRef.current = channelId;
 
     let cancelled = false;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
     setLoading(true);
 
-    const fetchPerms = async () => {
+    const fetchPerms = async (attempt = 0) => {
       try {
         // Fetch server perms (possibly cached)
         let sPerms: bigint;
@@ -76,6 +77,7 @@ export function usePermissions(serverId?: string, channelId?: string): Permissio
         if (hasPerm(sPerms, PERM_ADMINISTRATOR)) {
           const allPerms = (1n << 42n) - 1n;
           setChannelPerms(allPerms);
+          if (!cancelled) setLoading(false);
           return;
         }
 
@@ -92,16 +94,28 @@ export function usePermissions(serverId?: string, channelId?: string): Permissio
         } else {
           if (!cancelled) setChannelPerms(sPerms);
         }
+        if (!cancelled) setLoading(false);
       } catch {
         // On error keep existing permissions — transient API failures (e.g. server
         // restart) should not silently revoke access until we get a real response.
-      } finally {
-        if (!cancelled) setLoading(false);
+        // Retry up to 3 times with increasing delay so a brief API unavailability
+        // (e.g. rolling restart) self-heals without requiring user interaction.
+        if (!cancelled && attempt < 3) {
+          const delay = 2000 * (attempt + 1); // 2s, 4s, 6s
+          retryTimeout = setTimeout(() => {
+            if (!cancelled) fetchPerms(attempt + 1);
+          }, delay);
+        } else if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
     fetchPerms();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (retryTimeout !== null) clearTimeout(retryTimeout);
+    };
   }, [serverId, channelId, invalidateCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const checkPerm = (perm: bigint): boolean => {

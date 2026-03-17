@@ -52,10 +52,10 @@ function getEmojiOnlyCount(text: string): number | null {
   const t = text.trim();
   if (!t) return null;
   // Strip all emoji-related codepoints; if anything non-whitespace remains, not emoji-only
-  const stripped = t.replace(/\p{Extended_Pictographic}|\p{Emoji_Modifier}|\uFE0F|\uFE0E|\u200D/gu, '').trim();
+  const stripped = t.replace(/\p{Extended_Pictographic}|\p{Emoji_Modifier}|\p{Regional_Indicator}|\uFE0F|\uFE0E|\u200D/gu, '').trim();
   if (stripped.length > 0) return null;
-  // Count distinct emoji sequences
-  const matches = t.match(/\p{Extended_Pictographic}[\p{Emoji_Modifier}\uFE0F\uFE0E\u200D\p{Extended_Pictographic}]*/gu);
+  // Count distinct emoji sequences (flag = two regional indicators, others = pictographic + modifiers)
+  const matches = t.match(/\p{Regional_Indicator}{2}|\p{Extended_Pictographic}[\p{Emoji_Modifier}\uFE0F\uFE0E\u200D\p{Extended_Pictographic}]*/gu);
   if (!matches || matches.length < 1 || matches.length > 5) return null;
   return matches.length;
 }

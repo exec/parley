@@ -74,7 +74,7 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
   }, [participant, trackVersion]);
 
   const isMuted = micPublication ? micPublication.isMuted : true;
-  const name = displayName ?? participant.name ?? participant.identity ?? '?';
+  const name = displayName || participant.name || participant.identity || '?';
   const initial = name.charAt(0).toUpperCase() || '?';
 
   return (

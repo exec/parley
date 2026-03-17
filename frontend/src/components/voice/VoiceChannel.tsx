@@ -103,9 +103,10 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
   const spotlightParticipant = allParticipants.find(({ participant }) => participant.identity === spotlightIdentity) ?? allParticipants[0];
   const filmstripParticipants = allParticipants.filter(({ participant }) => participant !== spotlightParticipant?.participant);
 
-  const getMeta = (identity: string) => {
+  const getMeta = (identity: string, participant?: RemoteParticipant | LocalParticipant) => {
     const meta = voiceParticipants[identity];
-    return { displayName: meta?.username, avatarUrl: meta?.avatar_url };
+    const displayName = meta?.username || participant?.name || undefined;
+    return { displayName, avatarUrl: meta?.avatar_url };
   };
   const localMeta = { displayName: currentUser.username, avatarUrl: currentUser.avatar_url };
 
@@ -160,7 +161,7 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
         <div className="vc-grid">
           {/* Screen share tiles */}
           {screenShares.map(({ participant, isLocal }) => {
-            const meta = isLocal ? localMeta : getMeta(participant.identity);
+            const meta = isLocal ? localMeta : getMeta(participant.identity, participant as RemoteParticipant);
             return (
               <ParticipantTile
                 key={`screen-${participant.identity}`}
@@ -175,7 +176,7 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
           })}
           {/* Participant tiles */}
           {allParticipants.map(({ participant, isLocal }) => {
-            const meta = isLocal ? localMeta : getMeta(participant.identity);
+            const meta = isLocal ? localMeta : getMeta(participant.identity, participant as RemoteParticipant);
             return (
               <div key={participant.identity} style={{ position: 'relative' }}>
                 <ParticipantTile
@@ -221,8 +222,8 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
                 participant={spotlightParticipant.participant}
                 isLocal={spotlightParticipant.isLocal}
                 isSpeaking={activeSpeakers.has(spotlightParticipant.participant.identity)}
-                displayName={spotlightParticipant.isLocal ? localMeta.displayName : getMeta(spotlightParticipant.participant.identity).displayName}
-                avatarUrl={spotlightParticipant.isLocal ? localMeta.avatarUrl : getMeta(spotlightParticipant.participant.identity).avatarUrl}
+                displayName={spotlightParticipant.isLocal ? localMeta.displayName : getMeta(spotlightParticipant.participant.identity, spotlightParticipant.participant as RemoteParticipant).displayName}
+                avatarUrl={spotlightParticipant.isLocal ? localMeta.avatarUrl : getMeta(spotlightParticipant.participant.identity, spotlightParticipant.participant as RemoteParticipant).avatarUrl}
               />
             </div>
           ) : (
@@ -231,7 +232,7 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
           {filmstripParticipants.length > 0 && (
             <div className="vc-filmstrip">
               {filmstripParticipants.map(({ participant, isLocal }) => {
-                const meta = isLocal ? localMeta : getMeta(participant.identity);
+                const meta = isLocal ? localMeta : getMeta(participant.identity, participant as RemoteParticipant);
                 return (
                   <div
                     key={participant.identity}

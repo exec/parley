@@ -758,9 +758,9 @@ const ProfileTab: React.FC<ProfileTabProps> = (p) => {
               className="settings-form-input"
               type="text"
               value={p.displayName}
-              onChange={e => p.setDisplayName(e.target.value.slice(0, 100))}
+              onChange={e => p.setDisplayName(e.target.value.slice(0, 32))}
               placeholder={`${p.currentUser?.username || 'username'} (leave blank to use username)`}
-              maxLength={100}
+              maxLength={32}
               disabled={p.loading}
             />
             <div className="settings-form-hint">This is the name shown in chat. Your username is still used for @mentions and your profile tag.</div>
