@@ -179,3 +179,24 @@ export interface BinLineComment {
 export interface BinChannelTag {
   id: string; channel_id: string; name: string; color: string;
 }
+
+export interface FriendUser {
+  id: string;
+  username: string;
+  display_name?: string;
+  avatar_url?: string;
+}
+
+export interface FriendRequest {
+  id: string;
+  sender_id: string;
+  receiver_id: string;
+  status: 'pending' | 'accepted';
+  user: FriendUser; // always the other party
+  created_at: string;
+}
+
+export interface FriendRequestsResponse {
+  incoming: FriendRequest[];
+  outgoing: FriendRequest[];
+}
