@@ -1,7 +1,7 @@
 .participant-tile {
   position: relative;
-  background: #0a0c0f;
-  border: 1px solid #1e2228;
+  background: var(--discord-input);
+  border: 1px solid var(--discord-border);
   border-radius: 8px;
   overflow: hidden;
   aspect-ratio: 16 / 9;
@@ -11,8 +11,8 @@
 }
 
 .participant-tile--speaking {
-  border-color: #32CD32;
-  box-shadow: 0 0 0 2px #32CD32, 0 0 8px rgba(50, 205, 50, 0.4);
+  border-color: var(--discord-accent);
+  box-shadow: 0 0 0 2px var(--discord-accent), 0 0 8px rgba(var(--accent-rgb), 0.4);
 }
 
 .participant-tile--screen {
@@ -23,7 +23,7 @@
 .participant-tile-media {
   flex: 1;
   position: relative;
-  background: #060809;
+  background: var(--discord-channel-bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -40,8 +40,8 @@
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  background: #1a1d22;
-  border: 2px solid #2a2d32;
+  background: var(--discord-hover);
+  border: 2px solid var(--discord-border-light);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -58,7 +58,7 @@
 .participant-tile-initial {
   font-size: 28px;
   font-weight: 700;
-  color: #32CD32;
+  color: var(--discord-accent);
   font-family: inherit;
 }
 
@@ -78,7 +78,7 @@
   flex: 1;
   font-size: 12px;
   font-weight: 600;
-  color: #ddd;
+  color: var(--discord-text-normal);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -90,9 +90,9 @@
 .participant-tile-you {
   font-size: 10px;
   font-weight: 700;
-  color: #32CD32;
-  background: rgba(50, 205, 50, 0.15);
-  border: 1px solid rgba(50, 205, 50, 0.3);
+  color: var(--discord-accent);
+  background: rgba(var(--accent-rgb), 0.15);
+  border: 1px solid rgba(var(--accent-rgb), 0.3);
   border-radius: 3px;
   padding: 1px 5px;
 }

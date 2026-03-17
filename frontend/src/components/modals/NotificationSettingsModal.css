@@ -9,8 +9,8 @@
 }
 
 .notif-modal {
-  background: #111;
-  border: 1px solid #1a3d1a;
+  background: var(--discord-bg-secondary);
+  border: 1px solid var(--discord-border);
   border-radius: 8px;
   width: 420px;
   max-width: 92vw;
@@ -28,13 +28,13 @@
 .notif-modal-header h2 {
   font-size: 16px;
   font-weight: 700;
-  color: #32CD32;
+  color: var(--discord-accent);
   margin: 0;
 }
 
 .notif-modal-server {
   font-size: 12px;
-  color: #555;
+  color: var(--discord-text-muted);
 }
 
 .notif-modal-close {
@@ -43,7 +43,7 @@
   right: 16px;
   background: none;
   border: none;
-  color: #555;
+  color: var(--discord-text-muted);
   font-size: 16px;
   cursor: pointer;
   padding: 2px 6px;
@@ -52,7 +52,7 @@
 }
 
 .notif-modal-close:hover {
-  color: #f04747;
+  color: var(--discord-danger);
 }
 
 .notif-modal-body {
@@ -61,7 +61,7 @@
 
 .notif-modal-hint {
   font-size: 13px;
-  color: #666;
+  color: var(--discord-text-muted);
   margin: 0 0 16px;
 }
 
@@ -83,17 +83,17 @@
 }
 
 .notif-option:hover {
-  background: rgba(50, 205, 50, 0.06);
+  background: rgba(var(--accent-rgb), 0.06);
 }
 
 .notif-option.selected {
-  background: rgba(50, 205, 50, 0.1);
-  border-color: rgba(50, 205, 50, 0.3);
+  background: rgba(var(--accent-rgb), 0.1);
+  border-color: rgba(var(--accent-rgb), 0.3);
 }
 
 .notif-option input[type="radio"] {
   margin-top: 2px;
-  accent-color: #32CD32;
+  accent-color: var(--discord-accent);
   flex-shrink: 0;
 }
 
@@ -106,16 +106,16 @@
 .notif-option-label {
   font-size: 14px;
   font-weight: 600;
-  color: #ccc;
+  color: var(--discord-text-normal);
 }
 
 .notif-option.selected .notif-option-label {
-  color: #32CD32;
+  color: var(--discord-accent);
 }
 
 .notif-option-desc {
   font-size: 12px;
-  color: #555;
+  color: var(--discord-text-muted);
 }
 
 .notif-modal-footer {
@@ -123,13 +123,13 @@
   justify-content: flex-end;
   gap: 8px;
   padding: 12px 20px 20px;
-  border-top: 1px solid #1a3d1a;
+  border-top: 1px solid var(--discord-border);
 }
 
 .notif-btn-cancel {
   background: none;
-  border: 1px solid #333;
-  color: #888;
+  border: 1px solid var(--discord-border-light);
+  color: var(--discord-text-muted);
   padding: 7px 16px;
   border-radius: 4px;
   font-size: 13px;
@@ -138,12 +138,12 @@
 }
 
 .notif-btn-cancel:hover {
-  border-color: #555;
-  color: #ccc;
+  border-color: var(--discord-text-muted);
+  color: var(--discord-text-normal);
 }
 
 .notif-btn-save {
-  background: #32CD32;
+  background: var(--discord-accent);
   border: none;
   color: #000;
   padding: 7px 20px;
@@ -155,5 +155,5 @@
 }
 
 .notif-btn-save:hover {
-  background: #28a428;
+  background: var(--discord-accent-hover);
 }
