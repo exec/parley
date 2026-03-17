@@ -62,7 +62,7 @@ func (c *OllamaClient) Generate(ctx context.Context, systemPrompt, userMsg strin
 		return "", fmt.Errorf("ollama: marshal request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.URL+"/chat", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.URL+"/api/chat", bytes.NewReader(body))
 	if err != nil {
 		return "", fmt.Errorf("ollama: build request: %w", err)
 	}
