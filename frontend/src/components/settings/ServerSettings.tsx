@@ -109,7 +109,7 @@ export const ServerSettings: React.FC<Props> = ({
     }
   }, [isOpen, activeTab, server]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load permissions when bots tab is active (needed for isOwner check)
+  // Load permissions when bots tab is active (needed for isAdmin check)
   useEffect(() => {
     if (isOpen && activeTab === 'bots' && server) {
       loadMyPerms();
@@ -723,7 +723,7 @@ export const ServerSettings: React.FC<Props> = ({
           {activeTab === 'bots' && (
             <BotsTab
               serverId={Number(server.id)}
-              isOwner={hasPerm(myPerms, PERM_ADMINISTRATOR)}
+              isAdmin={hasPerm(myPerms, PERM_ADMINISTRATOR)}
             />
           )}
 

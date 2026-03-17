@@ -3,17 +3,17 @@ import React, { useEffect, useState } from 'react';
 import {
   BotSummary, AIConfig, AIUsage,
   getAIConfig, setAIConfig, getAIUsage,
-  PROVIDER_MODELS, PROVIDER_LABELS, PARLEY_ALLOWANCES,
+  PROVIDER_MODELS, PROVIDER_LABELS,
 } from '../../api/bots';
 
 interface Props {
   bot: BotSummary;
   serverId: number;
-  isOwner: boolean;
+  isAdmin: boolean;
   onRemove: () => void;
 }
 
-export const BotConfigPanel: React.FC<Props> = ({ bot, serverId, isOwner, onRemove }) => {
+export const BotConfigPanel: React.FC<Props> = ({ bot, serverId, isAdmin, onRemove }) => {
   const isAIChatbot = bot.username === 'ai-chatbot';
 
   const [config, setConfig] = useState<AIConfig | null>(null);
@@ -26,7 +26,7 @@ export const BotConfigPanel: React.FC<Props> = ({ bot, serverId, isOwner, onRemo
   const [saveMsg, setSaveMsg] = useState('');
 
   useEffect(() => {
-    if (!isAIChatbot || !isOwner) return;
+    if (!isAIChatbot || !isAdmin) return;
     getAIConfig(serverId).then(cfg => {
       setConfig(cfg);
       setProvider(cfg.provider);
@@ -34,7 +34,7 @@ export const BotConfigPanel: React.FC<Props> = ({ bot, serverId, isOwner, onRemo
       setSystemPrompt(cfg.system_prompt);
     }).catch(() => {});
     getAIUsage(serverId).then(setUsage).catch(() => {});
-  }, [serverId, isAIChatbot, isOwner]);
+  }, [serverId, isAIChatbot, isAdmin]);
 
   const handleProviderChange = (p: string) => {
     setProvider(p);
@@ -67,9 +67,6 @@ export const BotConfigPanel: React.FC<Props> = ({ bot, serverId, isOwner, onRemo
   };
 
   const resetDate = usage ? new Date(usage.resets_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
-
-  // Suppress unused variable warning for PARLEY_ALLOWANCES — it's imported for external use
-  void PARLEY_ALLOWANCES;
 
   const sectionTitle: React.CSSProperties = {
     fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
@@ -110,7 +107,7 @@ export const BotConfigPanel: React.FC<Props> = ({ bot, serverId, isOwner, onRemo
         </div>
       </div>
 
-      {isAIChatbot && isOwner && (
+      {isAIChatbot && isAdmin && (
         <>
           <div style={sectionTitle}>AI Provider</div>
 
@@ -184,7 +181,7 @@ export const BotConfigPanel: React.FC<Props> = ({ bot, serverId, isOwner, onRemo
         </>
       )}
 
-      {isOwner && (
+      {isAdmin && (
         <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--parley-border,#333)' }}>
           <button
             onClick={onRemove}

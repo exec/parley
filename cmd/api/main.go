@@ -39,7 +39,7 @@ type Config struct {
 	OllamaAPIURL string // OLLAMA_API_URL — base URL for Ollama cloud API
 	OllamaAPIKey string // OLLAMA_API_KEY — auth key; empty disables AI generation
 	OllamaModel  string // OLLAMA_MODEL — model name, e.g. devstral-small-2:24b-cloud
-	BotKeySecret string // BOT_KEY_SECRET — 32-byte AES key for bot API key encryption
+	BotKeySecret []byte // BOT_KEY_SECRET — 32 raw bytes for AES-256 bot API key encryption
 }
 
 // DefaultConfig returns the default configuration
@@ -95,7 +95,7 @@ func DefaultConfig() *Config {
 		OllamaAPIURL: ollamaAPIURL,
 		OllamaAPIKey: ollamaAPIKey,
 		OllamaModel:  ollamaModel,
-		BotKeySecret: string(botKeyBytes),
+		BotKeySecret: botKeyBytes,
 	}
 }
 
@@ -217,7 +217,7 @@ func main() {
 
 	// Initialize bots service
 	botsRepo := bots.NewRepository(repo)
-	botsSvc := bots.NewService(botsRepo, []byte(config.BotKeySecret))
+	botsSvc := bots.NewService(botsRepo, config.BotKeySecret)
 	botsHandler := bots.NewHandler(botsSvc)
 
 	// Cache bot user ID at startup (fatal if not found — migration must have run)

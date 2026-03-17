@@ -6,10 +6,10 @@ import './BotsTab.css';
 
 interface Props {
   serverId: number;
-  isOwner: boolean;
+  isAdmin: boolean;
 }
 
-export const BotsTab: React.FC<Props> = ({ serverId, isOwner }) => {
+export const BotsTab: React.FC<Props> = ({ serverId, isAdmin }) => {
   const [bots, setBots] = useState<BotSummary[]>([]);
   const [selected, setSelected] = useState<BotSummary | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -72,7 +72,7 @@ export const BotsTab: React.FC<Props> = ({ serverId, isOwner }) => {
             {bot.is_verified && <span className="bots-verified" title="Verified">✓</span>}
           </button>
         ))}
-        {isOwner && (
+        {isAdmin && (
           <button className="bots-add-btn" onClick={() => setShowAdd(true)}>+ Add Bot</button>
         )}
       </div>
@@ -81,7 +81,7 @@ export const BotsTab: React.FC<Props> = ({ serverId, isOwner }) => {
         <BotConfigPanel
           bot={selected}
           serverId={serverId}
-          isOwner={isOwner}
+          isAdmin={isAdmin}
           onRemove={() => handleRemove(selected)}
         />
       ) : (

@@ -17,8 +17,8 @@ import (
 
 const (
 	dispatchTimeout = 30 * time.Second
-	replyChainHops  = 10
-	replyCharBudget = 4000
+	replyChainHops  = 50
+	replyCharBudget = 32000
 )
 
 // httpClient has an explicit timeout to guard against providers that accept the
@@ -202,6 +202,22 @@ func (d *Dispatcher) buildMessages(ctx context.Context, msgIDStr, parentID, cont
 	}
 
 	msgs = append(msgs, chatMessage{Role: "user", Content: content})
+
+	// Most providers (Anthropic, OpenAI, etc.) require the first non-system
+	// message to have role "user". When a reply chain starts with a bot message,
+	// prepend a synthetic placeholder so the array is always valid.
+	firstNonSystem := -1
+	for i, m := range msgs {
+		if m.Role != "system" {
+			firstNonSystem = i
+			break
+		}
+	}
+	if firstNonSystem >= 0 && msgs[firstNonSystem].Role == "assistant" {
+		placeholder := chatMessage{Role: "user", Content: "…"}
+		msgs = append(msgs[:firstNonSystem], append([]chatMessage{placeholder}, msgs[firstNonSystem:]...)...)
+	}
+
 	return msgs
 }
 
@@ -222,8 +238,9 @@ type ollamaResponse struct {
 }
 
 func (d *Dispatcher) callOllama(ctx context.Context, model string, messages []chatMessage, baseURL, apiKey string) (string, int64, error) {
-	// Strip :cloud suffix (UI display only, not sent to Ollama)
-	ollamaModel := strings.TrimSuffix(model, ":cloud")
+	// Stored model names omit the routing suffix; append "-cloud" so the Ollama
+	// gateway dispatches to the cloud-tier worker fleet.
+	ollamaModel := model + "-cloud"
 
 	reqBody, _ := json.Marshal(ollamaRequest{Model: ollamaModel, Messages: messages, Stream: false})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/api/chat", bytes.NewReader(reqBody))
@@ -430,12 +447,13 @@ func (d *Dispatcher) callGoogle(ctx context.Context, model string, messages []ch
 	}
 
 	reqBody, _ := json.Marshal(googleRequest{Contents: contents, SystemInstruction: sysInstruction})
-	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s", model, apiKey)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(reqBody))
+	googleURL := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent", model)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, googleURL, bytes.NewReader(reqBody))
 	if err != nil {
 		return "", 0, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-goog-api-key", apiKey)
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
