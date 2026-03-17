@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { getPublicTheme, installTheme, UserTheme } from '../../api/themes';
 import { useTheme } from '../../context/ThemeContext';
+import { useApp } from '../../context/AppContext';
+import { buildEmbedPreviewHTML } from '../../lib/themePreview';
 import './ThemeLinkEmbed.css';
 
 interface Props { token: string; }
@@ -11,6 +13,7 @@ export const ThemeLinkEmbed: React.FC<Props> = ({ token }) => {
   const [installing, setInstalling] = useState(false);
   const [installed, setInstalled] = useState(false);
   const themeCtx = useTheme();
+  const { currentUser } = useApp();
 
   useEffect(() => {
     getPublicTheme(token)
@@ -33,11 +36,12 @@ export const ThemeLinkEmbed: React.FC<Props> = ({ token }) => {
     }
   };
 
-  if (error) return null; // silently hide bad links
+  if (error) return null;
   if (!theme) return <div className="theme-embed"><span className="theme-embed-loading">Loading theme…</span></div>;
 
-  // Extract 4 colors from theme CSS by parsing CSS variable values
-  const colors = extractThemeColors(theme.css);
+  const displayName = currentUser?.display_name || currentUser?.username || 'You';
+  const avatarUrl = currentUser?.avatar_url || null;
+  const previewSrc = buildEmbedPreviewHTML(theme.base_theme, theme.css, displayName, avatarUrl);
 
   return (
     <div className="theme-embed">
@@ -46,9 +50,12 @@ export const ThemeLinkEmbed: React.FC<Props> = ({ token }) => {
       {theme.author_username && (
         <div className="theme-embed-author">by <strong>{theme.author_username}</strong></div>
       )}
-      <div className="theme-embed-swatches">
-        {colors.map((c, i) => <div key={i} className="theme-embed-swatch" style={{ background: c }} />)}
-      </div>
+      <iframe
+        className="theme-embed-preview"
+        srcDoc={previewSrc}
+        sandbox="allow-same-origin"
+        title="Theme preview"
+      />
       {installed
         ? <span className="theme-embed-applied">✓ Installed and applied!</span>
         : <button className="theme-embed-apply" onClick={handleApply} disabled={installing}>
@@ -58,15 +65,3 @@ export const ThemeLinkEmbed: React.FC<Props> = ({ token }) => {
     </div>
   );
 };
-
-/**
- * Parse CSS variables from raw CSS text. Looks for --bg-primary, --accent,
- * --bg-secondary, --text-primary in that order. Falls back to #888 for any missing.
- */
-function extractThemeColors(css: string): string[] {
-  const vars = ['--bg-primary', '--accent', '--bg-secondary', '--text-primary'];
-  return vars.map(v => {
-    const m = css.match(new RegExp(`${v}\\s*:\\s*([^;\\n]+)`));
-    return m ? m[1].trim() : '#888';
-  });
-}
