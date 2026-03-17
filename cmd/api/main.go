@@ -118,16 +118,14 @@ func main() {
 	}
 	log.Println("Connected to PostgreSQL database")
 
-	// Run migrations individually so a transient error on one doesn't block later ones
-	for i, sql := range db.Migrations {
-		if _, merr := dbConn.Exec(sql); merr != nil {
-			log.Printf("Warning: migration %d may already be applied: %v", i, merr)
-		}
-	}
-	log.Println("Database migrations completed")
-
 	// Initialize repository layer
 	repo := db.NewRepository(dbConn)
+
+	// Run migrations via the tracked runner so each migration executes exactly once.
+	if err := repo.RunMigrations(ctx); err != nil {
+		log.Fatalf("Database migrations failed: %v", err)
+	}
+	log.Println("Database migrations completed")
 
 	// Initialize email client for verification emails
 	brevoAPIKey := os.Getenv("BREVO_API_KEY")

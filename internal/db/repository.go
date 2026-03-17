@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log"
 )
 
@@ -47,13 +48,61 @@ func (r *Repository) DB() *sql.DB {
 	return r.db
 }
 
-// RunMigrations executes all database migrations.
-// Each migration is run individually; errors are treated as warnings (already applied).
+// RunMigrations executes pending database migrations using a schema_migrations
+// tracking table so each migration runs exactly once, preventing destructive
+// migrations (e.g. permission bit remaps) from re-running on every restart.
 func (r *Repository) RunMigrations(ctx context.Context) error {
-	for _, sql := range Migrations {
-		if _, err := r.db.ExecContext(ctx, sql); err != nil {
-			log.Printf("migration warning (may already be applied): %v", err)
+	// Ensure tracking table exists.
+	if _, err := r.db.ExecContext(ctx, `
+		CREATE TABLE IF NOT EXISTS schema_migrations (
+			id         INT PRIMARY KEY,
+			applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)
+	`); err != nil {
+		return fmt.Errorf("create schema_migrations: %w", err)
+	}
+
+	// Bootstrap: if the tracker is empty but the DB is already initialised
+	// (existing install), mark every current migration as applied so they are
+	// not re-run and do not corrupt data.
+	var tracked int
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM schema_migrations`).Scan(&tracked); err != nil {
+		return fmt.Errorf("count schema_migrations: %w", err)
+	}
+	if tracked == 0 {
+		var initialized bool
+		r.db.QueryRowContext(ctx, `
+			SELECT EXISTS(
+				SELECT 1 FROM information_schema.tables
+				WHERE table_schema = 'public' AND table_name = 'users'
+			)
+		`).Scan(&initialized)
+		if initialized {
+			// DB already has tables — seed the tracker with all migrations that
+			// have been applied (the entire current list for existing installs).
+			for i := range Migrations {
+				r.db.ExecContext(ctx, `INSERT INTO schema_migrations (id) VALUES ($1) ON CONFLICT DO NOTHING`, i)
+			}
+			log.Printf("schema_migrations bootstrapped with %d entries for existing install", len(Migrations))
+			return nil
 		}
+	}
+
+	// Run each migration that has not been recorded yet.
+	for i, sql := range Migrations {
+		var applied bool
+		r.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE id = $1)`, i).Scan(&applied)
+		if applied {
+			continue
+		}
+		if _, err := r.db.ExecContext(ctx, sql); err != nil {
+			log.Printf("migration %d failed: %v", i, err)
+			continue
+		}
+		if _, err := r.db.ExecContext(ctx, `INSERT INTO schema_migrations (id) VALUES ($1) ON CONFLICT DO NOTHING`, i); err != nil {
+			log.Printf("migration %d: failed to record: %v", i, err)
+		}
+		log.Printf("migration %d applied", i)
 	}
 	return nil
 }
