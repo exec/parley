@@ -126,24 +126,24 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background-color: #23a55a;
+  background-color: var(--discord-green);
   border: 3px solid var(--bg-secondary);
 }
 
 .member-status.status-online {
-  background-color: #23a55a;
+  background-color: var(--discord-green);
 }
 
 .member-status.status-offline {
-  background-color: #80848e;
+  background-color: var(--discord-gray);
 }
 
 .member-status.idle {
-  background-color: #FFD700;
+  background-color: var(--discord-yellow);
 }
 
 .member-status.dnd {
-  background-color: #FF4444;
+  background-color: var(--discord-red);
 }
 
 .member-info {
@@ -270,8 +270,8 @@
 .user-popover {
   position: fixed;
   z-index: 1000;
-  background: #111;
-  border: 1px solid #1a3d1a;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
   border-radius: 8px;
   width: 200px;
   padding: 12px;
@@ -289,36 +289,36 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: #1a3d1a;
+  background: var(--border);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: bold;
-  color: #32CD32;
+  color: var(--accent);
   font-size: 16px;
   flex-shrink: 0;
 }
 
 .user-popover-name {
   font-weight: bold;
-  color: #32CD32;
+  color: var(--accent);
   font-size: 14px;
 }
 
 .user-popover-nick {
-  color: #228B22;
+  color: var(--discord-text-muted);
   font-size: 12px;
 }
 
 .user-popover-role {
-  color: #faa61a;
+  color: var(--discord-yellow);
   font-size: 11px;
   text-transform: uppercase;
 }
 
 .user-popover-divider {
   height: 1px;
-  background: #1a3d1a;
+  background: var(--border);
   margin: 8px 0;
 }
 
@@ -328,7 +328,7 @@
   text-align: left;
   background: none;
   border: none;
-  color: #228B22;
+  color: var(--discord-text-muted);
   font-size: 13px;
   padding: 6px 8px;
   border-radius: 4px;
@@ -337,8 +337,8 @@
 }
 
 .user-popover-item:hover:not(:disabled) {
-  background: #1a1a1a;
-  color: #32CD32;
+  background: var(--discord-hover);
+  color: var(--accent);
 }
 
 .user-popover-item:disabled {
@@ -348,13 +348,13 @@
 
 .coming-soon {
   font-size: 10px;
-  color: #555;
+  color: var(--discord-text-muted);
   margin-left: 4px;
 }
 
 .member-nickname-text {
   font-size: 11px;
-  color: #228B22;
+  color: var(--discord-text-muted);
 }
 
 .member-item {
@@ -364,8 +364,8 @@
 /* User context menu */
 .user-context-menu {
   position: fixed;
-  background-color: #111;
-  border: 1px solid #1a3d1a;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border);
   border-radius: 4px;
   padding: 4px;
   min-width: 180px;
@@ -382,7 +382,7 @@
   text-align: left;
   font-size: 13px;
   font-weight: 500;
-  color: #32CD32;
+  color: var(--accent);
   cursor: pointer;
   border-radius: 3px;
   font-family: inherit;
@@ -390,15 +390,15 @@
 }
 
 .user-context-menu-item:hover {
-  background-color: #32CD32;
-  color: #000;
+  background-color: var(--discord-hover);
+  color: var(--discord-text-normal);
 }
 
 .user-context-menu-header {
   padding: 6px 12px 4px;
   font-size: 11px;
   font-weight: 700;
-  color: #32CD32;
+  color: var(--accent);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   pointer-events: none;
@@ -406,7 +406,7 @@
 
 .user-context-menu-divider {
   height: 1px;
-  background-color: #1a3d1a;
+  background-color: var(--border);
   margin: 4px 0;
 }
 
