@@ -590,6 +590,53 @@ CREATE TABLE IF NOT EXISTS user_uploads (
 );
 CREATE INDEX IF NOT EXISTS idx_user_uploads_user_age ON user_uploads(user_id, created_at ASC);
 `,
+
+	`-- Migration 31: Bots & AI Chatbot
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN NOT NULL DEFAULT FALSE;
+
+CREATE TABLE IF NOT EXISTS server_bots (
+  server_id   BIGINT NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
+  bot_user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  added_at    TIMESTAMP NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (server_id, bot_user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_server_bots_bot ON server_bots(bot_user_id);
+
+CREATE TABLE IF NOT EXISTS server_ai_config (
+  server_id     BIGINT PRIMARY KEY REFERENCES servers(id) ON DELETE CASCADE,
+  provider      VARCHAR(32)  NOT NULL DEFAULT 'parley',
+  model         VARCHAR(128) NOT NULL DEFAULT 'ministral-3:14b',
+  api_key_enc   TEXT,
+  system_prompt TEXT NOT NULL DEFAULT '',
+  updated_at    TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS server_bot_usage (
+  server_id   BIGINT NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
+  month       DATE   NOT NULL,
+  tokens_used BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (server_id, month)
+);
+
+CREATE TABLE IF NOT EXISTS bot_invite_tokens (
+  id          BIGSERIAL PRIMARY KEY,
+  bot_user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token       UUID   NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+  created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_bot_invite_tokens_bot ON bot_invite_tokens(bot_user_id);
+
+-- Seed AI Chatbot system user (email nullable since migration 11)
+INSERT INTO users (username, display_name, password_hash, is_bot, is_verified)
+VALUES ('ai-chatbot', 'AI Chatbot', '', TRUE, TRUE)
+ON CONFLICT (username) DO NOTHING;
+
+-- Seed permanent invite token (fixed UUID so it can be referenced in config/docs)
+INSERT INTO bot_invite_tokens (bot_user_id, token)
+SELECT id, 'aaaaaaaa-0000-0000-0000-000000000001'::uuid
+FROM users WHERE username = 'ai-chatbot'
+ON CONFLICT DO NOTHING;
+`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string
