@@ -151,7 +151,7 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
       <div className="theme-editor-field">
         <label className="theme-editor-label">Custom CSS</label>
         <textarea className="theme-editor-textarea" value={css} onChange={e => setCSS(e.target.value)}
-          placeholder={`/* Override variables for any built-in theme selector */\n:root {\n  --accent: hotpink;\n}\n\n/* Google Fonts allowed */\n@import url('https://fonts.googleapis.com/css2?family=Inter');`} />
+          placeholder={`/* Use [data-theme] to override variables — not :root */\n[data-theme] {\n  --discord-accent: hotpink;\n  --accent-rgb: 255, 105, 180;\n}\n\n/* Google Fonts allowed */\n@import url('https://fonts.googleapis.com/css2?family=Inter');`} />
         <div className="theme-editor-hint">Google Fonts allowed. All other external URLs are blocked.</div>
       </div>
 
