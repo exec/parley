@@ -1,12 +1,6 @@
-.theme-embed { display: inline-flex; flex-direction: column; border-left: 4px solid var(--parley-accent); background: var(--parley-bg-secondary); border-radius: 0 6px 6px 0; padding: 10px 14px; max-width: 320px; margin: 4px 0; gap: 4px; }
-.theme-embed-category { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--parley-accent); }
-.theme-embed-title { font-size: 15px; font-weight: 700; color: var(--parley-text-normal); }
-.theme-embed-author { font-size: 12px; color: var(--parley-text-muted); }
 .theme-embed-preview { width: 100%; height: 130px; border: 1px solid var(--parley-border); border-radius: 6px; margin: 6px 0 4px; display: block; }
 .theme-embed-apply { padding: 5px 14px; background: var(--parley-accent); color: #fff; border: none; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; align-self: flex-start; }
 .theme-embed-apply:hover { background: var(--parley-accent-hover); }
 .theme-embed-apply:disabled { opacity: .5; cursor: not-allowed; }
 .theme-embed-applied { font-size: 12px; color: var(--parley-success); font-weight: 600; }
-.theme-embed-error { font-size: 12px; color: var(--parley-danger); }
 .theme-embed-loading { font-size: 12px; color: var(--parley-text-muted); font-style: italic; }
-.theme-embed--invalid { border-left-color: var(--parley-danger); opacity: .7; }

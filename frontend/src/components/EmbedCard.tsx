@@ -9,7 +9,7 @@ interface EmbedCardProps {
   badge?: boolean;       // shows verified ✓ chip next to title
   preview?: React.ReactNode;
   children?: React.ReactNode;
-  actions: React.ReactNode;
+  actions?: React.ReactNode;
 }
 
 export const EmbedCard: React.FC<EmbedCardProps> = ({
@@ -30,6 +30,6 @@ export const EmbedCard: React.FC<EmbedCardProps> = ({
     )}
     {preview && <div className="embed-card-preview">{preview}</div>}
     {children && <div className="embed-card-body">{children}</div>}
-    <div className="embed-card-actions">{actions}</div>
+    {actions != null && <div className="embed-card-actions">{actions}</div>}
   </div>
 );
