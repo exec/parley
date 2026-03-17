@@ -13,6 +13,25 @@ interface Props {
   onRemove: () => void;
 }
 
+const VERBOSITY_OPTIONS = [
+  { value: 'concise',  label: 'Concise' },
+  { value: 'verbose',  label: 'Verbose' },
+];
+
+const PERSONALITY_OPTIONS = [
+  { value: 'friendly',     label: 'Friendly' },
+  { value: 'gamer',        label: 'Gamer' },
+  { value: 'professional', label: 'Professional' },
+  { value: 'unhinged',     label: 'Unhinged' },
+  { value: 'hacker',       label: 'Hacker' },
+];
+
+const ROLE_OPTIONS = [
+  { value: 'assistant', label: 'Assistant' },
+  { value: 'member',    label: 'Member' },
+  { value: 'tutor',     label: 'Tutor' },
+];
+
 export const BotConfigPanel: React.FC<Props> = ({ bot, serverId, isAdmin, onRemove }) => {
   const isAIChatbot = bot.username === 'polly';
 
@@ -20,7 +39,9 @@ export const BotConfigPanel: React.FC<Props> = ({ bot, serverId, isAdmin, onRemo
   const [usage, setUsage] = useState<AIUsage | null>(null);
   const [provider, setProvider] = useState('parley');
   const [model, setModel] = useState('ministral-3:14b');
-  const [systemPrompt, setSystemPrompt] = useState('');
+  const [verbosity, setVerbosity] = useState('concise');
+  const [personality, setPersonality] = useState('friendly');
+  const [role, setRole] = useState('assistant');
   const [apiKey, setApiKey] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
@@ -31,7 +52,9 @@ export const BotConfigPanel: React.FC<Props> = ({ bot, serverId, isAdmin, onRemo
       setConfig(cfg);
       setProvider(cfg.provider);
       setModel(cfg.model);
-      setSystemPrompt(cfg.system_prompt);
+      setVerbosity(cfg.preset_verbosity || 'concise');
+      setPersonality(cfg.preset_personality || 'friendly');
+      setRole(cfg.preset_role || 'assistant');
     }).catch(() => {});
     getAIUsage(serverId).then(setUsage).catch(() => {});
   }, [serverId, isAIChatbot, isAdmin]);
@@ -46,7 +69,13 @@ export const BotConfigPanel: React.FC<Props> = ({ bot, serverId, isAdmin, onRemo
     setSaving(true);
     setSaveMsg('');
     try {
-      await setAIConfig(serverId, { provider, model, system_prompt: systemPrompt, api_key: apiKey || undefined });
+      await setAIConfig(serverId, {
+        provider, model,
+        preset_verbosity: verbosity,
+        preset_personality: personality,
+        preset_role: role,
+        api_key: apiKey || undefined,
+      });
       setSaveMsg('Saved!');
       setApiKey('');
       if (provider === 'parley') {
@@ -60,12 +89,7 @@ export const BotConfigPanel: React.FC<Props> = ({ bot, serverId, isAdmin, onRemo
     }
   };
 
-  const formatTokens = (n: number) => {
-    if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
-    if (n >= 1_000) return (n / 1_000).toFixed(0) + 'K';
-    return String(n);
-  };
-
+  const usagePct = usage ? Math.min(100, (usage.tokens_used / usage.tokens_limit) * 100) : 0;
   const resetDate = usage ? new Date(usage.resets_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
 
   const sectionTitle: React.CSSProperties = {
@@ -83,6 +107,36 @@ export const BotConfigPanel: React.FC<Props> = ({ bot, serverId, isAdmin, onRemo
     padding: '7px 10px', fontSize: 13, marginBottom: 12,
   };
   const selectStyle: React.CSSProperties = { ...inputStyle, cursor: 'pointer' };
+
+  const pillGroup = (
+    options: { value: string; label: string }[],
+    current: string,
+    onChange: (v: string) => void,
+  ) => (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+      {options.map(o => (
+        <button
+          key={o.value}
+          onClick={() => onChange(o.value)}
+          style={{
+            padding: '5px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
+            border: current === o.value
+              ? '1.5px solid var(--parley-accent,#32CD32)'
+              : '1.5px solid var(--parley-border,#444)',
+            background: current === o.value
+              ? 'var(--parley-accent,#32CD32)22'
+              : 'transparent',
+            color: current === o.value
+              ? 'var(--parley-accent,#32CD32)'
+              : 'var(--parley-text-muted,#888)',
+            fontWeight: current === o.value ? 600 : 400,
+          }}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
 
   return (
     <div style={{ flex: 1, padding: '16px 20px', overflowY: 'auto' }}>
@@ -141,13 +195,16 @@ export const BotConfigPanel: React.FC<Props> = ({ bot, serverId, isAdmin, onRemo
             </>
           )}
 
-          <label style={label}>System Prompt</label>
-          <textarea
-            style={{ ...inputStyle, minHeight: 72, resize: 'vertical', fontFamily: 'inherit' }}
-            placeholder="You are a helpful assistant."
-            value={systemPrompt}
-            onChange={e => setSystemPrompt(e.target.value)}
-          />
+          <div style={{ ...sectionTitle, marginTop: 16 }}>Personality</div>
+
+          <label style={label}>Verbosity</label>
+          {pillGroup(VERBOSITY_OPTIONS, verbosity, setVerbosity)}
+
+          <label style={label}>Personality</label>
+          {pillGroup(PERSONALITY_OPTIONS, personality, setPersonality)}
+
+          <label style={label}>Role</label>
+          {pillGroup(ROLE_OPTIONS, role, setRole)}
 
           <button
             onClick={handleSave}
@@ -165,13 +222,17 @@ export const BotConfigPanel: React.FC<Props> = ({ bot, serverId, isAdmin, onRemo
             <div style={{ marginTop: 20 }}>
               <div style={sectionTitle}>Monthly Usage</div>
               <div style={{ fontSize: 12, color: 'var(--parley-text-muted,#888)', marginBottom: 6 }}>
-                {formatTokens(usage.tokens_used)} / {formatTokens(usage.tokens_limit)} tokens · Resets {resetDate}
+                {usagePct.toFixed(1)}% used · Resets {resetDate}
               </div>
               <div style={{ background: 'var(--parley-bg,#111)', borderRadius: 4, height: 8, overflow: 'hidden' }}>
                 <div style={{
                   height: '100%',
-                  width: `${Math.min(100, (usage.tokens_used / usage.tokens_limit) * 100)}%`,
-                  background: 'var(--parley-accent,#32CD32)',
+                  width: `${usagePct}%`,
+                  background: usagePct >= 90
+                    ? 'var(--parley-danger,#f04747)'
+                    : usagePct >= 70
+                      ? '#f0a847'
+                      : 'var(--parley-accent,#32CD32)',
                   borderRadius: 4,
                   transition: 'width .3s',
                 }} />

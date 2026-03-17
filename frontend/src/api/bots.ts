@@ -14,7 +14,9 @@ export interface AIConfig {
   provider: string;
   model: string;
   api_key_set: boolean;
-  system_prompt: string;
+  preset_verbosity: string;
+  preset_personality: string;
+  preset_role: string;
   updated_at: string;
 }
 
@@ -46,7 +48,8 @@ export const getAIConfig = (serverId: number) =>
   apiClient.get<AIConfig>(`/servers/${serverId}/ai-config`);
 
 export const setAIConfig = (serverId: number, data: {
-  provider: string; model: string; api_key?: string; system_prompt: string;
+  provider: string; model: string; api_key?: string;
+  preset_verbosity: string; preset_personality: string; preset_role: string;
 }) => apiClient.put<void>(`/servers/${serverId}/ai-config`, data);
 
 export const getAIUsage = (serverId: number) =>
@@ -120,10 +123,5 @@ export const OFFICIAL_BOTS: { username: string; displayName: string; description
   },
 ];
 
-export const PARLEY_ALLOWANCES: Record<string, number> = {
-  'ministral-3:14b': 2_000_000,
-  'gpt-oss:20b':     1_500_000,
-  'gemma3:27b':      1_000_000,
-  'gpt-oss:120b':    300_000,
-  'qwen3:latest':    100_000,
-};
+// Monthly compute-credit budget (same for all servers; usage is scaled by model cost factor on the server)
+export const PARLEY_MONTHLY_BUDGET = 2_000_000;

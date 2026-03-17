@@ -163,10 +163,12 @@ func (h *Handler) SetAIConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Provider     string `json:"provider"`
-		Model        string `json:"model"`
-		APIKey       string `json:"api_key"`
-		SystemPrompt string `json:"system_prompt"`
+		Provider         string `json:"provider"`
+		Model            string `json:"model"`
+		APIKey           string `json:"api_key"`
+		PresetVerbosity  string `json:"preset_verbosity"`
+		PresetPersonality string `json:"preset_personality"`
+		PresetRole       string `json:"preset_role"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErr(w, r, 400, "invalid body")
@@ -176,7 +178,16 @@ func (h *Handler) SetAIConfig(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, r, 400, "provider and model required")
 		return
 	}
-	if err := h.svc.SetAIConfig(r.Context(), sid, uid, req.Provider, req.Model, req.SystemPrompt, req.APIKey); err != nil {
+	if req.PresetVerbosity == "" {
+		req.PresetVerbosity = "concise"
+	}
+	if req.PresetPersonality == "" {
+		req.PresetPersonality = "friendly"
+	}
+	if req.PresetRole == "" {
+		req.PresetRole = "assistant"
+	}
+	if err := h.svc.SetAIConfig(r.Context(), sid, uid, req.Provider, req.Model, req.PresetVerbosity, req.PresetPersonality, req.PresetRole, req.APIKey); err != nil {
 		handleSvcErr(w, r, err)
 		return
 	}

@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -27,7 +28,11 @@ const (
 var httpClient = &http.Client{Timeout: dispatchTimeout + 5*time.Second}
 
 // PostFunc sends a message to a channel as the bot user.
-type PostFunc func(ctx context.Context, channelID, botUserIDStr, content string) error
+// replyToMsgID, if non-empty, sets the parent (reply thread) of the posted message.
+type PostFunc func(ctx context.Context, channelID, botUserIDStr, content, replyToMsgID string) error
+
+// mentionRe matches <@123456> user mention tags.
+var mentionRe = regexp.MustCompile(`<@(\d+)>`)
 
 // Dispatcher holds dependencies for AI dispatch.
 type Dispatcher struct {
@@ -109,13 +114,17 @@ func (d *Dispatcher) dispatch(ctx context.Context, serverIDInt int64, channelID,
 
 	provider := "parley"
 	model := "ministral-3:14b"
-	systemPrompt := ""
+	systemPrompt := (&AIConfig{
+		PresetVerbosity:   "concise",
+		PresetPersonality: "friendly",
+		PresetRole:        "assistant",
+	}).BuildSystemPrompt()
 	var apiKey string
 
 	if cfg != nil {
 		provider = cfg.Provider
 		model = cfg.Model
-		systemPrompt = cfg.SystemPrompt
+		systemPrompt = cfg.BuildSystemPrompt()
 		if rawKeyEnc != "" {
 			apiKey, err = d.svc.DecryptAPIKey(rawKeyEnc)
 			if err != nil {
@@ -124,24 +133,23 @@ func (d *Dispatcher) dispatch(ctx context.Context, serverIDInt int64, channelID,
 		}
 	}
 
-	// Check monthly allowance for parley provider
+	// Check monthly compute-credit budget for parley provider
 	if provider == "parley" {
 		used, err := d.repo.GetMonthlyUsage(ctx, serverIDInt)
 		if err != nil {
 			return fmt.Errorf("get monthly usage: %w", err)
 		}
-		limit := ParleyModelAllowances[model]
-		if limit == 0 {
-			limit = 100_000
-		}
-		if used >= limit {
+		if used >= ParleyMonthlyBudget {
 			_ = d.repo.SetBotDegraded(ctx, serverIDInt, d.botUserID, true)
 			return nil // silently skip — over quota
 		}
 	}
 
+	// Strip bot self-mentions and resolve other user mentions before sending to LLM
+	cleanedContent := d.preprocessContent(ctx, content, botUserIDStr)
+
 	// Build conversation context from reply chain
-	messages := d.buildMessages(ctx, msgIDStr, parentID, content, systemPrompt)
+	messages := d.buildMessages(ctx, msgIDStr, parentID, cleanedContent, systemPrompt)
 
 	// Call provider
 	var reply string
@@ -170,13 +178,17 @@ func (d *Dispatcher) dispatch(ctx context.Context, serverIDInt int64, channelID,
 	// Successful response — clear any degraded state
 	_ = d.repo.SetBotDegraded(ctx, serverIDInt, d.botUserID, false)
 
-	// Track usage for parley provider
+	// Track compute-credit usage for parley provider (scaled by model cost factor)
 	if provider == "parley" && tokensUsed > 0 {
-		_ = d.repo.AddTokenUsage(ctx, serverIDInt, tokensUsed)
+		factor := ParleyModelCostFactor[model]
+		if factor == 0 {
+			factor = 1
+		}
+		_ = d.repo.AddTokenUsage(ctx, serverIDInt, tokensUsed*factor)
 	}
 
-	// Post reply to channel
-	return postFn(ctx, channelID, botUserIDStr, reply)
+	// Post reply as a threaded reply to the triggering message
+	return postFn(ctx, channelID, botUserIDStr, reply, msgIDStr)
 }
 
 type chatMessage struct {
@@ -224,6 +236,34 @@ func (d *Dispatcher) buildMessages(ctx context.Context, msgIDStr, parentID, cont
 	}
 
 	return msgs
+}
+
+// preprocessContent strips bot self-mentions and resolves other user mention tags.
+// "@polly" and "<@botID>" are removed; "<@userID>" for other users becomes
+// "<@userID> (name: displayname)" using a DB lookup.
+func (d *Dispatcher) preprocessContent(ctx context.Context, content, botUserIDStr string) string {
+	// Strip bot self-mention forms
+	content = strings.ReplaceAll(content, "@polly", "")
+	content = strings.ReplaceAll(content, "<@"+botUserIDStr+">", "")
+
+	// Resolve other <@id> mentions
+	content = mentionRe.ReplaceAllStringFunc(content, func(match string) string {
+		sub := mentionRe.FindStringSubmatch(match)
+		if len(sub) < 2 || sub[1] == botUserIDStr {
+			return ""
+		}
+		uid, err := strconv.ParseInt(sub[1], 10, 64)
+		if err != nil {
+			return match
+		}
+		name, err := d.repo.GetUserDisplayName(ctx, uid)
+		if err != nil || name == "" {
+			return match
+		}
+		return match + " (name: " + name + ")"
+	})
+
+	return strings.TrimSpace(content)
 }
 
 // --- Ollama (Parley provider) ---

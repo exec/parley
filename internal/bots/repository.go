@@ -125,9 +125,13 @@ func (r *Repository) GetAIConfig(ctx context.Context, serverID int64) (*AIConfig
 	var apiKeyEnc sql.NullString
 	var updatedAt time.Time
 	err := r.db.QueryRowContext(ctx,
-		`SELECT provider, model, api_key_enc, system_prompt, updated_at
+		`SELECT provider, model, api_key_enc,
+		        COALESCE(preset_verbosity,'concise'), COALESCE(preset_personality,'friendly'), COALESCE(preset_role,'assistant'),
+		        updated_at
 		 FROM server_ai_config WHERE server_id = $1`, serverID).
-		Scan(&cfg.Provider, &cfg.Model, &apiKeyEnc, &cfg.SystemPrompt, &updatedAt)
+		Scan(&cfg.Provider, &cfg.Model, &apiKeyEnc,
+			&cfg.PresetVerbosity, &cfg.PresetPersonality, &cfg.PresetRole,
+			&updatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, "", nil
 	}
@@ -143,27 +147,29 @@ func (r *Repository) GetAIConfig(ctx context.Context, serverID int64) (*AIConfig
 	return &cfg, rawEnc, nil
 }
 
-// UpsertAIConfig saves AI config. Pass empty apiKeyEnc to leave existing key unchanged.
-func (r *Repository) UpsertAIConfig(ctx context.Context, serverID int64, provider, model, systemPrompt string, apiKeyEnc *string) error {
+// UpsertAIConfig saves AI config. Pass nil apiKeyEnc to leave existing key unchanged.
+func (r *Repository) UpsertAIConfig(ctx context.Context, serverID int64, provider, model, verbosity, personality, role string, apiKeyEnc *string) error {
 	if apiKeyEnc != nil {
 		_, err := r.db.ExecContext(ctx, `
-			INSERT INTO server_ai_config (server_id, provider, model, api_key_enc, system_prompt, updated_at)
-			VALUES ($1, $2, $3, $4, $5, NOW())
+			INSERT INTO server_ai_config (server_id, provider, model, api_key_enc, preset_verbosity, preset_personality, preset_role, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
 			ON CONFLICT (server_id) DO UPDATE SET
 				provider=EXCLUDED.provider, model=EXCLUDED.model,
-				api_key_enc=EXCLUDED.api_key_enc, system_prompt=EXCLUDED.system_prompt,
+				api_key_enc=EXCLUDED.api_key_enc,
+				preset_verbosity=EXCLUDED.preset_verbosity, preset_personality=EXCLUDED.preset_personality, preset_role=EXCLUDED.preset_role,
 				updated_at=NOW()`,
-			serverID, provider, model, *apiKeyEnc, systemPrompt)
+			serverID, provider, model, *apiKeyEnc, verbosity, personality, role)
 		return err
 	}
 	// Don't overwrite existing api_key_enc
 	_, err := r.db.ExecContext(ctx, `
-		INSERT INTO server_ai_config (server_id, provider, model, system_prompt, updated_at)
-		VALUES ($1, $2, $3, $4, NOW())
+		INSERT INTO server_ai_config (server_id, provider, model, preset_verbosity, preset_personality, preset_role, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, NOW())
 		ON CONFLICT (server_id) DO UPDATE SET
 			provider=EXCLUDED.provider, model=EXCLUDED.model,
-			system_prompt=EXCLUDED.system_prompt, updated_at=NOW()`,
-		serverID, provider, model, systemPrompt)
+			preset_verbosity=EXCLUDED.preset_verbosity, preset_personality=EXCLUDED.preset_personality, preset_role=EXCLUDED.preset_role,
+			updated_at=NOW()`,
+		serverID, provider, model, verbosity, personality, role)
 	return err
 }
 
@@ -319,6 +325,17 @@ type ChainMessage struct {
 	AuthorID int64
 	Content  string
 	IsBot    bool
+}
+
+// GetUserDisplayName returns display_name (falling back to username) for a user ID.
+func (r *Repository) GetUserDisplayName(ctx context.Context, userID int64) (string, error) {
+	var name string
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COALESCE(NULLIF(display_name,''), username) FROM users WHERE id=$1`, userID).Scan(&name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return name, err
 }
 
 // isPgUniqueViolation checks for Postgres unique constraint violation (code 23505).

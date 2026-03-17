@@ -646,6 +646,11 @@ UPDATE users SET username='polly', display_name='Polly' WHERE username='ai-chatb
 ALTER TABLE server_bots ADD COLUMN IF NOT EXISTS last_error_at TIMESTAMPTZ;
 ALTER TABLE server_bots ADD COLUMN IF NOT EXISTS is_degraded BOOLEAN NOT NULL DEFAULT FALSE;
 `,
+	`-- Migration 34: replace free-form system_prompt with structured personality presets
+ALTER TABLE server_ai_config ADD COLUMN IF NOT EXISTS preset_verbosity   TEXT NOT NULL DEFAULT 'concise';
+ALTER TABLE server_ai_config ADD COLUMN IF NOT EXISTS preset_personality TEXT NOT NULL DEFAULT 'friendly';
+ALTER TABLE server_ai_config ADD COLUMN IF NOT EXISTS preset_role        TEXT NOT NULL DEFAULT 'assistant';
+`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

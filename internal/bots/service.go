@@ -67,13 +67,12 @@ func (s *Service) GetAIConfig(ctx context.Context, serverID, callerID int64) (*A
 		return nil, err
 	}
 	if cfg == nil {
-		// Return defaults
 		return &AIConfig{
-			Provider:     "parley",
-			Model:        "ministral-3:14b",
-			APIKeySet:    false,
-			SystemPrompt: "",
-			UpdatedAt:    "",
+			Provider:          "parley",
+			Model:             "ministral-3:14b",
+			PresetVerbosity:   "concise",
+			PresetPersonality: "friendly",
+			PresetRole:        "assistant",
 		}, nil
 	}
 	return cfg, nil
@@ -81,7 +80,7 @@ func (s *Service) GetAIConfig(ctx context.Context, serverID, callerID int64) (*A
 
 // SetAIConfig saves AI config for a server. Caller must be server admin or owner.
 // If apiKey is non-empty, it is AES-256-GCM encrypted before storage.
-func (s *Service) SetAIConfig(ctx context.Context, serverID, callerID int64, provider, model, systemPrompt, apiKey string) error {
+func (s *Service) SetAIConfig(ctx context.Context, serverID, callerID int64, provider, model, verbosity, personality, role, apiKey string) error {
 	if err := s.requireAdmin(ctx, serverID, callerID); err != nil {
 		return err
 	}
@@ -93,7 +92,7 @@ func (s *Service) SetAIConfig(ctx context.Context, serverID, callerID int64, pro
 		}
 		apiKeyEncPtr = &enc
 	}
-	return s.repo.UpsertAIConfig(ctx, serverID, provider, model, systemPrompt, apiKeyEncPtr)
+	return s.repo.UpsertAIConfig(ctx, serverID, provider, model, verbosity, personality, role, apiKeyEncPtr)
 }
 
 // GetAIUsage returns the monthly token usage for a server. Caller must be server admin or owner.
@@ -113,16 +112,12 @@ func (s *Service) GetAIUsage(ctx context.Context, serverID, callerID int64) (*AI
 	if err != nil {
 		return nil, err
 	}
-	limit := ParleyModelAllowances[model]
-	if limit == 0 {
-		limit = 100_000
-	}
 	// Resets 1st of next month
 	now := time.Now().UTC()
 	resetsAt := time.Date(now.Year(), now.Month()+1, 1, 0, 0, 0, 0, time.UTC)
 	return &AIUsage{
 		TokensUsed:  used,
-		TokensLimit: limit,
+		TokensLimit: ParleyMonthlyBudget,
 		Model:       model,
 		ResetsAt:    resetsAt.Format(time.RFC3339),
 	}, nil
