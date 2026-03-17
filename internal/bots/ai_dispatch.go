@@ -19,9 +19,10 @@ import (
 )
 
 const (
-	dispatchTimeout = 30 * time.Second
-	replyChainHops  = 50
-	replyCharBudget = 32000
+	dispatchTimeout  = 60 * time.Second
+	dispatchRetries  = 1 // retry once on transient errors before giving up
+	replyChainHops   = 50
+	replyCharBudget  = 32000
 )
 
 // httpClient has an explicit timeout to guard against providers that accept the
@@ -98,14 +99,25 @@ func (d *Dispatcher) BuildTrigger(postFn PostFunc) func(ctx context.Context, msg
 			return
 		}
 
-		// Dispatch asynchronously so we never block the HTTP response
+		// Dispatch asynchronously so we never block the HTTP response.
+		// Budget covers all attempts: dispatchTimeout per attempt × (1 + retries) + padding.
 		go func() {
-			dispCtx, cancel := context.WithTimeout(context.Background(), dispatchTimeout)
+			totalCtx, cancel := context.WithTimeout(context.Background(), dispatchTimeout*(dispatchRetries+1)+10*time.Second)
 			defer cancel()
 
-			if err := d.dispatch(dispCtx, serverIDInt, channelID, botUserIDStr, msgID, parentID, content, postFn); err != nil {
-				log.Printf("bot dispatch error: %v", err)
+			var lastErr error
+			for attempt := 0; attempt <= dispatchRetries; attempt++ {
+				if attempt > 0 {
+					log.Printf("bot dispatch retry %d/%d after: %v", attempt, dispatchRetries, lastErr)
+				}
+				attemptCtx, attemptCancel := context.WithTimeout(totalCtx, dispatchTimeout)
+				lastErr = d.dispatch(attemptCtx, serverIDInt, channelID, botUserIDStr, msgID, parentID, content, postFn)
+				attemptCancel()
+				if lastErr == nil {
+					return
+				}
 			}
+			log.Printf("bot dispatch error: %v", lastErr)
 		}()
 	}
 }
