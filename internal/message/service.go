@@ -2,6 +2,7 @@ package message
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log"
@@ -44,11 +45,16 @@ type Message struct {
 	Reactions       []Reaction `json:"reactions"`
 }
 
+// BotTriggerFunc is called after a message is created. All args are strings for
+// loose coupling (no import of the bots package).
+type BotTriggerFunc func(ctx context.Context, msgID, channelID, serverID, authorID, content, parentID string)
+
 // MessageService provides message management operations
 type MessageService struct {
 	mu          sync.RWMutex
 	repo        *db.Repository
 	broadcaster Broadcaster
+	botTrigger  BotTriggerFunc
 }
 
 // NewMessageService creates a new MessageService with the given repository
@@ -64,6 +70,13 @@ func (s *MessageService) SetBroadcaster(b Broadcaster) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.broadcaster = b
+}
+
+// SetBotTrigger registers a function to call after each message is created.
+func (s *MessageService) SetBotTrigger(fn BotTriggerFunc) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.botTrigger = fn
 }
 
 // SendMessage creates a new message in a channel.
@@ -176,7 +189,32 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 	}
 	s.mu.RUnlock()
 
+	// Fire bot trigger asynchronously so it never blocks the HTTP response
+	s.mu.RLock()
+	trigger := s.botTrigger
+	s.mu.RUnlock()
+	if trigger != nil {
+		parentIDStr := ""
+		if msg.ParentID != nil {
+			parentIDStr = strconv.FormatInt(*msg.ParentID, 10)
+		}
+		// Resolve server ID for this channel
+		var serverIDStr string
+		var srvID sql.NullInt64
+		if e := s.repo.DB().QueryRowContext(ctx, `SELECT server_id FROM channels WHERE id=$1`,
+			mustParseInt64(channelID)).Scan(&srvID); e == nil && srvID.Valid {
+			serverIDStr = strconv.FormatInt(srvID.Int64, 10)
+		}
+		trigger(ctx, msg.ID, channelID, serverIDStr, authorID, content, parentIDStr)
+	}
+
 	return msg, nil
+}
+
+// mustParseInt64 parses a string to int64, returning 0 on error.
+func mustParseInt64(s string) int64 {
+	n, _ := strconv.ParseInt(s, 10, 64)
+	return n
 }
 
 // GetMessage retrieves a message by ID

@@ -19,6 +19,7 @@ import (
 
 	"parley/internal/auth"
 	"parley/internal/bin"
+	"parley/internal/bots"
 	"parley/internal/channel"
 	"parley/internal/db"
 	"parley/internal/email"
@@ -38,6 +39,7 @@ type Config struct {
 	OllamaAPIURL string // OLLAMA_API_URL — base URL for Ollama cloud API
 	OllamaAPIKey string // OLLAMA_API_KEY — auth key; empty disables AI generation
 	OllamaModel  string // OLLAMA_MODEL — model name, e.g. devstral-small-2:24b-cloud
+	BotKeySecret string // BOT_KEY_SECRET — 32-byte AES key for bot API key encryption
 }
 
 // DefaultConfig returns the default configuration
@@ -76,6 +78,16 @@ func DefaultConfig() *Config {
 		ollamaModel = "devstral-small-2:24b-cloud"
 	}
 
+	botKeySecret := os.Getenv("BOT_KEY_SECRET")
+	if botKeySecret == "" {
+		log.Fatal("BOT_KEY_SECRET is required (32-byte AES key for bot API key encryption)")
+	}
+	botKeyBytes := []byte(botKeySecret)
+	if len(botKeyBytes) < 32 {
+		log.Fatalf("BOT_KEY_SECRET must be at least 32 bytes (got %d)", len(botKeyBytes))
+	}
+	botKeyBytes = botKeyBytes[:32]
+
 	return &Config{
 		DatabaseURL:  databaseURL,
 		JWTSecret:    jwtSecret,
@@ -83,6 +95,7 @@ func DefaultConfig() *Config {
 		OllamaAPIURL: ollamaAPIURL,
 		OllamaAPIKey: ollamaAPIKey,
 		OllamaModel:  ollamaModel,
+		BotKeySecret: string(botKeyBytes),
 	}
 }
 
@@ -202,6 +215,27 @@ func main() {
 	binService := bin.NewService(repo)
 	binService.SetHub(hub)
 
+	// Initialize bots service
+	botsRepo := bots.NewRepository(repo)
+	botsSvc := bots.NewService(botsRepo, []byte(config.BotKeySecret))
+	botsHandler := bots.NewHandler(botsSvc)
+
+	// Cache bot user ID at startup (fatal if not found — migration must have run)
+	botUserID, err := botsRepo.GetBotUserID(context.Background(), "ai-chatbot")
+	if err != nil {
+		log.Fatalf("bot user 'ai-chatbot' not found — run migrations: %v", err)
+	}
+
+	// Wire AI dispatch as a message trigger.
+	// BuildTrigger is called ONCE here to produce a stable trigger function.
+	dispatcher := bots.NewDispatcher(botsSvc, botsRepo, config.OllamaAPIURL, config.OllamaAPIKey, botUserID)
+	postFn := func(ctx context.Context, chID, botUserIDStr, content string) error {
+		_, err := messageService.SendMessage(ctx, chID, botUserIDStr, content, "", "", "", "", "")
+		return err
+	}
+	botTriggerFn := dispatcher.BuildTrigger(postFn)
+	messageService.SetBotTrigger(botTriggerFn)
+
 	// Start hub in a goroutine
 	go hub.Run()
 	log.Println("WebSocket hub started")
@@ -237,7 +271,7 @@ func main() {
 	}
 
 	// Setup chi router
-	router := setupRouter(config, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, passkeySvc, redisHub, parseCDNHost(spacesCDNURL), siteURL)
+	router := setupRouter(config, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, passkeySvc, redisHub, parseCDNHost(spacesCDNURL), siteURL, botsHandler)
 
 	// Start version purge goroutine
 	go func() {
@@ -319,6 +353,7 @@ func setupRouter(
 	redisHub *websocket.RedisHub,
 	cdnHost string,
 	siteURL string,
+	botsHandler *bots.Handler,
 ) *chi.Mux {
 	router := chi.NewRouter()
 
@@ -333,7 +368,7 @@ func setupRouter(
 
 	// Mount routes
 	tickets := newTicketStore()
-	registerRoutes(router, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, tickets, passkeySvc, redisHub, config.OllamaAPIURL, config.OllamaAPIKey, config.OllamaModel, cdnHost, siteURL)
+	registerRoutes(router, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, tickets, passkeySvc, redisHub, config.OllamaAPIURL, config.OllamaAPIKey, config.OllamaModel, cdnHost, siteURL, botsHandler)
 
 	return router
 }

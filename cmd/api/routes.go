@@ -12,6 +12,7 @@ import (
 	"parley/internal/ai"
 	"parley/internal/auth"
 	"parley/internal/bin"
+	"parley/internal/bots"
 	"parley/internal/channel"
 	"parley/internal/db"
 	"parley/internal/dm"
@@ -53,6 +54,7 @@ func registerRoutes(
 	ollamaModel  string,
 	cdnHost string,
 	siteURL string,
+	botsHandler *bots.Handler,
 ) {
 	// Cap request bodies at 64 KB for all routes except /api/upload,
 	// which applies its own 50 MB limit inside the handler.
@@ -222,6 +224,17 @@ func registerRoutes(
 			r.With(rateLimitMiddleware(inviteLimiter)).Get("/invites/{code}", serverHandler.GetInvite)
 			r.Put("/servers/{id}/vanity", serverHandler.SetVanityURL)
 
+			// Bot routes
+			r.Get("/servers/{id}/bots", botsHandler.ListBots)
+			r.Post("/servers/{id}/bots", botsHandler.AddBot)
+			r.Delete("/servers/{id}/bots/{botId}", botsHandler.RemoveBot)
+			r.Get("/servers/{id}/ai-config", botsHandler.GetAIConfig)
+			r.Put("/servers/{id}/ai-config", botsHandler.SetAIConfig)
+			r.Get("/servers/{id}/ai-usage", botsHandler.GetAIUsage)
+
+			// Authenticated bot invite accept
+			r.Post("/bots/invite/{token}/accept", botsHandler.AcceptInvite)
+
 			// User routes
 			r.Get("/users/search", handleUserSearch(repo))
 			r.Get("/users/{id}", handleGetUser(repo))
@@ -251,6 +264,9 @@ func registerRoutes(
 		// Public theme routes — no authentication required
 		r.Get("/themes/repo", themeHandler.GetThemeRepo)
 		r.Get("/themes/{token}", themeHandler.GetPublicTheme)
+
+		// Public bot invite route (no auth required)
+		r.Get("/bots/invite/{token}", botsHandler.ResolveInvite)
 	})
 
 	// WebSocket endpoint — prefers short-lived ticket, falls back to JWT query param
