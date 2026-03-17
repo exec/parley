@@ -33,12 +33,6 @@ function ThemeCard({ theme, isAdmin, onFeatureToggle, existingTheme }: {
       navigate('/login');
       return;
     }
-    // Already installed — just apply it
-    if (existingTheme) {
-      await themeCtx.setCustom(existingTheme.id, existingTheme);
-      navigate('/');
-      return;
-    }
     if (!theme.share_token) return;
     setInstalling(true);
     setInstallError('');
@@ -85,8 +79,8 @@ function ThemeCard({ theme, isAdmin, onFeatureToggle, existingTheme }: {
         )}
         <div className="theme-card-actions">
           {existingTheme ? (
-            <button className="theme-card-install-btn" onClick={handleInstall}>
-              Apply (already installed)
+            <button className="theme-card-install-btn" disabled>
+              ✓ Installed
             </button>
           ) : (
             <button
@@ -125,9 +119,10 @@ export const ThemeRepoPage: React.FC = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const LIMIT = 24;
 
-  // Build a map of share_token → UserTheme for already-installed themes
+  // Build a map of source_share_token → UserTheme for already-installed themes
+  // (source_share_token is the share_token of the repo theme they were installed from)
   const installedByToken = new Map(
-    customThemes.filter(t => t.share_token).map(t => [t.share_token!, t])
+    customThemes.filter(t => t.source_share_token).map(t => [t.source_share_token!, t])
   );
 
   // Check admin status

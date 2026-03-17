@@ -357,5 +357,9 @@ func (h *Handler) handleThemeErr(w http.ResponseWriter, r *http.Request, err err
 		writeErr(w, r, 400, err.Error())
 		return
 	}
+	if errors.Is(err, ErrAlreadyInstalled) {
+		writeErr(w, r, 409, "theme already installed")
+		return
+	}
 	writeErr(w, r, 500, err.Error())
 }

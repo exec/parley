@@ -570,6 +570,11 @@ ALTER TABLE user_themes ADD COLUMN IF NOT EXISTS is_published BOOLEAN NOT NULL D
 ALTER TABLE user_themes ADD COLUMN IF NOT EXISTS is_featured BOOLEAN NOT NULL DEFAULT FALSE;
 CREATE INDEX IF NOT EXISTS idx_user_themes_published ON user_themes(is_published) WHERE is_published = TRUE;
 `,
+
+	`-- Add source_share_token to track which published theme a user installed (non-unique)
+ALTER TABLE user_themes ADD COLUMN IF NOT EXISTS source_share_token UUID;
+CREATE INDEX IF NOT EXISTS idx_user_themes_source_token ON user_themes(user_id, source_share_token) WHERE source_share_token IS NOT NULL;
+`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

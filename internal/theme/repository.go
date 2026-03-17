@@ -7,6 +7,7 @@ import (
 )
 
 var ErrNotFound = errors.New("theme not found")
+var ErrAlreadyInstalled = errors.New("theme already installed")
 
 type Repository struct {
 	db *sql.DB
@@ -56,9 +57,9 @@ func (r *Repository) CreateTheme(ctx context.Context, userID int64, name, css, b
 	return t, r.db.QueryRowContext(ctx,
 		`INSERT INTO user_themes (user_id,name,css,base_theme,background_url)
 		 VALUES ($1,$2,$3,$4,$5)
-		 RETURNING id,user_id,name,css,base_theme,background_url,share_token,is_published,is_featured,created_at`,
+		 RETURNING id,user_id,name,css,base_theme,background_url,share_token,source_share_token,is_published,is_featured,created_at`,
 		userID, name, css, baseTheme, bgURL,
-	).Scan(&t.ID, &t.UserID, &t.Name, &t.CSS, &t.BaseTheme, &t.BackgroundURL, &t.ShareToken, &t.IsPublished, &t.IsFeatured, &t.CreatedAt)
+	).Scan(&t.ID, &t.UserID, &t.Name, &t.CSS, &t.BaseTheme, &t.BackgroundURL, &t.ShareToken, &t.SourceShareToken, &t.IsPublished, &t.IsFeatured, &t.CreatedAt)
 }
 
 func (r *Repository) UpdateTheme(ctx context.Context, id, userID int64, name, css, baseTheme string, bgURL *string) (*UserTheme, error) {
@@ -66,9 +67,9 @@ func (r *Repository) UpdateTheme(ctx context.Context, id, userID int64, name, cs
 	err := r.db.QueryRowContext(ctx,
 		`UPDATE user_themes SET name=$3,css=$4,base_theme=$5,background_url=$6
 		 WHERE id=$1 AND user_id=$2
-		 RETURNING id,user_id,name,css,base_theme,background_url,share_token,is_published,is_featured,created_at`,
+		 RETURNING id,user_id,name,css,base_theme,background_url,share_token,source_share_token,is_published,is_featured,created_at`,
 		id, userID, name, css, baseTheme, bgURL,
-	).Scan(&t.ID, &t.UserID, &t.Name, &t.CSS, &t.BaseTheme, &t.BackgroundURL, &t.ShareToken, &t.IsPublished, &t.IsFeatured, &t.CreatedAt)
+	).Scan(&t.ID, &t.UserID, &t.Name, &t.CSS, &t.BaseTheme, &t.BackgroundURL, &t.ShareToken, &t.SourceShareToken, &t.IsPublished, &t.IsFeatured, &t.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -101,7 +102,7 @@ func (r *Repository) DeleteTheme(ctx context.Context, id, userID int64) error {
 
 func (r *Repository) GetUserThemes(ctx context.Context, userID int64) ([]UserTheme, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id,user_id,name,css,base_theme,background_url,share_token,is_published,is_featured,created_at
+		`SELECT id,user_id,name,css,base_theme,background_url,share_token,source_share_token,is_published,is_featured,created_at
 		 FROM user_themes WHERE user_id=$1 ORDER BY created_at ASC`, userID)
 	if err != nil {
 		return nil, err
@@ -110,7 +111,7 @@ func (r *Repository) GetUserThemes(ctx context.Context, userID int64) ([]UserThe
 	var out []UserTheme
 	for rows.Next() {
 		var t UserTheme
-		if err := rows.Scan(&t.ID, &t.UserID, &t.Name, &t.CSS, &t.BaseTheme, &t.BackgroundURL, &t.ShareToken, &t.IsPublished, &t.IsFeatured, &t.CreatedAt); err != nil {
+		if err := rows.Scan(&t.ID, &t.UserID, &t.Name, &t.CSS, &t.BaseTheme, &t.BackgroundURL, &t.ShareToken, &t.SourceShareToken, &t.IsPublished, &t.IsFeatured, &t.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, t)
@@ -138,12 +139,13 @@ func (r *Repository) GetThemeByToken(ctx context.Context, token string) (*UserTh
 	t := &UserTheme{}
 	err := r.db.QueryRowContext(ctx,
 		`SELECT t.id, t.user_id, t.name, t.css, t.base_theme, t.background_url, t.share_token,
-		        t.is_published, t.is_featured, t.created_at, u.username, COALESCE(u.display_name, '')
+		        t.source_share_token, t.is_published, t.is_featured, t.created_at,
+		        u.username, COALESCE(u.display_name, '')
 		 FROM user_themes t
 		 JOIN users u ON u.id = t.user_id
 		 WHERE t.share_token=$1`, token,
 	).Scan(&t.ID, &t.UserID, &t.Name, &t.CSS, &t.BaseTheme, &t.BackgroundURL, &t.ShareToken,
-		&t.IsPublished, &t.IsFeatured, &t.CreatedAt, &t.AuthorUsername, &t.AuthorDisplayName)
+		&t.SourceShareToken, &t.IsPublished, &t.IsFeatured, &t.CreatedAt, &t.AuthorUsername, &t.AuthorDisplayName)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -162,13 +164,23 @@ func (r *Repository) InstallTheme(ctx context.Context, token string, userID int6
 	if err != nil {
 		return nil, err
 	}
+	// Reject duplicate installs
+	var existing int
+	if err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM user_themes WHERE user_id=$1 AND source_share_token=$2::uuid`,
+		userID, token).Scan(&existing); err != nil {
+		return nil, err
+	}
+	if existing > 0 {
+		return nil, ErrAlreadyInstalled
+	}
 	t := &UserTheme{}
 	return t, r.db.QueryRowContext(ctx,
-		`INSERT INTO user_themes (user_id,name,css,base_theme,background_url,share_token)
-		 VALUES ($1,$2,$3,$4,$5,$6)
-		 RETURNING id,user_id,name,css,base_theme,background_url,share_token,is_published,is_featured,created_at`,
-		userID, src.Name, src.CSS, src.BaseTheme, src.BackgroundURL, src.ShareToken,
-	).Scan(&t.ID, &t.UserID, &t.Name, &t.CSS, &t.BaseTheme, &t.BackgroundURL, &t.ShareToken, &t.IsPublished, &t.IsFeatured, &t.CreatedAt)
+		`INSERT INTO user_themes (user_id,name,css,base_theme,background_url,source_share_token)
+		 VALUES ($1,$2,$3,$4,$5,$6::uuid)
+		 RETURNING id,user_id,name,css,base_theme,background_url,share_token,source_share_token,is_published,is_featured,created_at`,
+		userID, src.Name, src.CSS, src.BaseTheme, src.BackgroundURL, token,
+	).Scan(&t.ID, &t.UserID, &t.Name, &t.CSS, &t.BaseTheme, &t.BackgroundURL, &t.ShareToken, &t.SourceShareToken, &t.IsPublished, &t.IsFeatured, &t.CreatedAt)
 }
 
 // SetPublished publishes or unpublishes a theme. When publishing, auto-generates share_token if not set.
@@ -213,7 +225,7 @@ func (r *Repository) SetFeatured(ctx context.Context, id int64, featured bool) e
 func (r *Repository) GetPublishedThemes(ctx context.Context, limit, offset int) ([]UserTheme, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT t.id, t.user_id, t.name, t.css, t.base_theme, t.background_url,
-		        t.share_token, t.is_published, t.is_featured, t.created_at,
+		        t.share_token, t.source_share_token, t.is_published, t.is_featured, t.created_at,
 		        u.username, COALESCE(u.display_name, '')
 		 FROM user_themes t
 		 JOIN users u ON u.id = t.user_id
@@ -229,7 +241,7 @@ func (r *Repository) GetPublishedThemes(ctx context.Context, limit, offset int) 
 		var t UserTheme
 		if err := rows.Scan(
 			&t.ID, &t.UserID, &t.Name, &t.CSS, &t.BaseTheme, &t.BackgroundURL,
-			&t.ShareToken, &t.IsPublished, &t.IsFeatured, &t.CreatedAt,
+			&t.ShareToken, &t.SourceShareToken, &t.IsPublished, &t.IsFeatured, &t.CreatedAt,
 			&t.AuthorUsername, &t.AuthorDisplayName,
 		); err != nil {
 			return nil, err

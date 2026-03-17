@@ -10,6 +10,7 @@ type UserTheme struct {
 	BaseTheme         string    `json:"base_theme"`
 	BackgroundURL     *string   `json:"background_url"`
 	ShareToken        *string   `json:"share_token"`
+	SourceShareToken  *string   `json:"source_share_token,omitempty"`
 	IsPublished       bool      `json:"is_published"`
 	IsFeatured        bool      `json:"is_featured"`
 	AuthorUsername    string    `json:"author_username,omitempty"`

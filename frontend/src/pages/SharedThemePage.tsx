@@ -23,17 +23,12 @@ export const SharedThemePage: React.FC = () => {
     }).catch(() => setError('Theme not found or link is invalid.'));
   }, [token]); // eslint-disable-line
 
-  // Check if the user already has this theme installed (matched by share_token).
-  const existingTheme = themeCtx.customThemes.find(t => t.share_token === token);
+  // Check if the user already has this theme installed (matched by source_share_token).
+  const existingTheme = themeCtx.customThemes.find(t => t.source_share_token === token);
 
   const handleInstall = async () => {
     if (!localStorage.getItem('token')) {
       navigate(`/login?redirect=/theme/${token}`); return;
-    }
-    if (existingTheme) {
-      await themeCtx.setCustom(existingTheme.id, existingTheme);
-      navigate('/');
-      return;
     }
     setInstalling(true);
     try {
@@ -66,10 +61,8 @@ export const SharedThemePage: React.FC = () => {
           {palette.map((c,i) => <div key={i} className="shared-theme-palette-chip" style={{background:c}} />)}
         </div>
         <div className="shared-theme-actions">
-          {installed
+          {installed || existingTheme
             ? <div style={{color:'var(--parley-success)',fontWeight:600}}>✓ Installed! Find it in Settings → Appearance.</div>
-            : existingTheme
-            ? <button className="shared-theme-install" onClick={handleInstall}>Apply (already installed)</button>
             : <button className="shared-theme-install" onClick={handleInstall} disabled={installing}>{installing?'Installing…':'Install Theme'}</button>
           }
           <button className="shared-theme-discard" onClick={handleDiscard}>Discard &amp; go home</button>

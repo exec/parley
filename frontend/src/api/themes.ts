@@ -7,6 +7,7 @@ export interface UserTheme {
   base_theme: string;
   background_url: string | null;
   share_token: string | null;
+  source_share_token?: string | null;
   created_at: string;
   author_username?: string;
   is_published?: boolean;
