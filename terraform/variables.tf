@@ -171,5 +171,5 @@ variable "ollama_api_key" {
 variable "ollama_model" {
   description = "Ollama model name for AI theme generation"
   type        = string
-  default     = "qwen3.5:9b"
+  default     = "devstral-small-2:24b-cloud"
 }

@@ -37,7 +37,7 @@ type Config struct {
 	Port         string
 	OllamaAPIURL string // OLLAMA_API_URL — base URL for Ollama cloud API
 	OllamaAPIKey string // OLLAMA_API_KEY — auth key; empty disables AI generation
-	OllamaModel  string // OLLAMA_MODEL — model name, e.g. qwen3.5:9b
+	OllamaModel  string // OLLAMA_MODEL — model name, e.g. devstral-small-2:24b-cloud
 }
 
 // DefaultConfig returns the default configuration
@@ -73,7 +73,7 @@ func DefaultConfig() *Config {
 
 	ollamaModel := os.Getenv("OLLAMA_MODEL")
 	if ollamaModel == "" {
-		ollamaModel = "qwen3.5:9b"
+		ollamaModel = "devstral-small-2:24b-cloud"
 	}
 
 	return &Config{
