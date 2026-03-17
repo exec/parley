@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -59,6 +60,8 @@ func (s *AuthService) SetEmailClient(client *email.Client, siteURL string) {
 
 // Register creates a new user and returns a token
 func (s *AuthService) Register(ctx context.Context, username, email_, phone, password, registrationIP string) (User, string, error) {
+	username = strings.ToLower(username)
+
 	// Validate input
 	if username == "" || password == "" {
 		return User{}, "", errors.New("username and password are required")
@@ -251,6 +254,10 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername, cu
 	dbUser, err := s.repo.GetUserByID(ctx, userIDInt)
 	if err != nil {
 		return User{}, errors.New("user not found")
+	}
+
+	if newUsername != "" {
+		newUsername = strings.ToLower(newUsername)
 	}
 
 	if newUsername != "" && newUsername != dbUser.Username {

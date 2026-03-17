@@ -65,9 +65,14 @@ func (h *Handler) Token(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tokenName := member.DisplayName
+	user, err := h.repo.GetUserByID(ctx, userID)
+	if err != nil {
+		jsonErr(w, "user not found", http.StatusInternalServerError)
+		return
+	}
+	tokenName := user.DisplayName
 	if tokenName == "" {
-		tokenName = member.Username
+		tokenName = user.Username
 	}
 	token, err := h.svc.IssueToken(userIDStr, tokenName, channelIDStr)
 	if err != nil {
@@ -160,12 +165,17 @@ func (h *Handler) parseVoiceRequest(w http.ResponseWriter, r *http.Request) (use
 		return
 	}
 
-	serverVirtualChannelID = "server:" + strconv.FormatInt(ch.ServerID, 10)
-	displayName := member.DisplayName
-	if displayName == "" {
-		displayName = member.Username
+	user, err := h.repo.GetUserByID(ctx, userID)
+	if err != nil {
+		jsonErr(w, "user not found", http.StatusInternalServerError)
+		return
 	}
-	return userIDStr, displayName, member.AvatarURL, channelIDStr, serverVirtualChannelID, true
+	displayName := user.DisplayName
+	if displayName == "" {
+		displayName = user.Username
+	}
+	serverVirtualChannelID = "server:" + strconv.FormatInt(ch.ServerID, 10)
+	return userIDStr, displayName, user.AvatarURL, channelIDStr, serverVirtualChannelID, true
 }
 
 // MuteParticipant force-mutes a participant in a voice channel.
