@@ -24,12 +24,22 @@ export async function sendDmMessage(
   content: string,
   attachmentUrl?: string,
   attachmentName?: string,
-  attachmentType?: string
+  attachmentType?: string,
+  parentId?: string
 ): Promise<DmMessage> {
   return apiClient.post<DmMessage>(`/dms/${dmChannelId}/messages`, {
     content,
     attachment_url: attachmentUrl || '',
     attachment_name: attachmentName || '',
     attachment_type: attachmentType || '',
+    parent_id: parentId || null,
   });
+}
+
+export async function deleteDmMessage(dmChannelId: string, messageId: string): Promise<void> {
+  return apiClient.delete(`/dms/${dmChannelId}/messages/${messageId}`);
+}
+
+export async function toggleDmReaction(dmChannelId: string, messageId: string, emoji: string): Promise<void> {
+  return apiClient.post(`/dms/${dmChannelId}/messages/${messageId}/reactions`, { emoji });
 }

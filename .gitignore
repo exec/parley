@@ -37,5 +37,6 @@ Thumbs.db
 # Secrets / env files
 frontend/.env
 .env
+**/.env
 **/.env.local
 .worktrees/

@@ -203,6 +203,8 @@ func registerRoutes(
 			r.Post("/dms", dmHandler.OpenDmChannel)
 			r.Get("/dms/{id}/messages", dmHandler.GetDmMessages)
 			r.Post("/dms/{id}/messages", dmHandler.SendDmMessage)
+			r.Delete("/dms/{id}/messages/{messageId}", dmHandler.DeleteDmMessage)
+			r.Post("/dms/{id}/messages/{messageId}/reactions", dmHandler.ToggleDmReaction)
 
 			// Bin routes
 			binHandler := bin.NewHandler(binService)

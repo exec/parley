@@ -46,6 +46,7 @@ interface ChatWindowProps {
   headerAvatar?: string;
   isOnline?: boolean;
   onlineUserIds?: Set<string>;
+  hideRoles?: boolean;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -80,6 +81,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   headerAvatar,
   isOnline,
   onlineUserIds,
+  hideRoles,
 }) => {
   const { hasPerm: checkPerm } = usePermissions(channel.server_id || undefined, channel.id || undefined);
   const canManageMessages = !channel.server_id || checkPerm(PERM_MANAGE_MESSAGES);
@@ -266,6 +268,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             setMiniProfile(null);
           }}
           canManageRoles={false}
+          hideRoles={hideRoles}
         />
       )}
     </div>

@@ -1076,8 +1076,37 @@
 .msg-badge.selfbot {
   font-size: 13px;
   padding: 0 2px;
+  margin-left: 2px;
   background: none;
-  cursor: help;
+  cursor: default;
+  position: relative;
+}
+
+.msg-badge-tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 4px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.1s, visibility 0.1s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.msg-badge.selfbot:hover .msg-badge-tooltip {
+  opacity: 1;
+  visibility: visible;
 }
 
 @keyframes message-highlight-flash {

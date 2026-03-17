@@ -2,6 +2,7 @@ package dm
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"strconv"
@@ -178,10 +179,11 @@ func (h *Handler) GetDmMessages(w http.ResponseWriter, r *http.Request) {
 
 // SendDmMessageRequest represents the request to send a DM
 type SendDmMessageRequest struct {
-	Content        string `json:"content"`
-	AttachmentURL  string `json:"attachment_url"`
-	AttachmentName string `json:"attachment_name"`
-	AttachmentType string `json:"attachment_type"`
+	Content        string  `json:"content"`
+	AttachmentURL  string  `json:"attachment_url"`
+	AttachmentName string  `json:"attachment_name"`
+	AttachmentType string  `json:"attachment_type"`
+	ParentID       *string `json:"parent_id"`
 }
 
 // SendDmMessage handles POST /dms/{id}/messages
@@ -241,7 +243,15 @@ func (h *Handler) SendDmMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg, err := h.repo.CreateDmMessage(r.Context(), dmChannelID, currentUserID, req.Content, req.AttachmentURL, req.AttachmentName, req.AttachmentType)
+	var parentID *int64
+	if req.ParentID != nil && *req.ParentID != "" {
+		pid, err := strconv.ParseInt(*req.ParentID, 10, 64)
+		if err == nil {
+			parentID = &pid
+		}
+	}
+
+	msg, err := h.repo.CreateDmMessage(r.Context(), dmChannelID, currentUserID, req.Content, req.AttachmentURL, req.AttachmentName, req.AttachmentType, parentID)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -271,6 +281,120 @@ func (h *Handler) SendDmMessage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(msg)
+}
+
+// DeleteDmMessage handles DELETE /dms/{id}/messages/{messageId}
+func (h *Handler) DeleteDmMessage(w http.ResponseWriter, r *http.Request) {
+	userIDStr := auth.GetUserIDFromContext(r)
+	if userIDStr == "" {
+		jsonError(w, "user not authenticated", http.StatusUnauthorized)
+		return
+	}
+	currentUserID, err := strconv.ParseInt(userIDStr, 10, 64)
+	if err != nil {
+		jsonError(w, "invalid user ID", http.StatusBadRequest)
+		return
+	}
+	dmID := chi.URLParam(r, "id")
+	messageID, err := strconv.ParseInt(chi.URLParam(r, "messageId"), 10, 64)
+	if err != nil {
+		jsonError(w, "invalid message id", http.StatusBadRequest)
+		return
+	}
+	dmChannelID, err := strconv.ParseInt(dmID, 10, 64)
+	if err != nil {
+		jsonError(w, "invalid DM channel id", http.StatusBadRequest)
+		return
+	}
+	channel, err := h.repo.GetDmChannelByID(r.Context(), dmChannelID)
+	if err != nil {
+		jsonError(w, "DM channel not found", http.StatusNotFound)
+		return
+	}
+	if channel.User1ID != currentUserID && channel.User2ID != currentUserID {
+		jsonError(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	if err := h.repo.DeleteDmMessage(r.Context(), messageID, currentUserID); err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			jsonError(w, "message not found or not your message", http.StatusNotFound)
+			return
+		}
+		jsonError(w, "failed to delete message", http.StatusInternalServerError)
+		return
+	}
+	// Broadcast to both participants
+	if h.hub != nil {
+		payload, _ := json.Marshal(map[string]string{
+			"message_id":    strconv.FormatInt(messageID, 10),
+			"dm_channel_id": strconv.FormatInt(dmChannelID, 10),
+		})
+		h.hub.SendToUser(strconv.FormatInt(channel.User1ID, 10), "dm_message_delete", payload)
+		h.hub.SendToUser(strconv.FormatInt(channel.User2ID, 10), "dm_message_delete", payload)
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ToggleDmReaction handles POST /dms/{id}/messages/{messageId}/reactions
+func (h *Handler) ToggleDmReaction(w http.ResponseWriter, r *http.Request) {
+	userIDStr := auth.GetUserIDFromContext(r)
+	if userIDStr == "" {
+		jsonError(w, "user not authenticated", http.StatusUnauthorized)
+		return
+	}
+	currentUserID, err := strconv.ParseInt(userIDStr, 10, 64)
+	if err != nil {
+		jsonError(w, "invalid user ID", http.StatusBadRequest)
+		return
+	}
+	dmID := chi.URLParam(r, "id")
+	messageID, err := strconv.ParseInt(chi.URLParam(r, "messageId"), 10, 64)
+	if err != nil {
+		jsonError(w, "invalid message id", http.StatusBadRequest)
+		return
+	}
+	dmChannelID, err := strconv.ParseInt(dmID, 10, 64)
+	if err != nil {
+		jsonError(w, "invalid DM channel id", http.StatusBadRequest)
+		return
+	}
+	channel, err := h.repo.GetDmChannelByID(r.Context(), dmChannelID)
+	if err != nil {
+		jsonError(w, "DM channel not found", http.StatusNotFound)
+		return
+	}
+	if channel.User1ID != currentUserID && channel.User2ID != currentUserID {
+		jsonError(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	var req struct {
+		Emoji string `json:"emoji"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Emoji == "" {
+		jsonError(w, "emoji required", http.StatusBadRequest)
+		return
+	}
+	added, err := h.repo.ToggleDmReaction(r.Context(), messageID, currentUserID, req.Emoji)
+	if err != nil {
+		jsonError(w, "failed to toggle reaction", http.StatusInternalServerError)
+		return
+	}
+	// Broadcast to both participants
+	if h.hub != nil {
+		eventType := "dm_reaction_remove"
+		if added {
+			eventType = "dm_reaction_add"
+		}
+		payload, _ := json.Marshal(map[string]string{
+			"message_id":    strconv.FormatInt(messageID, 10),
+			"dm_channel_id": strconv.FormatInt(dmChannelID, 10),
+			"user_id":       userIDStr,
+			"emoji":         req.Emoji,
+		})
+		h.hub.SendToUser(strconv.FormatInt(channel.User1ID, 10), eventType, payload)
+		h.hub.SendToUser(strconv.FormatInt(channel.User2ID, 10), eventType, payload)
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func jsonError(w http.ResponseWriter, message string, code int) {

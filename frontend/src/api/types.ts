@@ -117,8 +117,13 @@ export interface DmMessage {
   dm_channel_id: string;
   author_id: string;
   author_username: string;
+  author_display_name?: string;
   author_avatar_url?: string;
   content: string;
+  parent_id?: string;
+  parent_author_username?: string;
+  parent_author_display_name?: string;
+  reactions?: Reaction[];
   created_at: string;
   updated_at: string;
   attachment_url?: string;

@@ -105,12 +105,14 @@ interface UseWebSocketOptions {
   onRoleUpdate?: (event: RoleUpdateEvent) => void;
   onRoleDelete?: (event: RoleDeleteEvent) => void;
   onBotStatusUpdate?: (update: BotStatusUpdate) => void;
+  onDmMessageDelete?: (messageId: string, dmChannelId: string) => void;
+  onDmReactionUpdate?: (update: { message_id: string; dm_channel_id: string; user_id: string; emoji: string; added: boolean }) => void;
   activeChannelId: string | null;
   extraChannelIds?: string[]; // Additional channels to subscribe to for notifications
   onConnect?: () => void; // Called on every successful (re)connect
 }
 
-export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onServerMemberLeave, onServerMemberKick, onServerMemberBan, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, onChannelCreate, onChannelUpdate, onChannelDelete, onServerUpdate, onServerDelete, onMemberRoleUpdate, onUserUpdate, onVoiceStateUpdate, onVoiceForceMute, onVoiceForceDisconnect, onBinPostCreate, onBinPostUpdate, onBinPostDelete, onChannelOverwriteUpdate, onRoleUpdate, onRoleDelete, onBotStatusUpdate, onConnect, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
+export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onServerMemberLeave, onServerMemberKick, onServerMemberBan, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, onChannelCreate, onChannelUpdate, onChannelDelete, onServerUpdate, onServerDelete, onMemberRoleUpdate, onUserUpdate, onVoiceStateUpdate, onVoiceForceMute, onVoiceForceDisconnect, onBinPostCreate, onBinPostUpdate, onBinPostDelete, onChannelOverwriteUpdate, onRoleUpdate, onRoleDelete, onBotStatusUpdate, onDmMessageDelete, onDmReactionUpdate, onConnect, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const subscribedChannelsRef = useRef<Set<string>>(new Set());
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -149,6 +151,8 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
   const onRoleUpdateRef = useRef(onRoleUpdate);
   const onRoleDeleteRef = useRef(onRoleDelete);
   const onBotStatusUpdateRef = useRef(onBotStatusUpdate);
+  const onDmMessageDeleteRef = useRef(onDmMessageDelete);
+  const onDmReactionUpdateRef = useRef(onDmReactionUpdate);
   const onConnectRef = useRef(onConnect);
   useEffect(() => { onConnectRef.current = onConnect; }, [onConnect]);
   useEffect(() => { onMessageRef.current = onMessage; }, [onMessage]);
@@ -181,6 +185,8 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
   useEffect(() => { onRoleUpdateRef.current = onRoleUpdate; }, [onRoleUpdate]);
   useEffect(() => { onRoleDeleteRef.current = onRoleDelete; }, [onRoleDelete]);
   useEffect(() => { onBotStatusUpdateRef.current = onBotStatusUpdate; }, [onBotStatusUpdate]);
+  useEffect(() => { onDmMessageDeleteRef.current = onDmMessageDelete; }, [onDmMessageDelete]);
+  useEffect(() => { onDmReactionUpdateRef.current = onDmReactionUpdate; }, [onDmReactionUpdate]);
 
   const sendTyping = useCallback((channelId: string, username: string) => {
     const ws = wsRef.current;
@@ -334,62 +340,44 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
             onVoiceForceDisconnectRef.current();
           }
         } else if (wsMsg.type === 'BIN_POST_CREATE') {
-          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
-            const event = wsMsg.payload as BinPostEvent;
-            if (onBinPostCreateRef.current) {
-              onBinPostCreateRef.current(event);
-            } else {
-              console.log('[WebSocket] BIN_POST_CREATE', event);
-            }
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null && onBinPostCreateRef.current) {
+            onBinPostCreateRef.current(wsMsg.payload as BinPostEvent);
           }
         } else if (wsMsg.type === 'BIN_POST_UPDATE') {
-          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
-            const event = wsMsg.payload as BinPostEvent;
-            if (onBinPostUpdateRef.current) {
-              onBinPostUpdateRef.current(event);
-            } else {
-              console.log('[WebSocket] BIN_POST_UPDATE', event);
-            }
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null && onBinPostUpdateRef.current) {
+            onBinPostUpdateRef.current(wsMsg.payload as BinPostEvent);
           }
         } else if (wsMsg.type === 'BIN_POST_DELETE') {
-          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
-            const event = wsMsg.payload as BinPostEvent;
-            if (onBinPostDeleteRef.current) {
-              onBinPostDeleteRef.current(event);
-            } else {
-              console.log('[WebSocket] BIN_POST_DELETE', event);
-            }
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null && onBinPostDeleteRef.current) {
+            onBinPostDeleteRef.current(wsMsg.payload as BinPostEvent);
           }
         } else if (wsMsg.type === 'CHANNEL_OVERWRITE_UPDATE') {
-          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
-            const event = wsMsg.payload as ChannelOverwriteUpdateEvent;
-            if (onChannelOverwriteUpdateRef.current) {
-              onChannelOverwriteUpdateRef.current(event);
-            } else {
-              console.log('[WebSocket] CHANNEL_OVERWRITE_UPDATE', event);
-            }
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null && onChannelOverwriteUpdateRef.current) {
+            onChannelOverwriteUpdateRef.current(wsMsg.payload as ChannelOverwriteUpdateEvent);
           }
         } else if (wsMsg.type === 'ROLE_UPDATE') {
-          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
-            const event = wsMsg.payload as RoleUpdateEvent;
-            if (onRoleUpdateRef.current) {
-              onRoleUpdateRef.current(event);
-            } else {
-              console.log('[WebSocket] ROLE_UPDATE', event);
-            }
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null && onRoleUpdateRef.current) {
+            onRoleUpdateRef.current(wsMsg.payload as RoleUpdateEvent);
           }
         } else if (wsMsg.type === 'ROLE_DELETE') {
-          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
-            const event = wsMsg.payload as RoleDeleteEvent;
-            if (onRoleDeleteRef.current) {
-              onRoleDeleteRef.current(event);
-            } else {
-              console.log('[WebSocket] ROLE_DELETE', event);
-            }
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null && onRoleDeleteRef.current) {
+            onRoleDeleteRef.current(wsMsg.payload as RoleDeleteEvent);
           }
         } else if (wsMsg.type === 'BOT_STATUS_UPDATE') {
           if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null && onBotStatusUpdateRef.current) {
             onBotStatusUpdateRef.current(wsMsg.payload as BotStatusUpdate);
+          }
+        } else if (wsMsg.type === 'dm_message_delete' && onDmMessageDeleteRef.current) {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            const p = wsMsg.payload as { message_id: string; dm_channel_id: string };
+            if (p.message_id) onDmMessageDeleteRef.current(p.message_id, p.dm_channel_id ?? '');
+          }
+        } else if ((wsMsg.type === 'dm_reaction_add' || wsMsg.type === 'dm_reaction_remove') && onDmReactionUpdateRef.current) {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            const p = wsMsg.payload as { message_id: string; dm_channel_id: string; user_id: string; emoji: string };
+            if (p.message_id && p.emoji) {
+              onDmReactionUpdateRef.current({ ...p, added: wsMsg.type === 'dm_reaction_add' });
+            }
           }
         }
       } catch (err) {

@@ -1,7 +1,6 @@
 package voice
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -152,7 +151,7 @@ func (h *Handler) parseVoiceRequest(w http.ResponseWriter, r *http.Request) (use
 		return
 	}
 
-	ctx := context.Background()
+	ctx := r.Context()
 	ch, err := h.repo.GetChannelByID(ctx, channelID)
 	if err != nil {
 		jsonErr(w, "channel not found", http.StatusNotFound)

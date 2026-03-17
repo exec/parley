@@ -33,11 +33,12 @@ interface MiniProfileProps {
   onViewProfile?: (userId: string) => void;
   canManageRoles?: boolean;
   onManageRoles?: () => void;
+  hideRoles?: boolean;
 }
 
 const MiniProfile: React.FC<MiniProfileProps> = ({
   member, isCurrentUser, isOnline, position, onClose,
-  onSendMessage, onViewProfile, canManageRoles, onManageRoles,
+  onSendMessage, onViewProfile, canManageRoles, onManageRoles, hideRoles,
 }) => {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -107,37 +108,41 @@ const MiniProfile: React.FC<MiniProfileProps> = ({
         {subName && <div className="mini-profile-nickname">{subName}</div>}
         {member.bio && <div className="mini-profile-bio"><MarkdownRenderer content={member.bio} mode="bio" /></div>}
 
-        <div className="mini-profile-divider" />
+        {!hideRoles && (
+          <>
+            <div className="mini-profile-divider" />
 
-        <div className="mini-profile-roles-header">
-          <span className="mini-profile-section-label">Roles</span>
-          {showAddRole && (
-            <button
-              className="mini-profile-add-role-btn"
-              title="Manage roles"
-              onClick={() => { onManageRoles?.(); onClose(); }}
-            >
-              +
-            </button>
-          )}
-        </div>
+            <div className="mini-profile-roles-header">
+              <span className="mini-profile-section-label">Roles</span>
+              {showAddRole && (
+                <button
+                  className="mini-profile-add-role-btn"
+                  title="Manage roles"
+                  onClick={() => { onManageRoles?.(); onClose(); }}
+                >
+                  +
+                </button>
+              )}
+            </div>
 
-        {member.roles && member.roles.filter(r => !r.is_everyone).length > 0 ? (
-          <div className="mini-profile-roles">
-            {member.roles.filter(r => !r.is_everyone).map(role => (
-              <span
-                key={role.id}
-                className="mini-profile-role-tag"
-                style={{ backgroundColor: role.color + '22', color: role.color, borderColor: role.color + '55' }}
-              >
-                {role.name}
-              </span>
-            ))}
-          </div>
-        ) : (
-          <div className="mini-profile-no-roles">
-            {showAddRole ? 'No roles — click + to assign' : 'No roles assigned'}
-          </div>
+            {member.roles && member.roles.filter(r => !r.is_everyone).length > 0 ? (
+              <div className="mini-profile-roles">
+                {member.roles.filter(r => !r.is_everyone).map(role => (
+                  <span
+                    key={role.id}
+                    className="mini-profile-role-tag"
+                    style={{ backgroundColor: role.color + '22', color: role.color, borderColor: role.color + '55' }}
+                  >
+                    {role.name}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div className="mini-profile-no-roles">
+                {showAddRole ? 'No roles — click + to assign' : 'No roles assigned'}
+              </div>
+            )}
+          </>
         )}
 
         <div className="mini-profile-actions">

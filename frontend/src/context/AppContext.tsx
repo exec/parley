@@ -49,8 +49,11 @@ interface AppActions {
   loadDmChannels: () => Promise<void>;
   openDmChannel: (userId: string) => Promise<void>;
   selectDmChannel: (channelId: string) => Promise<void>;
-  sendDmMessage: (content: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string) => Promise<void>;
+  sendDmMessage: (content: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string, parentId?: string) => Promise<void>;
   receiveDmMessage: (msg: DmMessage) => void;
+  deleteDmMessage: (dmChannelId: string, messageId: string) => Promise<void>;
+  applyDmReactionUpdate: (update: ReactionUpdate) => void;
+  receiveDmMessageDelete: (messageId: string) => void;
   addServer: (server: Server) => void;
   updateCurrentUser: (user: User) => void;
   loadServers: () => Promise<void>;
@@ -64,6 +67,7 @@ interface AppActions {
   receiveBotStatusUpdate: (update: BotStatusUpdate) => void;
   receiveUserUpdate: (update: UserUpdate) => void;
   reloadMembers: (serverId: string) => Promise<void>;
+  reloadChannels: (serverId: string) => Promise<void>;
   loadMoreMessages: () => Promise<void>;
   loadMoreDmMessages: () => Promise<void>;
 }
@@ -419,11 +423,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [dmChannels]);
 
-  const sendDmMessage = useCallback(async (content: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string) => {
+  const sendDmMessage = useCallback(async (content: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string, parentId?: string) => {
     if (!activeDmChannel) return;
-    const msg = await dmsApi.sendDmMessage(activeDmChannel.id, content, attachmentUrl, attachmentName, attachmentType);
-    setDmMessages(prev => [...prev, msg]);
+    const msg = await dmsApi.sendDmMessage(activeDmChannel.id, content, attachmentUrl, attachmentName, attachmentType, parentId);
+    setDmMessages(prev => {
+      if (prev.some(m => m.id === msg.id)) return prev;
+      return [...prev, msg];
+    });
   }, [activeDmChannel]);
+
+  const deleteDmMessage = useCallback(async (dmChannelId: string, messageId: string) => {
+    await dmsApi.deleteDmMessage(dmChannelId, messageId);
+    setDmMessages(prev => prev.filter(m => m.id !== messageId));
+  }, []);
 
   const receiveDmMessage = useCallback((msg: DmMessage) => {
     if (activeDmChannel && msg.dm_channel_id === activeDmChannel.id) {
@@ -485,6 +497,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
+  const applyDmReactionUpdate = useCallback((update: ReactionUpdate) => {
+    setDmMessages(prev => prev.map(msg => {
+      if (msg.id !== update.message_id) return msg;
+      const reactions = [...(msg.reactions ?? [])];
+      const idx = reactions.findIndex(r => r.emoji === update.emoji);
+      if (update.added) {
+        if (idx >= 0) {
+          const r = reactions[idx];
+          if (!r.user_ids.includes(update.user_id)) {
+            reactions[idx] = { ...r, count: r.count + 1, user_ids: [...r.user_ids, update.user_id] };
+          }
+        } else {
+          reactions.push({ emoji: update.emoji, count: 1, user_ids: [update.user_id] });
+        }
+      } else {
+        if (idx >= 0) {
+          const newUserIds = reactions[idx].user_ids.filter(uid => uid !== update.user_id);
+          if (newUserIds.length === 0) {
+            reactions.splice(idx, 1);
+          } else {
+            reactions[idx] = { ...reactions[idx], count: newUserIds.length, user_ids: newUserIds };
+          }
+        }
+      }
+      return { ...msg, reactions };
+    }));
+  }, []);
+
+  const receiveDmMessageDelete = useCallback((messageId: string) => {
+    setDmMessages(prev => prev.filter(m => m.id !== messageId));
+  }, []);
+
   const toggleReaction = useCallback(async (messageId: string, emoji: string) => {
     await messagesApi.toggleReaction(messageId, emoji);
   }, []);
@@ -513,6 +557,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setMembers(mems ?? []);
     } catch (err) {
       console.error('Failed to reload members:', err);
+    }
+  }, []);
+
+  const reloadChannels = useCallback(async (serverId: string) => {
+    try {
+      const chs = await channelsApi.getChannels(serverId);
+      setChannels(chs ?? []);
+      // If active channel is no longer accessible, clear it
+      setActiveChannel(prev => {
+        if (!prev) return prev;
+        return (chs ?? []).some(c => c.id === prev.id) ? prev : null;
+      });
+    } catch (err) {
+      console.error('Failed to reload channels:', err);
     }
   }, []);
 
@@ -649,6 +707,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       selectDmChannel,
       sendDmMessage,
       receiveDmMessage,
+      deleteDmMessage,
+      applyDmReactionUpdate,
+      receiveDmMessageDelete,
       updateCurrentUser,
       loadServers,
       receiveChannelCreate,
@@ -660,6 +721,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       receiveBotStatusUpdate,
       receiveUserUpdate,
       reloadMembers,
+      reloadChannels,
       loadMoreMessages,
       loadMoreDmMessages,
     }}>

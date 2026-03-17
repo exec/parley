@@ -19,6 +19,7 @@ import { VoiceChannel } from './components/voice/VoiceChannel';
 import { DmMessage, Message, BinChannelTag, ServerMember } from './api/types';
 import * as serversApi from './api/servers';
 import * as channelsApi from './api/channels';
+import * as dmsApi from './api/dms';
 import { getVoiceParticipants, muteVoiceParticipant } from './api/voice';
 import { getTags } from './api/bin';
 import MainLayout from './components/layout/MainLayout';
@@ -74,6 +75,9 @@ function MainApp() {
     toggleReaction,
     applyReactionUpdate,
     receiveDmMessage,
+    deleteDmMessage,
+    applyDmReactionUpdate,
+    receiveDmMessageDelete,
     logout,
     dmChannels,
     activeDmChannel,
@@ -97,6 +101,7 @@ function MainApp() {
     receiveBotStatusUpdate,
     receiveUserUpdate,
     reloadMembers,
+    reloadChannels,
     reorderChannels,
   } = useApp();
 
@@ -320,7 +325,12 @@ function MainApp() {
     receiveMemberRoleUpdate(update);
     // Bust the permission cache for the affected server so usePermissions re-fetches
     if (update.server_id) invalidatePermCache(update.server_id);
-  }, [receiveMemberRoleUpdate]);
+    // If it's the current user's roles that changed, reload channels — their
+    // visible channel set may have changed (permissions added/removed).
+    if (update.user_id === currentUser?.id && update.server_id) {
+      reloadChannels(update.server_id);
+    }
+  }, [receiveMemberRoleUpdate, currentUser?.id, reloadChannels]);
 
   const handleRoleUpdate = useCallback((event: RoleUpdateEvent) => {
     if (event.server_id) invalidatePermCache(event.server_id);
@@ -457,6 +467,20 @@ function MainApp() {
     }
   }, [receiveDmMessage, activeDmChannel?.id, notify]);
 
+  const handleDmDelete = useCallback(async (messageId: string) => {
+    if (!activeDmChannel) return;
+    await deleteDmMessage(activeDmChannel.id, messageId);
+  }, [deleteDmMessage, activeDmChannel]);
+
+  const handleDmReact = useCallback(async (messageId: string, emoji: string) => {
+    if (!activeDmChannel) return;
+    try {
+      await dmsApi.toggleDmReaction(activeDmChannel.id, messageId, emoji);
+    } catch (err) {
+      console.error('Failed to toggle DM reaction:', err);
+    }
+  }, [activeDmChannel]);
+
   // userid → display name map for rendering mention tokens in messages
   const memberMap = useMemo(
     () => new Map(members.map(m => [m.user_id, m.display_name || m.username])),
@@ -517,11 +541,7 @@ function MainApp() {
   }, []);
 
   const handlePresenceSnapshot = useCallback((userIds: string[]) => {
-    setOnlineUsers(prev => {
-      const next = new Set(prev);
-      userIds.forEach(id => next.add(id));
-      return next;
-    });
+    setOnlineUsers(new Set(userIds));
   }, []);
 
   const { sendTyping } = useWebSocket({
@@ -552,6 +572,18 @@ function MainApp() {
     onVoiceStateUpdate: handleVoiceStateUpdate,
     onVoiceForceMute: handleVoiceForceMute,
     onVoiceForceDisconnect: handleVoiceForceDisconnect,
+    onDmMessageDelete: useCallback((messageId: string) => {
+      receiveDmMessageDelete(messageId);
+    }, [receiveDmMessageDelete]),
+    onDmReactionUpdate: useCallback((update: { message_id: string; dm_channel_id: string; user_id: string; emoji: string; added: boolean }) => {
+      applyDmReactionUpdate({
+        message_id: update.message_id,
+        channel_id: update.dm_channel_id,
+        user_id: update.user_id,
+        emoji: update.emoji,
+        added: update.added,
+      });
+    }, [applyDmReactionUpdate]),
     activeChannelId: activeChannel?.id ?? null,
     extraChannelIds,
   });
@@ -806,7 +838,7 @@ function MainApp() {
       channel_id: dm.dm_channel_id,
       author_id: dm.author_id,
       author_username: dm.author_username,
-      author_display_name: dm.author_id === currentUser?.id ? (currentUser?.display_name ?? '') : '',
+      author_display_name: dm.author_display_name,
       author_avatar_url: dm.author_avatar_url,
       content: dm.content,
       created_at: dm.created_at,
@@ -814,6 +846,10 @@ function MainApp() {
       attachment_url: dm.attachment_url,
       attachment_name: dm.attachment_name,
       attachment_type: dm.attachment_type,
+      parent_id: dm.parent_id,
+      parent_author_username: dm.parent_author_username,
+      parent_author_display_name: dm.parent_author_display_name,
+      reactions: dm.reactions ?? [],
     }));
     const dmMembers = [
       // Other participant — use what DmChannel provides
@@ -846,6 +882,11 @@ function MainApp() {
         currentUserId={currentUser?.id}
         members={dmMembers}
         onSendMessage={sendDmMessage}
+        onDelete={handleDmDelete}
+        onReact={handleDmReact}
+        onReply={(msg) => setReplyTo(msg)}
+        onClearReply={() => setReplyTo(null)}
+        replyTo={replyTo}
         onLoadMore={loadMoreDmMessages}
         hasMore={hasMoreDmMessages}
         isLoading={isLoadingDms}
@@ -854,6 +895,7 @@ function MainApp() {
         headerAvatar={activeDmChannel.other_avatar_url}
         isOnline={onlineUsers.has(activeDmChannel.other_user_id)}
         onlineUserIds={onlineUsers}
+        hideRoles={true}
       />
     );
   } else if (activeChannel) {

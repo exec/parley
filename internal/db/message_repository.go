@@ -104,7 +104,7 @@ func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, li
 				SELECT m.id, m.channel_id, m.author_id, m.content, COALESCE(m.nonce, ''), m.created_at, m.updated_at,
 				       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
 				       u.username, COALESCE(u.avatar_url, ''), u.is_bot, COALESCE(u.display_name, ''), m.parent_id,
-				       COALESCE(pu.username, ''), COALESCE(pu.display_name, '')
+				       COALESCE(pu.username, ''), COALESCE(pu.display_name, ''), m.via_api
 				FROM messages m
 				JOIN users u ON u.id = m.author_id
 				LEFT JOIN messages pm ON pm.id = m.parent_id
@@ -122,7 +122,7 @@ func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, li
 				SELECT m.id, m.channel_id, m.author_id, m.content, COALESCE(m.nonce, ''), m.created_at, m.updated_at,
 				       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
 				       u.username, COALESCE(u.avatar_url, ''), u.is_bot, COALESCE(u.display_name, ''), m.parent_id,
-				       COALESCE(pu.username, ''), COALESCE(pu.display_name, '')
+				       COALESCE(pu.username, ''), COALESCE(pu.display_name, ''), m.via_api
 				FROM messages m
 				JOIN users u ON u.id = m.author_id
 				LEFT JOIN messages pm ON pm.id = m.parent_id
@@ -161,6 +161,7 @@ func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, li
 			&message.ParentID,
 			&message.ParentAuthorUsername,
 			&message.ParentAuthorDisplayName,
+			&message.ViaApi,
 		)
 		if err != nil {
 			return nil, err

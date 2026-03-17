@@ -350,7 +350,10 @@ export const Message: React.FC<MessageProps> = ({
             <span className="msg-badge bot" title="Bot">BOT</span>
           )}
           {message.via_api && !message.author_is_bot && (
-            <span className="msg-badge selfbot" title="Selfbot"><Bot size={12} color="currentColor" /></span>
+            <span className="msg-badge selfbot">
+              <Bot size={12} color="currentColor" />
+              <span className="msg-badge-tooltip">Sent via Selfbot</span>
+            </span>
           )}
           <span className="message-timestamp">{formatTimestamp(message.created_at)}</span>
           {wasEdited && (
