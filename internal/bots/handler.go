@@ -7,20 +7,34 @@ import (
 	"net/http"
 	"strconv"
 
+	"fmt"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
 	"parley/internal/server"
+	ws "parley/internal/websocket"
 )
+
+// hub is the minimal WS interface the handler needs.
+type hub interface {
+	BroadcastToChannel(channelID, event string, payload []byte)
+}
 
 // Handler holds the Service for HTTP dispatch.
 type Handler struct {
 	svc *Service
+	hub hub
 }
 
 // NewHandler creates a Handler.
 func NewHandler(svc *Service) *Handler {
 	return &Handler{svc: svc}
+}
+
+// SetHub wires in the WebSocket hub for broadcasting bot membership events.
+func (h *Handler) SetHub(hub hub) {
+	h.hub = hub
 }
 
 // callerID extracts the authenticated user ID from the request context.
@@ -99,9 +113,17 @@ func (h *Handler) AddBot(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, r, 400, "invite_token required")
 		return
 	}
-	if err := h.svc.AddBot(r.Context(), sid, uid, req.InviteToken); err != nil {
+	botUserID, err := h.svc.AddBot(r.Context(), sid, uid, req.InviteToken)
+	if err != nil {
 		handleSvcErr(w, r, err)
 		return
+	}
+	if h.hub != nil {
+		payload, _ := json.Marshal(map[string]string{
+			"server_id": fmt.Sprintf("%d", sid),
+			"user_id":   fmt.Sprintf("%d", botUserID),
+		})
+		h.hub.BroadcastToChannel(fmt.Sprintf("server:%d", sid), ws.EventMemberJoin, payload)
 	}
 	w.WriteHeader(204)
 }
@@ -126,6 +148,13 @@ func (h *Handler) RemoveBot(w http.ResponseWriter, r *http.Request) {
 	if err := h.svc.RemoveBot(r.Context(), sid, botID, uid); err != nil {
 		handleSvcErr(w, r, err)
 		return
+	}
+	if h.hub != nil {
+		payload, _ := json.Marshal(map[string]string{
+			"server_id": fmt.Sprintf("%d", sid),
+			"user_id":   fmt.Sprintf("%d", botID),
+		})
+		h.hub.BroadcastToChannel(fmt.Sprintf("server:%d", sid), ws.EventMemberLeave, payload)
 	}
 	w.WriteHeader(204)
 }

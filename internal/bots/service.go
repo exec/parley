@@ -35,18 +35,19 @@ func (s *Service) ListBots(ctx context.Context, serverID int64) ([]Bot, error) {
 }
 
 // AddBot adds a bot to a server by invite token. Caller must be server admin or owner.
-func (s *Service) AddBot(ctx context.Context, serverID, callerID int64, inviteToken string) error {
+// Returns the bot's user ID so the caller can broadcast a member join event.
+func (s *Service) AddBot(ctx context.Context, serverID, callerID int64, inviteToken string) (int64, error) {
 	if err := s.requireAdmin(ctx, serverID, callerID); err != nil {
-		return err
+		return 0, err
 	}
 	botUserID, err := s.repo.ResolveInviteToken(ctx, inviteToken)
 	if errors.Is(err, ErrNotFound) {
-		return ErrNotFound
+		return 0, ErrNotFound
 	}
 	if err != nil {
-		return err
+		return 0, err
 	}
-	return s.repo.AddBotToServer(ctx, serverID, botUserID)
+	return botUserID, s.repo.AddBotToServer(ctx, serverID, botUserID)
 }
 
 // RemoveBot removes a bot from a server. Caller must be server admin or owner.

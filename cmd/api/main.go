@@ -218,6 +218,10 @@ func main() {
 	botsSvc := bots.NewService(botsRepo, config.BotKeySecret)
 	botsHandler := bots.NewHandler(botsSvc)
 
+	// Wire hub into bots handler for SERVER_MEMBER_JOIN/LEAVE broadcasts
+	// Must happen after hub is initialized (above) and before requests are served.
+	botsHandler.SetHub(hub)
+
 	// Cache bot user ID at startup (fatal if not found — migration must have run)
 	botUserID, err := botsRepo.GetBotUserID(context.Background(), "polly")
 	if err != nil {

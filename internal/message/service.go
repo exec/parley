@@ -567,13 +567,29 @@ func (s *MessageService) ToggleReaction(ctx context.Context, messageID, userID, 
 		}
 	}
 
-	// Need the message's channel for broadcasting
+	// Need the message's channel for permission check and broadcasting
 	dbMsg, err := s.repo.GetMessageByID(ctx, msgIDInt)
 	if err != nil {
 		if err == db.ErrNotFound {
 			return errors.New("message not found")
 		}
 		return err
+	}
+
+	// Verify the user has ViewChannel permission on the message's channel.
+	ch, err := s.repo.GetChannelByID(ctx, dbMsg.ChannelID)
+	if err != nil {
+		return errors.New("channel not found")
+	}
+	if ch.ServerID != 0 {
+		srv, err := s.repo.GetServerByID(ctx, ch.ServerID)
+		if err != nil {
+			return errors.New("server not found")
+		}
+		canView, err := permissions.HasChannelPermission(ctx, s.repo, ch.ServerID, userIDInt, srv.OwnerID, dbMsg.ChannelID, permissions.PermViewChannel)
+		if err != nil || !canView {
+			return errors.New("forbidden")
+		}
 	}
 
 	added, err := s.repo.ToggleReaction(ctx, msgIDInt, userIDInt, emoji)
