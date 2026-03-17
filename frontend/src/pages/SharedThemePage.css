@@ -1,0 +1,12 @@
+.shared-theme-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg-primary,#000); font-family: 'gg sans',sans-serif; }
+.shared-theme-card { background: var(--discord-bg-secondary,#0a0a0a); border: 1px solid var(--discord-border,#1a3d1a); border-radius: 12px; padding: 32px; max-width: 400px; width: 90%; text-align: center; }
+.shared-theme-title { font-size: 24px; font-weight: 700; margin-bottom: 8px; color: var(--discord-text-normal); }
+.shared-theme-subtitle { font-size: 14px; color: var(--discord-text-muted); margin-bottom: 24px; }
+.shared-theme-palette { display: flex; gap: 6px; justify-content: center; margin-bottom: 24px; }
+.shared-theme-palette-chip { width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--discord-border); }
+.shared-theme-actions { display: flex; flex-direction: column; gap: 10px; }
+.shared-theme-install { padding: 12px; background: var(--discord-accent,#32CD32); color: #fff; border: none; border-radius: 6px; font-size: 15px; font-weight: 700; cursor: pointer; }
+.shared-theme-install:hover { background: var(--discord-accent-hover); }
+.shared-theme-discard { padding: 10px; background: none; border: 1px solid var(--discord-border); border-radius: 6px; color: var(--discord-text-muted); font-size: 14px; cursor: pointer; }
+.shared-theme-error { color: var(--discord-danger); font-size: 14px; }
+.shared-theme-loading { font-size: 14px; color: var(--discord-text-muted); }

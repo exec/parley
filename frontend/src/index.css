@@ -1,42 +1,135 @@
-:root {
-  /* === Core theme (green terminal) === */
-  --bg-primary: #000000;
-  --bg-secondary: #0a0a0a;
-  --bg-tertiary: #1a1a1a;
-  --text-primary: #32CD32;
-  --text-secondary: #228B22;
-  --accent: #32CD32;
-  --border: #1a3d1a;
-  --sidebar-width: 232px;
+/* =====================================================
+   THEMES — one [data-theme] block per built-in theme.
+   No [data-theme="custom"] block exists by design;
+   custom themes are injected via <style id="custom-theme">.
+   ===================================================== */
 
-  /* === Aliases used by modal/ui components (styles.css) === */
-  --discord-bg: #000000;
-  --discord-bg-primary: #000000;
-  --discord-bg-secondary: #0a0a0a;
-  --discord-bg-tertiary: #1a1a1a;
-  --discord-bg-hover: #0d1a0d;
-  --discord-dark: #000000;
-  --discord-sidebar: #0a0a0a;
-  --discord-channel-bg: #1a1a1a;
-  --discord-input: #111111;
-  --discord-hover: #0d1a0d;
-  --discord-border: #1a3d1a;
-  --discord-border-light: #1a3d1a;
-  --discord-text: #32CD32;
-  --discord-text-normal: #32CD32;
-  --discord-text-muted: #228B22;
-  --discord-text-dim: #1a5c1a;
-  --discord-text-link: #32CD32;
-  --discord-accent: #32CD32;
-  --discord-accent-hover: #28a428;
-  --discord-blurple: #32CD32;
-  --discord-green: #32CD32;
-  --discord-yellow: #f0b232;
-  --discord-red: #f04747;
-  --discord-danger: #f04747;
-  --discord-danger-hover: #c23a3f;
-  --discord-success: #32CD32;
-  --discord-gray: #228B22;
+[data-theme="rory"] {
+  --sidebar-width: 232px;
+  --bg-primary: #000000; --bg-secondary: #0a0a0a; --bg-tertiary: #1a1a1a;
+  --text-primary: #32CD32; --text-secondary: #228B22;
+  --accent: #32CD32; --accent-hover: #28a428; --border: #1a3d1a;
+  --discord-bg: #000000; --discord-bg-primary: #000000;
+  --discord-bg-secondary: #0a0a0a; --discord-bg-tertiary: #1a1a1a;
+  --discord-bg-hover: #0d1a0d; --discord-hover: #0d1a0d;
+  --discord-dark: #050505; --discord-gray: #111711;
+  --discord-text: #32CD32; --discord-text-normal: #32CD32;
+  --discord-text-muted: #228B22; --discord-text-dim: #1a6b1a;
+  --discord-text-link: #4dff4d;
+  --discord-accent: #32CD32; --discord-accent-hover: #28a428;
+  --discord-blurple: #32CD32; --discord-green: #32CD32;
+  --discord-danger: #f04747; --discord-danger-hover: #d03030;
+  --discord-success: #43b581; --discord-yellow: #faa61a; --discord-red: #f04747;
+  --discord-sidebar: #050505; --discord-channel-bg: #000000;
+  --discord-input: #0a0a0a; --discord-border: #1a3d1a; --discord-border-light: #2a5a2a;
+}
+
+[data-theme="citron-dark"] {
+  --sidebar-width: 232px;
+  --bg-primary: #36393f; --bg-secondary: #2f3136; --bg-tertiary: #202225;
+  --text-primary: #dcddde; --text-secondary: #96989d;
+  --accent: #5865f2; --accent-hover: #4752c4; --border: #202225;
+  --discord-bg: #36393f; --discord-bg-primary: #36393f;
+  --discord-bg-secondary: #2f3136; --discord-bg-tertiary: #202225;
+  --discord-bg-hover: #32353b; --discord-hover: #32353b;
+  --discord-dark: #18191c; --discord-gray: #72767d;
+  --discord-text: #dcddde; --discord-text-normal: #dcddde;
+  --discord-text-muted: #72767d; --discord-text-dim: #4f545c;
+  --discord-text-link: #00aff4;
+  --discord-accent: #5865f2; --discord-accent-hover: #4752c4;
+  --discord-blurple: #5865f2; --discord-green: #43b581;
+  --discord-danger: #f04747; --discord-danger-hover: #d03030;
+  --discord-success: #43b581; --discord-yellow: #faa61a; --discord-red: #f04747;
+  --discord-sidebar: #2f3136; --discord-channel-bg: #36393f;
+  --discord-input: #40444b; --discord-border: #202225; --discord-border-light: #2f3136;
+}
+
+[data-theme="citron-light"] {
+  --sidebar-width: 232px;
+  --bg-primary: #ffffff; --bg-secondary: #f2f3f5; --bg-tertiary: #e3e5e8;
+  --text-primary: #2e3338; --text-secondary: #747f8d;
+  --accent: #5865f2; --accent-hover: #4752c4; --border: #d4d7dc;
+  --discord-bg: #ffffff; --discord-bg-primary: #ffffff;
+  --discord-bg-secondary: #f2f3f5; --discord-bg-tertiary: #e3e5e8;
+  --discord-bg-hover: #ebedef; --discord-hover: #ebedef;
+  --discord-dark: #b9bbbe; --discord-gray: #72767d;
+  --discord-text: #2e3338; --discord-text-normal: #2e3338;
+  --discord-text-muted: #747f8d; --discord-text-dim: #99aab5;
+  --discord-text-link: #0068e0;
+  --discord-accent: #5865f2; --discord-accent-hover: #4752c4;
+  --discord-blurple: #5865f2; --discord-green: #3ba55c;
+  --discord-danger: #ed4245; --discord-danger-hover: #c03537;
+  --discord-success: #3ba55c; --discord-yellow: #faa61a; --discord-red: #ed4245;
+  --discord-sidebar: #e3e5e8; --discord-channel-bg: #f2f3f5;
+  --discord-input: #ebedef; --discord-border: #d4d7dc; --discord-border-light: #e3e5e8;
+}
+
+[data-theme="neon-nights"] {
+  --sidebar-width: 232px;
+  --bg-primary: #0d0221; --bg-secondary: #130333; --bg-tertiary: #1a0440;
+  --text-primary: #f0f0f0; --text-secondary: #c4b5e0;
+  --accent: #ff2d78; --accent-hover: #d4236a; --border: #3d1a6e;
+  --discord-bg: #0d0221; --discord-bg-primary: #0d0221;
+  --discord-bg-secondary: #130333; --discord-bg-tertiary: #1a0440;
+  --discord-bg-hover: #1e054d; --discord-hover: #1e054d;
+  --discord-dark: #07010f; --discord-gray: #5c3d8f;
+  --discord-text: #f0f0f0; --discord-text-normal: #f0f0f0;
+  --discord-text-muted: #c4b5e0; --discord-text-dim: #8a7ab0;
+  --discord-text-link: #00e5ff;
+  --discord-accent: #ff2d78; --discord-accent-hover: #d4236a;
+  --discord-blurple: #bf5fff; --discord-green: #00ff9f;
+  --discord-danger: #ff4444; --discord-danger-hover: #cc2222;
+  --discord-success: #00ff9f; --discord-yellow: #ffcc00; --discord-red: #ff4444;
+  --discord-sidebar: #0a011a; --discord-channel-bg: #0d0221;
+  --discord-input: #1e054d; --discord-border: #3d1a6e; --discord-border-light: #5c3d8f;
+}
+
+[data-theme="abyss"] {
+  --sidebar-width: 232px;
+  --bg-primary: #0a1628; --bg-secondary: #0d1f3c; --bg-tertiary: #112447;
+  --text-primary: #cad5e2; --text-secondary: #8ba3bf;
+  --accent: #00b4d8; --accent-hover: #0095b3; --border: #1a3255;
+  --discord-bg: #0a1628; --discord-bg-primary: #0a1628;
+  --discord-bg-secondary: #0d1f3c; --discord-bg-tertiary: #112447;
+  --discord-bg-hover: #152c52; --discord-hover: #152c52;
+  --discord-dark: #060f1b; --discord-gray: #2a4a70;
+  --discord-text: #cad5e2; --discord-text-normal: #cad5e2;
+  --discord-text-muted: #8ba3bf; --discord-text-dim: #5a7a9a;
+  --discord-text-link: #48cae4;
+  --discord-accent: #00b4d8; --discord-accent-hover: #0095b3;
+  --discord-blurple: #4895ef; --discord-green: #52b788;
+  --discord-danger: #e63946; --discord-danger-hover: #c1121f;
+  --discord-success: #52b788; --discord-yellow: #f4a261; --discord-red: #e63946;
+  --discord-sidebar: #07101e; --discord-channel-bg: #0a1628;
+  --discord-input: #152c52; --discord-border: #1a3255; --discord-border-light: #1e3a62;
+}
+
+[data-theme="sakura"] {
+  --sidebar-width: 232px;
+  --bg-primary: #fff9fb; --bg-secondary: #fde8f0; --bg-tertiary: #fad4e3;
+  --text-primary: #3d1a2e; --text-secondary: #8d5a78;
+  --accent: #d4609c; --accent-hover: #b8498a; --border: #f0c0d8;
+  --discord-bg: #fff9fb; --discord-bg-primary: #fff9fb;
+  --discord-bg-secondary: #fde8f0; --discord-bg-tertiary: #fad4e3;
+  --discord-bg-hover: #fce0ec; --discord-hover: #fce0ec;
+  --discord-dark: #f5c0d8; --discord-gray: #c890b0;
+  --discord-text: #3d1a2e; --discord-text-normal: #3d1a2e;
+  --discord-text-muted: #8d5a78; --discord-text-dim: #b87898;
+  --discord-text-link: #c040a0;
+  --discord-accent: #d4609c; --discord-accent-hover: #b8498a;
+  --discord-blurple: #d4609c; --discord-green: #52b788;
+  --discord-danger: #e63946; --discord-danger-hover: #c1121f;
+  --discord-success: #52b788; --discord-yellow: #f4a261; --discord-red: #e63946;
+  --discord-sidebar: #f8e0ec; --discord-channel-bg: #fff9fb;
+  --discord-input: #fde8f0; --discord-border: #f0c0d8; --discord-border-light: #f8d8e8;
+}
+
+/* Sakura cherry blossom background for chat area */
+[data-theme="sakura"] .chat-messages,
+[data-theme="sakura"] .chat-container {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'%3E%3Cpolygon points='0,0 200,80 400,0' fill='%23fce4ec'/%3E%3Cpolygon points='0,0 200,80 0,150' fill='%23f8bbd0'/%3E%3Cpolygon points='400,0 200,80 400,150' fill='%23fce4ec'/%3E%3Cpolygon points='0,300 200,220 400,300' fill='%23fce4ec'/%3E%3Cpolygon points='185,300 200,100 215,300' fill='%23795548'/%3E%3Cpolygon points='200,100 240,55 228,130' fill='%236d4c41'/%3E%3Cpolygon points='200,100 160,55 172,130' fill='%23795548'/%3E%3Cpolygon points='200,55 222,28 244,55 222,78' fill='%23f48fb1'/%3E%3Cpolygon points='200,55 178,28 156,55 178,78' fill='%23f06292'/%3E%3Cpolygon points='200,55 222,78 200,100 178,78' fill='%23ec407a'/%3E%3Cpolygon points='244,55 272,42 282,68 258,73' fill='%23f48fb1'/%3E%3Cpolygon points='272,42 298,38 292,64 272,67' fill='%23f8bbd0'/%3E%3Cpolygon points='156,55 128,42 118,68 142,73' fill='%23f48fb1'/%3E%3Cpolygon points='298,118 308,113 303,130' fill='%23f48fb1' opacity='.7'/%3E%3Cpolygon points='78,142 88,137 83,152' fill='%23f06292' opacity='.6'/%3E%3C%2Fsvg%3E");
+  background-repeat: repeat;
+  background-size: 400px 300px;
 }
 
 * {

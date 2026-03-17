@@ -216,7 +216,7 @@ func main() {
 	}
 
 	// Setup chi router
-	router := setupRouter(config, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, passkeySvc)
+	router := setupRouter(config, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, passkeySvc, parseCDNHost(spacesCDNURL), siteURL)
 
 	// Start version purge goroutine
 	go func() {
@@ -295,6 +295,8 @@ func setupRouter(
 	voiceSvc *voice.Service,
 	binService *bin.Service,
 	passkeySvc *passkey.Service,
+	cdnHost string,
+	siteURL string,
 ) *chi.Mux {
 	router := chi.NewRouter()
 
@@ -309,7 +311,7 @@ func setupRouter(
 
 	// Mount routes
 	tickets := newTicketStore()
-	registerRoutes(router, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, tickets, passkeySvc)
+	registerRoutes(router, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, tickets, passkeySvc, cdnHost, siteURL)
 
 	return router
 }

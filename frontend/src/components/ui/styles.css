@@ -35,22 +35,6 @@
   background: #32CD32;
 }
 
-:root {
-  --discord-bg: #313338;
-  --discord-bg-secondary: #2b2d31;
-  --discord-bg-tertiary: #1e1f22;
-  --discord-bg-hover: #3f4147;
-  --discord-accent: #5865f2;
-  --discord-accent-hover: #4752c4;
-  --discord-danger: #da373c;
-  --discord-danger-hover: #c23a3f;
-  --discord-success: #23a559;
-  --discord-text: #f2f3f5;
-  --discord-text-muted: #b5bac1;
-  --discord-text-dim: #949ba4;
-  --discord-border: #3f4147;
-  --discord-border-light: #4e5058;
-}
 
 /* Button styles */
 .btn {

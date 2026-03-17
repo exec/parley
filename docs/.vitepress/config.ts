@@ -13,6 +13,7 @@ export default defineConfig({
     nav: [
       { text: 'Guide', link: '/' },
       { text: 'Endpoints', link: '/endpoints/messages' },
+      { text: 'Theming', link: '/theming' },
       { text: 'Parley', link: 'https://parley.x86-64.com' },
     ],
 

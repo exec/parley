@@ -8,6 +8,16 @@
     <meta name="description" content="Parley — real-time encrypted messaging for the digital seas. Servers, channels, and direct messages." />
   </head>
   <body>
+    <script>
+  (function(){
+    var t=localStorage.getItem('parley-theme')||'rory';
+    document.body.dataset.theme=t;
+    if(t==='custom'){
+      var c=localStorage.getItem('parley-custom-css');
+      if(c){var s=document.createElement('style');s.id='custom-theme';s.textContent=c;document.head.appendChild(s);}
+    }
+  })();
+</script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

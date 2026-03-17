@@ -6,6 +6,7 @@ import * as channelsApi from '../api/channels';
 import * as messagesApi from '../api/messages';
 import * as dmsApi from '../api/dms';
 import { ReactionUpdate, MemberRoleUpdate, UserUpdate } from '../hooks/useWebSocket';
+import { resetThemeOnLogout } from './ThemeContext';
 
 interface AppState {
   currentUser: User | null;
@@ -433,6 +434,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [activeDmChannel]);
 
   const logout = useCallback(() => {
+    resetThemeOnLogout();
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     apiClient.setToken(null);

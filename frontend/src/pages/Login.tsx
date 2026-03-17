@@ -1,5 +1,5 @@
 import React, { useState, FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { loginWithPasskey } from '../api/passkeys';
 import { apiClient } from '../api/client';
@@ -18,6 +18,11 @@ interface LoginErrors {
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
+  const { search } = useLocation();
+  const redirectTo = (() => {
+    const p = new URLSearchParams(search).get('redirect') || '/';
+    return p.startsWith('/') && !p.startsWith('//') ? p : '/';
+  })();
   const [formData, setFormData] = useState<LoginFormData>({
     email: '',
     password: '',
@@ -76,7 +81,7 @@ export const Login: React.FC = () => {
       localStorage.setItem('user', JSON.stringify(data.user));
       apiClient.setToken(data.token);
 
-      navigate('/');
+      navigate(redirectTo);
     } catch (err) {
       setErrors({
         general: err instanceof Error ? err.message : 'Login failed. Please try again.',
@@ -94,7 +99,7 @@ export const Login: React.FC = () => {
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       apiClient.setToken(data.token);
-      navigate('/');
+      navigate(redirectTo);
     } catch (err) {
       setErrors({
         general: err instanceof Error ? err.message : 'Passkey authentication failed.',

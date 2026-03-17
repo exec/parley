@@ -6,9 +6,10 @@ import { uploadFile } from '../../api/upload';
 import { listPasskeys, registerPasskey, deletePasskey, renamePasskey, PasskeyInfo } from '../../api/passkeys';
 import { DeveloperTab } from './DeveloperTab';
 import { VoiceSettingsTab } from './VoiceSettings';
+import { AppearanceTab } from './AppearanceTab';
 import './Settings.css';
 
-type Tab = 'account' | 'profile' | 'developer' | 'voice';
+type Tab = 'account' | 'profile' | 'developer' | 'voice' | 'appearance';
 
 interface Props {
   isOpen: boolean;
@@ -234,6 +235,9 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
           <button className={`settings-nav-item${activeTab === 'voice' ? ' active' : ''}`} onClick={() => setActiveTab('voice')}>
             Voice &amp; Video
           </button>
+          <button className={`settings-nav-item${activeTab === 'appearance' ? ' active' : ''}`} onClick={() => setActiveTab('appearance')}>
+            Appearance
+          </button>
         </div>
         <div className="settings-nav-divider" />
         <div className="settings-sidebar-spacer" />
@@ -299,6 +303,7 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
           />}
           {activeTab === 'developer' && <DeveloperTab />}
           {activeTab === 'voice' && <VoiceSettingsTab />}
+          {activeTab === 'appearance' && <AppearanceTab />}
         </div>
       </div>
 
