@@ -75,7 +75,7 @@ func (r *Repository) AddBotToServer(ctx context.Context, serverID, botUserID int
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO server_bots (server_id, bot_user_id) VALUES ($1, $2)`,
 		serverID, botUserID)
-	if err != nil && isPgUniqueViolation(err) {
+	if isPgUniqueViolation(err) {
 		return ErrAlreadyExists
 	}
 	return err

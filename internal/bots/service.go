@@ -23,7 +23,10 @@ type Service struct {
 }
 
 func NewService(repo *Repository, keySecret []byte) *Service {
-	return &Service{repo: repo, keySecret: keySecret}
+	if len(keySecret) < 32 {
+		panic("bots.NewService: keySecret must be at least 32 bytes")
+	}
+	return &Service{repo: repo, keySecret: keySecret[:32]}
 }
 
 // ListBots returns bots in a server. Any member may call this.
