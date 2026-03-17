@@ -7,6 +7,7 @@ export interface UserTheme {
   background_url: string | null;
   share_token: string | null;
   created_at: string;
+  author_username?: string;
 }
 
 export interface UserPreferences {

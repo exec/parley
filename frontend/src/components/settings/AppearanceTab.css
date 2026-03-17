@@ -33,3 +33,9 @@
   border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 4px;
 }
 .appearance-create-btn:hover { background: var(--discord-accent-hover); }
+.appearance-confirm-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 2000; display: flex; align-items: center; justify-content: center; }
+.appearance-confirm-dialog { background: var(--discord-bg-secondary); border: 1px solid var(--discord-border); border-radius: 8px; padding: 20px; max-width: 360px; width: 90%; }
+.appearance-confirm-dialog p { color: var(--discord-text-normal); margin: 0 0 6px; font-size: 14px; }
+.appearance-cancel-btn { padding: 7px 14px; background: var(--discord-bg-hover); border: 1px solid var(--discord-border); border-radius: 4px; color: var(--discord-text-normal); cursor: pointer; font-size: 13px; }
+.appearance-danger-btn { padding: 7px 14px; background: var(--discord-danger); border: none; border-radius: 4px; color: #fff; cursor: pointer; font-size: 13px; font-weight: 600; }
+.appearance-danger-btn:hover { background: var(--discord-danger-hover); }

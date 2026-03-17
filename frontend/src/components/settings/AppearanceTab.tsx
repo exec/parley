@@ -21,6 +21,7 @@ export const AppearanceTab: React.FC = () => {
   const theme = useTheme();
   const [editingId, setEditingId] = useState<number | 'new' | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
   const handleShare = async (id: number) => {
     try {
@@ -64,7 +65,7 @@ export const AppearanceTab: React.FC = () => {
         })}
       </div>
 
-      <div className="appearance-section-title">My Themes</div>
+      <div className="appearance-section-title">User Themes</div>
       <div className="appearance-theme-counter">{theme.customThemes.length} / 20 themes</div>
       <div className="appearance-custom-list">
         {theme.customThemes.map(t => {
@@ -76,12 +77,24 @@ export const AppearanceTab: React.FC = () => {
                 {!isActive && <button onClick={() => theme.setCustom(t.id)}>Apply</button>}
                 <button onClick={() => setEditingId(t.id)}>Edit</button>
                 <button onClick={() => handleShare(t.id)}>{copiedId===t.id?'Copied!':'Share'}</button>
-                <button className="danger" onClick={() => theme.deleteCustomTheme(t.id)}>Delete</button>
+                <button className="danger" title="Remove theme" onClick={() => setConfirmDeleteId(t.id)}>✕</button>
               </div>
             </div>
           );
         })}
       </div>
+      {confirmDeleteId !== null && (
+        <div className="appearance-confirm-overlay">
+          <div className="appearance-confirm-dialog">
+            <p>Delete "<strong>{theme.customThemes.find(t => t.id === confirmDeleteId)?.name}</strong>"?</p>
+            <p style={{fontSize:'12px',color:'var(--discord-text-muted)'}}>This cannot be undone. If this is your active theme, it will revert to Rory.</p>
+            <div style={{display:'flex',gap:'8px',justifyContent:'flex-end',marginTop:'12px'}}>
+              <button className="appearance-cancel-btn" onClick={() => setConfirmDeleteId(null)}>Cancel</button>
+              <button className="appearance-danger-btn" onClick={async () => { await theme.deleteCustomTheme(confirmDeleteId); setConfirmDeleteId(null); }}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
       {theme.customThemes.length < 20 && (
         <button className="appearance-create-btn" onClick={() => setEditingId('new')}>+ Create Theme</button>
       )}

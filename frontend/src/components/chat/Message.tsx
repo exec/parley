@@ -9,8 +9,23 @@ import { CodeBlock } from '../ui/CodeBlock';
 import { isCodeFile, languageFromFilename } from '../../lib/shiki';
 import { getParentAuthor } from './NestedReplies';
 import { EditHistoryPopover } from './EditHistoryPopover';
+import { ThemeLinkEmbed } from '../theme/ThemeLinkEmbed';
 import './Chat.css';
 import './NestedReplies.css';
+
+const THEME_URL_RE = /https?:\/\/[^/\s]+\/theme\/([0-9a-f-]{36})/gi;
+
+function extractThemeTokens(content: string): string[] {
+  const tokens: string[] = [];
+  let m: RegExpExecArray | null;
+  THEME_URL_RE.lastIndex = 0;
+  while ((m = THEME_URL_RE.exec(content)) !== null) tokens.push(m[1]);
+  return [...new Set(tokens)];
+}
+
+function stripThemeURLs(content: string): string {
+  return content.replace(THEME_URL_RE, '').trim();
+}
 
 interface MessageProps {
   message: MessageType;
@@ -376,7 +391,20 @@ export const Message: React.FC<MessageProps> = ({
           <>
             {getEmojiOnlyCount(message.content)
               ? <div className="message-text message-text--jumbo">{message.content}</div>
-              : <div className="message-text"><MarkdownRenderer content={message.content} mode="chat" memberMap={memberMap} channelMap={channelMap} onMiniProfile={onMiniProfile} /></div>
+              : (() => {
+                  const tokens = extractThemeTokens(message.content);
+                  const cleanContent = tokens.length > 0 ? stripThemeURLs(message.content) : message.content;
+                  return (
+                    <>
+                      {cleanContent && (
+                        <div className="message-text">
+                          <MarkdownRenderer content={cleanContent} mode="chat" memberMap={memberMap} channelMap={channelMap} onMiniProfile={onMiniProfile} />
+                        </div>
+                      )}
+                      {tokens.map(tok => <ThemeLinkEmbed key={tok} token={tok} />)}
+                    </>
+                  );
+                })()
             }
             {message.attachment_url && (() => {
               const isVoice = message.attachment_name?.startsWith('voice_message_');
