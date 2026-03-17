@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
 import { shareTheme, publishTheme } from '../../api/themes';
 import { CustomThemeEditor } from './CustomThemeEditor';
+import { themePreviewStyle } from '../../lib/themePreview';
 import './AppearanceTab.css';
 
 const PALETTES: Record<string,[string,string,string,string]> = {
@@ -91,7 +92,7 @@ export const AppearanceTab: React.FC = () => {
         {theme.customThemes.map(t => {
           const isActive = theme.activeTheme==='custom' && theme.activeCustomThemeId===t.id;
           return (
-            <div key={t.id} className={`appearance-custom-item${isActive?' active':''}`}>
+            <div key={t.id} className={`appearance-custom-item${isActive?' active':''}`} style={themePreviewStyle(t.css)}>
               <span className="appearance-custom-name">{t.name}</span>
               <div className="appearance-custom-actions">
                 {!isActive && <button onClick={() => theme.setCustom(t.id)}>Apply</button>}

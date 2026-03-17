@@ -1,3 +1,20 @@
+import type { CSSProperties } from 'react';
+
+/**
+ * Extracts all CSS custom properties from a theme CSS string and returns them
+ * as an inline style object. Applying it to a container element causes all
+ * var(--parley-*) references inside to resolve to the theme's values.
+ */
+export function themePreviewStyle(css: string): CSSProperties {
+  const vars: Record<string, string> = {};
+  const re = /(--[\w-]+)\s*:\s*([^;}\n]+)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(css)) !== null) {
+    vars[m[1].trim()] = m[2].trim();
+  }
+  return vars as CSSProperties;
+}
+
 // Key CSS variables for each built-in base theme, used to make previews accurate.
 const BASE_VARS: Record<string, string> = {
   rory:          `--parley-sidebar:#050505;--parley-bg-secondary:#0a0a0a;--parley-bg-hover:#0d1a0d;--parley-text-muted:#228B22;--parley-text-normal:#32CD32;--parley-accent:#32CD32;--parley-channel-bg:#000000;--parley-input:#0a0a0a`,

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getThemeRepo, installTheme, featureTheme, RepoTheme, UserTheme } from '../api/themes';
 import { apiClient } from '../api/client';
 import { useTheme } from '../context/ThemeContext';
+import { themePreviewStyle } from '../lib/themePreview';
 import './ThemeRepoPage.css';
 
 // Helper: extract a CSS variable value from a CSS string
@@ -61,7 +62,7 @@ function ThemeCard({ theme, isAdmin, onFeatureToggle, existingTheme }: {
   const authorLabel = theme.author_display_name || theme.author_username || 'Unknown';
 
   return (
-    <div className="theme-card">
+    <div className="theme-card" style={themePreviewStyle(theme.css)}>
       {swatches.length > 0 && (
         <div className="theme-card-swatches">
           {swatches.map((color, i) => (

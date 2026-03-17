@@ -86,6 +86,7 @@
 .theme-card-name {
   font-weight: 600;
   font-size: 14px;
+  color: var(--parley-text);
   margin-bottom: 2px;
   white-space: nowrap;
   overflow: hidden;
