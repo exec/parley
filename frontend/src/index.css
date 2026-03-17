@@ -22,6 +22,7 @@
   --discord-success: #43b581; --discord-yellow: #faa61a; --discord-red: #f04747;
   --discord-sidebar: #050505; --discord-channel-bg: #000000;
   --discord-input: #0a0a0a; --discord-border: #1a3d1a; --discord-border-light: #2a5a2a;
+  --accent-rgb: 50, 205, 50; --discord-danger-rgb: 240, 71, 71;
 }
 
 [data-theme="citron-dark"] {
@@ -42,6 +43,7 @@
   --discord-success: #43b581; --discord-yellow: #faa61a; --discord-red: #f04747;
   --discord-sidebar: #2f3136; --discord-channel-bg: #36393f;
   --discord-input: #40444b; --discord-border: #202225; --discord-border-light: #2f3136;
+  --accent-rgb: 88, 101, 242; --discord-danger-rgb: 240, 71, 71;
 }
 
 [data-theme="citron-light"] {
@@ -62,6 +64,7 @@
   --discord-success: #3ba55c; --discord-yellow: #faa61a; --discord-red: #ed4245;
   --discord-sidebar: #e3e5e8; --discord-channel-bg: #f2f3f5;
   --discord-input: #ebedef; --discord-border: #d4d7dc; --discord-border-light: #e3e5e8;
+  --accent-rgb: 88, 101, 242; --discord-danger-rgb: 237, 66, 69;
 }
 
 [data-theme="neon-nights"] {
@@ -82,6 +85,7 @@
   --discord-success: #00ff9f; --discord-yellow: #ffcc00; --discord-red: #ff4444;
   --discord-sidebar: #0a011a; --discord-channel-bg: #0d0221;
   --discord-input: #1e054d; --discord-border: #3d1a6e; --discord-border-light: #5c3d8f;
+  --accent-rgb: 255, 45, 120; --discord-danger-rgb: 255, 68, 68;
 }
 
 [data-theme="abyss"] {
@@ -102,6 +106,7 @@
   --discord-success: #52b788; --discord-yellow: #f4a261; --discord-red: #e63946;
   --discord-sidebar: #07101e; --discord-channel-bg: #0a1628;
   --discord-input: #152c52; --discord-border: #1a3255; --discord-border-light: #1e3a62;
+  --accent-rgb: 0, 180, 216; --discord-danger-rgb: 230, 57, 70;
 }
 
 [data-theme="sakura"] {
@@ -122,6 +127,7 @@
   --discord-success: #52b788; --discord-yellow: #f4a261; --discord-red: #e63946;
   --discord-sidebar: #f8e0ec; --discord-channel-bg: #fff9fb;
   --discord-input: #fde8f0; --discord-border: #f0c0d8; --discord-border-light: #f8d8e8;
+  --accent-rgb: 212, 96, 156; --discord-danger-rgb: 230, 57, 70;
 }
 
 /* Sakura cherry blossom background for chat area */
