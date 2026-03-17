@@ -635,7 +635,7 @@ ON CONFLICT (username) DO NOTHING;
 INSERT INTO bot_invite_tokens (bot_user_id, token)
 SELECT id, 'aaaaaaaa-0000-0000-0000-000000000001'::uuid
 FROM users WHERE username = 'ai-chatbot'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (token) DO NOTHING;
 `,
 }
 
