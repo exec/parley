@@ -65,7 +65,7 @@
   right: -2px;
   min-width: 18px;
   height: 18px;
-  background-color: #ff4444;
+  background-color: var(--discord-danger);
   color: #ffffff;
   font-size: 10px;
   font-weight: 700;
@@ -193,8 +193,8 @@
 /* ---- Server context menu ---- */
 .sidebar-context-menu {
   position: fixed;
-  background: #111;
-  border: 1px solid #1a3d1a;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
   border-radius: 6px;
   padding: 4px;
   min-width: 200px;
@@ -206,7 +206,7 @@
   padding: 6px 12px 4px;
   font-size: 11px;
   font-weight: 700;
-  color: #555;
+  color: var(--discord-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   white-space: nowrap;
@@ -217,7 +217,7 @@
 
 .sidebar-ctx-divider {
   height: 1px;
-  background: #1a3d1a;
+  background: var(--border);
   margin: 4px 0;
 }
 
@@ -229,7 +229,7 @@
   padding: 7px 12px;
   text-align: left;
   font-size: 13px;
-  color: #aaa;
+  color: var(--discord-text-muted);
   cursor: pointer;
   border-radius: 3px;
   font-family: inherit;
@@ -237,15 +237,15 @@
 }
 
 .sidebar-ctx-item:hover {
-  background: rgba(50, 205, 50, 0.12);
-  color: #32CD32;
+  background: var(--discord-hover);
+  color: var(--accent);
 }
 
 .sidebar-ctx-item.danger {
-  color: #f04747;
+  color: var(--discord-danger);
 }
 
 .sidebar-ctx-item.danger:hover {
-  background: #f04747;
+  background: var(--discord-danger);
   color: #fff;
 }

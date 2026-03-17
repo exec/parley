@@ -70,7 +70,7 @@
 }
 
 .dm-panel-item.active {
-  background-color: #1a2a1a;
+  background-color: var(--discord-hover);
   color: var(--accent);
 }
 
@@ -83,7 +83,7 @@
   margin-left: auto;
   min-width: 18px;
   height: 18px;
-  background-color: #ff4444;
+  background-color: var(--discord-danger);
   color: #ffffff;
   font-size: 10px;
   font-weight: 700;
@@ -133,11 +133,11 @@
 }
 
 .dm-panel-status-dot.online {
-  background-color: #3ba55c;
+  background-color: var(--discord-green);
 }
 
 .dm-panel-status-dot.offline {
-  background-color: #747f8d;
+  background-color: var(--discord-gray);
 }
 
 .dm-panel-name {
@@ -154,7 +154,7 @@
   padding: 0 8px;
   display: flex;
   align-items: center;
-  background-color: #0a0a0a;
+  background-color: var(--bg-primary);
   border-top: 1px solid var(--border);
 }
 
@@ -217,7 +217,7 @@
 }
 
 .dm-panel-logout:hover {
-  color: #f04747;
+  color: var(--discord-danger);
 }
 
 .dm-panel-logout svg {
@@ -276,15 +276,15 @@
 
 .user-context-item:hover {
   background-color: var(--accent);
-  color: #000;
+  color: var(--discord-text-normal);
 }
 
 .user-context-item.danger {
-  color: #f04747;
+  color: var(--discord-danger);
 }
 
 .user-context-item.danger:hover {
-  background-color: #f04747;
+  background-color: var(--discord-danger);
   color: #fff;
 }
 
