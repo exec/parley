@@ -8,7 +8,7 @@ function useLatest<T>(value: T): MutableRefObject<T> {
   useEffect(() => { ref.current = value; }, [value]);
   return ref;
 }
-import { Message, DmMessage, Channel, Server, Role } from '../api/types';
+import { Message, DmMessage, Channel, Server, Role, FriendUser, FriendRequest } from '../api/types';
 import { getWsTicket } from '../api/auth';
 
 interface WSMessage {
@@ -116,12 +116,15 @@ interface UseWebSocketOptions {
   onBotStatusUpdate?: (update: BotStatusUpdate) => void;
   onDmMessageDelete?: (messageId: string, dmChannelId: string) => void;
   onDmReactionUpdate?: (update: { message_id: string; dm_channel_id: string; user_id: string; emoji: string; added: boolean }) => void;
+  onFriendRequest?: (req: FriendRequest) => void;
+  onFriendAccept?: (user: FriendUser) => void;
+  onFriendRemove?: (userId: string) => void;
   activeChannelId: string | null;
   extraChannelIds?: string[]; // Additional channels to subscribe to for notifications
   onConnect?: () => void; // Called on every successful (re)connect
 }
 
-export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onServerMemberLeave, onServerMemberKick, onServerMemberBan, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, onChannelCreate, onChannelUpdate, onChannelDelete, onServerUpdate, onServerDelete, onMemberRoleUpdate, onUserUpdate, onVoiceStateUpdate, onVoiceForceMute, onVoiceForceDisconnect, onBinPostCreate, onBinPostUpdate, onBinPostDelete, onChannelOverwriteUpdate, onRoleUpdate, onRoleDelete, onBotStatusUpdate, onDmMessageDelete, onDmReactionUpdate, onConnect, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
+export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onServerMemberLeave, onServerMemberKick, onServerMemberBan, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, onChannelCreate, onChannelUpdate, onChannelDelete, onServerUpdate, onServerDelete, onMemberRoleUpdate, onUserUpdate, onVoiceStateUpdate, onVoiceForceMute, onVoiceForceDisconnect, onBinPostCreate, onBinPostUpdate, onBinPostDelete, onChannelOverwriteUpdate, onRoleUpdate, onRoleDelete, onBotStatusUpdate, onDmMessageDelete, onDmReactionUpdate, onFriendRequest, onFriendAccept, onFriendRemove, onConnect, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const subscribedChannelsRef = useRef<Set<string>>(new Set());
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -162,6 +165,9 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
   const onBotStatusUpdateRef = useLatest(onBotStatusUpdate);
   const onDmMessageDeleteRef = useLatest(onDmMessageDelete);
   const onDmReactionUpdateRef = useLatest(onDmReactionUpdate);
+  const onFriendRequestRef = useLatest(onFriendRequest);
+  const onFriendAcceptRef = useLatest(onFriendAccept);
+  const onFriendRemoveRef = useLatest(onFriendRemove);
   const onConnectRef = useLatest(onConnect);
 
   const sendTyping = useCallback((channelId: string, username: string) => {
@@ -354,6 +360,21 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
             if (p.message_id && p.emoji) {
               onDmReactionUpdateRef.current({ ...p, added: wsMsg.type === 'dm_reaction_add' });
             }
+          }
+        } else if (wsMsg.type === 'FRIEND_REQUEST' && onFriendRequestRef.current) {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            const p = wsMsg.payload as { request: FriendRequest };
+            if (p.request) onFriendRequestRef.current(p.request);
+          }
+        } else if (wsMsg.type === 'FRIEND_ACCEPT' && onFriendAcceptRef.current) {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            const p = wsMsg.payload as { user: FriendUser };
+            if (p.user) onFriendAcceptRef.current(p.user);
+          }
+        } else if (wsMsg.type === 'FRIEND_REMOVE' && onFriendRemoveRef.current) {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            const p = wsMsg.payload as { user_id: string };
+            if (p.user_id) onFriendRemoveRef.current(p.user_id);
           }
         }
       } catch (err) {
