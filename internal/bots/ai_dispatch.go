@@ -283,9 +283,15 @@ type ollamaResponse struct {
 }
 
 func (d *Dispatcher) callOllama(ctx context.Context, model string, messages []chatMessage, baseURL, apiKey string) (string, int64, error) {
-	// Stored model names omit the routing suffix; append "-cloud" so the Ollama
-	// gateway dispatches to the cloud-tier worker fleet.
-	ollamaModel := model + "-cloud"
+	// Derive the cloud routing model name:
+	//   - Models with a version tag (e.g. "ministral-3:14b") → append "-cloud" → "ministral-3:14b-cloud"
+	//   - Models without a tag (e.g. "qwen3.5") → append ":cloud" → "qwen3.5:cloud"
+	ollamaModel := model
+	if strings.Contains(model, ":") {
+		ollamaModel = model + "-cloud"
+	} else {
+		ollamaModel = model + ":cloud"
+	}
 
 	reqBody, _ := json.Marshal(ollamaRequest{Model: ollamaModel, Messages: messages, Stream: false})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/api/chat", bytes.NewReader(reqBody))

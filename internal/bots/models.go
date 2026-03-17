@@ -97,5 +97,5 @@ var ParleyModelCostFactor = map[string]int64{
 	"gpt-oss:20b":     2,
 	"gemma3:27b":      2,
 	"gpt-oss:120b":    9,
-	"qwen3:latest":    10,
+	"qwen3.5":         10,
 }
