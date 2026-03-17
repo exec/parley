@@ -36,17 +36,13 @@ func (r *Repository) GetPreferences(ctx context.Context, userID int64) (*UserPre
 }
 
 func (r *Repository) SetActiveTheme(ctx context.Context, userID int64, theme string, customThemeID *int) error {
-	res, err := r.db.ExecContext(ctx,
-		`UPDATE user_preferences SET active_theme=$2, active_custom_theme_id=$3 WHERE user_id=$1`,
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO user_preferences (user_id, active_theme, active_custom_theme_id)
+		 VALUES ($1, $2, $3)
+		 ON CONFLICT (user_id) DO UPDATE
+		   SET active_theme=$2, active_custom_theme_id=$3`,
 		userID, theme, customThemeID)
-	if err != nil {
-		return err
-	}
-	n, _ := res.RowsAffected()
-	if n == 0 {
-		return ErrNotFound
-	}
-	return nil
+	return err
 }
 
 func (r *Repository) CountUserThemes(ctx context.Context, userID int64) (int, error) {

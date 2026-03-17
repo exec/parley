@@ -59,6 +59,15 @@ func (h *Handler) GetPreferences(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p, err := h.svc.GetPreferences(r.Context(), uid)
+	if errors.Is(err, ErrNotFound) {
+		// User predates the themes feature — return sensible defaults
+		render.JSON(w, r, &UserPreferences{
+			ActiveTheme:         "rory",
+			ActiveCustomThemeID: nil,
+			CustomThemes:        []UserTheme{},
+		})
+		return
+	}
 	if err != nil {
 		writeErr(w, r, 500, err.Error())
 		return
