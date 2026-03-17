@@ -16,6 +16,7 @@ import (
 	"parley/internal/channel"
 	"parley/internal/db"
 	"parley/internal/dm"
+	"parley/internal/friend"
 	"parley/internal/message"
 	"parley/internal/passkey"
 	"parley/internal/server"
@@ -205,6 +206,16 @@ func registerRoutes(
 			r.Post("/dms/{id}/messages", dmHandler.SendDmMessage)
 			r.Delete("/dms/{id}/messages/{messageId}", dmHandler.DeleteDmMessage)
 			r.Post("/dms/{id}/messages/{messageId}/reactions", dmHandler.ToggleDmReaction)
+
+			// Friend routes
+			friendSvc := friend.NewService(repo, hub)
+			friendHandler := friend.NewHandler(friendSvc)
+			r.Get("/friends", friendHandler.GetFriends)
+			r.Get("/friend-requests", friendHandler.GetRequests)
+			r.Post("/friend-requests", friendHandler.SendRequest)
+			r.Post("/friend-requests/{id}/accept", friendHandler.AcceptRequest)
+			r.Delete("/friend-requests/{id}", friendHandler.DeclineOrCancel)
+			r.Delete("/friends/{userId}", friendHandler.RemoveFriend)
 
 			// Bin routes
 			binHandler := bin.NewHandler(binService)
