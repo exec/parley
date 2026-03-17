@@ -89,6 +89,9 @@ resource "digitalocean_droplet" "parley_api" {
     LIVEKIT_API_SECRET       = var.livekit_api_secret
     LIVEKIT_URL              = var.livekit_url
     GIPHY_API_KEY            = var.giphy_api_key
+    OLLAMA_API_URL           = var.ollama_api_url
+    OLLAMA_API_KEY           = var.ollama_api_key
+    OLLAMA_MODEL             = var.ollama_model
   })
 
   tags = ["parley", "api"]

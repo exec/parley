@@ -32,9 +32,12 @@ import (
 
 // Config holds application configuration
 type Config struct {
-	DatabaseURL string
-	JWTSecret   string
-	Port        string
+	DatabaseURL  string
+	JWTSecret    string
+	Port         string
+	OllamaAPIURL string // OLLAMA_API_URL — base URL for Ollama cloud API
+	OllamaAPIKey string // OLLAMA_API_KEY — auth key; empty disables AI generation
+	OllamaModel  string // OLLAMA_MODEL — model name, e.g. qwen3.5:9b
 }
 
 // DefaultConfig returns the default configuration
@@ -58,10 +61,28 @@ func DefaultConfig() *Config {
 		port = "8080"
 	}
 
+	ollamaAPIURL := os.Getenv("OLLAMA_API_URL")
+	if ollamaAPIURL == "" {
+		ollamaAPIURL = "https://ollama.com/api"
+	}
+
+	ollamaAPIKey := os.Getenv("OLLAMA_API_KEY")
+	if ollamaAPIKey == "" {
+		log.Println("WARNING: OLLAMA_API_KEY is not set — AI theme generation is disabled")
+	}
+
+	ollamaModel := os.Getenv("OLLAMA_MODEL")
+	if ollamaModel == "" {
+		ollamaModel = "qwen3.5:9b"
+	}
+
 	return &Config{
-		DatabaseURL: databaseURL,
-		JWTSecret:   jwtSecret,
-		Port:        port,
+		DatabaseURL:  databaseURL,
+		JWTSecret:    jwtSecret,
+		Port:         port,
+		OllamaAPIURL: ollamaAPIURL,
+		OllamaAPIKey: ollamaAPIKey,
+		OllamaModel:  ollamaModel,
 	}
 }
 
@@ -216,7 +237,7 @@ func main() {
 	}
 
 	// Setup chi router
-	router := setupRouter(config, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, passkeySvc, parseCDNHost(spacesCDNURL), siteURL)
+	router := setupRouter(config, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, passkeySvc, redisHub, parseCDNHost(spacesCDNURL), siteURL)
 
 	// Start version purge goroutine
 	go func() {
@@ -295,6 +316,7 @@ func setupRouter(
 	voiceSvc *voice.Service,
 	binService *bin.Service,
 	passkeySvc *passkey.Service,
+	redisHub *websocket.RedisHub,
 	cdnHost string,
 	siteURL string,
 ) *chi.Mux {
@@ -311,7 +333,7 @@ func setupRouter(
 
 	// Mount routes
 	tickets := newTicketStore()
-	registerRoutes(router, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, tickets, passkeySvc, cdnHost, siteURL)
+	registerRoutes(router, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, tickets, passkeySvc, redisHub, config.OllamaAPIURL, config.OllamaAPIKey, config.OllamaModel, cdnHost, siteURL)
 
 	return router
 }

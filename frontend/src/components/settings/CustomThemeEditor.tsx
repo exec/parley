@@ -65,6 +65,11 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
   const [bgUrl, setBgUrl] = useState<string | null>(existing?.background_url || null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiStatus, setAiStatus] = useState<
+    null | { type: 'queued'; position: number } | { type: 'generating' } | { type: 'error'; message: string }
+  >(null);
+  const abortRef = useRef<AbortController | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const debRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -90,6 +95,73 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
     debRef.current = setTimeout(() => updatePreview(css, baseTheme), 300);
     return () => { if (debRef.current) clearTimeout(debRef.current); };
   }, [css, baseTheme, updatePreview]);
+
+  // Abort any in-flight AI generation when the component unmounts.
+  useEffect(() => {
+    return () => { abortRef.current?.abort(); };
+  }, []);
+
+  // ordinal returns a human-readable ordinal string, e.g. 1 → "1st", 2 → "2nd".
+  function ordinal(n: number): string {
+    const s = ['th', 'st', 'nd', 'rd'];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  }
+
+  const handleGenerate = async () => {
+    if (!aiPrompt.trim()) return;
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
+    setAiStatus({ type: 'generating' });
+    try {
+      const resp = await fetch('/api/me/themes/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+        },
+        body: JSON.stringify({ prompt: aiPrompt, current_css: css }),
+        signal: abortRef.current.signal,
+      });
+      if (!resp.ok || !resp.body) {
+        const msg = resp.status === 503 ? 'AI generation not available' : 'Request failed';
+        setAiStatus({ type: 'error', message: msg });
+        return;
+      }
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const parts = buf.split('\n\n');
+        buf = parts.pop() ?? '';
+        for (const part of parts) {
+          if (!part.startsWith('data: ')) continue;
+          try {
+            const event = JSON.parse(part.slice(6));
+            if (event.status === 'queued') {
+              setAiStatus({ type: 'queued', position: event.position });
+            } else if (event.status === 'generating') {
+              setAiStatus({ type: 'generating' });
+            } else if (event.status === 'done') {
+              setCSS(event.css);
+              setAiStatus(null);
+              return;
+            } else if (event.status === 'error') {
+              setAiStatus({ type: 'error', message: event.message });
+              return;
+            }
+          } catch { /* ignore parse errors */ }
+        }
+      }
+    } catch (e) {
+      if ((e as Error).name !== 'AbortError') {
+        setAiStatus({ type: 'error', message: 'Connection lost' });
+      }
+    }
+  };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
@@ -163,6 +235,38 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
         <textarea className="theme-editor-textarea" value={css} onChange={e => setCSS(e.target.value)}
           placeholder={`/* Use [data-theme] to override variables — not :root */\n[data-theme] {\n  --parley-accent: hotpink;\n  --accent-rgb: 255, 105, 180;\n}\n\n/* Google Fonts allowed */\n@import url('https://fonts.googleapis.com/css2?family=Inter');`} />
         <div className="theme-editor-hint">Google Fonts allowed. All other external URLs are blocked.</div>
+      </div>
+
+      <div className="theme-editor-field theme-editor-ai-section">
+        <label className="theme-editor-label">Generate with AI</label>
+        <textarea
+          className="theme-editor-textarea theme-editor-ai-prompt"
+          rows={3}
+          maxLength={500}
+          placeholder="Describe your theme… e.g. 'Dark purple cyberpunk with neon pink accents'"
+          value={aiPrompt}
+          onChange={e => setAiPrompt(e.target.value)}
+          disabled={aiStatus?.type === 'queued' || aiStatus?.type === 'generating'}
+        />
+        <div className="theme-editor-ai-row">
+          <button
+            className="theme-editor-ai-btn"
+            onClick={handleGenerate}
+            disabled={!aiPrompt.trim() || aiStatus?.type === 'queued' || aiStatus?.type === 'generating'}
+          >
+            Generate
+          </button>
+          {(aiStatus?.type === 'queued' || aiStatus?.type === 'generating') && (
+            <span className="theme-editor-ai-status">
+              {aiStatus.type === 'queued'
+                ? `${ordinal(aiStatus.position)} in queue…`
+                : 'Generating…'}
+            </span>
+          )}
+          {aiStatus?.type === 'error' && (
+            <span className="theme-editor-ai-error">{aiStatus.message}</span>
+          )}
+        </div>
       </div>
 
       {error && <div className="theme-editor-error">{error}</div>}
