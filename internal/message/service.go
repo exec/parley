@@ -2,7 +2,6 @@ package message
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log"
@@ -198,13 +197,7 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 		if msg.ParentID != nil {
 			parentIDStr = strconv.FormatInt(*msg.ParentID, 10)
 		}
-		// Resolve server ID for this channel
-		var serverIDStr string
-		var srvID sql.NullInt64
-		if e := s.repo.DB().QueryRowContext(ctx, `SELECT server_id FROM channels WHERE id=$1`,
-			mustParseInt64(channelID)).Scan(&srvID); e == nil && srvID.Valid {
-			serverIDStr = strconv.FormatInt(srvID.Int64, 10)
-		}
+		serverIDStr := strconv.FormatInt(srv.ID, 10)
 		trigger(ctx, msg.ID, channelID, serverIDStr, authorID, content, parentIDStr)
 	}
 
