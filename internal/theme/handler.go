@@ -95,6 +95,10 @@ func (h *Handler) SetActiveTheme(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.svc.SetActiveTheme(r.Context(), uid, req.Theme, req.CustomThemeID); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			writeErr(w, r, 404, "theme not found")
+			return
+		}
 		writeErr(w, r, 500, err.Error())
 		return
 	}

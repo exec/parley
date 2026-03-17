@@ -9,7 +9,7 @@ interface Props { token: string; }
 
 export const ThemeLinkEmbed: React.FC<Props> = ({ token }) => {
   const [theme, setTheme] = useState<UserTheme | null>(null);
-  const [error, setError] = useState(false);
+  const [invalid, setInvalid] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [installed, setInstalled] = useState(false);
   const themeCtx = useTheme();
@@ -18,10 +18,11 @@ export const ThemeLinkEmbed: React.FC<Props> = ({ token }) => {
   useEffect(() => {
     getPublicTheme(token)
       .then(setTheme)
-      .catch(() => setError(true));
+      .catch(() => setInvalid(true));
   }, [token]);
 
   const handleApply = async () => {
+    if (invalid) return; // frontend guard
     if (!localStorage.getItem('token')) {
       window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
       return;
@@ -32,11 +33,20 @@ export const ThemeLinkEmbed: React.FC<Props> = ({ token }) => {
       await themeCtx.setCustom(installed.id, installed);
       setInstalled(true);
     } catch {
+      setInvalid(true);
       setInstalling(false);
     }
   };
 
-  if (error) return null;
+  if (invalid) return (
+    <div className="theme-embed theme-embed--invalid">
+      <div className="theme-embed-category">Custom Theme</div>
+      <div className="theme-embed-title">Invalid Theme</div>
+      <div className="theme-embed-author">This theme link is no longer valid.</div>
+      <button className="theme-embed-apply" disabled>Apply</button>
+    </div>
+  );
+
   if (!theme) return <div className="theme-embed"><span className="theme-embed-loading">Loading theme…</span></div>;
 
   const displayName = currentUser?.display_name || currentUser?.username || 'You';

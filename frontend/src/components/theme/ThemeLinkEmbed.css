@@ -9,3 +9,4 @@
 .theme-embed-applied { font-size: 12px; color: var(--parley-success); font-weight: 600; }
 .theme-embed-error { font-size: 12px; color: var(--parley-danger); }
 .theme-embed-loading { font-size: 12px; color: var(--parley-text-muted); font-style: italic; }
+.theme-embed--invalid { border-left-color: var(--parley-danger); opacity: .7; }
