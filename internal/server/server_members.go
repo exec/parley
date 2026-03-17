@@ -181,6 +181,8 @@ func (s *ServerService) GetMembers(ctx context.Context, serverID string) ([]*Ser
 			Badges:      member.Badges,
 			JoinedAt:    member.JoinedAt,
 			Roles:       []Role{},
+			IsBot:       member.IsBot,
+			BotDegraded: member.BotDegraded,
 		}
 	}
 	return result, nil
@@ -214,6 +216,8 @@ func (s *ServerService) GetMembersWithRoles(ctx context.Context, serverID string
 			Badges:      m.Badges,
 			JoinedAt:    m.JoinedAt,
 			Roles:       roles,
+			IsBot:       m.IsBot,
+			BotDegraded: m.BotDegraded,
 		}
 	}
 	return members, nil

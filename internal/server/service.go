@@ -48,6 +48,8 @@ type ServerMember struct {
 	Badges      int       `json:"badges"`
 	JoinedAt    time.Time `json:"joined_at"`
 	Roles       []Role    `json:"roles"`
+	IsBot       bool      `json:"is_bot,omitempty"`
+	BotDegraded bool      `json:"bot_degraded,omitempty"`
 }
 
 type Invite struct {
