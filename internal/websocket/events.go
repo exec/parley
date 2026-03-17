@@ -48,6 +48,11 @@ const (
 	// Bot events
 	EventBotStatusUpdate = "BOT_STATUS_UPDATE"
 
+	// Friend events
+	EventFriendRequest = "FRIEND_REQUEST"
+	EventFriendAccept  = "FRIEND_ACCEPT"
+	EventFriendRemove  = "FRIEND_REMOVE"
+
 	// Bin events
 	EventBinPostCreate        = "BIN_POST_CREATE"
 	EventBinPostUpdate        = "BIN_POST_UPDATE"
