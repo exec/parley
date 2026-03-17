@@ -66,6 +66,7 @@ func (h *Handler) GetPreferences(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, r, 401, "unauthorized")
 		return
 	}
+	w.Header().Set("Cache-Control", "private, no-store")
 	p, err := h.svc.GetPreferences(r.Context(), uid)
 	if errors.Is(err, ErrNotFound) {
 		// User predates the themes feature — return sensible defaults
@@ -232,6 +233,8 @@ func (h *Handler) GetPublicTheme(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, r, 500, err.Error())
 		return
 	}
+	// Public shared theme — safe to cache briefly (token is immutable content).
+	w.Header().Set("Cache-Control", "public, max-age=60")
 	render.JSON(w, r, t)
 }
 
@@ -270,6 +273,8 @@ func (h *Handler) GetThemeRepo(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, r, 500, err.Error())
 		return
 	}
+	// Public repo listing — cache briefly so rapid page loads don't hammer the DB.
+	w.Header().Set("Cache-Control", "public, max-age=30")
 	render.JSON(w, r, ThemeRepoResponse{Themes: themes, Total: total})
 }
 
