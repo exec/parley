@@ -70,9 +70,9 @@ func (d *Dispatcher) BuildTrigger(postFn PostFunc) func(ctx context.Context, msg
 			return
 		}
 
-		// Only respond if mentioned (@ai-chatbot or <@botUserID>) or this is a reply to the bot
+		// Only respond if mentioned (@polly or <@botUserID>) or this is a reply to the bot
 		botUserIDStr := strconv.FormatInt(d.botUserID, 10)
-		mentioned := strings.Contains(content, "@ai-chatbot") || strings.Contains(content, "<@"+botUserIDStr+">")
+		mentioned := strings.Contains(content, "@polly") || strings.Contains(content, "<@"+botUserIDStr+">")
 
 		isReplyToBot := false
 		if parentID != "" && !mentioned {
@@ -135,6 +135,7 @@ func (d *Dispatcher) dispatch(ctx context.Context, serverIDInt int64, channelID,
 			limit = 100_000
 		}
 		if used >= limit {
+			_ = d.repo.SetBotDegraded(ctx, serverIDInt, d.botUserID, true)
 			return nil // silently skip — over quota
 		}
 	}
@@ -159,11 +160,15 @@ func (d *Dispatcher) dispatch(ctx context.Context, serverIDInt int64, channelID,
 		return fmt.Errorf("unknown provider: %s", provider)
 	}
 	if err != nil {
+		_ = d.repo.SetBotDegraded(ctx, serverIDInt, d.botUserID, true)
 		return fmt.Errorf("provider %s: %w", provider, err)
 	}
 	if reply == "" {
 		return nil
 	}
+
+	// Successful response — clear any degraded state
+	_ = d.repo.SetBotDegraded(ctx, serverIDInt, d.botUserID, false)
 
 	// Track usage for parley provider
 	if provider == "parley" && tokensUsed > 0 {

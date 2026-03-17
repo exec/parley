@@ -113,8 +113,8 @@ export const PROVIDER_LABELS: Record<string, string> = {
 // Permanent invite tokens seeded by migration — never expire.
 export const OFFICIAL_BOTS: { username: string; displayName: string; description: string; token: string }[] = [
   {
-    username: 'ai-chatbot',
-    displayName: 'AI Chatbot',
+    username: 'polly',
+    displayName: 'Polly',
     description: 'Responds to @mentions with AI. Supports Parley, Anthropic, OpenAI, and more.',
     token: 'aaaaaaaa-0000-0000-0000-000000000001',
   },

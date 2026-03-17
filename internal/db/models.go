@@ -100,7 +100,9 @@ type ServerMember struct {
 	BannerURL   string       `json:"banner_url,omitempty" db:"-"`
 	Bio         string       `json:"bio,omitempty" db:"-"`
 	Badges      int          `json:"badges" db:"-"`
-	Roles     []ServerRole `json:"roles" db:"-"`
+	Roles       []ServerRole `json:"roles" db:"-"`
+	IsBot       bool         `json:"is_bot,omitempty" db:"-"`
+	BotDegraded bool         `json:"bot_degraded,omitempty" db:"-"`
 }
 
 // Channel represents a text or voice channel

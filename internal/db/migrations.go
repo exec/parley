@@ -640,6 +640,12 @@ ON CONFLICT (token) DO NOTHING;
 	`-- Migration 32: add created_by to bot_invite_tokens for "Your Bots" ownership tracking
 ALTER TABLE bot_invite_tokens ADD COLUMN IF NOT EXISTS created_by BIGINT REFERENCES users(id);
 `,
+	`-- Migration 33: rename ai-chatbot to Polly; add per-server bot degraded state
+UPDATE users SET username='polly', display_name='Polly' WHERE username='ai-chatbot' AND is_bot=TRUE;
+
+ALTER TABLE server_bots ADD COLUMN IF NOT EXISTS last_error_at TIMESTAMPTZ;
+ALTER TABLE server_bots ADD COLUMN IF NOT EXISTS is_degraded BOOLEAN NOT NULL DEFAULT FALSE;
+`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

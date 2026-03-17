@@ -138,6 +138,10 @@
   background-color: var(--parley-gray);
 }
 
+.member-status.status-degraded {
+  background-color: var(--parley-red);
+}
+
 .member-status.idle {
   background-color: var(--parley-yellow);
 }

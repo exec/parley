@@ -221,9 +221,9 @@ func main() {
 	botsHandler := bots.NewHandler(botsSvc)
 
 	// Cache bot user ID at startup (fatal if not found — migration must have run)
-	botUserID, err := botsRepo.GetBotUserID(context.Background(), "ai-chatbot")
+	botUserID, err := botsRepo.GetBotUserID(context.Background(), "polly")
 	if err != nil {
-		log.Fatalf("bot user 'ai-chatbot' not found — run migrations: %v", err)
+		log.Fatalf("bot user 'polly' not found — run migrations: %v", err)
 	}
 
 	// Wire AI dispatch as a message trigger.

@@ -70,7 +70,8 @@ func (r *Repository) IsBotInServer(ctx context.Context, serverID, botUserID int6
 	return n > 0, err
 }
 
-// AddBotToServer inserts a server_bots row.
+// AddBotToServer inserts a server_bots row and a server_members row so the bot
+// appears in the members sidebar and is resolvable for @mentions.
 func (r *Repository) AddBotToServer(ctx context.Context, serverID, botUserID int64) error {
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO server_bots (server_id, bot_user_id) VALUES ($1, $2)`,
@@ -78,10 +79,17 @@ func (r *Repository) AddBotToServer(ctx context.Context, serverID, botUserID int
 	if isPgUniqueViolation(err) {
 		return ErrAlreadyExists
 	}
+	if err != nil {
+		return err
+	}
+	// Mirror into server_members so the bot appears in the sidebar and mention list.
+	_, err = r.db.ExecContext(ctx,
+		`INSERT INTO server_members (server_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+		serverID, botUserID)
 	return err
 }
 
-// RemoveBotFromServer deletes a server_bots row.
+// RemoveBotFromServer deletes server_bots and server_members rows.
 func (r *Repository) RemoveBotFromServer(ctx context.Context, serverID, botUserID int64) error {
 	res, err := r.db.ExecContext(ctx,
 		`DELETE FROM server_bots WHERE server_id=$1 AND bot_user_id=$2`, serverID, botUserID)
@@ -92,7 +100,23 @@ func (r *Repository) RemoveBotFromServer(ctx context.Context, serverID, botUserI
 	if n == 0 {
 		return ErrNotFound
 	}
+	_, _ = r.db.ExecContext(ctx,
+		`DELETE FROM server_members WHERE server_id=$1 AND user_id=$2`, serverID, botUserID)
 	return nil
+}
+
+// SetBotDegraded updates the degraded flag and records the error timestamp.
+func (r *Repository) SetBotDegraded(ctx context.Context, serverID, botUserID int64, degraded bool) error {
+	if degraded {
+		_, err := r.db.ExecContext(ctx,
+			`UPDATE server_bots SET is_degraded=TRUE, last_error_at=NOW()
+			 WHERE server_id=$1 AND bot_user_id=$2`, serverID, botUserID)
+		return err
+	}
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE server_bots SET is_degraded=FALSE
+		 WHERE server_id=$1 AND bot_user_id=$2`, serverID, botUserID)
+	return err
 }
 
 // GetAIConfig returns the AI config for a server, or nil if not set.

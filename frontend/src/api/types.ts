@@ -47,6 +47,8 @@ export interface ServerMember {
   badges?: number;
   joined_at: string;
   roles?: Role[];
+  is_bot?: boolean;
+  bot_degraded?: boolean;
 }
 
 export interface Channel {

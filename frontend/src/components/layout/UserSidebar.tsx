@@ -19,6 +19,8 @@ interface ServerMember {
   avatar_url?: string;
   banner_url?: string;
   roles?: Role[];
+  is_bot?: boolean;
+  bot_degraded?: boolean;
 }
 
 /* ---- Right-click context menu ---- */
@@ -110,8 +112,10 @@ function topRole(member: ServerMember): Role | null {
 }
 
 function buildGroups(members: ServerMember[], ownerId?: string, onlineIds?: Set<string>): MemberGroup[] {
-  const online = members.filter(m => onlineIds ? onlineIds.has(m.user_id) : true);
-  const offline = members.filter(m => onlineIds ? !onlineIds.has(m.user_id) : false);
+  const isEffectivelyOnline = (m: ServerMember) =>
+    m.is_bot || (onlineIds ? onlineIds.has(m.user_id) : true);
+  const online = members.filter(isEffectivelyOnline);
+  const offline = members.filter(m => !isEffectivelyOnline(m));
 
   const groups: MemberGroup[] = [];
 
@@ -202,14 +206,18 @@ const UserSidebar: React.FC<UserSidebarProps> = ({
   };
 
   const renderMember = (member: ServerMember) => {
-    const isOnline = onlineUserIds ? onlineUserIds.has(member.user_id) : false;
+    // Bots are always "online"; degraded bots use a red indicator instead of green
+    const isOnline = member.is_bot ? true : (onlineUserIds ? onlineUserIds.has(member.user_id) : false);
+    const statusClass = member.is_bot
+      ? (member.bot_degraded ? 'status-degraded' : 'status-online')
+      : (isOnline ? 'status-online' : 'status-offline');
     const isOwner = member.user_id === ownerId;
     const top = topRole(member);
 
     return (
       <div
         key={member.id}
-        className={`member-item ${isOnline ? '' : 'member-offline'}`}
+        className={`member-item ${(isOnline || member.is_bot) ? '' : 'member-offline'}`}
         onClick={(e) => handleMemberClick(member, e)}
         onContextMenu={(e) => handleMemberContextMenu(member, e)}
         title="Click for profile"
@@ -224,7 +232,7 @@ const UserSidebar: React.FC<UserSidebarProps> = ({
               </span>
             )}
           </div>
-          <span className={`member-status ${isOnline ? 'status-online' : 'status-offline'}`} />
+          <span className={`member-status ${statusClass}`} />
         </div>
         <div className="member-info">
           <div className="member-name">

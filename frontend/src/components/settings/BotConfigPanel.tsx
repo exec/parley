@@ -14,7 +14,7 @@ interface Props {
 }
 
 export const BotConfigPanel: React.FC<Props> = ({ bot, serverId, isAdmin, onRemove }) => {
-  const isAIChatbot = bot.username === 'ai-chatbot';
+  const isAIChatbot = bot.username === 'polly';
 
   const [config, setConfig] = useState<AIConfig | null>(null);
   const [usage, setUsage] = useState<AIUsage | null>(null);
