@@ -79,7 +79,7 @@ export const PROVIDER_MODELS: Record<string, { label: string; value: string }[]>
     { label: 'GPT-OSS (20B)',      value: 'gpt-oss:20b' },
     { label: 'Gemma 3 (27B)',      value: 'gemma3:27b' },
     { label: 'GPT-OSS (120B)',     value: 'gpt-oss:120b' },
-    { label: 'Qwen3.5 (235B)',     value: 'qwen3.5' },
+    { label: 'Qwen3.5 (397B)',     value: 'qwen3.5' },
   ],
   anthropic: [
     { label: 'Claude Opus 4.6',   value: 'claude-opus-4-6' },

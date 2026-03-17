@@ -91,9 +91,6 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 	if content == "" && attachmentURL == "" {
 		return nil, errors.New("content or attachment is required")
 	}
-	if len(content) > 4000 {
-		return nil, errors.New("message content exceeds maximum length of 4000 characters")
-	}
 	if validation.HasSpoofedLink(content) {
 		return nil, errors.New("message contains a spoofed link")
 	}
@@ -108,6 +105,19 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 	authorIDInt, err := strconv.ParseInt(authorID, 10, 64)
 	if err != nil {
 		return nil, errors.New("invalid author ID")
+	}
+
+	// Bots get a higher message length limit than human users.
+	maxLen := 4000
+	{
+		var isBot bool
+		_ = s.repo.DB().QueryRowContext(ctx, `SELECT is_bot FROM users WHERE id=$1`, authorIDInt).Scan(&isBot)
+		if isBot {
+			maxLen = 8000
+		}
+	}
+	if len(content) > maxLen {
+		return nil, fmt.Errorf("message content exceeds maximum length of %d characters", maxLen)
 	}
 
 	// Check SendMessages permission at channel level.
