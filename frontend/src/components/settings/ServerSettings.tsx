@@ -20,9 +20,10 @@ import {
   permFromNumber,
   permToNumber,
 } from '../../lib/permissions';
+import { BotsTab } from './BotsTab';
 import './Settings.css';
 
-type Tab = 'overview' | 'roles' | 'danger';
+type Tab = 'overview' | 'roles' | 'bots' | 'danger';
 type RolesSubTab = 'roles' | 'members';
 
 interface Props {
@@ -342,6 +343,9 @@ export const ServerSettings: React.FC<Props> = ({
           </button>
           <button className={`settings-nav-item${activeTab === 'roles' ? ' active' : ''}`} onClick={() => setActiveTab('roles')}>
             Roles
+          </button>
+          <button className={`settings-nav-item${activeTab === 'bots' ? ' active' : ''}`} onClick={() => setActiveTab('bots')}>
+            Bots
           </button>
         </div>
         <div className="settings-nav-divider" />
@@ -707,6 +711,13 @@ export const ServerSettings: React.FC<Props> = ({
                 </>
               )}
             </>
+          )}
+
+          {activeTab === 'bots' && (
+            <BotsTab
+              serverId={Number(server.id)}
+              isOwner={hasPerm(myPerms, PERM_ADMINISTRATOR)}
+            />
           )}
 
           {activeTab === 'danger' && (
