@@ -74,7 +74,7 @@ func (d *Dispatcher) BuildTrigger(postFn PostFunc) func(ctx context.Context, msg
 			parentIDInt, _ := strconv.ParseInt(parentID, 10, 64)
 			chain, err := d.repo.GetReplyChain(ctx, parentIDInt, 1, 100)
 			if err == nil && len(chain) > 0 {
-				isReplyToBot = chain[len(chain)-1].IsBot
+				isReplyToBot = chain[len(chain)-1].AuthorID == d.botUserID
 			}
 		}
 
@@ -96,7 +96,7 @@ func (d *Dispatcher) BuildTrigger(postFn PostFunc) func(ctx context.Context, msg
 
 // dispatch retrieves config, builds context, calls the provider, and posts the reply.
 func (d *Dispatcher) dispatch(ctx context.Context, serverIDInt int64, channelID, botUserIDStr, msgIDStr, parentID, content string, postFn PostFunc) error {
-	// Get AI config for this server (no auth check needed — internal call)
+	// Get AI config directly from repo — no auth check needed for internal dispatch path.
 	cfg, rawKeyEnc, err := d.repo.GetAIConfig(ctx, serverIDInt)
 	if err != nil {
 		return fmt.Errorf("get ai config: %w", err)
