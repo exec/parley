@@ -68,6 +68,12 @@ export interface RoleDeleteEvent {
   server_id: string;
 }
 
+export interface BotStatusUpdate {
+  server_id: string;
+  bot_user_id: string;
+  degraded: boolean;
+}
+
 interface UseWebSocketOptions {
   onMessage: (msg: Message) => void;
   onDmMessage?: (msg: DmMessage) => void;
@@ -98,12 +104,13 @@ interface UseWebSocketOptions {
   onChannelOverwriteUpdate?: (event: ChannelOverwriteUpdateEvent) => void;
   onRoleUpdate?: (event: RoleUpdateEvent) => void;
   onRoleDelete?: (event: RoleDeleteEvent) => void;
+  onBotStatusUpdate?: (update: BotStatusUpdate) => void;
   activeChannelId: string | null;
   extraChannelIds?: string[]; // Additional channels to subscribe to for notifications
   onConnect?: () => void; // Called on every successful (re)connect
 }
 
-export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onServerMemberLeave, onServerMemberKick, onServerMemberBan, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, onChannelCreate, onChannelUpdate, onChannelDelete, onServerUpdate, onServerDelete, onMemberRoleUpdate, onUserUpdate, onVoiceStateUpdate, onVoiceForceMute, onVoiceForceDisconnect, onBinPostCreate, onBinPostUpdate, onBinPostDelete, onChannelOverwriteUpdate, onRoleUpdate, onRoleDelete, onConnect, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
+export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onServerMemberLeave, onServerMemberKick, onServerMemberBan, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, onChannelCreate, onChannelUpdate, onChannelDelete, onServerUpdate, onServerDelete, onMemberRoleUpdate, onUserUpdate, onVoiceStateUpdate, onVoiceForceMute, onVoiceForceDisconnect, onBinPostCreate, onBinPostUpdate, onBinPostDelete, onChannelOverwriteUpdate, onRoleUpdate, onRoleDelete, onBotStatusUpdate, onConnect, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const subscribedChannelsRef = useRef<Set<string>>(new Set());
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -141,6 +148,7 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
   const onChannelOverwriteUpdateRef = useRef(onChannelOverwriteUpdate);
   const onRoleUpdateRef = useRef(onRoleUpdate);
   const onRoleDeleteRef = useRef(onRoleDelete);
+  const onBotStatusUpdateRef = useRef(onBotStatusUpdate);
   const onConnectRef = useRef(onConnect);
   useEffect(() => { onConnectRef.current = onConnect; }, [onConnect]);
   useEffect(() => { onMessageRef.current = onMessage; }, [onMessage]);
@@ -172,6 +180,7 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
   useEffect(() => { onChannelOverwriteUpdateRef.current = onChannelOverwriteUpdate; }, [onChannelOverwriteUpdate]);
   useEffect(() => { onRoleUpdateRef.current = onRoleUpdate; }, [onRoleUpdate]);
   useEffect(() => { onRoleDeleteRef.current = onRoleDelete; }, [onRoleDelete]);
+  useEffect(() => { onBotStatusUpdateRef.current = onBotStatusUpdate; }, [onBotStatusUpdate]);
 
   const sendTyping = useCallback((channelId: string, username: string) => {
     const ws = wsRef.current;
@@ -377,6 +386,10 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
             } else {
               console.log('[WebSocket] ROLE_DELETE', event);
             }
+          }
+        } else if (wsMsg.type === 'BOT_STATUS_UPDATE') {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null && onBotStatusUpdateRef.current) {
+            onBotStatusUpdateRef.current(wsMsg.payload as BotStatusUpdate);
           }
         }
       } catch (err) {

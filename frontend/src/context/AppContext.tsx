@@ -5,7 +5,7 @@ import * as serversApi from '../api/servers';
 import * as channelsApi from '../api/channels';
 import * as messagesApi from '../api/messages';
 import * as dmsApi from '../api/dms';
-import { ReactionUpdate, MemberRoleUpdate, UserUpdate } from '../hooks/useWebSocket';
+import { ReactionUpdate, MemberRoleUpdate, UserUpdate, BotStatusUpdate } from '../hooks/useWebSocket';
 import { resetThemeOnLogout } from './ThemeContext';
 
 interface AppState {
@@ -61,6 +61,7 @@ interface AppActions {
   receiveMemberLeave: (serverId: string, userId: string) => void;
   receiveMemberRemoved: (serverId: string, userId: string) => void; // for kick or ban of current user
   receiveMemberRoleUpdate: (update: MemberRoleUpdate) => void;
+  receiveBotStatusUpdate: (update: BotStatusUpdate) => void;
   receiveUserUpdate: (update: UserUpdate) => void;
   reloadMembers: (serverId: string) => Promise<void>;
   loadMoreMessages: () => Promise<void>;
@@ -543,6 +544,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     ));
   }, []);
 
+  const receiveBotStatusUpdate = useCallback((update: BotStatusUpdate) => {
+    setMembers(prev => prev.map(m =>
+      m.user_id === update.bot_user_id && m.server_id === update.server_id
+        ? { ...m, bot_degraded: update.degraded }
+        : m
+    ));
+  }, []);
+
   const receiveUserUpdate = useCallback((update: UserUpdate) => {
     setMembers(prev => prev.map(m =>
       m.user_id === update.user_id
@@ -648,6 +657,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       receiveMemberLeave,
       receiveMemberRemoved,
       receiveMemberRoleUpdate,
+      receiveBotStatusUpdate,
       receiveUserUpdate,
       reloadMembers,
       loadMoreMessages,

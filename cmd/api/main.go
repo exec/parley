@@ -227,6 +227,7 @@ func main() {
 	// Wire AI dispatch as a message trigger.
 	// BuildTrigger is called ONCE here to produce a stable trigger function.
 	dispatcher := bots.NewDispatcher(botsSvc, botsRepo, config.OllamaAPIURL, config.OllamaAPIKey, botUserID)
+	dispatcher.SetHub(hub)
 	postFn := func(ctx context.Context, chID, botUserIDStr, content, replyToMsgID string) error {
 		_, err := messageService.SendMessage(ctx, chID, botUserIDStr, content, "", "", "", "", replyToMsgID)
 		return err

@@ -45,6 +45,9 @@ const (
 	EventVoiceForceMute       = "VOICE_FORCE_MUTE"
 	EventVoiceForceDisconnect = "VOICE_FORCE_DISCONNECT"
 
+	// Bot events
+	EventBotStatusUpdate = "BOT_STATUS_UPDATE"
+
 	// Bin events
 	EventBinPostCreate        = "BIN_POST_CREATE"
 	EventBinPostUpdate        = "BIN_POST_UPDATE"

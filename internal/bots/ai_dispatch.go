@@ -14,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	ws "parley/internal/websocket"
 )
 
 const (
@@ -38,6 +40,7 @@ var mentionRe = regexp.MustCompile(`<@(\d+)>`)
 type Dispatcher struct {
 	svc       *Service
 	repo      *Repository
+	hub       *ws.Hub
 	ollamaURL string
 	ollamaKey string
 	botUserID int64
@@ -53,6 +56,9 @@ func NewDispatcher(svc *Service, repo *Repository, ollamaURL, ollamaKey string, 
 		botUserID: botUserID,
 	}
 }
+
+// SetHub wires the WebSocket hub so degraded-status changes can be pushed live.
+func (d *Dispatcher) SetHub(hub *ws.Hub) { d.hub = hub }
 
 // BuildTrigger returns a BotTriggerFunc (to be set on MessageService once at startup).
 // postFn is called to send the bot's reply.
@@ -141,6 +147,7 @@ func (d *Dispatcher) dispatch(ctx context.Context, serverIDInt int64, channelID,
 		}
 		if used >= ParleyMonthlyBudget {
 			_ = d.repo.SetBotDegraded(ctx, serverIDInt, d.botUserID, true)
+			d.broadcastBotStatus(serverIDInt, true)
 			return nil // silently skip — over quota
 		}
 	}
@@ -169,6 +176,7 @@ func (d *Dispatcher) dispatch(ctx context.Context, serverIDInt int64, channelID,
 	}
 	if err != nil {
 		_ = d.repo.SetBotDegraded(ctx, serverIDInt, d.botUserID, true)
+		d.broadcastBotStatus(serverIDInt, true)
 		return fmt.Errorf("provider %s: %w", provider, err)
 	}
 	if reply == "" {
@@ -177,6 +185,7 @@ func (d *Dispatcher) dispatch(ctx context.Context, serverIDInt int64, channelID,
 
 	// Successful response — clear any degraded state
 	_ = d.repo.SetBotDegraded(ctx, serverIDInt, d.botUserID, false)
+	d.broadcastBotStatus(serverIDInt, false)
 
 	// Track compute-credit usage for parley provider (scaled by model cost factor)
 	if provider == "parley" && tokensUsed > 0 {
@@ -236,6 +245,22 @@ func (d *Dispatcher) buildMessages(ctx context.Context, msgIDStr, parentID, cont
 	}
 
 	return msgs
+}
+
+// broadcastBotStatus pushes a BOT_STATUS_UPDATE event to all members of a server.
+func (d *Dispatcher) broadcastBotStatus(serverIDInt int64, degraded bool) {
+	if d.hub == nil {
+		return
+	}
+	payload, err := json.Marshal(map[string]interface{}{
+		"server_id":   strconv.FormatInt(serverIDInt, 10),
+		"bot_user_id": strconv.FormatInt(d.botUserID, 10),
+		"degraded":    degraded,
+	})
+	if err != nil {
+		return
+	}
+	d.hub.BroadcastToChannel("server:"+strconv.FormatInt(serverIDInt, 10), ws.EventBotStatusUpdate, payload)
 }
 
 // preprocessContent strips bot self-mentions and resolves other user mention tags.

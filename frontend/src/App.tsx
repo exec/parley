@@ -13,7 +13,7 @@ import { Landing } from './pages/Landing';
 import { SharedThemePage } from './pages/SharedThemePage';
 import { ThemeRepoPage } from './pages/ThemeRepoPage';
 import { BotInvitePage } from './pages/BotInvitePage';
-import { useWebSocket, MemberRoleUpdate, UserUpdate, VoiceStateUpdate, VoiceForceMuteEvent, RoleUpdateEvent, RoleDeleteEvent } from './hooks/useWebSocket';
+import { useWebSocket, MemberRoleUpdate, UserUpdate, VoiceStateUpdate, VoiceForceMuteEvent, RoleUpdateEvent, RoleDeleteEvent, BotStatusUpdate } from './hooks/useWebSocket';
 import { VoiceChannel } from './components/voice/VoiceChannel';
 
 import { DmMessage, Message, BinChannelTag } from './api/types';
@@ -93,6 +93,7 @@ function MainApp() {
     receiveMemberLeave,
     receiveMemberRemoved,
     receiveMemberRoleUpdate,
+    receiveBotStatusUpdate,
     receiveUserUpdate,
     reloadMembers,
     reorderChannels,
@@ -308,6 +309,10 @@ function MainApp() {
   const handleServerDelete = useCallback((serverId: string) => {
     deleteServer(serverId);
   }, [deleteServer]);
+
+  const handleBotStatusUpdate = useCallback((update: BotStatusUpdate) => {
+    receiveBotStatusUpdate(update);
+  }, [receiveBotStatusUpdate]);
 
   const handleMemberRoleUpdate = useCallback((update: MemberRoleUpdate) => {
     receiveMemberRoleUpdate(update);
@@ -537,6 +542,7 @@ function MainApp() {
     onServerUpdate: handleServerUpdate,
     onServerDelete: handleServerDelete,
     onMemberRoleUpdate: handleMemberRoleUpdate,
+    onBotStatusUpdate: handleBotStatusUpdate,
     onRoleUpdate: handleRoleUpdate,
     onRoleDelete: handleRoleDelete,
     onConnect: clearAllPermCaches,
