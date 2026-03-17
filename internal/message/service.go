@@ -265,27 +265,28 @@ func (s *MessageService) GetChannelMessages(ctx context.Context, channelID, user
 		return nil, errors.New("invalid channel ID")
 	}
 
-	// Check ViewChannel permission.
-	if userID != "" {
-		userIDInt, err := strconv.ParseInt(userID, 10, 64)
-		if err != nil {
-			return nil, errors.New("invalid user ID")
-		}
-		ch, err := s.repo.GetChannelByID(ctx, channelIDInt)
-		if err != nil {
-			return nil, errors.New("channel not found")
-		}
-		srv, err := s.repo.GetServerByID(ctx, ch.ServerID)
-		if err != nil {
-			return nil, errors.New("server not found")
-		}
-		canView, err := permissions.HasChannelPermission(ctx, s.repo, srv.ID, userIDInt, srv.OwnerID, channelIDInt, permissions.PermViewChannel)
-		if err != nil {
-			return nil, err
-		}
-		if !canView {
-			return nil, errors.New("channel not found")
-		}
+	// Check ViewChannel permission. Fail-closed: unauthenticated callers are denied.
+	if userID == "" {
+		return nil, errors.New("forbidden")
+	}
+	userIDInt, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		return nil, errors.New("invalid user ID")
+	}
+	ch, err := s.repo.GetChannelByID(ctx, channelIDInt)
+	if err != nil {
+		return nil, errors.New("channel not found")
+	}
+	srv, err := s.repo.GetServerByID(ctx, ch.ServerID)
+	if err != nil {
+		return nil, errors.New("server not found")
+	}
+	canView, err := permissions.HasChannelPermission(ctx, s.repo, srv.ID, userIDInt, srv.OwnerID, channelIDInt, permissions.PermViewChannel)
+	if err != nil {
+		return nil, err
+	}
+	if !canView {
+		return nil, errors.New("channel not found")
 	}
 
 	dbMessages, err := s.repo.GetChannelMessages(ctx, channelIDInt, limit, beforeID)
@@ -368,6 +369,22 @@ func (s *MessageService) SearchMessages(ctx context.Context, serverID, userID, q
 	if inChannelID != "" {
 		if v, err := strconv.ParseInt(inChannelID, 10, 64); err == nil {
 			inChInt = v
+		}
+	}
+
+	// When filtering to a specific channel, verify the caller has ViewChannel on it.
+	if inChInt > 0 {
+		inCh, err := s.repo.GetChannelByID(ctx, inChInt)
+		if err != nil || inCh.ServerID != srvIDInt {
+			return nil, errors.New("forbidden")
+		}
+		srv, err := s.repo.GetServerByID(ctx, srvIDInt)
+		if err != nil {
+			return nil, errors.New("forbidden")
+		}
+		canView, err := permissions.HasChannelPermission(ctx, s.repo, srvIDInt, userIDInt, srv.OwnerID, inChInt, permissions.PermViewChannel)
+		if err != nil || !canView {
+			return nil, errors.New("forbidden")
 		}
 	}
 
@@ -538,6 +555,16 @@ func (s *MessageService) ToggleReaction(ctx context.Context, messageID, userID, 
 	}
 	if emoji == "" {
 		return errors.New("emoji is required")
+	}
+	// Limit emoji length to prevent abuse (longest ZWJ sequences are well under 64 bytes).
+	if len(emoji) > 64 {
+		return errors.New("invalid emoji")
+	}
+	// Reject ASCII control characters.
+	for _, b := range []byte(emoji) {
+		if b < 0x20 {
+			return errors.New("invalid emoji")
+		}
 	}
 
 	// Need the message's channel for broadcasting

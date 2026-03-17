@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"log"
@@ -80,13 +81,12 @@ func DefaultConfig() *Config {
 
 	botKeySecret := os.Getenv("BOT_KEY_SECRET")
 	if botKeySecret == "" {
-		log.Fatal("BOT_KEY_SECRET is required (32-byte AES key for bot API key encryption)")
+		log.Fatal("BOT_KEY_SECRET is required (secret used to derive the AES-256 bot API key encryption key)")
 	}
-	botKeyBytes := []byte(botKeySecret)
-	if len(botKeyBytes) < 32 {
-		log.Fatalf("BOT_KEY_SECRET must be at least 32 bytes (got %d)", len(botKeyBytes))
-	}
-	botKeyBytes = botKeyBytes[:32]
+	// Derive a 32-byte AES key via SHA-256 so the full entropy of the secret is
+	// used regardless of its length, and multi-byte characters are never truncated.
+	botKeyHash := sha256.Sum256([]byte(botKeySecret))
+	botKeyBytes := botKeyHash[:]
 
 	return &Config{
 		DatabaseURL:  databaseURL,
@@ -388,7 +388,7 @@ func corsMiddleware() func(http.Handler) http.Handler {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
 				w.Header().Set("Vary", "Origin")
 			}
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 			w.Header().Set("Access-Control-Max-Age", "3600")
 

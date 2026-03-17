@@ -26,13 +26,12 @@ func handleWebSocket(hub *ws.Hub, authService *auth.AuthService, repo *db.Reposi
 				return
 			}
 		} else {
-			// Legacy path: JWT in query param or Authorization header (kept for compatibility)
+			// Authorization header only — never accept JWT via URL query params
+			// (URL query params are recorded in proxy/server access logs).
 			tokenString := ""
 			authHeader := r.Header.Get("Authorization")
 			if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
 				tokenString = authHeader[7:]
-			} else {
-				tokenString = r.URL.Query().Get("token")
 			}
 			if tokenString == "" {
 				http.Error(w, "authorization required", http.StatusUnauthorized)

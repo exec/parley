@@ -141,6 +141,10 @@ func (c *Client) handleMessage(msg WSMessage) {
 		if payload.ChannelID == "" {
 			return
 		}
+		if !c.hub.CheckChannelAccess(c.userID, payload.ChannelID) {
+			log.Printf("TYPING from user %s: access denied for channel %s", c.userID, payload.ChannelID)
+			return
+		}
 		// Build broadcast payload using server-side user ID and display name (not client-supplied)
 		broadcastPayload, err := json.Marshal(map[string]string{
 			"channel_id": payload.ChannelID,

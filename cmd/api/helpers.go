@@ -1,16 +1,12 @@
 package main
 
 import (
-	"bytes"
-	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"mime/multipart"
 	"net/http"
 	"strconv"
-	"time"
 
 	"parley/internal/auth"
 	"parley/internal/db"
@@ -110,51 +106,3 @@ func allowedFileExt(data []byte) (string, bool) {
 	return "", false
 }
 
-// checkNSFW sends an image to the local NSFW sidecar and returns true if it should be blocked.
-// Fails open (returns false) if the sidecar is unavailable, so uploads are never hard-blocked by infra issues.
-func checkNSFW(ctx context.Context, data []byte, _ string) (bool, error) {
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-	part, err := writer.CreateFormFile("file", "upload")
-	if err != nil {
-		return false, err
-	}
-	if _, err := part.Write(data); err != nil {
-		return false, err
-	}
-	writer.Close()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://127.0.0.1:8081/check", body)
-	if err != nil {
-		return false, err
-	}
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return false, err // sidecar down — fail open
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return false, fmt.Errorf("nsfw sidecar returned %d", resp.StatusCode)
-	}
-
-	var result struct {
-		Predictions []struct {
-			ClassName   string  `json:"className"`
-			Probability float64 `json:"probability"`
-		} `json:"predictions"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return false, err
-	}
-
-	for _, p := range result.Predictions {
-		if (p.ClassName == "Porn" || p.ClassName == "Hentai") && p.Probability > 0.6 {
-			return true, nil
-		}
-	}
-	return false, nil
-}

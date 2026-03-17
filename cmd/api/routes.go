@@ -77,6 +77,8 @@ func registerRoutes(
 	authLimiter := newRateLimiter(10, time.Minute)
 	// Rate limiter for invite code lookups: 30 per IP per minute.
 	inviteLimiter := newRateLimiter(30, time.Minute)
+	// Rate limiter for message history reads: 120 per IP per minute.
+	msgReadLimiter := newRateLimiter(120, time.Minute)
 
 	router.Route("/api", func(r chi.Router) {
 		// Auth routes
@@ -102,7 +104,7 @@ func registerRoutes(
 				r.Get("/me", handleGetMe(repo))
 				r.Get("/me/phone", handleGetMePhone(repo))
 				r.Post("/ws-ticket", handleWsTicket(authService, tickets))
-				r.Post("/impersonate-token", handleImpersonateToken(authService))
+				r.With(rateLimitMiddleware(authLimiter)).Post("/impersonate-token", handleImpersonateToken(authService))
 				r.Put("/profile", handleUpdateProfile(authService, repo, hub))
 				r.Put("/email", handleChangeEmail(authService))
 				r.Post("/resend-verification", handleResendVerification(authService))
@@ -179,7 +181,7 @@ func registerRoutes(
 			// Message routes
 			messageHandler := message.NewHandler(messageService)
 			r.Get("/servers/{id}/messages/search", messageHandler.SearchMessages)
-			r.Get("/channels/{channelID}/messages", messageHandler.GetChannelMessages)
+			r.With(rateLimitMiddleware(msgReadLimiter)).Get("/channels/{channelID}/messages", messageHandler.GetChannelMessages)
 			r.Post("/channels/{channelID}/messages", messageHandler.SendMessage)
 			r.Put("/messages/{id}", messageHandler.EditMessage)
 			r.Delete("/messages/{id}", messageHandler.DeleteMessage)

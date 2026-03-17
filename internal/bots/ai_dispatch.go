@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -170,6 +171,22 @@ func (d *Dispatcher) dispatch(ctx context.Context, serverIDInt int64, channelID,
 	// Build conversation context from reply chain
 	messages := d.buildMessages(ctx, msgIDStr, parentID, cleanedContent, systemPrompt)
 
+	// Show typing indicator while the LLM call is in flight.
+	stopTyping := make(chan struct{})
+	go func() {
+		d.sendTyping(channelID)
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				d.sendTyping(channelID)
+			case <-stopTyping:
+				return
+			}
+		}
+	}()
+
 	// Call provider
 	var reply string
 	var tokensUsed int64
@@ -184,8 +201,10 @@ func (d *Dispatcher) dispatch(ctx context.Context, serverIDInt int64, channelID,
 	case "google":
 		reply, tokensUsed, err = d.callGoogle(ctx, model, messages, apiKey)
 	default:
+		close(stopTyping)
 		return fmt.Errorf("unknown provider: %s", provider)
 	}
+	close(stopTyping)
 	if err != nil {
 		_ = d.repo.SetBotDegraded(ctx, serverIDInt, d.botUserID, true)
 		d.broadcastBotStatus(serverIDInt, true)
@@ -257,6 +276,24 @@ func (d *Dispatcher) buildMessages(ctx context.Context, msgIDStr, parentID, cont
 	}
 
 	return msgs
+}
+
+// sendTyping broadcasts a USER_TYPING event to the given channel so clients show
+// the "Polly is typing…" indicator. It is called in a tight goroutine while the
+// LLM request is in flight.
+func (d *Dispatcher) sendTyping(channelID string) {
+	if d.hub == nil {
+		return
+	}
+	payload, err := json.Marshal(map[string]string{
+		"channel_id": channelID,
+		"user_id":    strconv.FormatInt(d.botUserID, 10),
+		"username":   "Polly",
+	})
+	if err != nil {
+		return
+	}
+	d.hub.BroadcastToChannel(channelID, ws.EventUserTyping, payload)
 }
 
 // broadcastBotStatus pushes a BOT_STATUS_UPDATE event to all members of a server.
@@ -535,7 +572,7 @@ func (d *Dispatcher) callGoogle(ctx context.Context, model string, messages []ch
 	}
 
 	reqBody, _ := json.Marshal(googleRequest{Contents: contents, SystemInstruction: sysInstruction})
-	googleURL := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent", model)
+	googleURL := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent", url.PathEscape(model))
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, googleURL, bytes.NewReader(reqBody))
 	if err != nil {
 		return "", 0, err

@@ -107,8 +107,8 @@ func (h *Handler) GetChannelMessages(w http.ResponseWriter, r *http.Request) {
 
 	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
-			if l > 200 {
-				l = 200
+			if l > 50 {
+				l = 50
 			}
 			limit = l
 		}
