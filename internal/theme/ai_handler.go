@@ -69,7 +69,9 @@ func (h *AIHandler) Generate(w http.ResponseWriter, r *http.Request) {
 	// Build the user message that the worker will send to Ollama.
 	userMessage := req.Prompt
 	if req.CurrentCSS != "" {
-		userMessage = "Here is my current theme CSS, please improve it:\n\n" + req.CurrentCSS + "\n\nAdditional instructions: " + req.Prompt
+		userMessage = "Here is my current theme CSS. Modify it according to the instructions below — " +
+			"you may change any values, add or remove variables, or rewrite it entirely as needed.\n\n" +
+			req.CurrentCSS + "\n\nInstructions: " + req.Prompt
 	}
 
 	jobID := uuid.New().String()
