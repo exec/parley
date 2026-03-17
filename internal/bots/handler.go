@@ -61,7 +61,7 @@ func handleSvcErr(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, ErrAlreadyExists):
 		writeErr(w, r, 409, "already exists")
 	default:
-		writeErr(w, r, 500, err.Error())
+		writeErr(w, r, 500, "internal server error")
 	}
 }
 

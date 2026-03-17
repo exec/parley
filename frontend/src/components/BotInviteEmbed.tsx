@@ -71,8 +71,8 @@ export const BotInviteEmbed: React.FC<Props> = ({ token }) => {
       await acceptBotInvite(token, selectedServer);
       setAdded(true);
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Failed to add bot';
-      setError(msg.includes('409') ? 'Bot is already in that server.' : 'Failed to add bot.');
+      const code = (e as { code?: string })?.code;
+      setError(code === '409' ? 'Bot is already in that server.' : 'Failed to add bot.');
     } finally {
       setAdding(false);
     }
