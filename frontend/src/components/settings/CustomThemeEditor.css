@@ -32,3 +32,22 @@
 .theme-editor-save:hover { background: var(--parley-accent-hover); }
 .theme-editor-save:disabled { opacity: .5; cursor: not-allowed; }
 .theme-editor-cancel { padding: 9px 18px; background: var(--parley-bg-secondary); border: 1px solid var(--parley-border); border-radius: 4px; color: var(--parley-text-normal); font-size: 14px; cursor: pointer; }
+
+/* AI Theme Generation */
+.theme-editor-ai-section { margin-top: 4px; }
+.theme-editor-ai-prompt { min-height: 64px; resize: vertical; }
+.theme-editor-ai-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.theme-editor-ai-btn {
+  padding: 6px 16px;
+  background: var(--parley-accent, #32CD32);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.theme-editor-ai-btn:disabled { opacity: .45; cursor: not-allowed; }
+.theme-editor-ai-btn:not(:disabled):hover { background: var(--parley-accent-hover, #28a428); }
+.theme-editor-ai-status { font-size: 13px; color: var(--parley-text-muted, #666); font-style: italic; }
+.theme-editor-ai-error { font-size: 13px; color: var(--parley-danger, #ed4245); }
