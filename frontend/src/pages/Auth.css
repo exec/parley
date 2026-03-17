@@ -86,11 +86,11 @@
 }
 
 .auth-success-banner {
-  background-color: rgba(59, 165, 93, 0.15);
-  border: 1px solid #3ba55d;
+  background-color: rgba(var(--accent-rgb), 0.15);
+  border: 1px solid var(--discord-green);
   border-radius: 4px;
   padding: 12px 16px;
-  color: #3ba55d;
+  color: var(--discord-green);
   font-size: 14px;
   text-align: center;
   margin-bottom: 8px;

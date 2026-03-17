@@ -56,13 +56,13 @@
   width: 64px;
   height: 64px;
   border-radius: 50%;
-  background-color: rgba(240, 71, 71, 0.1);
-  border: 2px solid #f04747;
+  background-color: rgba(var(--discord-danger-rgb), 0.1);
+  border: 2px solid var(--discord-danger);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 28px;
-  color: #f04747;
+  color: var(--discord-danger);
 }
 
 .invite-title {

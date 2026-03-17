@@ -11,12 +11,12 @@
 
 /* ---- Inline elements ---- */
 
-.md strong { font-weight: 700; color: #e0e0e0; }
-.md em     { font-style: italic; color: #ccc; }
-.md del    { text-decoration: line-through; color: #777; }
+.md strong { font-weight: 700; color: var(--discord-text-normal); }
+.md em     { font-style: italic; color: var(--discord-text-muted); }
+.md del    { text-decoration: line-through; color: var(--discord-text-muted); }
 
 .md a {
-  color: #5eb8ff;
+  color: var(--discord-text-link);
   text-decoration: none;
 }
 .md a:hover {
@@ -60,10 +60,10 @@
 }
 
 .md blockquote {
-  border-left: 3px solid #32CD32;
+  border-left: 3px solid var(--discord-accent);
   margin: 6px 0;
   padding: 2px 0 2px 12px;
-  color: #888;
+  color: var(--discord-text-muted);
 }
 
 .md ul, .md ol {
@@ -92,23 +92,23 @@
   text-align: left;
 }
 .md th {
-  background: #0d0f12;
-  color: #999;
+  background: var(--discord-bg-secondary);
+  color: var(--discord-text-muted);
   font-weight: 600;
 }
 
 /* ---- Chat mode headers (natural sizes, but capped) ---- */
 
-.md-chat h1 { font-size: 1.4em; font-weight: 700; color: #ddd; margin: 8px 0 4px; }
-.md-chat h2 { font-size: 1.25em; font-weight: 700; color: #ddd; margin: 6px 0 4px; }
-.md-chat h3 { font-size: 1.1em;  font-weight: 700; color: #ddd; margin: 4px 0 2px; }
-.md-chat h4, .md-chat h5, .md-chat h6 { font-size: 1em; font-weight: 700; color: #ccc; margin: 4px 0 2px; }
+.md-chat h1 { font-size: 1.4em; font-weight: 700; color: var(--discord-text-normal); margin: 8px 0 4px; }
+.md-chat h2 { font-size: 1.25em; font-weight: 700; color: var(--discord-text-normal); margin: 6px 0 4px; }
+.md-chat h3 { font-size: 1.1em;  font-weight: 700; color: var(--discord-text-normal); margin: 4px 0 2px; }
+.md-chat h4, .md-chat h5, .md-chat h6 { font-size: 1em; font-weight: 700; color: var(--discord-text-muted); margin: 4px 0 2px; }
 
 /* ---- Bio mode headers (downscaled — never dominate the layout) ---- */
 
-.md-bio h1, .md-bio h2 { font-size: 1em; font-weight: 700; color: #ddd; margin: 6px 0 2px; display: block; }
-.md-bio h3, .md-bio h4 { font-size: 0.95em; font-weight: 700; color: #ccc; margin: 4px 0 2px; display: block; }
-.md-bio h5, .md-bio h6 { font-size: 0.9em; font-weight: 600; color: #bbb; margin: 4px 0 2px; display: block; }
+.md-bio h1, .md-bio h2 { font-size: 1em; font-weight: 700; color: var(--discord-text-normal); margin: 6px 0 2px; display: block; }
+.md-bio h3, .md-bio h4 { font-size: 0.95em; font-weight: 700; color: var(--discord-text-muted); margin: 4px 0 2px; display: block; }
+.md-bio h5, .md-bio h6 { font-size: 0.9em; font-weight: 600; color: var(--discord-text-muted); margin: 4px 0 2px; display: block; }
 
 /* Bio is tighter overall */
 .md-bio p { margin: 0 0 4px; }
@@ -126,11 +126,11 @@
 }
 
 .mention-user {
-  background: rgba(50, 205, 50, 0.15);
-  color: #32CD32;
+  background: rgba(var(--accent-rgb), 0.15);
+  color: var(--discord-accent);
 }
 .mention-user:hover {
-  background: rgba(50, 205, 50, 0.3);
+  background: rgba(var(--accent-rgb), 0.3);
   color: #fff;
 }
 
