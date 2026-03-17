@@ -55,6 +55,9 @@ IMPORTANT contrast rules:
   --parley-bg-tertiary and --parley-text-muted (--text-secondary) must have sufficient contrast so that
   text is readable on that background — context menus and dropdowns use this combination.
   Aim for at least a 4:1 contrast ratio between these two values.
+  --parley-accent is used as a button background with white (#fff) text on top. It MUST be dark enough
+  that white text is legible — never use yellow, light green, light pink, or any light/pastel color as
+  the accent. If the theme calls for a light accent, darken it significantly for this variable.
 
 RGB values (used for rgba() opacity effects — provide as "R, G, B" with no extra text):
   --accent-rgb             R, G, B of --parley-accent
