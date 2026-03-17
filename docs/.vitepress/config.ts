@@ -5,6 +5,7 @@ export default defineConfig({
   description: 'Build bots and integrations on Parley',
   base: '/docs/developer/',
   cleanUrls: true,
+  srcExclude: ['superpowers/**'],
 
   themeConfig: {
     logo: '/logo.svg',
