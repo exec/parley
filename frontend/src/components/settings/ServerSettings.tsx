@@ -109,6 +109,13 @@ export const ServerSettings: React.FC<Props> = ({
     }
   }, [isOpen, activeTab, server]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Load permissions when bots tab is active (needed for isOwner check)
+  useEffect(() => {
+    if (isOpen && activeTab === 'bots' && server) {
+      loadMyPerms();
+    }
+  }, [isOpen, activeTab, server]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const loadRoles = async () => {
     if (!server) return;
     setRolesLoading(true);

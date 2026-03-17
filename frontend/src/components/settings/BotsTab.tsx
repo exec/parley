@@ -44,9 +44,13 @@ export const BotsTab: React.FC<Props> = ({ serverId, isOwner }) => {
 
   const handleRemove = async (bot: BotSummary) => {
     if (!window.confirm(`Remove ${bot.display_name} from this server?`)) return;
-    await removeBot(serverId, bot.id).catch(() => {});
-    setBots(prev => prev.filter(b => b.id !== bot.id));
-    if (selected?.id === bot.id) setSelected(null);
+    try {
+      await removeBot(serverId, bot.id);
+      setBots(prev => prev.filter(b => b.id !== bot.id));
+      if (selected?.id === bot.id) setSelected(null);
+    } catch {
+      alert('Failed to remove bot. Please try again.');
+    }
   };
 
   return (
