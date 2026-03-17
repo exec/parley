@@ -14,7 +14,7 @@
 }
 
 .reply-indicator-name {
-  color: #32CD32;
+  color: var(--discord-accent);
   cursor: pointer;
 }
 

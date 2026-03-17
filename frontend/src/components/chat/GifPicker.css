@@ -41,7 +41,7 @@
 }
 
 .gif-picker-search:focus {
-  border-color: #32CD32;
+  border-color: var(--discord-accent);
 }
 
 .gif-picker-search::placeholder {

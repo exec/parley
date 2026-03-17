@@ -3,7 +3,7 @@
   bottom: 100%;
   left: 0;
   background: #111;
-  border: 1px solid rgba(50, 205, 50, 0.2);
+  border: 1px solid rgba(var(--accent-rgb), 0.2);
   border-radius: 6px;
   padding: 8px;
   min-width: 300px;
@@ -14,7 +14,7 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
-.edit-history-title { font-size: 12px; font-weight: 600; color: #32CD32; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid rgba(50, 205, 50, 0.1); }
+.edit-history-title { font-size: 12px; font-weight: 600; color: var(--discord-accent); margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid rgba(var(--accent-rgb), 0.1); }
 .edit-history-version { padding: 6px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
 .edit-history-version:last-child { border-bottom: none; }
 .edit-history-timestamp { font-size: 11px; color: #555; margin-bottom: 4px; }
