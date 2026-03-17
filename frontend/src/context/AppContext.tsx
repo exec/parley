@@ -409,6 +409,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setActiveServer(null);
     setActiveChannel(null);
     setMessages([]);
+    setDmMessages([]);
     setHasMoreDmMessages(false);
 
     setIsLoadingDms(true);

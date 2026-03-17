@@ -660,6 +660,19 @@ CREATE TABLE IF NOT EXISTS dm_message_reactions (
 );
 CREATE INDEX IF NOT EXISTS idx_dm_message_reactions_message_id ON dm_message_reactions(message_id);
 `,
+	`-- Migration 35: ensure DM parity schema is applied (idempotent re-run guards against bootstrap skipping migration 34)
+ALTER TABLE dm_messages ADD COLUMN IF NOT EXISTS parent_id BIGINT REFERENCES dm_messages(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_dm_messages_parent_id ON dm_messages(parent_id) WHERE parent_id IS NOT NULL;
+CREATE TABLE IF NOT EXISTS dm_message_reactions (
+    id BIGSERIAL PRIMARY KEY,
+    message_id BIGINT NOT NULL REFERENCES dm_messages(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    emoji VARCHAR(64) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE(message_id, user_id, emoji)
+);
+CREATE INDEX IF NOT EXISTS idx_dm_message_reactions_message_id ON dm_message_reactions(message_id);
+`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string
