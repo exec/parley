@@ -170,6 +170,16 @@ func main() {
 			return err == nil && member != nil
 		}
 
+		// "dm:{dmChannelID}" virtual channels: allow if user is a participant.
+		if dmIDStr, ok := strings.CutPrefix(channelID, "dm:"); ok {
+			dmID, err := strconv.ParseInt(dmIDStr, 10, 64)
+			if err != nil {
+				return false
+			}
+			ch, err := repo.GetDmChannelByID(ctx, dmID)
+			return err == nil && (ch.User1ID == uID || ch.User2ID == uID)
+		}
+
 		// Regular channel: check the user is a member of the channel's server.
 		chID, err := strconv.ParseInt(channelID, 10, 64)
 		if err != nil {

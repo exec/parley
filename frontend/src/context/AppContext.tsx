@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { User, Server, Channel, Message, ServerMember, DmChannel, DmMessage, Reaction } from '../api/types';
 import { apiClient } from '../api/client';
 import * as serversApi from '../api/servers';
@@ -109,6 +109,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const [dmChannels, setDmChannels] = useState<DmChannel[]>([]);
   const [activeDmChannel, setActiveDmChannel] = useState<DmChannel | null>(null);
+  const activeDmChannelRef = useRef<DmChannel | null>(null);
+  useEffect(() => { activeDmChannelRef.current = activeDmChannel; }, [activeDmChannel]);
   const [dmMessages, setDmMessages] = useState<DmMessage[]>([]);
   const [hasMoreDmMessages, setHasMoreDmMessages] = useState(false);
   const [isLoadingDms, setIsLoadingDms] = useState(false);
@@ -439,13 +441,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const receiveDmMessage = useCallback((msg: DmMessage) => {
-    if (activeDmChannel && msg.dm_channel_id === activeDmChannel.id) {
+    const adc = activeDmChannelRef.current;
+    // Use string coercion so numeric IDs from JSON match string IDs from state
+    if (adc && String(msg.dm_channel_id) === String(adc.id)) {
       setDmMessages(prev => {
-        if (prev.some(m => m.id === msg.id)) return prev;
+        if (prev.some(m => String(m.id) === String(msg.id))) return prev;
         return [...prev, msg];
       });
     }
-  }, [activeDmChannel]);
+  }, []);
 
   const logout = useCallback(() => {
     resetThemeOnLogout();

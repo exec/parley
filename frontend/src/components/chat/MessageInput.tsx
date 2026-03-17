@@ -190,7 +190,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     } finally {
       setIsUploading(false);
     }
-  }, [message, pendingFile, voiceBlob, onSendMessage]);
+  }, [message, pendingFile, voiceBlob, onSendMessage, replyTo]);
 
   const handleChannelSelect = useCallback((channel: import('../../api/types').Channel) => {
     if (!channelMatch) return;

@@ -500,9 +500,14 @@ function MainApp() {
     servers.map(s => `server:${s.id}`),
   [servers]);
 
+  // Virtual DM channels — subscribe on load so events arrive for all DM channels
+  const dmVirtualChannelIds = useMemo(() =>
+    dmChannels.map(ch => `dm:${ch.id}`),
+  [dmChannels]);
+
   const extraChannelIds = useMemo(() =>
-    [...allChannelIds, ...serverVirtualChannelIds],
-  [allChannelIds, serverVirtualChannelIds]);
+    [...allChannelIds, ...serverVirtualChannelIds, ...dmVirtualChannelIds],
+  [allChannelIds, serverVirtualChannelIds, dmVirtualChannelIds]);
 
   const handleUserOnline = useCallback((userId: string) => {
     setOnlineUsers(prev => {

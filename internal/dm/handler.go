@@ -257,24 +257,14 @@ func (h *Handler) SendDmMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Broadcast to the other user via WebSocket
+	// Broadcast to all participants via the dm:{id} virtual channel.
 	if h.hub != nil {
-		// Determine the recipient
-		var recipientID int64
-		if channel.User1ID == currentUserID {
-			recipientID = channel.User2ID
-		} else {
-			recipientID = channel.User1ID
-		}
-
-		// Send DM message event to recipient.
-		// The hub wraps the payload in WSMessage{type, payload}, so we only
-		// marshal the message itself — not an extra event envelope.
 		msgJSON, err := json.Marshal(msg)
 		if err != nil {
 			log.Printf("SendDmMessage: failed to marshal message for broadcast: %v", err)
 		} else {
-			h.hub.SendToUser(strconv.FormatInt(recipientID, 10), "dm_message", msgJSON)
+			virtualChannelID := "dm:" + strconv.FormatInt(dmChannelID, 10)
+			h.hub.BroadcastToChannel(virtualChannelID, "dm_message", msgJSON)
 		}
 	}
 
@@ -323,14 +313,13 @@ func (h *Handler) DeleteDmMessage(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "failed to delete message", http.StatusInternalServerError)
 		return
 	}
-	// Broadcast to both participants
+	// Broadcast to both participants via dm virtual channel
 	if h.hub != nil {
 		payload, _ := json.Marshal(map[string]string{
 			"message_id":    strconv.FormatInt(messageID, 10),
 			"dm_channel_id": strconv.FormatInt(dmChannelID, 10),
 		})
-		h.hub.SendToUser(strconv.FormatInt(channel.User1ID, 10), "dm_message_delete", payload)
-		h.hub.SendToUser(strconv.FormatInt(channel.User2ID, 10), "dm_message_delete", payload)
+		h.hub.BroadcastToChannel("dm:"+strconv.FormatInt(dmChannelID, 10), "dm_message_delete", payload)
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -379,7 +368,7 @@ func (h *Handler) ToggleDmReaction(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "failed to toggle reaction", http.StatusInternalServerError)
 		return
 	}
-	// Broadcast to both participants
+	// Broadcast to both participants via dm virtual channel
 	if h.hub != nil {
 		eventType := "dm_reaction_remove"
 		if added {
@@ -391,8 +380,7 @@ func (h *Handler) ToggleDmReaction(w http.ResponseWriter, r *http.Request) {
 			"user_id":       userIDStr,
 			"emoji":         req.Emoji,
 		})
-		h.hub.SendToUser(strconv.FormatInt(channel.User1ID, 10), eventType, payload)
-		h.hub.SendToUser(strconv.FormatInt(channel.User2ID, 10), eventType, payload)
+		h.hub.BroadcastToChannel("dm:"+strconv.FormatInt(dmChannelID, 10), eventType, payload)
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
