@@ -575,6 +575,10 @@ CREATE INDEX IF NOT EXISTS idx_user_themes_published ON user_themes(is_published
 ALTER TABLE user_themes ADD COLUMN IF NOT EXISTS source_share_token UUID;
 CREATE INDEX IF NOT EXISTS idx_user_themes_source_token ON user_themes(user_id, source_share_token) WHERE source_share_token IS NOT NULL;
 `,
+
+	`-- Track cumulative upload bytes per user for storage quota enforcement
+ALTER TABLE users ADD COLUMN IF NOT EXISTS upload_bytes_used BIGINT NOT NULL DEFAULT 0;
+`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

@@ -233,7 +233,7 @@ func registerRoutes(
 			r.Patch("/developer/bots/{botId}", handleRenameBotUser(repo))
 
 			// File upload — 50 MB limit
-			r.With(maxBodyMiddleware(50 * 1024 * 1024)).Post("/upload", handleUpload(spacesClient))
+			r.With(maxBodyMiddleware(50 * 1024 * 1024)).Post("/upload", handleUpload(spacesClient, repo.DB()))
 
 			// Theme routes
 			r.Get("/me/preferences", themeHandler.GetPreferences)
