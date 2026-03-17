@@ -154,3 +154,22 @@ variable "livekit_url" {
   type        = string
   default     = "wss://vc.parley.x86-64.com"
 }
+
+variable "ollama_api_url" {
+  description = "Ollama API base URL"
+  type        = string
+  default     = "https://ollama.com/api"
+}
+
+variable "ollama_api_key" {
+  description = "Ollama API key for AI theme generation"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "ollama_model" {
+  description = "Ollama model name for AI theme generation"
+  type        = string
+  default     = "qwen3.5:9b"
+}
