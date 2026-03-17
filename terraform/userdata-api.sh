@@ -221,8 +221,23 @@ server {
         proxy_read_timeout 60s;
     }
 
+    # Redirect old docs URL
+    location /docs/developer {
+        return 301 /docs/;
+    }
+
+    # Docs site (VitePress)
+    location /docs/ {
+        alias /parley/docs/.vitepress/dist/;
+        try_files \$uri \$uri/ \$uri.html =404;
+    }
+
     # Serve frontend - fallback to index.html for SPA routing
     location / {
+        add_header X-Frame-Options DENY always;
+        add_header X-Content-Type-Options nosniff always;
+        add_header Referrer-Policy strict-origin-when-cross-origin always;
+        add_header Content-Security-Policy "default-src 'self'; connect-src 'self' wss: https:; img-src 'self' data: https:; media-src 'self' https:; font-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline';" always;
         try_files \$uri \$uri/ /index.html;
     }
 }

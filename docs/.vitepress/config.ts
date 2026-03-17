@@ -5,6 +5,7 @@ export default defineConfig({
   description: 'Build bots and integrations on Parley',
   base: '/docs/',
   cleanUrls: true,
+  appearance: 'force-dark',
   srcExclude: ['superpowers/**'],
 
   themeConfig: {
