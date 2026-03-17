@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
-import { User, Server, Channel, Message, ServerMember, DmChannel, DmMessage, Reaction } from '../api/types';
+import { User, Server, Channel, Message, ServerMember, DmChannel, DmMessage, Reaction, FriendUser, FriendRequest, FriendRequestsResponse } from '../api/types';
 
 // Pure helper: applies a single reaction add/remove to an array of messages.
 // Works for both Message[] and DmMessage[] since both have id and reactions fields.
@@ -38,6 +38,7 @@ import * as serversApi from '../api/servers';
 import * as channelsApi from '../api/channels';
 import * as messagesApi from '../api/messages';
 import * as dmsApi from '../api/dms';
+import * as friendsApi from '../api/friends';
 import { ReactionUpdate, MemberRoleUpdate, UserUpdate, BotStatusUpdate } from '../hooks/useWebSocket';
 import { resetThemeOnLogout } from './ThemeContext';
 
@@ -58,6 +59,9 @@ interface AppState {
   dmMessages: DmMessage[];
   hasMoreDmMessages: boolean;
   isLoadingDms: boolean;
+  friends: FriendUser[];
+  friendRequests: FriendRequestsResponse;
+  pendingRequestCount: number;
 }
 
 interface AppActions {
@@ -103,6 +107,14 @@ interface AppActions {
   reloadChannels: (serverId: string) => Promise<void>;
   loadMoreMessages: () => Promise<void>;
   loadMoreDmMessages: () => Promise<void>;
+  loadFriends: () => Promise<void>;
+  sendFriendRequest: (username: string) => Promise<void>;
+  acceptFriendRequest: (requestId: string) => Promise<void>;
+  declineOrCancelRequest: (requestId: string) => Promise<void>;
+  removeFriend: (userId: string) => Promise<void>;
+  receiveFriendRequest: (req: FriendRequest) => void;
+  receiveFriendAccept: (user: FriendUser) => void;
+  receiveFriendRemove: (userId: string) => void;
 }
 
 const AppContext = createContext<(AppState & AppActions) | null>(null);
@@ -147,6 +159,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [dmMessages, setDmMessages] = useState<DmMessage[]>([]);
   const [hasMoreDmMessages, setHasMoreDmMessages] = useState(false);
   const [isLoadingDms, setIsLoadingDms] = useState(false);
+  const [friends, setFriends] = useState<FriendUser[]>([]);
+  const [friendRequests, setFriendRequests] = useState<FriendRequestsResponse>({ incoming: [], outgoing: [] });
+
+  const pendingRequestCount = friendRequests.incoming.length;
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -165,6 +181,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     dmsApi.getDmChannels()
       .then(data => setDmChannels(data ?? []))
+      .catch(console.error);
+    friendsApi.getFriends()
+      .then(data => setFriends(data ?? []))
+      .catch(console.error);
+    friendsApi.getFriendRequests()
+      .then(data => setFriendRequests(data ?? { incoming: [], outgoing: [] }))
       .catch(console.error);
   }, [currentUser?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -655,6 +677,74 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [activeDmChannel, isLoadingDms, dmMessages]);
 
+  const loadFriends = useCallback(async () => {
+    try {
+      const [f, reqs] = await Promise.all([
+        friendsApi.getFriends(),
+        friendsApi.getFriendRequests(),
+      ]);
+      setFriends(f ?? []);
+      setFriendRequests(reqs ?? { incoming: [], outgoing: [] });
+    } catch (err) {
+      console.error('loadFriends:', err);
+    }
+  }, []);
+
+  const sendFriendRequest = useCallback(async (username: string) => {
+    const req = await friendsApi.sendFriendRequest(username);
+    setFriendRequests(prev => ({ ...prev, outgoing: [...prev.outgoing, req] }));
+  }, []);
+
+  const acceptFriendRequest = useCallback(async (requestId: string) => {
+    const newFriend = await friendsApi.acceptFriendRequest(requestId);
+    setFriendRequests(prev => ({
+      ...prev,
+      incoming: prev.incoming.filter(r => r.id !== requestId),
+    }));
+    setFriends(prev => {
+      if (prev.some(f => f.id === newFriend.id)) return prev;
+      return [...prev, newFriend];
+    });
+  }, []);
+
+  const declineOrCancelRequest = useCallback(async (requestId: string) => {
+    await friendsApi.declineOrCancelRequest(requestId);
+    setFriendRequests(prev => ({
+      incoming: prev.incoming.filter(r => r.id !== requestId),
+      outgoing: prev.outgoing.filter(r => r.id !== requestId),
+    }));
+  }, []);
+
+  const removeFriend = useCallback(async (userId: string) => {
+    await friendsApi.removeFriend(userId);
+    setFriends(prev => prev.filter(f => f.id !== userId));
+  }, []);
+
+  // WS event handlers
+  const receiveFriendRequest = useCallback((req: FriendRequest) => {
+    setFriendRequests(prev => {
+      if (prev.incoming.some(r => r.id === req.id)) return prev;
+      return { ...prev, incoming: [req, ...prev.incoming] };
+    });
+  }, []);
+
+  const receiveFriendAccept = useCallback((user: FriendUser) => {
+    // Add to friends
+    setFriends(prev => {
+      if (prev.some(f => f.id === user.id)) return prev;
+      return [...prev, user];
+    });
+    // Remove from both incoming and outgoing (handles all-session cases)
+    setFriendRequests(prev => ({
+      incoming: prev.incoming.filter(r => r.user.id !== user.id),
+      outgoing: prev.outgoing.filter(r => r.user.id !== user.id),
+    }));
+  }, []);
+
+  const receiveFriendRemove = useCallback((userId: string) => {
+    setFriends(prev => prev.filter(f => f.id !== userId));
+  }, []);
+
   return (
     <AppContext.Provider value={{
       currentUser,
@@ -714,6 +804,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       reloadChannels,
       loadMoreMessages,
       loadMoreDmMessages,
+      friends,
+      friendRequests,
+      pendingRequestCount,
+      loadFriends,
+      sendFriendRequest,
+      acceptFriendRequest,
+      declineOrCancelRequest,
+      removeFriend,
+      receiveFriendRequest,
+      receiveFriendAccept,
+      receiveFriendRemove,
     }}>
       {children}
     </AppContext.Provider>
