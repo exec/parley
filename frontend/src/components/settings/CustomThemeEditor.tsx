@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { UserTheme, NewTheme } from '../../api/themes';
+import { UserTheme, NewTheme, publishTheme } from '../../api/themes';
 import { BUILTIN_IDS } from '../../context/ThemeContext';
 import { validateCSS } from '../../lib/cssValidator';
 import { themeVarsCSS } from '../../lib/themePreview';
@@ -65,6 +65,8 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
   const [bgUrl, setBgUrl] = useState<string | null>(existing?.background_url || null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [publishedState, setPublishedState] = useState<boolean>(existing?.is_published ?? false);
+  const [publishing, setPublishing] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiStatus, setAiStatus] = useState<
     null | { type: 'queued'; position: number } | { type: 'generating' } | { type: 'error'; message: string }
@@ -184,6 +186,18 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
     finally { setSaving(false); }
   };
 
+  const handleTogglePublish = async () => {
+    if (!existing) return;
+    setPublishing(true);
+    try {
+      const newPublished = !publishedState;
+      await publishTheme(existing.id, newPublished);
+      setPublishedState(newPublished);
+    } finally {
+      setPublishing(false);
+    }
+  };
+
   return (
     <div className="theme-editor">
       <div className="theme-editor-header">
@@ -268,6 +282,25 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
           )}
         </div>
       </div>
+
+      {existing && (
+        <div className="theme-editor-field">
+          <label className="theme-editor-label">Theme Repository</label>
+          <div className="theme-editor-publish-row">
+            <label className="theme-editor-publish-toggle">
+              <input
+                type="checkbox"
+                checked={publishedState}
+                onChange={handleTogglePublish}
+                disabled={publishing}
+              />
+              <span>Publish to theme repository</span>
+            </label>
+            {publishing && <span className="theme-editor-hint">Saving…</span>}
+          </div>
+          <div className="theme-editor-hint">Make this theme visible in the public Theme Repository</div>
+        </div>
+      )}
 
       {error && <div className="theme-editor-error">{error}</div>}
 

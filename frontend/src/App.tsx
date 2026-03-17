@@ -11,6 +11,7 @@ import { AppProvider, useApp } from './context/AppContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { Landing } from './pages/Landing';
 import { SharedThemePage } from './pages/SharedThemePage';
+import { ThemeRepoPage } from './pages/ThemeRepoPage';
 import { useWebSocket, MemberRoleUpdate, UserUpdate, VoiceStateUpdate, VoiceForceMuteEvent, RoleUpdateEvent, RoleDeleteEvent } from './hooks/useWebSocket';
 import { VoiceChannel } from './components/voice/VoiceChannel';
 
@@ -1065,6 +1066,7 @@ function App() {
       <Route path="/" element={<HomeRoute />} />
       <Route path="/channels/*" element={ProtectedApp} />
       <Route path="/theme/:token" element={<ThemeProvider><SharedThemePage /></ThemeProvider>} />
+      <Route path="/themes" element={<ThemeProvider><ThemeRepoPage /></ThemeProvider>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
