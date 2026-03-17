@@ -97,7 +97,7 @@ const DmPanel: React.FC<DmPanelProps> = ({
                   </div>
                   <span className={`dm-panel-status-dot ${isOtherOnline ? 'online' : 'offline'}`} />
                 </div>
-                <span className="dm-panel-name">{channel.other_username}</span>
+                <span className="dm-panel-name">{channel.other_display_name || channel.other_username}</span>
                 {unread > 0 && !isActive && (
                   <span className="dm-unread-badge">{unread > 99 ? '99+' : unread}</span>
                 )}

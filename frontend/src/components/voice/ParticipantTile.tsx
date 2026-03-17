@@ -75,7 +75,7 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [participant, trackVersion]);
 
-  const isMuted = micPublication ? micPublication.isMuted : true;
+  const isMuted = micPublication ? micPublication.isMuted : false;
   const name = displayName || participant.name || participant.identity || '?';
   const initial = name.charAt(0).toUpperCase() || '?';
 

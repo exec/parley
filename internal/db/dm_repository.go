@@ -53,11 +53,13 @@ func (r *Repository) GetOrCreateDmChannel(ctx context.Context, userAID, userBID 
 	}
 
 	var otherUser User
-	err = r.db.QueryRowContext(ctx, "SELECT id, username, COALESCE(avatar_url, '') FROM users WHERE id = $1", otherUserID).Scan(&otherUser.ID, &otherUser.Username, &otherUser.AvatarURL)
+	var otherDisplayName string
+	err = r.db.QueryRowContext(ctx, "SELECT id, username, COALESCE(avatar_url, ''), COALESCE(display_name, '') FROM users WHERE id = $1", otherUserID).Scan(&otherUser.ID, &otherUser.Username, &otherUser.AvatarURL, &otherDisplayName)
 	if err == nil {
 		channel.OtherUserID = otherUser.ID
 		channel.OtherUsername = otherUser.Username
 		channel.OtherAvatarURL = otherUser.AvatarURL
+		channel.OtherDisplayName = otherDisplayName
 	}
 
 	return &channel, nil
@@ -66,7 +68,8 @@ func (r *Repository) GetOrCreateDmChannel(ctx context.Context, userAID, userBID 
 func (r *Repository) GetUserDmChannels(ctx context.Context, userID int64) ([]DmChannel, error) {
 	query := `
 		SELECT dc.id, dc.user1_id, dc.user2_id, dc.created_at,
-			   u.id as other_user_id, u.username as other_username, COALESCE(u.avatar_url, '') as other_avatar_url
+			   u.id as other_user_id, u.username as other_username, COALESCE(u.avatar_url, '') as other_avatar_url,
+			   COALESCE(u.display_name, '') as other_display_name
 		FROM dm_channels dc
 		JOIN users u ON u.id = CASE WHEN dc.user1_id = $1 THEN dc.user2_id ELSE dc.user1_id END
 		WHERE dc.user1_id = $1 OR dc.user2_id = $1
@@ -90,6 +93,7 @@ func (r *Repository) GetUserDmChannels(ctx context.Context, userID int64) ([]DmC
 			&channel.OtherUserID,
 			&channel.OtherUsername,
 			&channel.OtherAvatarURL,
+			&channel.OtherDisplayName,
 		)
 		if err != nil {
 			return nil, err

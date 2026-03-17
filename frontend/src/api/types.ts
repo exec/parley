@@ -108,6 +108,7 @@ export interface DmChannel {
   user2_id: string;
   created_at: string;
   other_username: string;
+  other_display_name?: string;
   other_user_id: string;
   other_avatar_url?: string;
 }

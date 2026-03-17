@@ -147,9 +147,10 @@ type DmChannel struct {
 	User1ID       int64     `json:"user1_id" db:"user1_id"`
 	User2ID       int64     `json:"user2_id" db:"user2_id"`
 	CreatedAt     time.Time `json:"created_at" db:"created_at"`
-	OtherUsername  string    `json:"other_username" db:"-"`
-	OtherUserID    int64     `json:"other_user_id" db:"-"`
-	OtherAvatarURL string    `json:"other_avatar_url,omitempty" db:"-"`
+	OtherUsername    string `json:"other_username" db:"-"`
+	OtherDisplayName string `json:"other_display_name,omitempty" db:"-"`
+	OtherUserID      int64  `json:"other_user_id" db:"-"`
+	OtherAvatarURL   string `json:"other_avatar_url,omitempty" db:"-"`
 }
 
 // DmMessage represents a direct message

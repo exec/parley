@@ -827,7 +827,7 @@ function MainApp() {
     const dmChannel = {
       id: activeDmChannel.id,
       server_id: '',
-      name: activeDmChannel.other_username,
+      name: activeDmChannel.other_display_name || activeDmChannel.other_username,
       type: 0,
       position: 0,
       created_at: activeDmChannel.created_at,
@@ -858,6 +858,7 @@ function MainApp() {
         server_id: '',
         user_id: activeDmChannel.other_user_id,
         username: activeDmChannel.other_username,
+        display_name: activeDmChannel.other_display_name,
         avatar_url: activeDmChannel.other_avatar_url,
         joined_at: '',
       },
