@@ -673,6 +673,20 @@ CREATE TABLE IF NOT EXISTS dm_message_reactions (
 );
 CREATE INDEX IF NOT EXISTS idx_dm_message_reactions_message_id ON dm_message_reactions(message_id);
 `,
+
+	`-- Migration 36: friend requests
+CREATE TABLE IF NOT EXISTS friend_requests (
+    id          BIGSERIAL PRIMARY KEY,
+    sender_id   BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    receiver_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status      VARCHAR(20) NOT NULL DEFAULT 'pending',
+    created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE(sender_id, receiver_id)
+);
+CREATE INDEX IF NOT EXISTS idx_friend_requests_receiver ON friend_requests(receiver_id);
+CREATE INDEX IF NOT EXISTS idx_friend_requests_sender   ON friend_requests(sender_id);
+`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string
