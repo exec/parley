@@ -33,6 +33,11 @@
   border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 4px;
 }
 .appearance-create-btn:hover { background: var(--parley-accent-hover); }
+.appearance-repo-btn {
+  background: transparent; border: none; color: var(--parley-accent);
+  font-size: 12px; font-weight: 600; cursor: pointer; padding: 0;
+}
+.appearance-repo-btn:hover { text-decoration: underline; }
 .appearance-confirm-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 2000; display: flex; align-items: center; justify-content: center; }
 .appearance-confirm-dialog { background: var(--parley-bg-secondary); border: 1px solid var(--parley-border); border-radius: 8px; padding: 20px; max-width: 360px; width: 90%; }
 .appearance-confirm-dialog p { color: var(--parley-text-normal); margin: 0 0 6px; font-size: 14px; }

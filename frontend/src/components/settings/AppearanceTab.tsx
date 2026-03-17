@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
 import { shareTheme } from '../../api/themes';
 import { CustomThemeEditor } from './CustomThemeEditor';
@@ -19,6 +20,7 @@ const NAMES: Record<string,string> = {
 
 export const AppearanceTab: React.FC = () => {
   const theme = useTheme();
+  const navigate = useNavigate();
   const [editingId, setEditingId] = useState<number | 'new' | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
@@ -65,7 +67,15 @@ export const AppearanceTab: React.FC = () => {
         })}
       </div>
 
-      <div className="appearance-section-title">User Themes</div>
+      <div className="appearance-section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span>User Themes</span>
+        <button
+          className="appearance-repo-btn"
+          onClick={() => navigate('/themes')}
+        >
+          Browse Theme Repository →
+        </button>
+      </div>
       <div className="appearance-theme-counter">{theme.customThemes.length} / 20 themes</div>
       <div className="appearance-custom-list">
         {theme.customThemes.map(t => {
