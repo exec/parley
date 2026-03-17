@@ -30,6 +30,16 @@ type AIUsage struct {
 	ResetsAt    string `json:"resets_at"`
 }
 
+// UserBot is a bot owned by the current user, returned by GET /api/bots/mine.
+type UserBot struct {
+	ID          int64  `json:"id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+	AvatarURL   string `json:"avatar_url,omitempty"`
+	IsVerified  bool   `json:"is_verified"`
+	InviteToken string `json:"invite_token"`
+}
+
 // BotInviteInfo is returned by GET /api/bots/invite/{token}.
 type BotInviteInfo struct {
 	BotID       int64  `json:"bot_id"`

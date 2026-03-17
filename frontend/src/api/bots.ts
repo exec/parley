@@ -52,6 +52,18 @@ export const setAIConfig = (serverId: number, data: {
 export const getAIUsage = (serverId: number) =>
   apiClient.get<AIUsage>(`/servers/${serverId}/ai-usage`);
 
+export interface UserBot {
+  id: number;
+  username: string;
+  display_name: string;
+  avatar_url?: string;
+  is_verified: boolean;
+  invite_token: string;
+}
+
+export const getMyBots = () =>
+  apiClient.get<UserBot[]>('/bots/mine');
+
 export const resolveBotInvite = (token: string) =>
   apiClient.get<BotInviteInfo>(`/bots/invite/${token}`);
 

@@ -203,6 +203,21 @@ func (h *Handler) GetAIUsage(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, usage)
 }
 
+// GetMyBots handles GET /api/bots/mine
+func (h *Handler) GetMyBots(w http.ResponseWriter, r *http.Request) {
+	uid, ok := callerID(r)
+	if !ok {
+		writeErr(w, r, 401, "unauthorized")
+		return
+	}
+	bots, err := h.svc.GetMyBots(r.Context(), uid)
+	if err != nil {
+		handleSvcErr(w, r, err)
+		return
+	}
+	render.JSON(w, r, bots)
+}
+
 // ResolveInvite handles GET /api/bots/invite/{token} (public)
 func (h *Handler) ResolveInvite(w http.ResponseWriter, r *http.Request) {
 	token := chi.URLParam(r, "token")

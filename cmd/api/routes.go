@@ -235,6 +235,9 @@ func registerRoutes(
 			// Authenticated bot invite accept
 			r.Post("/bots/invite/{token}/accept", botsHandler.AcceptInvite)
 
+			// Bots owned by the current user
+			r.Get("/bots/mine", botsHandler.GetMyBots)
+
 			// User routes
 			r.Get("/users/search", handleUserSearch(repo))
 			r.Get("/users/{id}", handleGetUser(repo))

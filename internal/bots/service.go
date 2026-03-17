@@ -128,6 +128,11 @@ func (s *Service) GetAIUsage(ctx context.Context, serverID, callerID int64) (*AI
 	}, nil
 }
 
+// GetMyBots returns bots owned by the caller (invite tokens they created, excluding selfbots).
+func (s *Service) GetMyBots(ctx context.Context, callerID int64) ([]UserBot, error) {
+	return s.repo.GetUserBots(ctx, callerID)
+}
+
 // ResolveInvite resolves a bot invite token to bot info. Public (no auth required).
 func (s *Service) ResolveInvite(ctx context.Context, token string) (*BotInviteInfo, error) {
 	botUserID, err := s.repo.ResolveInviteToken(ctx, token)

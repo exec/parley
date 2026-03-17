@@ -1,6 +1,6 @@
 // frontend/src/components/settings/BotsTab.tsx
 import React, { useEffect, useState } from 'react';
-import { BotSummary, listBots, addBot, removeBot, OFFICIAL_BOTS } from '../../api/bots';
+import { BotSummary, UserBot, listBots, addBot, removeBot, getMyBots, OFFICIAL_BOTS } from '../../api/bots';
 import { BotConfigPanel } from './BotConfigPanel';
 import './BotsTab.css';
 
@@ -13,38 +13,19 @@ export const BotsTab: React.FC<Props> = ({ serverId, isAdmin }) => {
   const [bots, setBots] = useState<BotSummary[]>([]);
   const [selected, setSelected] = useState<BotSummary | null>(null);
   const [showAdd, setShowAdd] = useState(false);
-  const [inviteInput, setInviteInput] = useState('');
-  const [adding, setAdding] = useState(false);
-  const [addError, setAddError] = useState('');
-  const [addingOfficial, setAddingOfficial] = useState<string | null>(null);
+  const [myBots, setMyBots] = useState<UserBot[]>([]);
+  const [adding, setAdding] = useState<string | null>(null);
 
   useEffect(() => {
     listBots(serverId).then(setBots).catch(() => {});
   }, [serverId]);
 
-  const handleAdd = async () => {
-    // Extract token from URL or raw token
-    const token = inviteInput.includes('/bots/invite/')
-      ? inviteInput.split('/bots/invite/')[1].split('?')[0]
-      : inviteInput.trim();
-    if (!token) return;
-    setAdding(true);
-    setAddError('');
-    try {
-      await addBot(serverId, token);
-      const updated = await listBots(serverId);
-      setBots(updated);
-      setShowAdd(false);
-      setInviteInput('');
-    } catch {
-      setAddError('Failed to add bot. Check the invite link.');
-    } finally {
-      setAdding(false);
-    }
-  };
+  useEffect(() => {
+    if (showAdd) getMyBots().then(setMyBots).catch(() => {});
+  }, [showAdd]);
 
-  const handleAddOfficial = async (token: string, username: string) => {
-    setAddingOfficial(username);
+  const handleAddByToken = async (token: string, key: string) => {
+    setAdding(key);
     try {
       await addBot(serverId, token);
       const updated = await listBots(serverId);
@@ -52,7 +33,7 @@ export const BotsTab: React.FC<Props> = ({ serverId, isAdmin }) => {
     } catch {
       // 409 = already in server, silently ignore
     } finally {
-      setAddingOfficial(null);
+      setAdding(null);
     }
   };
 
@@ -108,24 +89,37 @@ export const BotsTab: React.FC<Props> = ({ serverId, isAdmin }) => {
         <div className="bots-add-modal-overlay" onClick={() => setShowAdd(false)}>
           <div className="bots-add-modal" onClick={e => e.stopPropagation()}>
             <h3>Add Bot</h3>
-            <input
-              placeholder="Paste a bot invite link or token"
-              value={inviteInput}
-              onChange={e => setInviteInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleAdd()}
-              autoFocus
-            />
-            {addError && <div style={{ fontSize: 12, color: 'var(--parley-danger,#f04747)', marginBottom: 4 }}>{addError}</div>}
-            <div className="bots-add-modal-actions">
-              <button className="bots-modal-cancel" onClick={() => setShowAdd(false)}>Cancel</button>
-              <button className="bots-modal-submit" onClick={handleAdd} disabled={adding}>
-                {adding ? 'Adding…' : 'Add'}
-              </button>
-            </div>
 
-            <div className="bots-official-divider">Official Bots</div>
+            {myBots.length > 0 && (
+              <>
+                <div className="bots-official-divider" style={{ marginTop: 0 }}>Your Bots</div>
+                {myBots.map(ob => {
+                  const alreadyAdded = bots.some(b => b.id === ob.id);
+                  const key = `mine-${ob.username}`;
+                  return (
+                    <div key={ob.username} className="bots-official-row">
+                      <div className="bots-official-avatar">{ob.display_name.charAt(0)}</div>
+                      <div className="bots-official-info">
+                        <div className="bots-official-name">{ob.display_name}</div>
+                        <div className="bots-official-desc">@{ob.username}</div>
+                      </div>
+                      <button
+                        className="bots-official-add"
+                        disabled={alreadyAdded || adding === key}
+                        onClick={() => !alreadyAdded && handleAddByToken(ob.invite_token, key)}
+                      >
+                        {alreadyAdded ? 'Added' : adding === key ? 'Adding…' : 'Add'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </>
+            )}
+
+            <div className="bots-official-divider" style={myBots.length === 0 ? { marginTop: 0 } : undefined}>Official Bots</div>
             {OFFICIAL_BOTS.map(ob => {
               const alreadyAdded = bots.some(b => b.username === ob.username);
+              const key = `official-${ob.username}`;
               return (
                 <div key={ob.username} className="bots-official-row">
                   <div className="bots-official-avatar">{ob.displayName.charAt(0)}</div>
@@ -135,14 +129,18 @@ export const BotsTab: React.FC<Props> = ({ serverId, isAdmin }) => {
                   </div>
                   <button
                     className="bots-official-add"
-                    disabled={alreadyAdded || addingOfficial === ob.username}
-                    onClick={() => !alreadyAdded && handleAddOfficial(ob.token, ob.username)}
+                    disabled={alreadyAdded || adding === key}
+                    onClick={() => !alreadyAdded && handleAddByToken(ob.token, key)}
                   >
-                    {alreadyAdded ? 'Added' : addingOfficial === ob.username ? 'Adding…' : 'Add'}
+                    {alreadyAdded ? 'Added' : adding === key ? 'Adding…' : 'Add'}
                   </button>
                 </div>
               );
             })}
+
+            <div className="bots-add-modal-actions" style={{ marginTop: 12 }}>
+              <button className="bots-modal-cancel" onClick={() => setShowAdd(false)}>Close</button>
+            </div>
           </div>
         </div>
       )}

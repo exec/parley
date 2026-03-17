@@ -637,6 +637,9 @@ SELECT id, 'aaaaaaaa-0000-0000-0000-000000000001'::uuid
 FROM users WHERE username = 'ai-chatbot'
 ON CONFLICT (token) DO NOTHING;
 `,
+	`-- Migration 32: add created_by to bot_invite_tokens for "Your Bots" ownership tracking
+ALTER TABLE bot_invite_tokens ADD COLUMN IF NOT EXISTS created_by BIGINT REFERENCES users(id);
+`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

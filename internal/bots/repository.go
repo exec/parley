@@ -177,6 +177,37 @@ func (r *Repository) ResolveInviteToken(ctx context.Context, token string) (int6
 	return botUserID, err
 }
 
+// GetUserBots returns bots whose invite tokens were created by callerID,
+// excluding selfbots (bot_user_id = callerID). Each entry includes the
+// invite token so the caller can add the bot to a server directly.
+func (r *Repository) GetUserBots(ctx context.Context, callerID int64) ([]UserBot, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT DISTINCT ON (u.id)
+			u.id, u.username, COALESCE(u.display_name,''), COALESCE(u.avatar_url,''),
+			u.is_verified, bit.token::text
+		FROM bot_invite_tokens bit
+		JOIN users u ON u.id = bit.bot_user_id
+		WHERE bit.created_by = $1
+		  AND bit.bot_user_id != $1
+		ORDER BY u.id, bit.created_at DESC`, callerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var bots []UserBot
+	for rows.Next() {
+		var b UserBot
+		if err := rows.Scan(&b.ID, &b.Username, &b.DisplayName, &b.AvatarURL, &b.IsVerified, &b.InviteToken); err != nil {
+			return nil, err
+		}
+		bots = append(bots, b)
+	}
+	if bots == nil {
+		bots = []UserBot{}
+	}
+	return bots, rows.Err()
+}
+
 // GetBotInfo returns BotInviteInfo for a bot user ID.
 func (r *Repository) GetBotInfo(ctx context.Context, botUserID int64) (*BotInviteInfo, error) {
 	var b BotInviteInfo
