@@ -51,6 +51,11 @@ Status / semantic:
   --parley-yellow          warning states
   --parley-red             alert / badge colour (can match --parley-danger)
 
+IMPORTANT contrast rules:
+  --parley-bg-tertiary and --parley-text-muted (--text-secondary) must have sufficient contrast so that
+  text is readable on that background — context menus and dropdowns use this combination.
+  Aim for at least a 4:1 contrast ratio between these two values.
+
 RGB values (used for rgba() opacity effects — provide as "R, G, B" with no extra text):
   --accent-rgb             R, G, B of --parley-accent
   --parley-danger-rgb      R, G, B of --parley-danger
