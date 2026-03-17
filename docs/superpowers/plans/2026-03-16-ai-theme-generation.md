@@ -371,8 +371,11 @@ You may also set these non-prefixed aliases used by some components:
   --text-primary, --text-secondary,
   --accent, --accent-hover, --border
 
+You may use Google Fonts via @import at the top: @import url('https://fonts.googleapis.com/css2?family=...');
+No other external URLs are permitted.
+
 Output ONLY raw CSS. No markdown code fences. No explanation. No comments.
-Start immediately with [data-theme] { and end with }.`
+Start immediately with [data-theme] { (or a Google Fonts @import followed by [data-theme] {) and end with }.`
 
 // StartWorker runs a background goroutine that continuously polls the queue,
 // acquires the distributed lock, pops the next job, calls Ollama, and publishes
