@@ -21,6 +21,11 @@ const (
 	replyCharBudget = 4000
 )
 
+// httpClient has an explicit timeout to guard against providers that accept the
+// connection but never complete the response body, which would not be caught by
+// the request context alone in all Go transport implementations.
+var httpClient = &http.Client{Timeout: dispatchTimeout + 5*time.Second}
+
 // PostFunc sends a message to a channel as the bot user.
 type PostFunc func(ctx context.Context, channelID, botUserIDStr, content string) error
 
@@ -230,7 +235,7 @@ func (d *Dispatcher) callOllama(ctx context.Context, model string, messages []ch
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return "", 0, err
 	}
@@ -293,7 +298,7 @@ func (d *Dispatcher) callAnthropic(ctx context.Context, model string, messages [
 	req.Header.Set("x-api-key", apiKey)
 	req.Header.Set("anthropic-version", "2023-06-01")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return "", 0, err
 	}
@@ -352,7 +357,7 @@ func (d *Dispatcher) callOpenAICompat(ctx context.Context, model string, message
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return "", 0, err
 	}
@@ -432,7 +437,7 @@ func (d *Dispatcher) callGoogle(ctx context.Context, model string, messages []ch
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return "", 0, err
 	}

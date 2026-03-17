@@ -204,12 +204,6 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 	return msg, nil
 }
 
-// mustParseInt64 parses a string to int64, returning 0 on error.
-func mustParseInt64(s string) int64 {
-	n, _ := strconv.ParseInt(s, 10, 64)
-	return n
-}
-
 // GetMessage retrieves a message by ID
 func (s *MessageService) GetMessage(ctx context.Context, id string) (*Message, error) {
 	// Convert id from string to int64
