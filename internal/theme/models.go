@@ -7,6 +7,7 @@ type UserTheme struct {
 	UserID         int64     `json:"-"`
 	Name           string    `json:"name"`
 	CSS            string    `json:"css"`
+	BaseTheme      string    `json:"base_theme"`
 	BackgroundURL  *string   `json:"background_url"`
 	ShareToken     *string   `json:"share_token"`
 	AuthorUsername string    `json:"author_username,omitempty"`

@@ -13,26 +13,30 @@ interface ThemeContextValue {
   customThemes: UserTheme[];
   builtinIds: string[];
   setBuiltin(id: string): Promise<void>;
-  setCustom(id: number): Promise<void>;
+  setCustom(id: number, themeData?: UserTheme): Promise<void>;
   createCustomTheme(t: NewTheme): Promise<UserTheme>;
   updateCustomTheme(id: number, t: NewTheme): Promise<UserTheme>;
   deleteCustomTheme(id: number): Promise<void>;
-  applyTheme(id: string, css?: string): void;
+  applyTheme(id: string, css?: string, baseTheme?: string): void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-function applyToDOM(id: string, css?: string | null) {
-  document.body.dataset.theme = id;
+function applyToDOM(id: string, css?: string | null, baseTheme?: string | null) {
   localStorage.setItem('parley-theme', id);
   const existing = document.getElementById('custom-theme');
   if (id === 'custom' && css) {
+    const base = baseTheme || 'rory';
+    document.body.dataset.theme = base;
+    localStorage.setItem('parley-theme-base', base);
     if (existing) { existing.textContent = css; }
     else { const s = document.createElement('style'); s.id='custom-theme'; s.textContent=css; document.head.appendChild(s); }
     localStorage.setItem('parley-custom-css', css);
   } else {
-    existing?.remove();
+    document.body.dataset.theme = id;
+    localStorage.removeItem('parley-theme-base');
     localStorage.removeItem('parley-custom-css');
+    existing?.remove();
   }
 }
 
@@ -47,10 +51,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       setActiveTheme(p.active_theme);
       setActiveCustomThemeId(p.active_custom_theme_id);
       setCustomThemes(p.custom_themes);
-      const css = p.active_theme === 'custom' && p.active_custom_theme_id
-        ? p.custom_themes.find(t => t.id === p.active_custom_theme_id)?.css
+      const activeCustom = p.active_theme === 'custom' && p.active_custom_theme_id
+        ? p.custom_themes.find(t => t.id === p.active_custom_theme_id)
         : undefined;
-      applyToDOM(p.active_theme, css);
+      applyToDOM(p.active_theme, activeCustom?.css, activeCustom?.base_theme);
     }).catch(() => {});
   }, []);
 
@@ -59,10 +63,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setActiveTheme(id); setActiveCustomThemeId(null); applyToDOM(id);
   }, []);
 
-  const setCustom = useCallback(async (id: number) => {
+  const setCustom = useCallback(async (id: number, themeData?: UserTheme) => {
     await setCustomTheme(id);
     setActiveTheme('custom'); setActiveCustomThemeId(id);
-    applyToDOM('custom', customThemes.find(t => t.id === id)?.css);
+    const t = themeData || customThemes.find(x => x.id === id);
+    if (themeData && !customThemes.find(x => x.id === id)) {
+      setCustomThemes(prev => [...prev, themeData]);
+    }
+    applyToDOM('custom', t?.css, t?.base_theme);
   }, [customThemes]);
 
   const createCustomTheme = useCallback(async (t: NewTheme) => {
@@ -74,7 +82,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const updateCustomTheme = useCallback(async (id: number, t: NewTheme) => {
     const updated = await updateTheme(id, t);
     setCustomThemes(prev => prev.map(x => x.id === id ? updated : x));
-    if (activeTheme === 'custom' && activeCustomThemeId === id) applyToDOM('custom', updated.css);
+    if (activeTheme === 'custom' && activeCustomThemeId === id) {
+      applyToDOM('custom', updated.css, updated.base_theme);
+    }
     return updated;
   }, [activeTheme, activeCustomThemeId]);
 
@@ -84,8 +94,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     if (activeCustomThemeId === id) { setActiveTheme('rory'); setActiveCustomThemeId(null); applyToDOM('rory'); }
   }, [activeCustomThemeId]);
 
-  const applyTheme = useCallback((id: string, css?: string) => {
-    applyToDOM(id, css); setActiveTheme(id);
+  const applyTheme = useCallback((id: string, css?: string, baseTheme?: string) => {
+    applyToDOM(id, css, baseTheme); setActiveTheme(id);
     if (id !== 'custom') setActiveCustomThemeId(null);
   }, []);
 

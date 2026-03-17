@@ -4,6 +4,7 @@ export interface UserTheme {
   id: number;
   name: string;
   css: string;
+  base_theme: string;
   background_url: string | null;
   share_token: string | null;
   created_at: string;
@@ -16,7 +17,7 @@ export interface UserPreferences {
   custom_themes: UserTheme[];
 }
 
-export interface NewTheme { name: string; css: string; background_url?: string | null; }
+export interface NewTheme { name: string; css: string; base_theme: string; background_url?: string | null; }
 
 export const getPreferences = () => apiClient.get<UserPreferences>('/me/preferences');
 export const setBuiltinTheme = (id: string) => apiClient.put('/me/preferences/theme', { theme: id });

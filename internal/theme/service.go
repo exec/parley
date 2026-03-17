@@ -84,7 +84,7 @@ func (s *Service) SetActiveTheme(ctx context.Context, userID int64, theme string
 	return s.repo.SetActiveTheme(ctx, userID, theme, customThemeID)
 }
 
-func (s *Service) CreateTheme(ctx context.Context, userID int64, name, css string, bgURL *string) (*UserTheme, error) {
+func (s *Service) CreateTheme(ctx context.Context, userID int64, name, css, baseTheme string, bgURL *string) (*UserTheme, error) {
 	if err := s.validateCSS(css); err != nil {
 		return nil, err
 	}
@@ -95,14 +95,14 @@ func (s *Service) CreateTheme(ctx context.Context, userID int64, name, css strin
 	if n >= maxThemes {
 		return nil, ErrThemeLimit
 	}
-	return s.repo.CreateTheme(ctx, userID, name, css, bgURL)
+	return s.repo.CreateTheme(ctx, userID, name, css, baseTheme, bgURL)
 }
 
-func (s *Service) UpdateTheme(ctx context.Context, id, userID int64, name, css string, bgURL *string) (*UserTheme, error) {
+func (s *Service) UpdateTheme(ctx context.Context, id, userID int64, name, css, baseTheme string, bgURL *string) (*UserTheme, error) {
 	if err := s.validateCSS(css); err != nil {
 		return nil, err
 	}
-	return s.repo.UpdateTheme(ctx, id, userID, name, css, bgURL)
+	return s.repo.UpdateTheme(ctx, id, userID, name, css, baseTheme, bgURL)
 }
 
 func (s *Service) DeleteTheme(ctx context.Context, id, userID int64) error {

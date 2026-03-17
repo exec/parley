@@ -55,24 +55,24 @@ func (r *Repository) CountUserThemes(ctx context.Context, userID int64) (int, er
 		`SELECT COUNT(*) FROM user_themes WHERE user_id=$1`, userID).Scan(&n)
 }
 
-func (r *Repository) CreateTheme(ctx context.Context, userID int64, name, css string, bgURL *string) (*UserTheme, error) {
+func (r *Repository) CreateTheme(ctx context.Context, userID int64, name, css, baseTheme string, bgURL *string) (*UserTheme, error) {
 	t := &UserTheme{}
 	return t, r.db.QueryRowContext(ctx,
-		`INSERT INTO user_themes (user_id,name,css,background_url)
-		 VALUES ($1,$2,$3,$4)
-		 RETURNING id,user_id,name,css,background_url,share_token,created_at`,
-		userID, name, css, bgURL,
-	).Scan(&t.ID, &t.UserID, &t.Name, &t.CSS, &t.BackgroundURL, &t.ShareToken, &t.CreatedAt)
+		`INSERT INTO user_themes (user_id,name,css,base_theme,background_url)
+		 VALUES ($1,$2,$3,$4,$5)
+		 RETURNING id,user_id,name,css,base_theme,background_url,share_token,created_at`,
+		userID, name, css, baseTheme, bgURL,
+	).Scan(&t.ID, &t.UserID, &t.Name, &t.CSS, &t.BaseTheme, &t.BackgroundURL, &t.ShareToken, &t.CreatedAt)
 }
 
-func (r *Repository) UpdateTheme(ctx context.Context, id, userID int64, name, css string, bgURL *string) (*UserTheme, error) {
+func (r *Repository) UpdateTheme(ctx context.Context, id, userID int64, name, css, baseTheme string, bgURL *string) (*UserTheme, error) {
 	t := &UserTheme{}
 	err := r.db.QueryRowContext(ctx,
-		`UPDATE user_themes SET name=$3,css=$4,background_url=$5
+		`UPDATE user_themes SET name=$3,css=$4,base_theme=$5,background_url=$6
 		 WHERE id=$1 AND user_id=$2
-		 RETURNING id,user_id,name,css,background_url,share_token,created_at`,
-		id, userID, name, css, bgURL,
-	).Scan(&t.ID, &t.UserID, &t.Name, &t.CSS, &t.BackgroundURL, &t.ShareToken, &t.CreatedAt)
+		 RETURNING id,user_id,name,css,base_theme,background_url,share_token,created_at`,
+		id, userID, name, css, baseTheme, bgURL,
+	).Scan(&t.ID, &t.UserID, &t.Name, &t.CSS, &t.BaseTheme, &t.BackgroundURL, &t.ShareToken, &t.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -105,7 +105,7 @@ func (r *Repository) DeleteTheme(ctx context.Context, id, userID int64) error {
 
 func (r *Repository) GetUserThemes(ctx context.Context, userID int64) ([]UserTheme, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id,user_id,name,css,background_url,share_token,created_at
+		`SELECT id,user_id,name,css,base_theme,background_url,share_token,created_at
 		 FROM user_themes WHERE user_id=$1 ORDER BY created_at ASC`, userID)
 	if err != nil {
 		return nil, err
@@ -114,7 +114,7 @@ func (r *Repository) GetUserThemes(ctx context.Context, userID int64) ([]UserThe
 	var out []UserTheme
 	for rows.Next() {
 		var t UserTheme
-		if err := rows.Scan(&t.ID, &t.UserID, &t.Name, &t.CSS, &t.BackgroundURL, &t.ShareToken, &t.CreatedAt); err != nil {
+		if err := rows.Scan(&t.ID, &t.UserID, &t.Name, &t.CSS, &t.BaseTheme, &t.BackgroundURL, &t.ShareToken, &t.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, t)
@@ -141,12 +141,12 @@ func (r *Repository) GenerateShareToken(ctx context.Context, id, userID int64) (
 func (r *Repository) GetThemeByToken(ctx context.Context, token string) (*UserTheme, error) {
 	t := &UserTheme{}
 	err := r.db.QueryRowContext(ctx,
-		`SELECT t.id, t.user_id, t.name, t.css, t.background_url, t.share_token,
+		`SELECT t.id, t.user_id, t.name, t.css, t.base_theme, t.background_url, t.share_token,
 		        t.created_at, u.username
 		 FROM user_themes t
 		 JOIN users u ON u.id = t.user_id
 		 WHERE t.share_token=$1`, token,
-	).Scan(&t.ID, &t.UserID, &t.Name, &t.CSS, &t.BackgroundURL, &t.ShareToken,
+	).Scan(&t.ID, &t.UserID, &t.Name, &t.CSS, &t.BaseTheme, &t.BackgroundURL, &t.ShareToken,
 		&t.CreatedAt, &t.AuthorUsername)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -166,12 +166,11 @@ func (r *Repository) InstallTheme(ctx context.Context, token string, userID int6
 	if err != nil {
 		return nil, err
 	}
-	name := src.Name // verbatim copy, no "(copy)" suffix
 	t := &UserTheme{}
 	return t, r.db.QueryRowContext(ctx,
-		`INSERT INTO user_themes (user_id,name,css,background_url)
-		 VALUES ($1,$2,$3,$4)
-		 RETURNING id,user_id,name,css,background_url,share_token,created_at`,
-		userID, name, src.CSS, src.BackgroundURL,
-	).Scan(&t.ID, &t.UserID, &t.Name, &t.CSS, &t.BackgroundURL, &t.ShareToken, &t.CreatedAt)
+		`INSERT INTO user_themes (user_id,name,css,base_theme,background_url)
+		 VALUES ($1,$2,$3,$4,$5)
+		 RETURNING id,user_id,name,css,base_theme,background_url,share_token,created_at`,
+		userID, src.Name, src.CSS, src.BaseTheme, src.BackgroundURL,
+	).Scan(&t.ID, &t.UserID, &t.Name, &t.CSS, &t.BaseTheme, &t.BackgroundURL, &t.ShareToken, &t.CreatedAt)
 }

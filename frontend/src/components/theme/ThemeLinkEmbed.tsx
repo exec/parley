@@ -26,7 +26,7 @@ export const ThemeLinkEmbed: React.FC<Props> = ({ token }) => {
     setInstalling(true);
     try {
       const installed = await installTheme(token);
-      await themeCtx.setCustom(installed.id);
+      await themeCtx.setCustom(installed.id, installed);
       setInstalled(true);
     } catch {
       setInstalling(false);

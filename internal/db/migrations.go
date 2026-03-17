@@ -560,6 +560,10 @@ CREATE TABLE IF NOT EXISTS user_preferences (
     active_custom_theme_id INT REFERENCES user_themes(id) ON DELETE SET NULL
 );
 `,
+
+	`-- Add base_theme column to user_themes
+ALTER TABLE user_themes ADD COLUMN IF NOT EXISTS base_theme VARCHAR(32) NOT NULL DEFAULT 'rory';
+`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

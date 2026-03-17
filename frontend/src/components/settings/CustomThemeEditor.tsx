@@ -1,7 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { UserTheme, NewTheme } from '../../api/themes';
+import { BUILTIN_IDS } from '../../context/ThemeContext';
 import { validateCSS } from '../../lib/cssValidator';
 import './CustomThemeEditor.css';
+
+const BUILTIN_LABELS: Record<string, string> = {
+  'rory': 'Rory',
+  'citron-dark': 'Citron Dark',
+  'citron-light': 'Citron Light',
+  'neon-nights': 'Neon Nights',
+  'abyss': 'Abyss',
+  'sakura': 'Sakura',
+};
 
 const PREVIEW_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -45,6 +55,7 @@ interface Props {
 export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel }) => {
   const [name, setName] = useState(existing?.name || '');
   const [css, setCSS] = useState(existing?.css || '');
+  const [baseTheme, setBaseTheme] = useState(existing?.base_theme || 'rory');
   const [bgUrl, setBgUrl] = useState<string | null>(existing?.background_url || null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -86,7 +97,7 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
     const v = validateCSS(css);
     if (v) { setError(`Disallowed URLs: ${v.offendingUrls.join(', ')}`); return; }
     setSaving(true);
-    try { await onSave({ name: name.trim(), css, background_url: bgUrl }); }
+    try { await onSave({ name: name.trim(), css, base_theme: baseTheme, background_url: bgUrl }); }
     catch (e) { setError(e instanceof Error ? e.message : 'Save failed'); }
     finally { setSaving(false); }
   };
@@ -102,6 +113,24 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
         <label className="theme-editor-label">Name</label>
         <input className="theme-editor-input" value={name}
           onChange={e => setName(e.target.value.slice(0,64))} maxLength={64} placeholder="My Theme" />
+      </div>
+
+      <div className="theme-editor-field">
+        <label className="theme-editor-label">Base Theme</label>
+        <div className="theme-editor-base-row">
+          {BUILTIN_IDS.map(id => (
+            <button
+              key={id}
+              className={`theme-editor-base-btn${baseTheme === id ? ' theme-editor-base-btn--active' : ''}`}
+              data-theme={id}
+              onClick={() => setBaseTheme(id)}
+              title={BUILTIN_LABELS[id]}
+            >
+              {BUILTIN_LABELS[id]}
+            </button>
+          ))}
+        </div>
+        <div className="theme-editor-hint">Your CSS overrides these base variables. Cannot be another custom theme.</div>
       </div>
 
       <div className="theme-editor-field">
@@ -122,7 +151,7 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
       <div className="theme-editor-field">
         <label className="theme-editor-label">Custom CSS</label>
         <textarea className="theme-editor-textarea" value={css} onChange={e => setCSS(e.target.value)}
-          placeholder={`/* Override variables */\n[data-theme="custom"] {\n  --accent: hotpink;\n}\n\n/* Google Fonts allowed */\n@import url('https://fonts.googleapis.com/css2?family=Inter');`} />
+          placeholder={`/* Override variables for any built-in theme selector */\n:root {\n  --accent: hotpink;\n}\n\n/* Google Fonts allowed */\n@import url('https://fonts.googleapis.com/css2?family=Inter');`} />
         <div className="theme-editor-hint">Google Fonts allowed. All other external URLs are blocked.</div>
       </div>
 

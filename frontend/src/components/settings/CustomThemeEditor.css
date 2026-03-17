@@ -11,6 +11,14 @@
 }
 .theme-editor-textarea { font-family: monospace; font-size: 12px; min-height: 160px; resize: vertical; }
 .theme-editor-hint { font-size: 11px; color: var(--discord-text-muted); margin-top: 4px; }
+.theme-editor-base-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+.theme-editor-base-btn {
+  padding: 5px 10px; border-radius: 4px; border: 2px solid var(--discord-border);
+  background: var(--discord-bg-secondary); color: var(--discord-text-muted);
+  font-size: 12px; cursor: pointer; transition: border-color .15s, color .15s;
+}
+.theme-editor-base-btn:hover { border-color: var(--discord-accent); color: var(--discord-text-normal); }
+.theme-editor-base-btn--active { border-color: var(--discord-accent); color: var(--discord-text-normal); font-weight: 600; }
 .theme-editor-bg-row { display: flex; align-items: center; gap: 8px; }
 .theme-editor-bg-preview { width: 40px; height: 40px; border-radius: 4px; border: 1px solid var(--discord-border); background-size: cover; background-position: center; flex-shrink: 0; }
 .theme-editor-upload-btn { padding: 6px 12px; background: var(--discord-bg-secondary); border: 1px solid var(--discord-border); border-radius: 4px; color: var(--discord-text-normal); font-size: 13px; cursor: pointer; }

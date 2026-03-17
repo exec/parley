@@ -23,6 +23,7 @@ type setThemeReq struct {
 type themeReq struct {
 	Name          string  `json:"name"`
 	CSS           string  `json:"css"`
+	BaseTheme     string  `json:"base_theme"`
 	BackgroundURL *string `json:"background_url,omitempty"`
 }
 
@@ -106,7 +107,14 @@ func (h *Handler) CreateTheme(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, r, 400, "name must be 1-64 characters")
 		return
 	}
-	t, err := h.svc.CreateTheme(r.Context(), uid, req.Name, req.CSS, req.BackgroundURL)
+	if req.BaseTheme == "" {
+		req.BaseTheme = "rory"
+	}
+	if !validBuiltin[req.BaseTheme] {
+		writeErr(w, r, 400, "base_theme must be a built-in theme")
+		return
+	}
+	t, err := h.svc.CreateTheme(r.Context(), uid, req.Name, req.CSS, req.BaseTheme, req.BackgroundURL)
 	if err != nil {
 		h.handleThemeErr(w, r, err)
 		return
@@ -135,7 +143,14 @@ func (h *Handler) UpdateTheme(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, r, 400, "name must be 1-64 characters")
 		return
 	}
-	t, err := h.svc.UpdateTheme(r.Context(), id, uid, req.Name, req.CSS, req.BackgroundURL)
+	if req.BaseTheme == "" {
+		req.BaseTheme = "rory"
+	}
+	if !validBuiltin[req.BaseTheme] {
+		writeErr(w, r, 400, "base_theme must be a built-in theme")
+		return
+	}
+	t, err := h.svc.UpdateTheme(r.Context(), id, uid, req.Name, req.CSS, req.BaseTheme, req.BackgroundURL)
 	if err != nil {
 		h.handleThemeErr(w, r, err)
 		return
