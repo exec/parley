@@ -11,6 +11,7 @@ import (
 
 	"parley/internal/auth"
 	"parley/internal/db"
+	"parley/internal/httputil"
 	"parley/internal/validation"
 	ws "parley/internal/websocket"
 )
@@ -35,19 +36,19 @@ type OpenDmChannelRequest struct {
 func (h *Handler) GetDmChannels(w http.ResponseWriter, r *http.Request) {
 	userIDStr := auth.GetUserIDFromContext(r)
 	if userIDStr == "" {
-		jsonError(w, "user not authenticated", http.StatusUnauthorized)
+		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
 		return
 	}
 
 	userID, err := strconv.ParseInt(userIDStr, 10, 64)
 	if err != nil {
-		jsonError(w, "invalid user ID", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid user ID", http.StatusBadRequest)
 		return
 	}
 
 	channels, err := h.repo.GetUserDmChannels(r.Context(), userID)
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -63,41 +64,41 @@ func (h *Handler) GetDmChannels(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) OpenDmChannel(w http.ResponseWriter, r *http.Request) {
 	userIDStr := auth.GetUserIDFromContext(r)
 	if userIDStr == "" {
-		jsonError(w, "user not authenticated", http.StatusUnauthorized)
+		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
 		return
 	}
 
 	currentUserID, err := strconv.ParseInt(userIDStr, 10, 64)
 	if err != nil {
-		jsonError(w, "invalid user ID", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid user ID", http.StatusBadRequest)
 		return
 	}
 
 	var req OpenDmChannelRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		jsonError(w, "invalid request body", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	if req.UserID == "" {
-		jsonError(w, "user_id is required", http.StatusBadRequest)
+		httputil.JSONError(w, "user_id is required", http.StatusBadRequest)
 		return
 	}
 
 	otherUserID, err := strconv.ParseInt(req.UserID, 10, 64)
 	if err != nil {
-		jsonError(w, "invalid user_id", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid user_id", http.StatusBadRequest)
 		return
 	}
 
 	if currentUserID == otherUserID {
-		jsonError(w, "cannot DM yourself", http.StatusBadRequest)
+		httputil.JSONError(w, "cannot DM yourself", http.StatusBadRequest)
 		return
 	}
 
 	channel, err := h.repo.GetOrCreateDmChannel(r.Context(), currentUserID, otherUserID)
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -110,37 +111,37 @@ func (h *Handler) OpenDmChannel(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetDmMessages(w http.ResponseWriter, r *http.Request) {
 	userIDStr := auth.GetUserIDFromContext(r)
 	if userIDStr == "" {
-		jsonError(w, "user not authenticated", http.StatusUnauthorized)
+		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
 		return
 	}
 
 	userID, err := strconv.ParseInt(userIDStr, 10, 64)
 	if err != nil {
-		jsonError(w, "invalid user ID", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid user ID", http.StatusBadRequest)
 		return
 	}
 
 	dmID := chi.URLParam(r, "id")
 	if dmID == "" {
-		jsonError(w, "DM channel ID is required", http.StatusBadRequest)
+		httputil.JSONError(w, "DM channel ID is required", http.StatusBadRequest)
 		return
 	}
 
 	dmChannelID, err := strconv.ParseInt(dmID, 10, 64)
 	if err != nil {
-		jsonError(w, "invalid DM channel ID", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid DM channel ID", http.StatusBadRequest)
 		return
 	}
 
 	// Verify user is part of this DM channel
 	channel, err := h.repo.GetDmChannelByID(r.Context(), dmChannelID)
 	if err != nil {
-		jsonError(w, "DM channel not found", http.StatusNotFound)
+		httputil.JSONError(w, "DM channel not found", http.StatusNotFound)
 		return
 	}
 
 	if channel.User1ID != userID && channel.User2ID != userID {
-		jsonError(w, "not authorized to view this DM channel", http.StatusForbidden)
+		httputil.JSONError(w, "not authorized to view this DM channel", http.StatusForbidden)
 		return
 	}
 
@@ -165,7 +166,7 @@ func (h *Handler) GetDmMessages(w http.ResponseWriter, r *http.Request) {
 
 	messages, err := h.repo.GetDmMessages(r.Context(), dmChannelID, limit, beforeID)
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -190,56 +191,56 @@ type SendDmMessageRequest struct {
 func (h *Handler) SendDmMessage(w http.ResponseWriter, r *http.Request) {
 	userIDStr := auth.GetUserIDFromContext(r)
 	if userIDStr == "" {
-		jsonError(w, "user not authenticated", http.StatusUnauthorized)
+		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
 		return
 	}
 
 	currentUserID, err := strconv.ParseInt(userIDStr, 10, 64)
 	if err != nil {
-		jsonError(w, "invalid user ID", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid user ID", http.StatusBadRequest)
 		return
 	}
 
 	dmID := chi.URLParam(r, "id")
 	if dmID == "" {
-		jsonError(w, "DM channel ID is required", http.StatusBadRequest)
+		httputil.JSONError(w, "DM channel ID is required", http.StatusBadRequest)
 		return
 	}
 
 	dmChannelID, err := strconv.ParseInt(dmID, 10, 64)
 	if err != nil {
-		jsonError(w, "invalid DM channel ID", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid DM channel ID", http.StatusBadRequest)
 		return
 	}
 
 	// Verify user is part of this DM channel
 	channel, err := h.repo.GetDmChannelByID(r.Context(), dmChannelID)
 	if err != nil {
-		jsonError(w, "DM channel not found", http.StatusNotFound)
+		httputil.JSONError(w, "DM channel not found", http.StatusNotFound)
 		return
 	}
 
 	if channel.User1ID != currentUserID && channel.User2ID != currentUserID {
-		jsonError(w, "not authorized to send messages in this DM channel", http.StatusForbidden)
+		httputil.JSONError(w, "not authorized to send messages in this DM channel", http.StatusForbidden)
 		return
 	}
 
 	var req SendDmMessageRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		jsonError(w, "invalid request body", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	if req.Content == "" && req.AttachmentURL == "" {
-		jsonError(w, "content or attachment is required", http.StatusBadRequest)
+		httputil.JSONError(w, "content or attachment is required", http.StatusBadRequest)
 		return
 	}
 	if len(req.Content) > 4000 {
-		jsonError(w, "message content exceeds maximum length of 4000 characters", http.StatusBadRequest)
+		httputil.JSONError(w, "message content exceeds maximum length of 4000 characters", http.StatusBadRequest)
 		return
 	}
 	if validation.HasSpoofedLink(req.Content) {
-		jsonError(w, "message contains a spoofed link", http.StatusBadRequest)
+		httputil.JSONError(w, "message contains a spoofed link", http.StatusBadRequest)
 		return
 	}
 
@@ -253,7 +254,7 @@ func (h *Handler) SendDmMessage(w http.ResponseWriter, r *http.Request) {
 
 	msg, err := h.repo.CreateDmMessage(r.Context(), dmChannelID, currentUserID, req.Content, req.AttachmentURL, req.AttachmentName, req.AttachmentType, parentID)
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -277,40 +278,40 @@ func (h *Handler) SendDmMessage(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) DeleteDmMessage(w http.ResponseWriter, r *http.Request) {
 	userIDStr := auth.GetUserIDFromContext(r)
 	if userIDStr == "" {
-		jsonError(w, "user not authenticated", http.StatusUnauthorized)
+		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
 		return
 	}
 	currentUserID, err := strconv.ParseInt(userIDStr, 10, 64)
 	if err != nil {
-		jsonError(w, "invalid user ID", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid user ID", http.StatusBadRequest)
 		return
 	}
 	dmID := chi.URLParam(r, "id")
 	messageID, err := strconv.ParseInt(chi.URLParam(r, "messageId"), 10, 64)
 	if err != nil {
-		jsonError(w, "invalid message id", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid message id", http.StatusBadRequest)
 		return
 	}
 	dmChannelID, err := strconv.ParseInt(dmID, 10, 64)
 	if err != nil {
-		jsonError(w, "invalid DM channel id", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid DM channel id", http.StatusBadRequest)
 		return
 	}
 	channel, err := h.repo.GetDmChannelByID(r.Context(), dmChannelID)
 	if err != nil {
-		jsonError(w, "DM channel not found", http.StatusNotFound)
+		httputil.JSONError(w, "DM channel not found", http.StatusNotFound)
 		return
 	}
 	if channel.User1ID != currentUserID && channel.User2ID != currentUserID {
-		jsonError(w, "forbidden", http.StatusForbidden)
+		httputil.JSONError(w, "forbidden", http.StatusForbidden)
 		return
 	}
 	if err := h.repo.DeleteDmMessage(r.Context(), messageID, currentUserID); err != nil {
 		if errors.Is(err, db.ErrNotFound) {
-			jsonError(w, "message not found or not your message", http.StatusNotFound)
+			httputil.JSONError(w, "message not found or not your message", http.StatusNotFound)
 			return
 		}
-		jsonError(w, "failed to delete message", http.StatusInternalServerError)
+		httputil.JSONError(w, "failed to delete message", http.StatusInternalServerError)
 		return
 	}
 	// Broadcast to both participants via dm virtual channel
@@ -328,44 +329,44 @@ func (h *Handler) DeleteDmMessage(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ToggleDmReaction(w http.ResponseWriter, r *http.Request) {
 	userIDStr := auth.GetUserIDFromContext(r)
 	if userIDStr == "" {
-		jsonError(w, "user not authenticated", http.StatusUnauthorized)
+		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
 		return
 	}
 	currentUserID, err := strconv.ParseInt(userIDStr, 10, 64)
 	if err != nil {
-		jsonError(w, "invalid user ID", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid user ID", http.StatusBadRequest)
 		return
 	}
 	dmID := chi.URLParam(r, "id")
 	messageID, err := strconv.ParseInt(chi.URLParam(r, "messageId"), 10, 64)
 	if err != nil {
-		jsonError(w, "invalid message id", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid message id", http.StatusBadRequest)
 		return
 	}
 	dmChannelID, err := strconv.ParseInt(dmID, 10, 64)
 	if err != nil {
-		jsonError(w, "invalid DM channel id", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid DM channel id", http.StatusBadRequest)
 		return
 	}
 	channel, err := h.repo.GetDmChannelByID(r.Context(), dmChannelID)
 	if err != nil {
-		jsonError(w, "DM channel not found", http.StatusNotFound)
+		httputil.JSONError(w, "DM channel not found", http.StatusNotFound)
 		return
 	}
 	if channel.User1ID != currentUserID && channel.User2ID != currentUserID {
-		jsonError(w, "forbidden", http.StatusForbidden)
+		httputil.JSONError(w, "forbidden", http.StatusForbidden)
 		return
 	}
 	var req struct {
 		Emoji string `json:"emoji"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Emoji == "" {
-		jsonError(w, "emoji required", http.StatusBadRequest)
+		httputil.JSONError(w, "emoji required", http.StatusBadRequest)
 		return
 	}
 	added, err := h.repo.ToggleDmReaction(r.Context(), messageID, currentUserID, req.Emoji)
 	if err != nil {
-		jsonError(w, "failed to toggle reaction", http.StatusInternalServerError)
+		httputil.JSONError(w, "failed to toggle reaction", http.StatusInternalServerError)
 		return
 	}
 	// Broadcast to both participants via dm virtual channel
@@ -385,8 +386,3 @@ func (h *Handler) ToggleDmReaction(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func jsonError(w http.ResponseWriter, message string, code int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(map[string]string{"message": message})
-}

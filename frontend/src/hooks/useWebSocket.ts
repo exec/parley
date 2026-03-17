@@ -1,4 +1,13 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, MutableRefObject } from 'react';
+
+// Keeps a ref in sync with the latest value of a callback so event handlers
+// never capture stale closures. Equivalent to the ref+useEffect pattern but
+// expressed as a single call per callback.
+function useLatest<T>(value: T): MutableRefObject<T> {
+  const ref = useRef<T>(value);
+  useEffect(() => { ref.current = value; }, [value]);
+  return ref;
+}
 import { Message, DmMessage, Channel, Server, Role } from '../api/types';
 import { getWsTicket } from '../api/auth';
 
@@ -121,72 +130,39 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
   const extraChannelIdsRef = useRef<string[]>(extraChannelIds);
 
   // Keep refs to the latest callbacks so ws.onmessage never captures stale closures
-  const onMessageRef = useRef(onMessage);
-  const onDmMessageRef = useRef(onDmMessage);
-  const onServerMemberJoinRef = useRef(onServerMemberJoin);
-  const onServerMemberLeaveRef = useRef(onServerMemberLeave);
-  const onServerMemberKickRef = useRef(onServerMemberKick);
-  const onServerMemberBanRef = useRef(onServerMemberBan);
-  const onTypingRef = useRef(onTyping);
-  const onUserOnlineRef = useRef(onUserOnline);
-  const onUserOfflineRef = useRef(onUserOffline);
-  const onPresenceSnapshotRef = useRef(onPresenceSnapshot);
-  const onMessageUpdateRef = useRef(onMessageUpdate);
-  const onMessageDeleteRef = useRef(onMessageDelete);
-  const onReactionUpdateRef = useRef(onReactionUpdate);
-  const onChannelCreateRef = useRef(onChannelCreate);
-  const onChannelUpdateRef = useRef(onChannelUpdate);
-  const onChannelDeleteRef = useRef(onChannelDelete);
-  const onServerUpdateRef = useRef(onServerUpdate);
-  const onServerDeleteRef = useRef(onServerDelete);
-  const onMemberRoleUpdateRef = useRef(onMemberRoleUpdate);
-  const onUserUpdateRef = useRef(onUserUpdate);
-  const onVoiceStateUpdateRef = useRef(onVoiceStateUpdate);
-  const onVoiceForceMuteRef = useRef(onVoiceForceMute);
-  const onVoiceForceDisconnectRef = useRef(onVoiceForceDisconnect);
-  const onBinPostCreateRef = useRef(onBinPostCreate);
-  const onBinPostUpdateRef = useRef(onBinPostUpdate);
-  const onBinPostDeleteRef = useRef(onBinPostDelete);
-  const onChannelOverwriteUpdateRef = useRef(onChannelOverwriteUpdate);
-  const onRoleUpdateRef = useRef(onRoleUpdate);
-  const onRoleDeleteRef = useRef(onRoleDelete);
-  const onBotStatusUpdateRef = useRef(onBotStatusUpdate);
-  const onDmMessageDeleteRef = useRef(onDmMessageDelete);
-  const onDmReactionUpdateRef = useRef(onDmReactionUpdate);
-  const onConnectRef = useRef(onConnect);
-  useEffect(() => { onConnectRef.current = onConnect; }, [onConnect]);
-  useEffect(() => { onMessageRef.current = onMessage; }, [onMessage]);
-  useEffect(() => { onDmMessageRef.current = onDmMessage; }, [onDmMessage]);
-  useEffect(() => { onServerMemberJoinRef.current = onServerMemberJoin; }, [onServerMemberJoin]);
-  useEffect(() => { onServerMemberLeaveRef.current = onServerMemberLeave; }, [onServerMemberLeave]);
-  useEffect(() => { onServerMemberKickRef.current = onServerMemberKick; }, [onServerMemberKick]);
-  useEffect(() => { onServerMemberBanRef.current = onServerMemberBan; }, [onServerMemberBan]);
-  useEffect(() => { onTypingRef.current = onTyping; }, [onTyping]);
-  useEffect(() => { onUserOnlineRef.current = onUserOnline; }, [onUserOnline]);
-  useEffect(() => { onUserOfflineRef.current = onUserOffline; }, [onUserOffline]);
-  useEffect(() => { onPresenceSnapshotRef.current = onPresenceSnapshot; }, [onPresenceSnapshot]);
-  useEffect(() => { onMessageUpdateRef.current = onMessageUpdate; }, [onMessageUpdate]);
-  useEffect(() => { onMessageDeleteRef.current = onMessageDelete; }, [onMessageDelete]);
-  useEffect(() => { onReactionUpdateRef.current = onReactionUpdate; }, [onReactionUpdate]);
-  useEffect(() => { onChannelCreateRef.current = onChannelCreate; }, [onChannelCreate]);
-  useEffect(() => { onChannelUpdateRef.current = onChannelUpdate; }, [onChannelUpdate]);
-  useEffect(() => { onChannelDeleteRef.current = onChannelDelete; }, [onChannelDelete]);
-  useEffect(() => { onServerUpdateRef.current = onServerUpdate; }, [onServerUpdate]);
-  useEffect(() => { onServerDeleteRef.current = onServerDelete; }, [onServerDelete]);
-  useEffect(() => { onMemberRoleUpdateRef.current = onMemberRoleUpdate; }, [onMemberRoleUpdate]);
-  useEffect(() => { onUserUpdateRef.current = onUserUpdate; }, [onUserUpdate]);
-  useEffect(() => { onVoiceStateUpdateRef.current = onVoiceStateUpdate; }, [onVoiceStateUpdate]);
-  useEffect(() => { onVoiceForceMuteRef.current = onVoiceForceMute; }, [onVoiceForceMute]);
-  useEffect(() => { onVoiceForceDisconnectRef.current = onVoiceForceDisconnect; }, [onVoiceForceDisconnect]);
-  useEffect(() => { onBinPostCreateRef.current = onBinPostCreate; }, [onBinPostCreate]);
-  useEffect(() => { onBinPostUpdateRef.current = onBinPostUpdate; }, [onBinPostUpdate]);
-  useEffect(() => { onBinPostDeleteRef.current = onBinPostDelete; }, [onBinPostDelete]);
-  useEffect(() => { onChannelOverwriteUpdateRef.current = onChannelOverwriteUpdate; }, [onChannelOverwriteUpdate]);
-  useEffect(() => { onRoleUpdateRef.current = onRoleUpdate; }, [onRoleUpdate]);
-  useEffect(() => { onRoleDeleteRef.current = onRoleDelete; }, [onRoleDelete]);
-  useEffect(() => { onBotStatusUpdateRef.current = onBotStatusUpdate; }, [onBotStatusUpdate]);
-  useEffect(() => { onDmMessageDeleteRef.current = onDmMessageDelete; }, [onDmMessageDelete]);
-  useEffect(() => { onDmReactionUpdateRef.current = onDmReactionUpdate; }, [onDmReactionUpdate]);
+  const onMessageRef = useLatest(onMessage);
+  const onDmMessageRef = useLatest(onDmMessage);
+  const onServerMemberJoinRef = useLatest(onServerMemberJoin);
+  const onServerMemberLeaveRef = useLatest(onServerMemberLeave);
+  const onServerMemberKickRef = useLatest(onServerMemberKick);
+  const onServerMemberBanRef = useLatest(onServerMemberBan);
+  const onTypingRef = useLatest(onTyping);
+  const onUserOnlineRef = useLatest(onUserOnline);
+  const onUserOfflineRef = useLatest(onUserOffline);
+  const onPresenceSnapshotRef = useLatest(onPresenceSnapshot);
+  const onMessageUpdateRef = useLatest(onMessageUpdate);
+  const onMessageDeleteRef = useLatest(onMessageDelete);
+  const onReactionUpdateRef = useLatest(onReactionUpdate);
+  const onChannelCreateRef = useLatest(onChannelCreate);
+  const onChannelUpdateRef = useLatest(onChannelUpdate);
+  const onChannelDeleteRef = useLatest(onChannelDelete);
+  const onServerUpdateRef = useLatest(onServerUpdate);
+  const onServerDeleteRef = useLatest(onServerDelete);
+  const onMemberRoleUpdateRef = useLatest(onMemberRoleUpdate);
+  const onUserUpdateRef = useLatest(onUserUpdate);
+  const onVoiceStateUpdateRef = useLatest(onVoiceStateUpdate);
+  const onVoiceForceMuteRef = useLatest(onVoiceForceMute);
+  const onVoiceForceDisconnectRef = useLatest(onVoiceForceDisconnect);
+  const onBinPostCreateRef = useLatest(onBinPostCreate);
+  const onBinPostUpdateRef = useLatest(onBinPostUpdate);
+  const onBinPostDeleteRef = useLatest(onBinPostDelete);
+  const onChannelOverwriteUpdateRef = useLatest(onChannelOverwriteUpdate);
+  const onRoleUpdateRef = useLatest(onRoleUpdate);
+  const onRoleDeleteRef = useLatest(onRoleDelete);
+  const onBotStatusUpdateRef = useLatest(onBotStatusUpdate);
+  const onDmMessageDeleteRef = useLatest(onDmMessageDelete);
+  const onDmReactionUpdateRef = useLatest(onDmReactionUpdate);
+  const onConnectRef = useLatest(onConnect);
 
   const sendTyping = useCallback((channelId: string, username: string) => {
     const ws = wsRef.current;

@@ -1,5 +1,38 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { User, Server, Channel, Message, ServerMember, DmChannel, DmMessage, Reaction } from '../api/types';
+
+// Pure helper: applies a single reaction add/remove to an array of messages.
+// Works for both Message[] and DmMessage[] since both have id and reactions fields.
+function applyReactionToList<T extends { id: string | number; reactions?: Reaction[] }>(
+  list: T[],
+  update: { message_id: string; user_id: string; emoji: string; added: boolean }
+): T[] {
+  return list.map(msg => {
+    if (String(msg.id) !== String(update.message_id)) return msg;
+    const reactions: Reaction[] = [...(msg.reactions ?? [])];
+    const idx = reactions.findIndex(r => r.emoji === update.emoji);
+    if (update.added) {
+      if (idx >= 0) {
+        const r = reactions[idx];
+        if (!r.user_ids.includes(update.user_id)) {
+          reactions[idx] = { ...r, count: r.count + 1, user_ids: [...r.user_ids, update.user_id] };
+        }
+      } else {
+        reactions.push({ emoji: update.emoji, count: 1, user_ids: [update.user_id] });
+      }
+    } else {
+      if (idx >= 0) {
+        const newUserIds = reactions[idx].user_ids.filter(uid => uid !== update.user_id);
+        if (newUserIds.length === 0) {
+          reactions.splice(idx, 1);
+        } else {
+          reactions[idx] = { ...reactions[idx], count: newUserIds.length, user_ids: newUserIds };
+        }
+      }
+    }
+    return { ...msg, reactions };
+  });
+}
 import { apiClient } from '../api/client';
 import * as serversApi from '../api/servers';
 import * as channelsApi from '../api/channels';
@@ -475,59 +508,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const applyReactionUpdate = useCallback((update: ReactionUpdate) => {
-    setMessages(prev => prev.map(msg => {
-      if (msg.id !== update.message_id) return msg;
-      const reactions: Reaction[] = [...(msg.reactions ?? [])];
-      const idx = reactions.findIndex(r => r.emoji === update.emoji);
-      if (update.added) {
-        if (idx >= 0) {
-          const r = reactions[idx];
-          if (!r.user_ids.includes(update.user_id)) {
-            reactions[idx] = { ...r, count: r.count + 1, user_ids: [...r.user_ids, update.user_id] };
-          }
-        } else {
-          reactions.push({ emoji: update.emoji, count: 1, user_ids: [update.user_id] });
-        }
-      } else {
-        if (idx >= 0) {
-          const newUserIds = reactions[idx].user_ids.filter(uid => uid !== update.user_id);
-          if (newUserIds.length === 0) {
-            reactions.splice(idx, 1);
-          } else {
-            reactions[idx] = { ...reactions[idx], count: newUserIds.length, user_ids: newUserIds };
-          }
-        }
-      }
-      return { ...msg, reactions };
-    }));
+    setMessages(prev => applyReactionToList(prev, update));
   }, []);
 
   const applyDmReactionUpdate = useCallback((update: ReactionUpdate) => {
-    setDmMessages(prev => prev.map(msg => {
-      if (msg.id !== update.message_id) return msg;
-      const reactions = [...(msg.reactions ?? [])];
-      const idx = reactions.findIndex(r => r.emoji === update.emoji);
-      if (update.added) {
-        if (idx >= 0) {
-          const r = reactions[idx];
-          if (!r.user_ids.includes(update.user_id)) {
-            reactions[idx] = { ...r, count: r.count + 1, user_ids: [...r.user_ids, update.user_id] };
-          }
-        } else {
-          reactions.push({ emoji: update.emoji, count: 1, user_ids: [update.user_id] });
-        }
-      } else {
-        if (idx >= 0) {
-          const newUserIds = reactions[idx].user_ids.filter(uid => uid !== update.user_id);
-          if (newUserIds.length === 0) {
-            reactions.splice(idx, 1);
-          } else {
-            reactions[idx] = { ...reactions[idx], count: newUserIds.length, user_ids: newUserIds };
-          }
-        }
-      }
-      return { ...msg, reactions };
-    }));
+    setDmMessages(prev => applyReactionToList(prev, update));
   }, []);
 
   const receiveDmMessageDelete = useCallback((messageId: string) => {

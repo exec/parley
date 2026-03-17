@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"parley/internal/db"
+	"parley/internal/httputil"
 )
 
 // Handler handles HTTP requests for messages
@@ -53,35 +54,35 @@ type SendMessageRequest struct {
 func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 	channelID := chi.URLParam(r, "channelID")
 	if channelID == "" {
-		http.Error(w, "channel ID is required", http.StatusBadRequest)
+		httputil.JSONError(w, "channel ID is required", http.StatusBadRequest)
 		return
 	}
 
 	// Get author ID from context (set by auth middleware)
 	authorID := r.Context().Value("userID")
 	if authorID == nil {
-		http.Error(w, "user not authenticated", http.StatusUnauthorized)
+		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
 		return
 	}
 
 	var req SendMessageRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	if req.Content == "" && req.AttachmentURL == "" {
-		http.Error(w, "content or attachment is required", http.StatusBadRequest)
+		httputil.JSONError(w, "content or attachment is required", http.StatusBadRequest)
 		return
 	}
 
 	msg, err := h.service.SendMessage(r.Context(), channelID, authorID.(string), req.Content, req.Nonce, req.AttachmentURL, req.AttachmentName, req.AttachmentType, req.ParentID)
 	if err != nil {
 		if err.Error() == "forbidden" {
-			http.Error(w, "you do not have permission to send messages in this channel", http.StatusForbidden)
+			httputil.JSONError(w, "you do not have permission to send messages in this channel", http.StatusForbidden)
 			return
 		}
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		httputil.JSONError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -94,7 +95,7 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetChannelMessages(w http.ResponseWriter, r *http.Request) {
 	channelID := chi.URLParam(r, "channelID")
 	if channelID == "" {
-		http.Error(w, "channel ID is required", http.StatusBadRequest)
+		httputil.JSONError(w, "channel ID is required", http.StatusBadRequest)
 		return
 	}
 
@@ -123,10 +124,10 @@ func (h *Handler) GetChannelMessages(w http.ResponseWriter, r *http.Request) {
 	messages, err := h.service.GetChannelMessages(r.Context(), channelID, userID, limit, beforeID)
 	if err != nil {
 		if err.Error() == "channel not found" {
-			http.Error(w, err.Error(), http.StatusNotFound)
+			httputil.JSONError(w, err.Error(), http.StatusNotFound)
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -143,38 +144,38 @@ type EditMessageRequest struct {
 func (h *Handler) EditMessage(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		http.Error(w, "message ID is required", http.StatusBadRequest)
+		httputil.JSONError(w, "message ID is required", http.StatusBadRequest)
 		return
 	}
 
 	// Get author ID from context (set by auth middleware)
 	authorID := r.Context().Value("userID")
 	if authorID == nil {
-		http.Error(w, "user not authenticated", http.StatusUnauthorized)
+		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
 		return
 	}
 
 	var req EditMessageRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	// Check if the message exists and belongs to the user
 	msg, err := h.service.GetMessage(r.Context(), id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		httputil.JSONError(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
 	if msg.AuthorID != authorID.(string) {
-		http.Error(w, "you can only edit your own messages", http.StatusForbidden)
+		httputil.JSONError(w, "you can only edit your own messages", http.StatusForbidden)
 		return
 	}
 
 	updatedMsg, err := h.service.EditMessage(r.Context(), id, req.Content)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		httputil.JSONError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -186,14 +187,14 @@ func (h *Handler) EditMessage(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		http.Error(w, "message ID is required", http.StatusBadRequest)
+		httputil.JSONError(w, "message ID is required", http.StatusBadRequest)
 		return
 	}
 
 	// Get author ID from context (set by auth middleware)
 	authorID := r.Context().Value("userID")
 	if authorID == nil {
-		http.Error(w, "user not authenticated", http.StatusUnauthorized)
+		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
 		return
 	}
 
@@ -201,19 +202,19 @@ func (h *Handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 	canManage, err := h.service.CanManageMessage(r.Context(), id, authorID.(string))
 	if err != nil {
 		if err.Error() == "message not found" {
-			http.Error(w, err.Error(), http.StatusNotFound)
+			httputil.JSONError(w, err.Error(), http.StatusNotFound)
 		} else {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
 		}
 		return
 	}
 	if !canManage {
-		http.Error(w, "you can only delete your own messages", http.StatusForbidden)
+		httputil.JSONError(w, "you can only delete your own messages", http.StatusForbidden)
 		return
 	}
 
 	if err := h.service.DeleteMessage(r.Context(), id); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -225,7 +226,7 @@ func (h *Handler) GetMessageVersions(w http.ResponseWriter, r *http.Request) {
 	messageID := chi.URLParam(r, "id")
 	versions, err := h.service.GetMessageVersions(r.Context(), messageID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if versions == nil {
@@ -239,7 +240,7 @@ func (h *Handler) GetMessageVersions(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) SearchMessages(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "id")
 	if serverID == "" {
-		http.Error(w, "server ID is required", http.StatusBadRequest)
+		httputil.JSONError(w, "server ID is required", http.StatusBadRequest)
 		return
 	}
 	userID, _ := r.Context().Value("userID").(string)
@@ -264,10 +265,10 @@ func (h *Handler) SearchMessages(w http.ResponseWriter, r *http.Request) {
 	messages, err := h.service.SearchMessages(r.Context(), serverID, userID, q, fromUserID, inChannelID, limit, beforeID)
 	if err != nil {
 		if err.Error() == "forbidden" {
-			http.Error(w, "forbidden", http.StatusForbidden)
+			httputil.JSONError(w, "forbidden", http.StatusForbidden)
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if messages == nil {
@@ -287,28 +288,28 @@ type ToggleReactionRequest struct {
 func (h *Handler) ToggleReaction(w http.ResponseWriter, r *http.Request) {
 	messageID := chi.URLParam(r, "id")
 	if messageID == "" {
-		http.Error(w, "message ID is required", http.StatusBadRequest)
+		httputil.JSONError(w, "message ID is required", http.StatusBadRequest)
 		return
 	}
 
 	userID := r.Context().Value("userID")
 	if userID == nil {
-		http.Error(w, "user not authenticated", http.StatusUnauthorized)
+		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
 		return
 	}
 
 	var req ToggleReactionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Emoji == "" {
-		http.Error(w, "emoji is required", http.StatusBadRequest)
+		httputil.JSONError(w, "emoji is required", http.StatusBadRequest)
 		return
 	}
 
 	if err := h.service.ToggleReaction(r.Context(), messageID, userID.(string), req.Emoji); err != nil {
 		if err.Error() == "message not found" {
-			http.Error(w, err.Error(), http.StatusNotFound)
+			httputil.JSONError(w, err.Error(), http.StatusNotFound)
 			return
 		}
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		httputil.JSONError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
