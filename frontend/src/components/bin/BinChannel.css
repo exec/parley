@@ -179,7 +179,7 @@
 
 .bin-empty-hint {
   font-size: 13px;
-  color: var(--discord-text-dim);
+  color: var(--parley-text-dim);
 }
 
 .bin-error-state {
@@ -187,7 +187,7 @@
   align-items: center;
   justify-content: center;
   flex: 1;
-  color: var(--discord-danger);
+  color: var(--parley-danger);
   font-size: 14px;
   padding: 48px 0;
 }

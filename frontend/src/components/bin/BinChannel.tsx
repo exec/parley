@@ -99,7 +99,7 @@ export const BinChannel: React.FC<BinChannelProps> = ({ channelId, serverId, onO
         <span className="bin-filter-label">Tags:</span>
         <div className="bin-filter-tags">
           {tags.length === 0 && !loading && (
-            <span style={{ fontSize: 12, color: 'var(--discord-text-dim)' }}>None</span>
+            <span style={{ fontSize: 12, color: 'var(--parley-text-dim)' }}>None</span>
           )}
           {tags.map(tag => (
             <button

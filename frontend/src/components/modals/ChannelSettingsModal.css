@@ -20,15 +20,15 @@
   display: flex;
   width: 100%;
   max-width: 900px;
-  background: var(--discord-bg-secondary);
+  background: var(--parley-bg-secondary);
   position: relative;
 }
 
 .csm-sidebar {
   width: 220px;
   flex-shrink: 0;
-  background: var(--discord-sidebar);
-  border-right: 1px solid var(--discord-border);
+  background: var(--parley-sidebar);
+  border-right: 1px solid var(--parley-border);
   padding: 48px 8px 24px;
   display: flex;
   flex-direction: column;
@@ -40,7 +40,7 @@
   font-weight: 700;
   letter-spacing: 1.2px;
   text-transform: uppercase;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
   padding: 6px 12px 4px;
   margin-bottom: 4px;
 }
@@ -51,7 +51,7 @@
   text-align: left;
   background: none;
   border: none;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
   font-size: 13px;
   padding: 8px 12px;
   border-radius: 4px;
@@ -61,19 +61,19 @@
 }
 
 .csm-nav-item:hover {
-  background: var(--discord-hover);
-  color: var(--discord-text-normal);
+  background: var(--parley-hover);
+  color: var(--parley-text-normal);
 }
 
 .csm-nav-item.active {
-  background: var(--discord-bg-tertiary);
-  color: var(--discord-accent);
+  background: var(--parley-bg-tertiary);
+  color: var(--parley-accent);
   font-weight: 600;
 }
 
 .csm-nav-divider {
   height: 1px;
-  background: var(--discord-border);
+  background: var(--parley-border);
   margin: 8px 12px;
 }
 
@@ -87,13 +87,13 @@
 .csm-title {
   font-size: 20px;
   font-weight: 700;
-  color: var(--discord-text-normal);
+  color: var(--parley-text-normal);
   margin: 0 0 8px;
 }
 
 .csm-subtitle {
   font-size: 13px;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
   margin: 0 0 24px;
   line-height: 1.5;
 }
@@ -112,10 +112,10 @@
 .csm-close-btn {
   width: 36px;
   height: 36px;
-  background: var(--discord-hover);
-  border: 1px solid var(--discord-border-light);
+  background: var(--parley-hover);
+  border: 1px solid var(--parley-border-light);
   border-radius: 50%;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
   font-size: 20px;
   cursor: pointer;
   display: flex;
@@ -126,12 +126,12 @@
 }
 
 .csm-close-btn:hover {
-  background: var(--discord-border-light);
-  color: var(--discord-text-normal);
+  background: var(--parley-border-light);
+  color: var(--parley-text-normal);
 }
 
 .csm-close-hint {
   font-size: 10px;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
   letter-spacing: 0.5px;
 }

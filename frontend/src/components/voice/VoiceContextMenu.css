@@ -1,7 +1,7 @@
 /* frontend/src/components/voice/VoiceContextMenu.css */
 .vc-context-menu {
-  background: var(--discord-bg-tertiary);
-  border: 1px solid var(--discord-border);
+  background: var(--parley-bg-tertiary);
+  border: 1px solid var(--parley-border);
   border-radius: 6px;
   padding: 4px;
   min-width: 170px;
@@ -15,22 +15,22 @@
   background: none;
   border: none;
   border-radius: 4px;
-  color: var(--discord-text-normal);
+  color: var(--parley-text-normal);
   font-size: 14px;
   text-align: left;
   cursor: pointer;
 }
 
 .vc-context-menu-item:hover {
-  background: var(--discord-hover);
-  color: var(--discord-text-normal);
+  background: var(--parley-hover);
+  color: var(--parley-text-normal);
 }
 
 .vc-context-menu-item--danger {
-  color: var(--discord-danger);
+  color: var(--parley-danger);
 }
 
 .vc-context-menu-item--danger:hover {
-  background: rgba(var(--discord-danger-rgb), 0.15);
-  color: var(--discord-danger);
+  background: rgba(var(--parley-danger-rgb), 0.15);
+  color: var(--parley-danger);
 }

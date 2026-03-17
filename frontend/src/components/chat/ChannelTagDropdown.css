@@ -4,7 +4,7 @@
   left: 0;
   right: 0;
   background: #111;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--parley-border);
   border-radius: 6px;
   overflow: hidden;
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.7);

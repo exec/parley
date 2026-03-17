@@ -4,8 +4,8 @@
    ========================================================= */
 
 .code-block {
-  background: var(--discord-bg-secondary);
-  border: 1px solid var(--discord-border);
+  background: var(--parley-bg-secondary);
+  border: 1px solid var(--parley-border);
   border-radius: 6px;
   font-family: 'Fira Mono', 'Consolas', 'Menlo', 'Monaco', monospace;
   font-size: 13px;
@@ -21,14 +21,14 @@
   align-items: center;
   justify-content: space-between;
   padding: 6px 12px;
-  background: var(--discord-bg-secondary);
-  border-bottom: 1px solid var(--discord-border);
+  background: var(--parley-bg-secondary);
+  border-bottom: 1px solid var(--parley-border);
   gap: 8px;
   min-height: 32px;
 }
 
 .code-block-filename {
-  color: var(--discord-accent);
+  color: var(--parley-accent);
   font-size: 12px;
   font-weight: 600;
   font-family: 'Fira Mono', 'Consolas', monospace;
@@ -39,7 +39,7 @@
 }
 
 .code-block-lang {
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -49,7 +49,7 @@
 .code-block-toggle {
   background: none;
   border: none;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
   cursor: pointer;
   font-size: 11px;
   padding: 2px 6px;
@@ -60,7 +60,7 @@
 }
 
 .code-block-toggle:hover {
-  color: var(--discord-accent);
+  color: var(--parley-accent);
   background: rgba(var(--accent-rgb), 0.08);
 }
 
@@ -81,7 +81,7 @@
 .code-block-body .shiki {
   margin: 0;
   padding: 12px 14px;
-  background: var(--discord-bg-secondary) !important;
+  background: var(--parley-bg-secondary) !important;
   overflow-x: auto;
 }
 
@@ -115,24 +115,24 @@
   min-width: 40px;
   padding: 0 10px 0 6px;
   text-align: right;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
   font-size: 11px;
   line-height: 1.5;
   cursor: pointer;
   user-select: none;
   flex-shrink: 0;
-  border-right: 1px solid var(--discord-bg-tertiary);
+  border-right: 1px solid var(--parley-bg-tertiary);
   margin-right: 10px;
   transition: color 0.1s;
 }
 
 .code-block-line-number:hover {
-  color: var(--discord-accent);
+  color: var(--parley-accent);
 }
 
 .code-block-line--highlighted .code-block-line-number {
-  color: var(--discord-accent);
-  border-right-color: var(--discord-accent);
+  color: var(--parley-accent);
+  border-right-color: var(--parley-accent);
 }
 
 .code-block-line--highlighted {
@@ -143,7 +143,7 @@
   flex: 1;
   overflow-x: visible;
   white-space: pre;
-  color: var(--discord-text-normal);
+  color: var(--parley-text-normal);
   line-height: 1.5;
   padding-right: 14px;
 }
@@ -152,7 +152,7 @@
 
 .code-block-plain {
   padding: 12px 14px;
-  color: var(--discord-text-normal);
+  color: var(--parley-text-normal);
   white-space: pre;
   overflow-x: auto;
 }
@@ -164,5 +164,5 @@
 }
 
 .code-block-collapsible .code-block-header:hover {
-  background: var(--discord-bg-tertiary);
+  background: var(--parley-bg-tertiary);
 }

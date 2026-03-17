@@ -5,16 +5,16 @@
 }
 
 .cp-loading {
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
   font-size: 13px;
   padding: 16px 0;
 }
 
 .cp-error {
-  background: rgba(var(--discord-danger-rgb), 0.1);
-  border: 1px solid rgba(var(--discord-danger-rgb), 0.3);
+  background: rgba(var(--parley-danger-rgb), 0.1);
+  border: 1px solid rgba(var(--parley-danger-rgb), 0.3);
   border-radius: 4px;
-  color: var(--discord-danger);
+  color: var(--parley-danger);
   padding: 10px 14px;
   font-size: 13px;
   margin-bottom: 16px;
@@ -35,13 +35,13 @@
 .cp-sync-badge--synced {
   background: rgba(var(--accent-rgb), 0.08);
   border: 1px solid rgba(var(--accent-rgb), 0.3);
-  color: var(--discord-accent);
+  color: var(--parley-accent);
 }
 
 .cp-sync-badge--unsynced {
   background: rgba(250, 166, 26, 0.08);
   border: 1px solid rgba(250, 166, 26, 0.3);
-  color: var(--discord-yellow);
+  color: var(--parley-yellow);
 }
 
 .cp-sync-btn {
@@ -87,7 +87,7 @@
   font-weight: 700;
   letter-spacing: 1px;
   text-transform: uppercase;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
   padding: 4px 8px;
   margin-bottom: 4px;
 }
@@ -101,7 +101,7 @@
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
   font-family: inherit;
   font-size: 13px;
   text-align: left;
@@ -110,23 +110,23 @@
 }
 
 .cp-target-item:hover {
-  background: var(--discord-hover);
-  color: var(--discord-text-normal);
+  background: var(--parley-hover);
+  color: var(--parley-text-normal);
 }
 
 .cp-target-item--active {
-  background: var(--discord-bg-tertiary);
-  color: var(--discord-accent);
+  background: var(--parley-bg-tertiary);
+  color: var(--parley-accent);
 }
 
 .cp-target-icon {
   font-size: 11px;
   flex-shrink: 0;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
 }
 
 .cp-target-item--active .cp-target-icon {
-  color: var(--discord-accent);
+  color: var(--parley-accent);
 }
 
 .cp-target-name {
@@ -140,7 +140,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--discord-yellow);
+  background: var(--parley-yellow);
   flex-shrink: 0;
 }
 
@@ -153,7 +153,7 @@
 .cp-add-type-toggle {
   display: flex;
   gap: 0;
-  border: 1px solid var(--discord-border-light);
+  border: 1px solid var(--parley-border-light);
   border-radius: 4px;
   overflow: hidden;
   margin-bottom: 6px;
@@ -163,7 +163,7 @@
   flex: 1;
   background: transparent;
   border: none;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
   padding: 5px 8px;
   font-size: 12px;
   cursor: pointer;
@@ -174,20 +174,20 @@
 
 .cp-add-type-btn.active {
   background: rgba(var(--accent-rgb), 0.1);
-  color: var(--discord-accent);
+  color: var(--parley-accent);
 }
 
 .cp-add-type-btn:hover:not(.active) {
-  color: var(--discord-text-normal);
+  color: var(--parley-text-normal);
   background: rgba(255, 255, 255, 0.03);
 }
 
 .cp-add-search {
   width: 100%;
-  background: var(--discord-input);
-  border: 1px solid var(--discord-border-light);
+  background: var(--parley-input);
+  border: 1px solid var(--parley-border-light);
   border-radius: 4px;
-  color: var(--discord-text-normal);
+  color: var(--parley-text-normal);
   padding: 7px 10px;
   font-size: 12px;
   font-family: inherit;
@@ -197,7 +197,7 @@
 }
 
 .cp-add-search:focus {
-  border-color: var(--discord-accent);
+  border-color: var(--parley-accent);
 }
 
 .cp-add-dropdown {
@@ -205,8 +205,8 @@
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  background: var(--discord-bg-tertiary);
-  border: 1px solid var(--discord-border-light);
+  background: var(--parley-bg-tertiary);
+  border: 1px solid var(--parley-border-light);
   border-radius: 4px;
   max-height: 180px;
   overflow-y: auto;
@@ -222,7 +222,7 @@
   border: none;
   padding: 8px 12px;
   font-size: 12px;
-  color: var(--discord-text-normal);
+  color: var(--parley-text-normal);
   cursor: pointer;
   font-family: inherit;
   text-align: left;
@@ -230,8 +230,8 @@
 }
 
 .cp-add-item:hover {
-  background: var(--discord-hover);
-  color: var(--discord-text-normal);
+  background: var(--parley-hover);
+  color: var(--parley-text-normal);
 }
 
 .cp-add-item-dot {
@@ -244,7 +244,7 @@
 .cp-add-empty {
   padding: 10px 12px;
   font-size: 12px;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
 }
 
 /* Right: permission grid */
@@ -259,7 +259,7 @@
   justify-content: space-between;
   margin-bottom: 12px;
   padding-bottom: 8px;
-  border-bottom: 1px solid var(--discord-border);
+  border-bottom: 1px solid var(--parley-border);
 }
 
 .cp-perm-target-label {
@@ -268,13 +268,13 @@
   gap: 8px;
   font-size: 14px;
   font-weight: 600;
-  color: var(--discord-text-normal);
+  color: var(--parley-text-normal);
 }
 
 .cp-remove-btn {
   background: none;
-  border: 1px solid rgba(var(--discord-danger-rgb), 0.2);
-  color: var(--discord-danger);
+  border: 1px solid rgba(var(--parley-danger-rgb), 0.2);
+  color: var(--parley-danger);
   border-radius: 4px;
   padding: 4px 10px;
   font-size: 11px;
@@ -285,8 +285,8 @@
 }
 
 .cp-remove-btn:hover {
-  background: rgba(var(--discord-danger-rgb), 0.1);
-  color: var(--discord-danger);
+  background: rgba(var(--parley-danger-rgb), 0.1);
+  color: var(--parley-danger);
 }
 
 .cp-perm-legend {
@@ -297,24 +297,24 @@
 }
 
 .cp-legend-allow {
-  color: var(--discord-accent);
+  color: var(--parley-accent);
 }
 
 .cp-legend-inherit {
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
 }
 
 .cp-legend-deny {
-  color: var(--discord-danger);
+  color: var(--parley-danger);
 }
 
 .cp-perm-empty {
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
   font-size: 13px;
   padding: 24px;
   text-align: center;
-  background: var(--discord-sidebar);
-  border: 1px dashed var(--discord-border);
+  background: var(--parley-sidebar);
+  border: 1px dashed var(--parley-border);
   border-radius: 6px;
 }
 
@@ -328,7 +328,7 @@
   font-weight: 700;
   letter-spacing: 1px;
   text-transform: uppercase;
-  color: var(--discord-accent);
+  color: var(--parley-accent);
   margin-bottom: 8px;
 }
 
@@ -343,9 +343,9 @@
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background: var(--discord-input);
+  background: var(--parley-input);
   border-radius: 4px;
-  border: 1px solid var(--discord-border);
+  border: 1px solid var(--parley-border);
 }
 
 .cp-perm-info {
@@ -355,12 +355,12 @@
 
 .cp-perm-name {
   font-size: 13px;
-  color: var(--discord-text-normal);
+  color: var(--parley-text-normal);
 }
 
 .cp-perm-desc {
   font-size: 11px;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
   margin-top: 1px;
 }
 
@@ -384,8 +384,8 @@
 
 .cp-tristate--allow {
   background: rgba(var(--accent-rgb), 0.15);
-  border-color: var(--discord-accent);
-  color: var(--discord-accent);
+  border-color: var(--parley-accent);
+  color: var(--parley-accent);
 }
 
 .cp-tristate--allow:hover {
@@ -393,24 +393,24 @@
 }
 
 .cp-tristate--inherit {
-  background: var(--discord-sidebar);
-  border-color: var(--discord-border-light);
-  color: var(--discord-text-muted);
+  background: var(--parley-sidebar);
+  border-color: var(--parley-border-light);
+  color: var(--parley-text-muted);
 }
 
 .cp-tristate--inherit:hover {
-  background: var(--discord-hover);
-  color: var(--discord-text-normal);
+  background: var(--parley-hover);
+  color: var(--parley-text-normal);
 }
 
 .cp-tristate--deny {
-  background: rgba(var(--discord-danger-rgb), 0.15);
-  border-color: var(--discord-danger);
-  color: var(--discord-danger);
+  background: rgba(var(--parley-danger-rgb), 0.15);
+  border-color: var(--parley-danger);
+  color: var(--parley-danger);
 }
 
 .cp-tristate--deny:hover {
-  background: rgba(var(--discord-danger-rgb), 0.25);
+  background: rgba(var(--parley-danger-rgb), 0.25);
 }
 
 /* Save bar */
@@ -419,8 +419,8 @@
   bottom: 0;
   margin-top: 24px;
   padding: 12px 16px;
-  background: var(--discord-bg-tertiary);
-  border: 1px solid var(--discord-border-light);
+  background: var(--parley-bg-tertiary);
+  border: 1px solid var(--parley-border-light);
   border-radius: 6px;
   display: flex;
   align-items: center;
@@ -431,11 +431,11 @@
 .cp-save-hint {
   flex: 1;
   font-size: 13px;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
 }
 
 .cp-save-btn {
-  background: var(--discord-accent);
+  background: var(--parley-accent);
   color: #000;
   border: none;
   border-radius: 4px;
@@ -448,7 +448,7 @@
 }
 
 .cp-save-btn:hover:not(:disabled) {
-  background: var(--discord-accent-hover);
+  background: var(--parley-accent-hover);
 }
 
 .cp-save-btn:disabled {
@@ -457,9 +457,9 @@
 }
 
 .cp-reset-btn {
-  background: var(--discord-hover);
-  color: var(--discord-text-muted);
-  border: 1px solid var(--discord-border-light);
+  background: var(--parley-hover);
+  color: var(--parley-text-muted);
+  border: 1px solid var(--parley-border-light);
   border-radius: 4px;
   padding: 8px 16px;
   font-size: 13px;
@@ -469,8 +469,8 @@
 }
 
 .cp-reset-btn:hover:not(:disabled) {
-  background: var(--discord-border-light);
-  color: var(--discord-text-normal);
+  background: var(--parley-border-light);
+  color: var(--parley-text-normal);
 }
 
 .cp-reset-btn:disabled {

@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--discord-channel-bg);
+  background: var(--parley-channel-bg);
   overflow: hidden;
 }
 
@@ -12,8 +12,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  background: var(--discord-input);
-  border-bottom: 1px solid var(--discord-border);
+  background: var(--parley-input);
+  border-bottom: 1px solid var(--parley-border);
   flex-shrink: 0;
 }
 
@@ -26,7 +26,7 @@
 .vc-channel-name {
   font-size: 15px;
   font-weight: 700;
-  color: var(--discord-text-normal);
+  color: var(--parley-text-normal);
 }
 
 .vc-status {
@@ -36,9 +36,9 @@
   font-weight: 600;
 }
 
-.vc-status.connected { background: rgba(var(--accent-rgb), 0.15); color: var(--discord-accent); }
+.vc-status.connected { background: rgba(var(--accent-rgb), 0.15); color: var(--parley-accent); }
 .vc-status.connecting { background: rgba(240,178,50,0.15); color: #f0b232; }
-.vc-status.error { background: rgba(var(--discord-danger-rgb), 0.15); color: var(--discord-danger); }
+.vc-status.error { background: rgba(var(--parley-danger-rgb), 0.15); color: var(--parley-danger); }
 
 .vc-header-controls {
   display: flex;
@@ -47,9 +47,9 @@
 
 .vc-hdr-btn {
   background: none;
-  border: 1px solid var(--discord-border-light);
+  border: 1px solid var(--parley-border-light);
   border-radius: 4px;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
   padding: 6px 8px;
   cursor: pointer;
   display: flex;
@@ -59,15 +59,15 @@
 
 .vc-hdr-btn:hover, .vc-hdr-btn.active {
   background: rgba(var(--accent-rgb), 0.1);
-  color: var(--discord-accent);
+  color: var(--parley-accent);
   border-color: rgba(var(--accent-rgb), 0.3);
 }
 
 /* Error bar */
 .vc-error {
-  background: rgba(var(--discord-danger-rgb), 0.1);
-  border-bottom: 1px solid rgba(var(--discord-danger-rgb), 0.3);
-  color: var(--discord-danger);
+  background: rgba(var(--parley-danger-rgb), 0.1);
+  border-bottom: 1px solid rgba(var(--parley-danger-rgb), 0.3);
+  color: var(--parley-danger);
   padding: 8px 16px;
   font-size: 13px;
   flex-shrink: 0;
@@ -75,8 +75,8 @@
 
 .vc-retry-btn {
   background: none;
-  border: 1px solid var(--discord-danger);
-  color: var(--discord-danger);
+  border: 1px solid var(--parley-danger);
+  color: var(--parley-danger);
   border-radius: 3px;
   padding: 1px 8px;
   cursor: pointer;
@@ -97,7 +97,7 @@
 }
 
 .vc-empty {
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
   font-size: 13px;
   text-align: center;
   padding: 40px;
@@ -129,8 +129,8 @@
   gap: 8px;
   padding: 8px 12px;
   overflow-x: auto;
-  background: var(--discord-input);
-  border-top: 1px solid var(--discord-border);
+  background: var(--parley-input);
+  border-top: 1px solid var(--parley-border);
   flex-shrink: 0;
 }
 
@@ -146,15 +146,15 @@
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
-  background: var(--discord-input);
-  border-top: 1px solid var(--discord-border);
+  background: var(--parley-input);
+  border-top: 1px solid var(--parley-border);
   flex-shrink: 0;
   justify-content: center;
 }
 
 .vc-ctrl {
-  background: var(--discord-bg-tertiary);
-  border: 1px solid var(--discord-border-light);
+  background: var(--parley-bg-tertiary);
+  border: 1px solid var(--parley-border-light);
   border-radius: 8px;
   width: 44px;
   height: 44px;
@@ -166,18 +166,18 @@
 }
 
 .vc-ctrl:hover {
-  background: var(--discord-hover);
+  background: var(--parley-hover);
 }
 
 .vc-ctrl--off {
-  border-color: rgba(var(--discord-danger-rgb), 0.3);
+  border-color: rgba(var(--parley-danger-rgb), 0.3);
 }
 
 .vc-ctrl--leave {
-  border-color: rgba(var(--discord-danger-rgb), 0.3);
+  border-color: rgba(var(--parley-danger-rgb), 0.3);
 }
 
 .vc-ctrl--leave:hover {
-  background: rgba(var(--discord-danger-rgb), 0.1);
-  border-color: var(--discord-danger);
+  background: rgba(var(--parley-danger-rgb), 0.1);
+  border-color: var(--parley-danger);
 }

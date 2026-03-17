@@ -3,7 +3,7 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: 'Parley Developer API',
   description: 'Build bots and integrations on Parley',
-  base: '/docs/developer/',
+  base: '/docs/',
   cleanUrls: true,
   srcExclude: ['superpowers/**'],
 
@@ -27,6 +27,12 @@ export default defineConfig({
           { text: 'Bots', link: '/bots' },
           { text: 'Selfbots', link: '/selfbots' },
           { text: 'Rate Limits & Limits', link: '/limits' },
+        ],
+      },
+      {
+        text: 'Customization',
+        items: [
+          { text: 'Theming', link: '/theming' },
         ],
       },
       {

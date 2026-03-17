@@ -16,15 +16,15 @@ const BUILTIN_LABELS: Record<string, string> = {
 const PREVIEW_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 *{margin:0;padding:0;box-sizing:border-box;}
 body{font-family:sans-serif;background:var(--bg-primary,#000);color:var(--text-primary,#fff);display:flex;height:100vh;overflow:hidden;}
-.sb{width:56px;background:var(--discord-sidebar,#111);}
-.ch{width:120px;background:var(--discord-bg-secondary,#0a0a0a);padding:8px;}
-.ch h4{font-size:10px;color:var(--discord-text-muted,#666);margin-bottom:6px;}
-.c{font-size:11px;color:var(--discord-text-muted,#666);padding:3px 4px;border-radius:3px;}
-.c.a{background:var(--discord-bg-hover,#1a1a1a);color:var(--discord-text-normal,#fff);}
-.chat{flex:1;background:var(--discord-channel-bg,#000);padding:10px;display:flex;flex-direction:column;justify-content:flex-end;}
-.m{margin-bottom:8px;}.m .n{font-size:11px;font-weight:700;color:var(--discord-accent,#32CD32);}
-.m .t{font-size:12px;color:var(--discord-text-normal,#eee);}
-.inp{background:var(--discord-input,#111);border-radius:6px;padding:8px;font-size:11px;color:var(--discord-text-muted,#666);}
+.sb{width:56px;background:var(--parley-sidebar,#111);}
+.ch{width:120px;background:var(--parley-bg-secondary,#0a0a0a);padding:8px;}
+.ch h4{font-size:10px;color:var(--parley-text-muted,#666);margin-bottom:6px;}
+.c{font-size:11px;color:var(--parley-text-muted,#666);padding:3px 4px;border-radius:3px;}
+.c.a{background:var(--parley-bg-hover,#1a1a1a);color:var(--parley-text-normal,#fff);}
+.chat{flex:1;background:var(--parley-channel-bg,#000);padding:10px;display:flex;flex-direction:column;justify-content:flex-end;}
+.m{margin-bottom:8px;}.m .n{font-size:11px;font-weight:700;color:var(--parley-accent,#32CD32);}
+.m .t{font-size:12px;color:var(--parley-text-normal,#eee);}
+.inp{background:var(--parley-input,#111);border-radius:6px;padding:8px;font-size:11px;color:var(--parley-text-muted,#666);}
 </style><style id="u"></style></head><body>
 <div class="sb"></div>
 <div class="ch"><h4># CHANNELS</h4>
@@ -151,7 +151,7 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
       <div className="theme-editor-field">
         <label className="theme-editor-label">Custom CSS</label>
         <textarea className="theme-editor-textarea" value={css} onChange={e => setCSS(e.target.value)}
-          placeholder={`/* Use [data-theme] to override variables — not :root */\n[data-theme] {\n  --discord-accent: hotpink;\n  --accent-rgb: 255, 105, 180;\n}\n\n/* Google Fonts allowed */\n@import url('https://fonts.googleapis.com/css2?family=Inter');`} />
+          placeholder={`/* Use [data-theme] to override variables — not :root */\n[data-theme] {\n  --parley-accent: hotpink;\n  --accent-rgb: 255, 105, 180;\n}\n\n/* Google Fonts allowed */\n@import url('https://fonts.googleapis.com/css2?family=Inter');`} />
         <div className="theme-editor-hint">Google Fonts allowed. All other external URLs are blocked.</div>
       </div>
 

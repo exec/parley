@@ -41,7 +41,7 @@
 }
 
 .gif-picker-search:focus {
-  border-color: var(--discord-accent);
+  border-color: var(--parley-accent);
 }
 
 .gif-picker-search::placeholder {

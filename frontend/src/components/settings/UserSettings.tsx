@@ -662,12 +662,12 @@ const PasskeySection: React.FC = () => {
   return (
     <div className="settings-section">
       <div className="settings-section-title">Passkeys</div>
-      <p style={{ fontSize: 13, color: 'var(--discord-text-muted)', marginBottom: 12 }}>
+      <p style={{ fontSize: 13, color: 'var(--parley-text-muted)', marginBottom: 12 }}>
         Sign in with your fingerprint, face, or device PIN instead of a password.
       </p>
       {error && <div className="settings-error">{error}</div>}
       {loading ? (
-        <p style={{ fontSize: 13, color: 'var(--discord-text-muted)' }}>Loading…</p>
+        <p style={{ fontSize: 13, color: 'var(--parley-text-muted)' }}>Loading…</p>
       ) : (
         <>
           {passkeys.length > 0 && (
@@ -700,7 +700,7 @@ const PasskeySection: React.FC = () => {
             </div>
           )}
           {passkeys.length === 0 && (
-            <p style={{ fontSize: 13, color: 'var(--discord-text-muted)', marginBottom: 12 }}>
+            <p style={{ fontSize: 13, color: 'var(--parley-text-muted)', marginBottom: 12 }}>
               No passkeys registered yet.
             </p>
           )}

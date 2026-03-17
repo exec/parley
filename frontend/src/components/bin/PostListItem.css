@@ -38,7 +38,7 @@
 
 .post-list-item-time {
   font-size: 12px;
-  color: var(--discord-text-dim);
+  color: var(--parley-text-dim);
   white-space: nowrap;
   flex-shrink: 0;
   margin-top: 2px;
@@ -130,7 +130,7 @@
   align-items: center;
   gap: 4px;
   font-size: 12px;
-  color: var(--discord-text-dim);
+  color: var(--parley-text-dim);
 }
 
 .post-stat-icon {

@@ -3,8 +3,8 @@
   flex-direction: column;
   width: 360px;
   height: 100%;
-  background: var(--discord-bg-secondary);
-  border-left: 1px solid var(--discord-bg-tertiary);
+  background: var(--parley-bg-secondary);
+  border-left: 1px solid var(--parley-bg-tertiary);
   overflow: hidden;
 }
 
@@ -13,7 +13,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 14px 16px 10px;
-  border-bottom: 1px solid var(--discord-bg-tertiary);
+  border-bottom: 1px solid var(--parley-bg-tertiary);
   flex-shrink: 0;
 }
 
@@ -27,7 +27,7 @@
 .search-panel-close {
   background: none;
   border: none;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
   font-size: 16px;
   cursor: pointer;
   padding: 2px 6px;
@@ -35,8 +35,8 @@
   transition: color 0.15s, background 0.15s;
 }
 .search-panel-close:hover {
-  color: var(--discord-text-normal);
-  background: var(--discord-bg-tertiary);
+  color: var(--parley-text-normal);
+  background: var(--parley-bg-tertiary);
 }
 
 .search-panel-input-wrap {
@@ -44,33 +44,33 @@
   align-items: center;
   gap: 6px;
   padding: 10px 12px;
-  border-bottom: 1px solid var(--discord-bg-tertiary);
+  border-bottom: 1px solid var(--parley-bg-tertiary);
   flex-shrink: 0;
 }
 
 .search-panel-input {
   flex: 1;
-  background: var(--discord-bg-secondary);
-  border: 1px solid var(--discord-border);
+  background: var(--parley-bg-secondary);
+  border: 1px solid var(--parley-border);
   border-radius: 6px;
-  color: var(--discord-text-normal);
+  color: var(--parley-text-normal);
   font-size: 13px;
   padding: 7px 10px;
   outline: none;
   transition: border-color 0.15s;
 }
 .search-panel-input:focus {
-  border-color: var(--discord-accent);
+  border-color: var(--parley-accent);
 }
 .search-panel-input::placeholder {
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
 }
 
 .search-panel-btn {
-  background: var(--discord-border);
-  border: 1px solid var(--discord-border-light);
+  background: var(--parley-border);
+  border: 1px solid var(--parley-border-light);
   border-radius: 6px;
-  color: var(--discord-accent);
+  color: var(--parley-accent);
   font-size: 16px;
   font-weight: 700;
   cursor: pointer;
@@ -79,7 +79,7 @@
   flex-shrink: 0;
 }
 .search-panel-btn:hover:not(:disabled) {
-  background: var(--discord-border-light);
+  background: var(--parley-border-light);
 }
 .search-panel-btn:disabled {
   opacity: 0.5;
@@ -91,7 +91,7 @@
   flex-wrap: wrap;
   gap: 6px;
   padding: 8px 12px;
-  border-bottom: 1px solid var(--discord-bg-tertiary);
+  border-bottom: 1px solid var(--parley-bg-tertiary);
   flex-shrink: 0;
 }
 
@@ -107,7 +107,7 @@
 }
 .search-chip--from {
   background: rgba(var(--accent-rgb), 0.12);
-  color: var(--discord-accent);
+  color: var(--parley-accent);
 }
 .search-chip--in {
   background: rgba(88, 101, 242, 0.12);
@@ -121,7 +121,7 @@
 }
 
 .search-panel-status {
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
   font-size: 13px;
   text-align: center;
   padding: 24px 16px;
@@ -129,31 +129,31 @@
 
 .search-panel-hint {
   padding: 20px 16px;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
   font-size: 13px;
   line-height: 1.6;
 }
 .search-hint-examples {
   margin-top: 10px;
   font-size: 12px;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
 }
 .search-hint-examples code {
-  background: var(--discord-bg-tertiary);
+  background: var(--parley-bg-tertiary);
   border-radius: 3px;
   padding: 1px 5px;
-  color: var(--discord-gray);
+  color: var(--parley-gray);
   font-family: monospace;
 }
 
 .search-result {
   padding: 10px 14px;
-  border-bottom: 1px solid var(--discord-bg-secondary);
+  border-bottom: 1px solid var(--parley-bg-secondary);
   cursor: pointer;
   transition: background 0.1s;
 }
 .search-result:hover {
-  background: var(--discord-bg-tertiary);
+  background: var(--parley-bg-tertiary);
 }
 
 .search-result-meta {
@@ -173,18 +173,18 @@
 .search-result-author {
   font-size: 12px;
   font-weight: 600;
-  color: var(--discord-accent);
+  color: var(--parley-accent);
 }
 
 .search-result-time {
   font-size: 11px;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
   margin-left: auto;
 }
 
 .search-result-content {
   font-size: 13px;
-  color: var(--discord-text-normal);
+  color: var(--parley-text-normal);
   line-height: 1.5;
   overflow: hidden;
   display: -webkit-box;
@@ -193,6 +193,6 @@
 }
 
 .search-result-attachment {
-  color: var(--discord-gray);
+  color: var(--parley-gray);
   font-size: 12px;
 }

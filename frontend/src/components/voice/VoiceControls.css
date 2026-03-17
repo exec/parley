@@ -1,6 +1,6 @@
 @keyframes vc-dot-pulse {
-  0%, 100% { box-shadow: 0 0 4px var(--discord-accent); opacity: 1; }
-  50% { box-shadow: 0 0 10px var(--discord-accent), 0 0 20px rgba(var(--accent-rgb), 0.4); opacity: 0.7; }
+  0%, 100% { box-shadow: 0 0 4px var(--parley-accent); opacity: 1; }
+  50% { box-shadow: 0 0 10px var(--parley-accent), 0 0 20px rgba(var(--accent-rgb), 0.4); opacity: 0.7; }
 }
 
 .voice-widget {
@@ -8,8 +8,8 @@
   bottom: 0;
   left: var(--sidebar-width, 232px);
   width: 230px;
-  background: var(--discord-sidebar);
-  border: 1px solid var(--discord-border);
+  background: var(--parley-sidebar);
+  border: 1px solid var(--parley-border);
   border-bottom: none;
   border-radius: 8px 8px 0 0;
   z-index: 200;
@@ -26,16 +26,16 @@
 }
 
 .voice-widget-status:hover .voice-widget-channel {
-  color: var(--discord-text-normal);
+  color: var(--parley-text-normal);
 }
 
 .voice-widget-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--discord-accent);
+  background: var(--parley-accent);
   flex-shrink: 0;
-  box-shadow: 0 0 6px var(--discord-accent);
+  box-shadow: 0 0 6px var(--parley-accent);
   animation: vc-dot-pulse 2s ease-in-out infinite;
 }
 
@@ -49,13 +49,13 @@
 .voice-widget-label {
   font-size: 11px;
   font-weight: 700;
-  color: var(--discord-accent);
+  color: var(--parley-accent);
   letter-spacing: 0.5px;
 }
 
 .voice-widget-channel {
   font-size: 11px;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -71,7 +71,7 @@
 
 .vw-btn {
   background: none;
-  border: 1px solid var(--discord-border-light);
+  border: 1px solid var(--parley-border-light);
   border-radius: 6px;
   width: 34px;
   height: 34px;
@@ -84,41 +84,41 @@
 }
 
 .vw-btn:hover {
-  background: var(--discord-hover);
+  background: var(--parley-hover);
 }
 
 .vw-btn--off {
-  border-color: rgba(var(--discord-danger-rgb), 0.2);
+  border-color: rgba(var(--parley-danger-rgb), 0.2);
 }
 
 .vw-btn--leave {
-  border-color: rgba(var(--discord-danger-rgb), 0.3);
+  border-color: rgba(var(--parley-danger-rgb), 0.3);
   margin-left: auto;
 }
 
 .vw-btn--leave:hover {
-  background: rgba(var(--discord-danger-rgb), 0.1);
-  border-color: var(--discord-danger);
+  background: rgba(var(--parley-danger-rgb), 0.1);
+  border-color: var(--parley-danger);
 }
 
 .voice-widget-ptt {
   padding: 0 12px 8px;
   font-size: 11px;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
 }
 
 .voice-widget-ptt kbd {
-  background: var(--discord-hover);
-  border: 1px solid var(--discord-border-light);
+  background: var(--parley-hover);
+  border: 1px solid var(--parley-border-light);
   border-radius: 3px;
   padding: 1px 5px;
   font-size: 10px;
   font-family: inherit;
-  color: var(--discord-text-normal);
+  color: var(--parley-text-normal);
 }
 
 .voice-widget-mode {
   padding: 0 12px 8px;
   font-size: 11px;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
 }

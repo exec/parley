@@ -1,21 +1,21 @@
 .theme-popover-wrap { position: relative; display: inline-flex; }
-.theme-popover-btn { background: none; border: none; cursor: pointer; color: var(--discord-text-muted); padding: 4px; border-radius: 4px; display: flex; align-items: center; }
-.theme-popover-btn:hover { color: var(--discord-text-normal); }
+.theme-popover-btn { background: none; border: none; cursor: pointer; color: var(--parley-text-muted); padding: 4px; border-radius: 4px; display: flex; align-items: center; }
+.theme-popover-btn:hover { color: var(--parley-text-normal); }
 .theme-popover {
   position: absolute; bottom: calc(100% + 8px); left: 0;
-  background: var(--discord-bg-tertiary); border: 1px solid var(--discord-border);
+  background: var(--parley-bg-tertiary); border: 1px solid var(--parley-border);
   border-radius: 8px; padding: 8px; min-width: 200px; max-height: 320px;
   overflow-y: auto; z-index: 1000; box-shadow: 0 4px 16px rgba(0,0,0,.4);
 }
-.theme-popover-section { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--discord-text-muted); padding: 4px 4px 2px; }
+.theme-popover-section { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--parley-text-muted); padding: 4px 4px 2px; }
 .theme-popover-item {
   display: flex; align-items: center; gap: 8px; padding: 5px 6px;
   border-radius: 4px; cursor: pointer; border: none; background: none;
-  width: 100%; text-align: left; color: var(--discord-text-normal); font-size: 13px;
+  width: 100%; text-align: left; color: var(--parley-text-normal); font-size: 13px;
 }
-.theme-popover-item:hover { background: var(--discord-bg-hover); }
-.theme-popover-item.active { background: var(--discord-bg-hover); color: var(--discord-accent); font-weight: 600; }
-.theme-popover-swatch { width: 20px; height: 20px; border-radius: 4px; border: 1px solid var(--discord-border); flex-shrink: 0; }
-.theme-popover-divider { height: 1px; background: var(--discord-border); margin: 6px 0; }
-.theme-popover-manage { display: block; text-align: center; font-size: 11px; color: var(--discord-text-muted); padding: 4px; cursor: pointer; border: none; background: none; width: 100%; }
-.theme-popover-manage:hover { color: var(--discord-text-normal); }
+.theme-popover-item:hover { background: var(--parley-bg-hover); }
+.theme-popover-item.active { background: var(--parley-bg-hover); color: var(--parley-accent); font-weight: 600; }
+.theme-popover-swatch { width: 20px; height: 20px; border-radius: 4px; border: 1px solid var(--parley-border); flex-shrink: 0; }
+.theme-popover-divider { height: 1px; background: var(--parley-border); margin: 6px 0; }
+.theme-popover-manage { display: block; text-align: center; font-size: 11px; color: var(--parley-text-muted); padding: 4px; cursor: pointer; border: none; background: none; width: 100%; }
+.theme-popover-manage:hover { color: var(--parley-text-normal); }

@@ -22,7 +22,7 @@
 }
 
 .server-header:hover {
-  background-color: var(--discord-hover);
+  background-color: var(--parley-hover);
 }
 
 .server-name {
@@ -115,7 +115,7 @@
 }
 
 .channel-item.active {
-  background-color: var(--discord-hover);
+  background-color: var(--parley-hover);
   color: var(--accent);
 }
 
@@ -128,7 +128,7 @@
   margin-left: auto;
   min-width: 18px;
   height: 18px;
-  background-color: var(--discord-danger);
+  background-color: var(--parley-danger);
   color: #ffffff;
   font-size: 10px;
   font-weight: 700;
@@ -184,7 +184,7 @@
 }
 
 .voice-channel-item.active {
-  background-color: var(--discord-hover);
+  background-color: var(--parley-hover);
   color: var(--accent);
 }
 
@@ -380,7 +380,7 @@
 }
 
 .delete-channel-btn:hover {
-  color: var(--discord-danger);
+  color: var(--parley-danger);
 }
 
 .manage-roles-item {
@@ -406,7 +406,7 @@
 }
 
 .logout-btn:hover {
-  color: var(--discord-danger);
+  color: var(--parley-danger);
 }
 
 .logout-btn svg {
@@ -465,15 +465,15 @@
 
 .cl-user-context-item:hover {
   background-color: var(--accent);
-  color: var(--discord-text-normal);
+  color: var(--parley-text-normal);
 }
 
 .cl-user-context-item.danger {
-  color: var(--discord-danger);
+  color: var(--parley-danger);
 }
 
 .cl-user-context-item.danger:hover {
-  background-color: var(--discord-danger);
+  background-color: var(--parley-danger);
   color: #fff;
 }
 
@@ -512,15 +512,15 @@
 
 .cl-server-context-item:hover {
   background-color: var(--accent);
-  color: var(--discord-text-normal);
+  color: var(--parley-text-normal);
 }
 
 .cl-server-context-item.danger {
-  color: var(--discord-danger);
+  color: var(--parley-danger);
 }
 
 .cl-server-context-item.danger:hover {
-  background-color: var(--discord-danger);
+  background-color: var(--parley-danger);
   color: #fff;
 }
 
@@ -587,7 +587,7 @@
   padding: 6px 12px 4px;
   font-size: 11px;
   font-weight: 700;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   white-space: nowrap;
@@ -600,7 +600,7 @@
   background: transparent;
   border: none;
   border-bottom: 1px solid var(--accent);
-  color: var(--discord-text-normal);
+  color: var(--parley-text-normal);
   font-size: 14px;
   font-family: inherit;
   outline: none;
@@ -688,22 +688,22 @@
 }
 
 .voice-bar-btn.active {
-  border-color: rgba(var(--discord-danger-rgb),0.5);
-  color: var(--discord-danger);
-  background: rgba(var(--discord-danger-rgb),0.08);
+  border-color: rgba(var(--parley-danger-rgb),0.5);
+  color: var(--parley-danger);
+  background: rgba(var(--parley-danger-rgb),0.08);
 }
 
 .voice-bar-btn.leave {
-  border-color: rgba(var(--discord-danger-rgb),0.25);
-  color: rgba(var(--discord-danger-rgb),0.65);
+  border-color: rgba(var(--parley-danger-rgb),0.25);
+  color: rgba(var(--parley-danger-rgb),0.65);
   flex: 0;
   padding: 4px 8px;
 }
 
 .voice-bar-btn.leave:hover {
-  border-color: var(--discord-danger);
-  color: var(--discord-danger);
-  background: rgba(var(--discord-danger-rgb),0.1);
+  border-color: var(--parley-danger);
+  color: var(--parley-danger);
+  background: rgba(var(--parley-danger-rgb),0.1);
 }
 
 .category-channels {

@@ -28,9 +28,9 @@
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  border: 1.5px solid var(--discord-accent);
+  border: 1.5px solid var(--parley-accent);
   background: rgba(var(--accent-rgb), 0.12);
-  color: var(--discord-accent);
+  color: var(--parley-accent);
   cursor: pointer;
   display: flex;
   align-items: center;

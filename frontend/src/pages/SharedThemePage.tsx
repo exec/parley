@@ -55,7 +55,7 @@ export const SharedThemePage: React.FC = () => {
         </div>
         <div className="shared-theme-actions">
           {installed
-            ? <div style={{color:'var(--discord-success)',fontWeight:600}}>✓ Installed! Find it in Settings → Appearance.</div>
+            ? <div style={{color:'var(--parley-success)',fontWeight:600}}>✓ Installed! Find it in Settings → Appearance.</div>
             : <button className="shared-theme-install" onClick={handleInstall} disabled={installing}>{installing?'Installing…':'Install Theme'}</button>
           }
           <button className="shared-theme-discard" onClick={handleDiscard}>Discard &amp; go home</button>

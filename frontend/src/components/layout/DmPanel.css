@@ -70,7 +70,7 @@
 }
 
 .dm-panel-item.active {
-  background-color: var(--discord-hover);
+  background-color: var(--parley-hover);
   color: var(--accent);
 }
 
@@ -83,7 +83,7 @@
   margin-left: auto;
   min-width: 18px;
   height: 18px;
-  background-color: var(--discord-danger);
+  background-color: var(--parley-danger);
   color: #ffffff;
   font-size: 10px;
   font-weight: 700;
@@ -133,11 +133,11 @@
 }
 
 .dm-panel-status-dot.online {
-  background-color: var(--discord-green);
+  background-color: var(--parley-green);
 }
 
 .dm-panel-status-dot.offline {
-  background-color: var(--discord-gray);
+  background-color: var(--parley-gray);
 }
 
 .dm-panel-name {
@@ -217,7 +217,7 @@
 }
 
 .dm-panel-logout:hover {
-  color: var(--discord-danger);
+  color: var(--parley-danger);
 }
 
 .dm-panel-logout svg {
@@ -276,15 +276,15 @@
 
 .user-context-item:hover {
   background-color: var(--accent);
-  color: var(--discord-text-normal);
+  color: var(--parley-text-normal);
 }
 
 .user-context-item.danger {
-  color: var(--discord-danger);
+  color: var(--parley-danger);
 }
 
 .user-context-item.danger:hover {
-  background-color: var(--discord-danger);
+  background-color: var(--parley-danger);
   color: #fff;
 }
 

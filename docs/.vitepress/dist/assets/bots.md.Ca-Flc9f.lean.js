@@ -1,1 +1,0 @@
-import{_ as a,o as t,c as e,ag as i}from"./chunks/framework.Bg_MqmSO.js";const k=JSON.parse('{"title":"Bots","description":"","frontmatter":{},"headers":[],"relativePath":"bots.md","filePath":"bots.md"}'),n={name:"bots.md"};function o(l,s,r,p,h,d){return t(),e("div",null,[...s[0]||(s[0]=[i("",21)])])}const g=a(n,[["render",o]]);export{k as __pageData,g as default};

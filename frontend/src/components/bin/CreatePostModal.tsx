@@ -161,7 +161,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
           {/* Title */}
           <div className="form-group">
-            <label className="form-label">Title <span style={{ color: 'var(--discord-danger)', marginLeft: 2 }}>*</span></label>
+            <label className="form-label">Title <span style={{ color: 'var(--parley-danger)', marginLeft: 2 }}>*</span></label>
             <input
               className="form-input"
               type="text"
@@ -176,7 +176,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
           {/* Description */}
           <div className="form-group">
             <label className="form-label">
-              Description <span style={{ color: 'var(--discord-text-dim)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>optional</span>
+              Description <span style={{ color: 'var(--parley-text-dim)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>optional</span>
             </label>
             <textarea
               className="form-input create-post-desc-textarea"

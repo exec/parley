@@ -1,7 +1,7 @@
 .participant-tile {
   position: relative;
-  background: var(--discord-input);
-  border: 1px solid var(--discord-border);
+  background: var(--parley-input);
+  border: 1px solid var(--parley-border);
   border-radius: 8px;
   overflow: hidden;
   aspect-ratio: 16 / 9;
@@ -11,8 +11,8 @@
 }
 
 .participant-tile--speaking {
-  border-color: var(--discord-accent);
-  box-shadow: 0 0 0 2px var(--discord-accent), 0 0 8px rgba(var(--accent-rgb), 0.4);
+  border-color: var(--parley-accent);
+  box-shadow: 0 0 0 2px var(--parley-accent), 0 0 8px rgba(var(--accent-rgb), 0.4);
 }
 
 .participant-tile--screen {
@@ -23,7 +23,7 @@
 .participant-tile-media {
   flex: 1;
   position: relative;
-  background: var(--discord-channel-bg);
+  background: var(--parley-channel-bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -40,8 +40,8 @@
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  background: var(--discord-hover);
-  border: 2px solid var(--discord-border-light);
+  background: var(--parley-hover);
+  border: 2px solid var(--parley-border-light);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -58,7 +58,7 @@
 .participant-tile-initial {
   font-size: 28px;
   font-weight: 700;
-  color: var(--discord-accent);
+  color: var(--parley-accent);
   font-family: inherit;
 }
 
@@ -78,7 +78,7 @@
   flex: 1;
   font-size: 12px;
   font-weight: 600;
-  color: var(--discord-text-normal);
+  color: var(--parley-text-normal);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -90,7 +90,7 @@
 .participant-tile-you {
   font-size: 10px;
   font-weight: 700;
-  color: var(--discord-accent);
+  color: var(--parley-accent);
   background: rgba(var(--accent-rgb), 0.15);
   border: 1px solid rgba(var(--accent-rgb), 0.3);
   border-radius: 3px;

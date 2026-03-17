@@ -65,7 +65,7 @@
   right: -2px;
   min-width: 18px;
   height: 18px;
-  background-color: var(--discord-danger);
+  background-color: var(--parley-danger);
   color: #ffffff;
   font-size: 10px;
   font-weight: 700;
@@ -206,7 +206,7 @@
   padding: 6px 12px 4px;
   font-size: 11px;
   font-weight: 700;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   white-space: nowrap;
@@ -229,7 +229,7 @@
   padding: 7px 12px;
   text-align: left;
   font-size: 13px;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
   cursor: pointer;
   border-radius: 3px;
   font-family: inherit;
@@ -237,15 +237,15 @@
 }
 
 .sidebar-ctx-item:hover {
-  background: var(--discord-hover);
+  background: var(--parley-hover);
   color: var(--accent);
 }
 
 .sidebar-ctx-item.danger {
-  color: var(--discord-danger);
+  color: var(--parley-danger);
 }
 
 .sidebar-ctx-item.danger:hover {
-  background: var(--discord-danger);
+  background: var(--parley-danger);
   color: #fff;
 }

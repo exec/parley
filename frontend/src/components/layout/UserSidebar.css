@@ -126,24 +126,24 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background-color: var(--discord-green);
+  background-color: var(--parley-green);
   border: 3px solid var(--bg-secondary);
 }
 
 .member-status.status-online {
-  background-color: var(--discord-green);
+  background-color: var(--parley-green);
 }
 
 .member-status.status-offline {
-  background-color: var(--discord-gray);
+  background-color: var(--parley-gray);
 }
 
 .member-status.idle {
-  background-color: var(--discord-yellow);
+  background-color: var(--parley-yellow);
 }
 
 .member-status.dnd {
-  background-color: var(--discord-red);
+  background-color: var(--parley-red);
 }
 
 .member-info {
@@ -306,12 +306,12 @@
 }
 
 .user-popover-nick {
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
   font-size: 12px;
 }
 
 .user-popover-role {
-  color: var(--discord-yellow);
+  color: var(--parley-yellow);
   font-size: 11px;
   text-transform: uppercase;
 }
@@ -328,7 +328,7 @@
   text-align: left;
   background: none;
   border: none;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
   font-size: 13px;
   padding: 6px 8px;
   border-radius: 4px;
@@ -337,7 +337,7 @@
 }
 
 .user-popover-item:hover:not(:disabled) {
-  background: var(--discord-hover);
+  background: var(--parley-hover);
   color: var(--accent);
 }
 
@@ -348,13 +348,13 @@
 
 .coming-soon {
   font-size: 10px;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
   margin-left: 4px;
 }
 
 .member-nickname-text {
   font-size: 11px;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
 }
 
 .member-item {
@@ -390,8 +390,8 @@
 }
 
 .user-context-menu-item:hover {
-  background-color: var(--discord-hover);
-  color: var(--discord-text-normal);
+  background-color: var(--parley-hover);
+  color: var(--parley-text-normal);
 }
 
 .user-context-menu-header {

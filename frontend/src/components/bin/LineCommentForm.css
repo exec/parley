@@ -42,7 +42,7 @@
 }
 
 .line-comment-form-textarea::placeholder {
-  color: var(--discord-text-dim);
+  color: var(--parley-text-dim);
 }
 
 .line-comment-form-textarea:disabled {
@@ -52,7 +52,7 @@
 
 .line-comment-form-error {
   font-size: 12px;
-  color: var(--discord-danger);
+  color: var(--parley-danger);
 }
 
 .line-comment-form-actions {

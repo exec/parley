@@ -3,8 +3,8 @@
 .mini-profile {
   position: fixed;
   width: 280px;
-  background: var(--discord-bg-secondary);
-  border: 1px solid var(--discord-border);
+  background: var(--parley-bg-secondary);
+  border: 1px solid var(--parley-border);
   border-radius: 8px;
   overflow: hidden;
   z-index: 900;
@@ -19,7 +19,7 @@
 
 .mini-profile-banner {
   height: 72px;
-  background: linear-gradient(135deg, var(--discord-bg-tertiary) 0%, var(--discord-sidebar) 50%, var(--discord-bg-tertiary) 100%);
+  background: linear-gradient(135deg, var(--parley-bg-tertiary) 0%, var(--parley-sidebar) 50%, var(--parley-bg-tertiary) 100%);
   background-size: cover;
   background-position: center;
   flex-shrink: 0;
@@ -40,13 +40,13 @@
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  border: 4px solid var(--discord-bg-secondary);
-  background: var(--discord-bg-tertiary);
+  border: 4px solid var(--parley-bg-secondary);
+  background: var(--parley-bg-tertiary);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 20px;
-  color: var(--discord-accent);
+  color: var(--parley-accent);
   font-weight: bold;
   overflow: hidden;
   flex-shrink: 0;
@@ -65,11 +65,11 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  border: 3px solid var(--discord-bg-secondary);
+  border: 3px solid var(--parley-bg-secondary);
 }
 
-.mini-profile-status-dot.online  { background: var(--discord-green); }
-.mini-profile-status-dot.offline { background: var(--discord-text-muted); }
+.mini-profile-status-dot.online  { background: var(--parley-green); }
+.mini-profile-status-dot.offline { background: var(--parley-text-muted); }
 
 .mini-profile-badge-row {
   position: absolute;
@@ -84,19 +84,19 @@
 .mini-profile-username {
   font-size: 16px;
   font-weight: 700;
-  color: var(--discord-text-normal);
+  color: var(--parley-text-normal);
   line-height: 1.2;
 }
 
 .mini-profile-nickname {
   font-size: 12px;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
   margin-top: 1px;
 }
 
 .mini-profile-bio {
   font-size: 12px;
-  color: var(--discord-text-normal);
+  color: var(--parley-text-normal);
   margin-top: 6px;
   line-height: 1.4;
   word-break: break-word;
@@ -108,7 +108,7 @@
 
 .mini-profile-divider {
   height: 1px;
-  background: var(--discord-border);
+  background: var(--parley-border);
   margin: 10px 0;
 }
 
@@ -124,13 +124,13 @@
   font-weight: 700;
   letter-spacing: 1px;
   text-transform: uppercase;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
 }
 
 .mini-profile-add-role-btn {
   background: none;
-  border: 1px solid var(--discord-border-light);
-  color: var(--discord-text-muted);
+  border: 1px solid var(--parley-border-light);
+  color: var(--parley-text-muted);
   border-radius: 3px;
   width: 18px;
   height: 18px;
@@ -146,8 +146,8 @@
 }
 
 .mini-profile-add-role-btn:hover {
-  border-color: var(--discord-accent);
-  color: var(--discord-accent);
+  border-color: var(--parley-accent);
+  color: var(--parley-accent);
 }
 
 .mini-profile-roles {
@@ -168,7 +168,7 @@
 
 .mini-profile-no-roles {
   font-size: 12px;
-  color: var(--discord-text-muted);
+  color: var(--parley-text-muted);
   font-style: italic;
 }
 
@@ -192,21 +192,21 @@
 }
 
 .mini-profile-action-btn.primary {
-  background: var(--discord-accent);
+  background: var(--parley-accent);
   color: #000;
 }
 
 .mini-profile-action-btn.primary:hover {
-  background: var(--discord-accent-hover);
+  background: var(--parley-accent-hover);
 }
 
 .mini-profile-action-btn.secondary {
-  background: var(--discord-hover);
-  color: var(--discord-text-muted);
-  border: 1px solid var(--discord-border-light);
+  background: var(--parley-hover);
+  color: var(--parley-text-muted);
+  border: 1px solid var(--parley-border-light);
 }
 
 .mini-profile-action-btn.secondary:hover {
-  background: var(--discord-border-light);
-  color: var(--discord-text-normal);
+  background: var(--parley-border-light);
+  color: var(--parley-text-normal);
 }

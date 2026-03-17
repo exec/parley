@@ -60,7 +60,7 @@
 .create-post-file-remove {
   background: none;
   border: none;
-  color: var(--discord-text-dim);
+  color: var(--parley-text-dim);
   cursor: pointer;
   font-size: 18px;
   line-height: 1;
@@ -71,7 +71,7 @@
 }
 
 .create-post-file-remove:hover {
-  color: var(--discord-danger);
+  color: var(--parley-danger);
 }
 
 .create-post-code-textarea {
@@ -96,7 +96,7 @@
 }
 
 .create-post-code-textarea::placeholder {
-  color: var(--discord-text-dim);
+  color: var(--parley-text-dim);
   font-family: 'Fira Mono', 'Consolas', 'Menlo', monospace;
 }
 
@@ -194,7 +194,7 @@
 
 .create-post-tag-hint {
   font-size: 11px;
-  color: var(--discord-text-dim);
+  color: var(--parley-text-dim);
   margin-top: 4px;
 }
 

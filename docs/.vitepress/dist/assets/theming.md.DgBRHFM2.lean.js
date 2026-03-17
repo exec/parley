@@ -1,0 +1,1 @@
+import{_ as e,o as s,c as i,ag as a}from"./chunks/framework.BYYsWsaA.js";const k=JSON.parse('{"title":"Theming","description":"","frontmatter":{},"headers":[],"relativePath":"theming.md","filePath":"theming.md"}'),d={name:"theming.md"};function r(n,t,o,l,h,c){return s(),i("div",null,[...t[0]||(t[0]=[a("",28)])])}const g=e(d,[["render",r]]);export{k as __pageData,g as default};
