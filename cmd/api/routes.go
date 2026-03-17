@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"parley/internal/ai"
 	"parley/internal/auth"
 	"parley/internal/bin"
 	"parley/internal/channel"
@@ -46,6 +47,10 @@ func registerRoutes(
 	binService *bin.Service,
 	tickets *ticketStore,
 	passkeySvc *passkey.Service,
+	redisHub     *ws.RedisHub,
+	ollamaAPIURL string,
+	ollamaAPIKey string,
+	ollamaModel  string,
 	cdnHost string,
 	siteURL string,
 ) {
@@ -53,7 +58,7 @@ func registerRoutes(
 	// which applies its own 50 MB limit inside the handler.
 	router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path != "/api/upload" {
+			if r.URL.Path != "/api/upload" && r.URL.Path != "/api/me/themes/generate" {
 				r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
 			}
 			next.ServeHTTP(w, r)
@@ -116,6 +121,15 @@ func registerRoutes(
 		themeRepo := theme.NewRepository(repo.DB())
 		themeSvc := theme.NewService(themeRepo, cdnHost, siteURL)
 		themeHandler := theme.NewHandler(themeSvc)
+
+		// AI theme generation handler — requires Redis and a configured Ollama key.
+		var aiQueue *ai.AIQueue
+		if redisHub != nil && ollamaAPIKey != "" {
+			aiQueue = ai.NewAIQueue(redisHub.Client())
+			ollamaClient := ai.NewOllamaClient(ollamaAPIURL, ollamaAPIKey, ollamaModel)
+			go ai.StartWorker(context.Background(), aiQueue, ollamaClient)
+		}
+		aiHandler := theme.NewAIHandler(aiQueue)
 
 		// Protected routes — require authentication
 		r.Group(func(r chi.Router) {
@@ -229,6 +243,7 @@ func registerRoutes(
 			r.Delete("/me/themes/{id}", themeHandler.DeleteTheme)
 			r.Post("/me/themes/{id}/share", themeHandler.ShareTheme)
 			r.Post("/me/themes/install/{token}", themeHandler.InstallTheme)
+			r.Post("/me/themes/generate", aiHandler.Generate)
 		})
 
 		// Public theme route — no authentication required
