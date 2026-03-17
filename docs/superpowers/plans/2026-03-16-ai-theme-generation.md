@@ -421,6 +421,21 @@ func processOne(ctx context.Context, queue *AIQueue, ollama *OllamaClient) error
 	if genErr != nil {
 		log.Printf("ai worker: job %s failed: %v", job.JobID, genErr)
 		result = AIGenResult{Error: "AI generation failed: " + genErr.Error()}
+	} else if !validateGeneratedCSS(css) {
+		// First attempt produced invalid CSS — retry once with a clarifying prompt.
+		log.Printf("ai worker: job %s produced invalid CSS, retrying", job.JobID)
+		retryMsg := "Your previous response was not valid CSS. " +
+			"Output ONLY raw CSS starting with [data-theme] { and ending with }. " +
+			"No markdown code fences, no explanations, no comments.\n\n" +
+			"Original request: " + job.UserMessage
+		css2, retryErr := ollama.Generate(ctx, systemPrompt, retryMsg)
+		if retryErr != nil {
+			result = AIGenResult{Error: "AI generation failed on retry: " + retryErr.Error()}
+		} else if !validateGeneratedCSS(css2) {
+			result = AIGenResult{Error: "AI returned invalid CSS after retry. Please try rephrasing your prompt."}
+		} else {
+			result = AIGenResult{CSS: css2}
+		}
 	} else {
 		result = AIGenResult{CSS: css}
 	}
@@ -431,9 +446,28 @@ func processOne(ctx context.Context, queue *AIQueue, ollama *OllamaClient) error
 
 	return queue.ReleaseLock(ctx)
 }
+
+// validateGeneratedCSS performs simple sanity checks on model output.
+// It does NOT check URL allowlists — that runs on Save in the theme service.
+func validateGeneratedCSS(css string) bool {
+	s := strings.TrimSpace(css)
+	if s == "" {
+		return false
+	}
+	// Reject markdown code fences the model accidentally included.
+	if strings.HasPrefix(s, "```") {
+		return false
+	}
+	// Must contain at least one rule block.
+	open := strings.Count(s, "{")
+	close := strings.Count(s, "}")
+	return open > 0 && open == close
+}
 ```
 
-- [ ] Commit: `git add internal/ai/worker.go && git commit -m "feat(ai): add StartWorker with 500ms poll loop and Ollama integration"`
+Note: add `"strings"` to the import block in `worker.go`.
+
+- [ ] Commit: `git add internal/ai/worker.go && git commit -m "feat(ai): add StartWorker with CSS validation and single retry on invalid output"`
 
 ---
 
