@@ -32,6 +32,14 @@ type errResp struct {
 	OffendingURLs []string `json:"offending_urls,omitempty"`
 }
 
+type publishReq struct {
+	Published bool `json:"published"`
+}
+
+type featureReq struct {
+	Featured bool `json:"featured"`
+}
+
 func writeErr(w http.ResponseWriter, r *http.Request, code int, msg string) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(code)
@@ -240,6 +248,94 @@ func (h *Handler) InstallTheme(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(201)
 	render.JSON(w, r, t)
+}
+
+// GetThemeRepo handles GET /api/themes/repo — public, no auth required.
+func (h *Handler) GetThemeRepo(w http.ResponseWriter, r *http.Request) {
+	limit := 24
+	page := 1
+	if v := r.URL.Query().Get("page"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			page = n
+		}
+	}
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 100 {
+			limit = n
+		}
+	}
+	offset := (page - 1) * limit
+	themes, total, err := h.svc.GetPublishedThemes(r.Context(), limit, offset)
+	if err != nil {
+		writeErr(w, r, 500, err.Error())
+		return
+	}
+	render.JSON(w, r, ThemeRepoResponse{Themes: themes, Total: total})
+}
+
+// TogglePublish handles POST /api/me/themes/{id}/publish — requires auth.
+func (h *Handler) TogglePublish(w http.ResponseWriter, r *http.Request) {
+	uid, ok := userID(r)
+	if !ok {
+		writeErr(w, r, 401, "unauthorized")
+		return
+	}
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		writeErr(w, r, 400, "invalid theme id")
+		return
+	}
+	var req publishReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, r, 400, "invalid request body")
+		return
+	}
+	if err := h.svc.SetPublished(r.Context(), id, uid, req.Published); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			writeErr(w, r, 404, "theme not found")
+			return
+		}
+		writeErr(w, r, 500, err.Error())
+		return
+	}
+	w.WriteHeader(204)
+}
+
+// ToggleFeature handles PUT /api/themes/{id}/feature — requires auth + Parley Admin badge.
+func (h *Handler) ToggleFeature(w http.ResponseWriter, r *http.Request) {
+	uid, ok := userID(r)
+	if !ok {
+		writeErr(w, r, 401, "unauthorized")
+		return
+	}
+	isAdmin, err := h.svc.IsParleyAdmin(r.Context(), uid)
+	if err != nil {
+		writeErr(w, r, 500, err.Error())
+		return
+	}
+	if !isAdmin {
+		writeErr(w, r, 403, "requires Parley Admin badge")
+		return
+	}
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		writeErr(w, r, 400, "invalid theme id")
+		return
+	}
+	var req featureReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, r, 400, "invalid request body")
+		return
+	}
+	if err := h.svc.SetFeatured(r.Context(), id, req.Featured); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			writeErr(w, r, 404, "theme not found")
+			return
+		}
+		writeErr(w, r, 500, err.Error())
+		return
+	}
+	w.WriteHeader(204)
 }
 
 func (h *Handler) handleThemeErr(w http.ResponseWriter, r *http.Request, err error) {

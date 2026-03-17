@@ -242,11 +242,14 @@ func registerRoutes(
 			r.Put("/me/themes/{id}", themeHandler.UpdateTheme)
 			r.Delete("/me/themes/{id}", themeHandler.DeleteTheme)
 			r.Post("/me/themes/{id}/share", themeHandler.ShareTheme)
+			r.Post("/me/themes/{id}/publish", themeHandler.TogglePublish)
 			r.Post("/me/themes/install/{token}", themeHandler.InstallTheme)
 			r.Post("/me/themes/generate", aiHandler.Generate)
+			r.Put("/themes/{id}/feature", themeHandler.ToggleFeature)
 		})
 
-		// Public theme route — no authentication required
+		// Public theme routes — no authentication required
+		r.Get("/themes/repo", themeHandler.GetThemeRepo)
 		r.Get("/themes/{token}", themeHandler.GetPublicTheme)
 	})
 

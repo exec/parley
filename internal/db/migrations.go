@@ -564,6 +564,12 @@ CREATE TABLE IF NOT EXISTS user_preferences (
 	`-- Add base_theme column to user_themes
 ALTER TABLE user_themes ADD COLUMN IF NOT EXISTS base_theme VARCHAR(32) NOT NULL DEFAULT 'rory';
 `,
+
+	`-- Add is_published and is_featured columns for the public theme repository
+ALTER TABLE user_themes ADD COLUMN IF NOT EXISTS is_published BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE user_themes ADD COLUMN IF NOT EXISTS is_featured BOOLEAN NOT NULL DEFAULT FALSE;
+CREATE INDEX IF NOT EXISTS idx_user_themes_published ON user_themes(is_published) WHERE is_published = TRUE;
+`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

@@ -138,3 +138,33 @@ func (s *Service) InstallTheme(ctx context.Context, token string, userID int64) 
 	}
 	return s.repo.InstallTheme(ctx, token, userID)
 }
+
+const badgeBitParleyAdmin = 2
+
+func (s *Service) SetPublished(ctx context.Context, id, userID int64, publish bool) error {
+	return s.repo.SetPublished(ctx, id, userID, publish)
+}
+
+func (s *Service) SetFeatured(ctx context.Context, id int64, featured bool) error {
+	return s.repo.SetFeatured(ctx, id, featured)
+}
+
+func (s *Service) GetPublishedThemes(ctx context.Context, limit, offset int) ([]UserTheme, int, error) {
+	themes, err := s.repo.GetPublishedThemes(ctx, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	total, err := s.repo.GetPublishedThemeCount(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	return themes, total, nil
+}
+
+func (s *Service) IsParleyAdmin(ctx context.Context, userID int64) (bool, error) {
+	badges, err := s.repo.GetUserBadges(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+	return badges&badgeBitParleyAdmin != 0, nil
+}
