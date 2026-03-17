@@ -137,3 +137,70 @@
 .bots-add-modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
 .bots-modal-cancel { background: none; border: 1px solid var(--parley-border,#444); color: var(--parley-text,#eee); border-radius:4px; padding:6px 14px; cursor:pointer; font-size:13px; }
 .bots-modal-submit { background: var(--parley-accent,#32CD32); border:none; color:#fff; border-radius:4px; padding:6px 14px; cursor:pointer; font-size:13px; font-weight:600; }
+
+.bots-official-divider {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--parley-text-muted, #888);
+  margin: 16px 0 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--parley-border, #333);
+}
+
+.bots-official-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.bots-official-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--parley-accent, #32CD32);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.bots-official-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.bots-official-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--parley-text, #eee);
+}
+
+.bots-official-desc {
+  font-size: 11px;
+  color: var(--parley-text-muted, #888);
+  margin-top: 2px;
+}
+
+.bots-official-add {
+  background: var(--parley-accent, #32CD32);
+  border: none;
+  color: #fff;
+  border-radius: 4px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.bots-official-add:disabled {
+  background: var(--parley-bg-hover, #333);
+  color: var(--parley-text-muted, #888);
+  cursor: default;
+}

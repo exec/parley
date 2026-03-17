@@ -98,6 +98,16 @@ export const PROVIDER_LABELS: Record<string, string> = {
   xai: 'xAI', mistral: 'Mistral', google: 'Google',
 };
 
+// Permanent invite tokens seeded by migration — never expire.
+export const OFFICIAL_BOTS: { username: string; displayName: string; description: string; token: string }[] = [
+  {
+    username: 'ai-chatbot',
+    displayName: 'AI Chatbot',
+    description: 'Responds to @mentions with AI. Supports Parley, Anthropic, OpenAI, and more.',
+    token: 'aaaaaaaa-0000-0000-0000-000000000001',
+  },
+];
+
 export const PARLEY_ALLOWANCES: Record<string, number> = {
   'ministral-3:14b': 2_000_000,
   'gpt-oss:20b':     1_500_000,

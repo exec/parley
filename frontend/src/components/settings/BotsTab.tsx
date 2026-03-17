@@ -1,6 +1,6 @@
 // frontend/src/components/settings/BotsTab.tsx
 import React, { useEffect, useState } from 'react';
-import { BotSummary, listBots, addBot, removeBot } from '../../api/bots';
+import { BotSummary, listBots, addBot, removeBot, OFFICIAL_BOTS } from '../../api/bots';
 import { BotConfigPanel } from './BotConfigPanel';
 import './BotsTab.css';
 
@@ -16,6 +16,7 @@ export const BotsTab: React.FC<Props> = ({ serverId, isAdmin }) => {
   const [inviteInput, setInviteInput] = useState('');
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState('');
+  const [addingOfficial, setAddingOfficial] = useState<string | null>(null);
 
   useEffect(() => {
     listBots(serverId).then(setBots).catch(() => {});
@@ -39,6 +40,19 @@ export const BotsTab: React.FC<Props> = ({ serverId, isAdmin }) => {
       setAddError('Failed to add bot. Check the invite link.');
     } finally {
       setAdding(false);
+    }
+  };
+
+  const handleAddOfficial = async (token: string, username: string) => {
+    setAddingOfficial(username);
+    try {
+      await addBot(serverId, token);
+      const updated = await listBots(serverId);
+      setBots(updated);
+    } catch {
+      // 409 = already in server, silently ignore
+    } finally {
+      setAddingOfficial(null);
     }
   };
 
@@ -108,6 +122,27 @@ export const BotsTab: React.FC<Props> = ({ serverId, isAdmin }) => {
                 {adding ? 'Adding…' : 'Add'}
               </button>
             </div>
+
+            <div className="bots-official-divider">Official Bots</div>
+            {OFFICIAL_BOTS.map(ob => {
+              const alreadyAdded = bots.some(b => b.username === ob.username);
+              return (
+                <div key={ob.username} className="bots-official-row">
+                  <div className="bots-official-avatar">{ob.displayName.charAt(0)}</div>
+                  <div className="bots-official-info">
+                    <div className="bots-official-name">{ob.displayName}</div>
+                    <div className="bots-official-desc">{ob.description}</div>
+                  </div>
+                  <button
+                    className="bots-official-add"
+                    disabled={alreadyAdded || addingOfficial === ob.username}
+                    onClick={() => !alreadyAdded && handleAddOfficial(ob.token, ob.username)}
+                  >
+                    {alreadyAdded ? 'Added' : addingOfficial === ob.username ? 'Adding…' : 'Add'}
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
