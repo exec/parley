@@ -23,6 +23,7 @@ type WSClient struct {
 	events    chan WSEvent
 	done      chan struct{}
 	closeOnce sync.Once
+	writeMu   sync.Mutex
 }
 
 const (
@@ -89,8 +90,11 @@ func (c *WSClient) pingLoop() {
 		case <-c.done:
 			return
 		case <-ticker.C:
+			c.writeMu.Lock()
 			c.conn.SetWriteDeadline(time.Now().Add(wsWriteTimeout))
-			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+			err := c.conn.WriteMessage(websocket.PingMessage, nil)
+			c.writeMu.Unlock()
+			if err != nil {
 				c.Close()
 				return
 			}
@@ -106,26 +110,42 @@ func (c *WSClient) Done() <-chan struct{} { return c.done }
 
 // Subscribe sends a CHANNEL_SUBSCRIBE message.
 func (c *WSClient) Subscribe(channelID int64) error {
+	select {
+	case <-c.done:
+		return fmt.Errorf("ws connection is closed")
+	default:
+	}
 	msg, _ := json.Marshal(map[string]any{
 		"type": "CHANNEL_SUBSCRIBE",
 		"payload": map[string]string{
 			"channel_id": fmt.Sprintf("%d", channelID),
 		},
 	})
+	c.writeMu.Lock()
 	c.conn.SetWriteDeadline(time.Now().Add(wsWriteTimeout))
-	return c.conn.WriteMessage(websocket.TextMessage, msg)
+	err := c.conn.WriteMessage(websocket.TextMessage, msg)
+	c.writeMu.Unlock()
+	return err
 }
 
 // SendTyping sends a TYPING event.
 func (c *WSClient) SendTyping(channelID int64) error {
+	select {
+	case <-c.done:
+		return fmt.Errorf("ws connection is closed")
+	default:
+	}
 	msg, _ := json.Marshal(map[string]any{
 		"type": "TYPING",
 		"payload": map[string]string{
 			"channel_id": fmt.Sprintf("%d", channelID),
 		},
 	})
+	c.writeMu.Lock()
 	c.conn.SetWriteDeadline(time.Now().Add(wsWriteTimeout))
-	return c.conn.WriteMessage(websocket.TextMessage, msg)
+	err := c.conn.WriteMessage(websocket.TextMessage, msg)
+	c.writeMu.Unlock()
+	return err
 }
 
 // Close closes the WebSocket connection.

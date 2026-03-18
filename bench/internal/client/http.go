@@ -69,7 +69,9 @@ func (c *HTTPClient) do(ctx context.Context, method, path string, body any) ([]b
 	defer resp.Body.Close()
 
 	var buf bytes.Buffer
-	buf.ReadFrom(resp.Body)
+	if _, err := buf.ReadFrom(resp.Body); err != nil {
+		return nil, resp.StatusCode, fmt.Errorf("read response body: %w", err)
+	}
 	return buf.Bytes(), resp.StatusCode, nil
 }
 
