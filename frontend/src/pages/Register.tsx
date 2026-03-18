@@ -74,6 +74,9 @@ export const Register: React.FC = () => {
 
   return (
     <div className="auth-page">
+      <nav className="auth-nav">
+        <a href="/" className="auth-nav-brand">Parley</a>
+      </nav>
       <div className="auth-container">
         <div className="auth-card">
           <div className="auth-header">
@@ -98,28 +101,16 @@ export const Register: React.FC = () => {
 
             <div className="input-wrapper">
               <label className="input-label">Verification method</label>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <div className="auth-method-toggle">
                 <button
                   type="button"
+                  className={`auth-method-btn${method === 'email' ? ' active' : ''}`}
                   onClick={() => { setMethod('email'); setSmsConsent(false); }}
-                  style={{
-                    flex: 1, padding: '8px 0', borderRadius: 4, border: '1px solid',
-                    borderColor: method === 'email' ? '#32CD32' : '#444',
-                    background: method === 'email' ? 'rgba(50,205,50,0.1)' : '#111',
-                    color: method === 'email' ? '#32CD32' : '#aaa',
-                    cursor: 'pointer', fontSize: 13, fontWeight: method === 'email' ? 600 : 400,
-                  }}
                 >Email</button>
                 <button
                   type="button"
+                  className={`auth-method-btn${method === 'phone' ? ' active' : ''}`}
                   onClick={() => setMethod('phone')}
-                  style={{
-                    flex: 1, padding: '8px 0', borderRadius: 4, border: '1px solid',
-                    borderColor: method === 'phone' ? '#32CD32' : '#444',
-                    background: method === 'phone' ? 'rgba(50,205,50,0.1)' : '#111',
-                    color: method === 'phone' ? '#32CD32' : '#aaa',
-                    cursor: 'pointer', fontSize: 13, fontWeight: method === 'phone' ? 600 : 400,
-                  }}
                 >Phone</button>
               </div>
               {method === 'email' ? (
@@ -145,16 +136,16 @@ export const Register: React.FC = () => {
                     autoComplete="tel"
                   />
                   {errors.phone && <span className="input-error-message">{errors.phone}</span>}
-                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 10, cursor: 'pointer' }}>
+                  <label className="auth-sms-consent">
                     <input
                       type="checkbox"
                       checked={smsConsent}
                       onChange={e => setSmsConsent(e.target.checked)}
-                      style={{ marginTop: 2, flexShrink: 0, accentColor: '#32CD32' }}
+                      className="auth-sms-checkbox"
                     />
-                    <span style={{ fontSize: 11, color: '#888', lineHeight: 1.5 }}>
+                    <span className="auth-sms-text">
                       I agree to receive automated transactional SMS messages from Parley (up to 5 msgs/mo). Msg &amp; data rates may apply. Frequency may vary. Reply <strong>STOP</strong> to opt out or <strong>HELP</strong> for assistance. Your mobile number will not be sold or shared with third parties for promotional or marketing purposes.{' '}
-                      <a href="https://parley.x86-64.com/privacy/" target="_blank" rel="noopener noreferrer" style={{ color: '#32CD32' }}>Terms &amp; Privacy Policy</a>.
+                      <a href="https://parley.x86-64.com/privacy/" target="_blank" rel="noopener noreferrer" className="auth-link">Terms &amp; Privacy Policy</a>.
                     </span>
                   </label>
                   {errors.smsConsent && <span className="input-error-message">{errors.smsConsent}</span>}

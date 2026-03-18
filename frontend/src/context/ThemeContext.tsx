@@ -47,6 +47,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [customThemes, setCustomThemes] = useState<UserTheme[]>([]);
 
   useEffect(() => {
+    // Always apply the cached theme immediately so CSS variables resolve on
+    // unauthenticated pages (login, register, etc.) before any auth check.
+    const cached = localStorage.getItem('parley-theme') || 'abyss';
+    const cachedCSS = localStorage.getItem('parley-custom-css') || null;
+    const cachedBase = localStorage.getItem('parley-theme-base') || null;
+    applyToDOM(cached, cachedCSS, cachedBase);
+
     if (!localStorage.getItem('token')) return;
     getPreferences().then(p => {
       setActiveTheme(p.active_theme);

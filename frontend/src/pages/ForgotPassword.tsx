@@ -32,6 +32,9 @@ export const ForgotPassword: React.FC = () => {
 
   return (
     <div className="auth-page">
+      <nav className="auth-nav">
+        <a href="/" className="auth-nav-brand">Parley</a>
+      </nav>
       <div className="auth-container">
         <div className="auth-card">
           <div className="auth-header">
