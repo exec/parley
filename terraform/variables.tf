@@ -158,7 +158,7 @@ variable "livekit_url" {
 variable "ollama_api_url" {
   description = "Ollama API base URL"
   type        = string
-  default     = "https://ollama.com/api"
+  default     = "https://ollama.com"
 }
 
 variable "ollama_api_key" {
