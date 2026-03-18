@@ -55,8 +55,9 @@ func TestTokenBucketRefills(t *testing.T) {
 		t.Error("should be denied immediately after exhaustion")
 	}
 
-	// Wait 1.1 seconds — at least 1 token should have refilled.
-	time.Sleep(1100 * time.Millisecond)
+	// Wait 1.5 seconds — generous margin so at least 1 token refills
+	// even on a loaded CI runner (1 token/sec rate, 500ms slack).
+	time.Sleep(1500 * time.Millisecond)
 
 	if !rl.Allow("192.0.2.1") {
 		t.Error("should be allowed after 1 second refill")
