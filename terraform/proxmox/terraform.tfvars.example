@@ -1,0 +1,57 @@
+# Proxmox connection
+proxmox_api_url          = "https://192.168.1.10:8006/api2/json"
+proxmox_api_token_id     = "root@pam!terraform"
+proxmox_api_token_secret = "your-token-secret-here"
+proxmox_node             = "pve"
+proxmox_storage          = "local-lvm"
+proxmox_bridge           = "vmbr0"
+
+# VM template (Ubuntu 24.04 cloud-init — see DEPLOYMENT.md for setup)
+vm_template = "ubuntu-2404-template"
+
+# Networking
+api_ip_base = "192.168.1.11"
+db_ip       = "192.168.1.10"
+admin_ip    = "192.168.1.15"
+gateway     = "192.168.1.1"
+subnet_mask = 24
+dns_server  = "1.1.1.1"
+
+# Scale: 1 API node for dev (vs 3 in prod)
+api_count = 1
+
+# SSH
+ssh_private_key = "~/.ssh/id_ed25519"
+ssh_public_key  = "~/.ssh/id_ed25519.pub"
+
+# Secrets — copy from production terraform.tfvars or generate fresh ones
+db_password              = "change-me"
+jwt_secret               = "change-me"
+admin_jwt_secret         = "change-me"
+admin_impersonate_secret = "change-me"
+bot_key_secret           = "change-me"
+
+# Repo
+repo_url = "https://github.com/exec/parley.git"
+
+# API keys (copy from production)
+giphy_api_key  = "JQsD2D0EteELR8qQQOs1Su5ehVxQ7F20"
+ollama_api_key = "08a39ec4749a41ebbcb972c6ca81729b.sWnLMN0SaUBomoqG1YvbzMNX"
+ollama_api_url = "https://ollama.com"
+ollama_model   = "devstral-small-2:24b-cloud"
+
+livekit_api_key    = "APIyDN3nzBLyRok"
+livekit_api_secret = "toVUyfS2xkiAzwDsDjmztnwZ8H5ALobdWrhoUlpEgmR"
+livekit_url        = "wss://parley-6jjbl5wy.livekit.cloud"
+
+# Object storage — use local MinIO or leave blank for dev
+spaces_access_key = ""
+spaces_secret_key = ""
+spaces_bucket     = "parley-dev"
+spaces_endpoint   = ""
+spaces_cdn_url    = ""
+
+# Email — leave blank to skip verification in dev
+brevo_api_key    = ""
+brevo_from_email = "noreply@parley.local"
+site_url         = "http://192.168.1.11"
