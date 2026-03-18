@@ -1,42 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-  <defs>
-    <filter id="glow">
-      <feGaussianBlur stdDeviation="0.8" result="blur"/>
-      <feMerge>
-        <feMergeNode in="blur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
-  </defs>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Abyss cyan badge background -->
+  <rect width="32" height="32" rx="7" fill="#00b4d8"/>
 
-  <!-- Black background -->
-  <rect width="32" height="32" fill="#000000"/>
-
-  <!-- Skull + crossbones compressed to 32x32 -->
-  <g filter="url(#glow)">
-    <!-- Skull cranium -->
-    <ellipse cx="16" cy="12" rx="8.5" ry="8" fill="#000" stroke="#32cd32" stroke-width="1.4"/>
-    <!-- Jaw -->
-    <path d="M8 18 Q8 22 16 22 Q24 22 24 18" fill="none" stroke="#32cd32" stroke-width="1.3"/>
-    <!-- Jaw dividers -->
-    <line x1="12" y1="20" x2="12" y2="22" stroke="#32cd32" stroke-width="1"/>
-    <line x1="16" y1="20" x2="16" y2="22.5" stroke="#32cd32" stroke-width="1"/>
-    <line x1="20" y1="20" x2="20" y2="22" stroke="#32cd32" stroke-width="1"/>
-    <!-- Jaw hinges -->
-    <line x1="7.5" y1="18" x2="7.5" y2="21" stroke="#32cd32" stroke-width="1.3"/>
-    <line x1="24.5" y1="18" x2="24.5" y2="21" stroke="#32cd32" stroke-width="1.3"/>
-    <!-- Eye sockets - diamond -->
-    <polygon points="11.5,10 9.5,12.5 11.5,15 13.5,12.5" fill="#32cd32"/>
-    <polygon points="20.5,10 18.5,12.5 20.5,15 22.5,12.5" fill="#32cd32"/>
-    <!-- Nose -->
-    <polygon points="16,13 14.5,16 17.5,16" fill="#32cd32" opacity="0.8"/>
-
-    <!-- Crossbones -->
-    <line x1="3" y1="26" x2="29" y2="29" stroke="#32cd32" stroke-width="2" stroke-linecap="round"/>
-    <circle cx="3"  cy="26" r="2" fill="none" stroke="#32cd32" stroke-width="1.2"/>
-    <circle cx="29" cy="29" r="2" fill="none" stroke="#32cd32" stroke-width="1.2"/>
-    <line x1="29" y1="26" x2="3"  y2="29" stroke="#32cd32" stroke-width="2" stroke-linecap="round"/>
-    <circle cx="29" cy="26" r="2" fill="none" stroke="#32cd32" stroke-width="1.2"/>
-    <circle cx="3"  cy="29" r="2" fill="none" stroke="#32cd32" stroke-width="1.2"/>
-  </g>
+  <!-- P letterform carved in navy -->
+  <!-- Vertical stem -->
+  <rect x="6" y="5" width="5" height="22" rx="2.5" fill="#07101e"/>
+  <!-- Top arm -->
+  <rect x="11" y="5" width="14" height="4" rx="2" fill="#07101e"/>
+  <!-- Right side of bowl -->
+  <rect x="22" y="5" width="5" height="16" rx="2.5" fill="#07101e"/>
+  <!-- Mid arm (bottom of bowl) -->
+  <rect x="11" y="17" width="14" height="4" rx="2" fill="#07101e"/>
 </svg>
