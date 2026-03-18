@@ -74,7 +74,24 @@ if [ -n "$PG_CONF" ]; then
     if grep -q "^#listen_addresses" "$PG_CONF"; then
         sed -i "s/^#listen_addresses = 'localhost'/listen_addresses = '*'/" "$PG_CONF"
     fi
+
+    echo "=== Tuning PostgreSQL max_connections ==="
+    sed -i "s/^#*max_connections.*/max_connections = 150/" "$PG_CONF"
+    # Shared buffers: 25% of RAM (4GB droplet → 1GB)
+    sed -i "s/^#*shared_buffers.*/shared_buffers = 1GB/" "$PG_CONF"
+    # Effective cache size: 75% of RAM
+    sed -i "s/^#*effective_cache_size.*/effective_cache_size = 3GB/" "$PG_CONF"
+    # Work memory for sort operations
+    sed -i "s/^#*work_mem.*/work_mem = 4MB/" "$PG_CONF"
+    # Huge pages: let Postgres use them if the kernel has them available.
+    # With 1GB shared_buffers, huge pages save ~500 TLB entries and reduce
+    # kernel memory overhead. "try" falls back gracefully if unavailable.
+    sed -i "s/^#*huge_pages.*/huge_pages = try/" "$PG_CONF"
 fi
+
+# Enable huge pages in the kernel (2MB pages; 512 pages covers 1GB shared_buffers)
+echo "vm.nr_hugepages=512" >> /etc/sysctl.conf
+sysctl -w vm.nr_hugepages=512
 
 # Install Redis for cross-node WebSocket broadcasting
 echo "=== Installing Redis ==="
@@ -94,6 +111,7 @@ systemctl enable redis-server
 echo "=== Configuring firewall ==="
 ufw allow 22/tcp    # SSH
 ufw allow 5432/tcp  # PostgreSQL
+ufw allow 6432/tcp  # PgBouncer
 ufw allow 6379/tcp  # Redis
 ufw --force enable
 
@@ -116,7 +134,47 @@ if [ -d "/parley" ] && [ -d "/parley/migrations" ]; then
     echo "Migrations directory found - migrations should be run via API"
 fi
 
+echo "=== Installing and configuring PgBouncer ==="
+apt-get install -y pgbouncer
+
+# PgBouncer configuration
+cat > /etc/pgbouncer/pgbouncer.ini << 'EOF'
+[databases]
+parley = host=localhost port=5432 dbname=parley
+
+[pgbouncer]
+listen_addr = *
+listen_port = 6432
+# auth_type = md5 requires PostgreSQL pg_hba.conf to also use md5.
+# Ubuntu 22.04+ PostgreSQL defaults to scram-sha-256. We use scram-sha-256
+# here to match. If your PostgreSQL version/config uses md5, change both.
+auth_type = scram-sha-256
+auth_file = /etc/pgbouncer/userlist.txt
+pool_mode = transaction
+max_client_conn = 1000
+default_pool_size = 25
+reserve_pool_size = 5
+reserve_pool_timeout = 3
+server_idle_timeout = 600
+client_idle_timeout = 0
+log_connections = 0
+log_disconnections = 0
+EOF
+
+# PgBouncer auth file — stores the SCRAM verifier, not the plaintext password.
+# Generate with: psql -c "SELECT concat('\"', usename, '\" \"', passwd, '\"') FROM pg_shadow WHERE usename='parley';"
+# For initial setup, a helper script sets this after PostgreSQL is running.
+# See the pg_hba.conf note in Step 3.
+echo "\"parley\" \"${db_password}\"" > /etc/pgbouncer/userlist.txt
+chmod 640 /etc/pgbouncer/userlist.txt
+chown postgres:postgres /etc/pgbouncer/userlist.txt
+
+systemctl enable pgbouncer
+systemctl start pgbouncer
+echo "PgBouncer listening on port 6432"
+
 echo "=== Database setup complete ==="
 echo "Database can be reached at: $DB_PRIVATE_IP:5432"
+echo "PgBouncer pooler available at: $DB_PRIVATE_IP:6432"
 echo "Database: parley"
 echo "User: parley"

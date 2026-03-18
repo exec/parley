@@ -67,7 +67,7 @@ resource "digitalocean_droplet" "parley_api" {
 
   user_data = templatefile("${path.module}/userdata-api.sh", {
     DB_HOST                  = digitalocean_droplet.parley_db.ipv4_address_private
-    DB_PORT                  = "5432"
+    DB_PORT                  = "6432"
     DB_NAME                  = "parley"
     DB_USER                  = "parley"
     DB_PASSWORD              = var.db_password
