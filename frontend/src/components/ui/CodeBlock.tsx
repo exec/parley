@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { highlight } from '../../lib/shiki';
+import { highlight, highlightLines, type ThemedToken } from '../../lib/shiki';
 import './CodeBlock.css';
 
 interface CodeBlockProps {
@@ -24,6 +24,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
   onLineClick,
 }) => {
   const [html, setHtml] = useState<string | null>(null);
+  const [lineTokens, setLineTokens] = useState<ThemedToken[][] | null>(null);
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
   const lang = language || 'plaintext';
@@ -31,12 +32,19 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
 
   useEffect(() => {
     let cancelled = false;
-    setHtml(null);
-    highlight(content, lang).then((result) => {
-      if (!cancelled) setHtml(result);
-    });
+    if (showLineNumbers) {
+      setLineTokens(null);
+      highlightLines(content, lang).then((tokens) => {
+        if (!cancelled) setLineTokens(tokens);
+      });
+    } else {
+      setHtml(null);
+      highlight(content, lang).then((result) => {
+        if (!cancelled) setHtml(result);
+      });
+    }
     return () => { cancelled = true; };
-  }, [content, lang]);
+  }, [content, lang, showLineNumbers]);
 
   const lines = content.split('\n');
   // Remove trailing empty line that split adds if content ends with \n
@@ -68,14 +76,20 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
   ].filter(Boolean).join(' ');
 
   if (showLineNumbers) {
+    // Use shiki token lines when ready, fall back to plain text while loading
+    const tokenLines: (ThemedToken[] | null)[] = lineTokens
+      ? lineTokens
+      : lines.map(() => null);
+
     return (
       <div className={blockClass}>
         {header}
         <div className="code-block-body">
           <div className="code-block-lines">
-            {lines.map((line, i) => {
+            {lines.map((plainLine, i) => {
               const lineNum = i + 1;
               const isHighlighted = highlightedLines?.has(lineNum) ?? false;
+              const tokens = tokenLines[i];
               return (
                 <div
                   key={i}
@@ -88,7 +102,22 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
                   >
                     {lineNum}
                   </span>
-                  <span className="code-block-line-content">{line}</span>
+                  <span className="code-block-line-content">
+                    {tokens
+                      ? tokens.map((token, ti) => (
+                          <span
+                            key={ti}
+                            style={{
+                              color: token.color,
+                              fontStyle: token.fontStyle && (token.fontStyle & 1) ? 'italic' : undefined,
+                              fontWeight: token.fontStyle && (token.fontStyle & 2) ? 'bold' : undefined,
+                            }}
+                          >
+                            {token.content}
+                          </span>
+                        ))
+                      : plainLine}
+                  </span>
                 </div>
               );
             })}

@@ -1,4 +1,4 @@
-import { createHighlighter, type Highlighter } from 'shiki';
+import { createHighlighter, type Highlighter, type ThemedToken } from 'shiki';
 
 let highlighterPromise: Promise<Highlighter> | null = null;
 const loadedLanguages = new Set<string>();
@@ -34,6 +34,25 @@ export async function getHighlighter(): Promise<Highlighter> {
     });
   }
   return highlighterPromise;
+}
+
+export type { ThemedToken };
+
+export async function highlightLines(code: string, lang: string): Promise<ThemedToken[][]> {
+  const hl = await getHighlighter();
+  const language = lang || DEFAULT_LANG;
+  if (!loadedLanguages.has(language) && language !== DEFAULT_LANG) {
+    try {
+      await hl.loadLanguage(language as Parameters<Highlighter['loadLanguage']>[0]);
+      loadedLanguages.add(language);
+    } catch {
+      // Language not supported — return plain tokens (one per line)
+      return code.split('\n').map((line) => [{ content: line, offset: 0, htmlAttrs: {} }]);
+    }
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const result = hl.codeToTokens(code, { lang: language as any, theme: 'parley' });
+  return result.tokens;
 }
 
 export async function highlight(code: string, lang: string): Promise<string> {
