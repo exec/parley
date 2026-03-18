@@ -1,19 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 160" width="480" height="160">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 100" width="420" height="100">
   <defs>
-    <!-- Scanline texture for CRT effect -->
-    <pattern id="scanlines" width="2" height="4" patternUnits="userSpaceOnUse">
-      <rect width="2" height="2" fill="rgba(50,205,50,0.06)"/>
-    </pattern>
-    <!-- Skull crossbones clip -->
-    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
-      <feMerge>
-        <feMergeNode in="coloredBlur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
-    <filter id="glow-soft" x="-30%" y="-30%" width="160%" height="160%">
-      <feGaussianBlur stdDeviation="5" result="blur"/>
+    <filter id="glow" x="-15%" y="-15%" width="130%" height="130%">
+      <feGaussianBlur stdDeviation="1.8" result="blur"/>
       <feMerge>
         <feMergeNode in="blur"/>
         <feMergeNode in="SourceGraphic"/>
@@ -21,82 +9,29 @@
     </filter>
   </defs>
 
-  <!-- Skull icon left side -->
-  <g transform="translate(22, 18)" filter="url(#glow)">
-    <!-- Skull cranium -->
-    <ellipse cx="37" cy="44" rx="28" ry="26" fill="none" stroke="#32cd32" stroke-width="2.2"/>
-    <!-- Jaw -->
-    <path d="M14 58 Q14 72 37 72 Q60 72 60 58" fill="none" stroke="#32cd32" stroke-width="2"/>
-    <!-- Jaw teeth dividers -->
-    <line x1="27" y1="62" x2="27" y2="72" stroke="#32cd32" stroke-width="1.5"/>
-    <line x1="37" y1="63" x2="37" y2="73" stroke="#32cd32" stroke-width="1.5"/>
-    <line x1="47" y1="62" x2="47" y2="72" stroke="#32cd32" stroke-width="1.5"/>
-    <!-- Jaw hinge lines -->
-    <line x1="14" y1="58" x2="14" y2="65" stroke="#32cd32" stroke-width="2"/>
-    <line x1="60" y1="58" x2="60" y2="65" stroke="#32cd32" stroke-width="2"/>
-    <!-- Eye sockets - diamond/hex shaped for hacker aesthetic -->
-    <polygon points="26,38 21,44 26,50 31,44" fill="#32cd32" opacity="0.9"/>
-    <polygon points="48,38 43,44 48,50 53,44" fill="#32cd32" opacity="0.9"/>
-    <!-- Nose cavity -->
-    <polygon points="37,46 34,52 40,52" fill="#32cd32" opacity="0.7"/>
-    <!-- Cranium detail lines - circuit-board style -->
-    <line x1="37" y1="18" x2="37" y2="25" stroke="#32cd32" stroke-width="1.2" opacity="0.5"/>
-    <line x1="22" y1="26" x2="28" y2="30" stroke="#32cd32" stroke-width="1" opacity="0.4"/>
-    <line x1="52" y1="26" x2="46" y2="30" stroke="#32cd32" stroke-width="1" opacity="0.4"/>
+  <!-- P monogram badge — rounded square -->
+  <rect x="4" y="10" width="80" height="80" rx="18" fill="#00b4d8"/>
 
-    <!-- Crossbones -->
-    <!-- Bone 1: top-left to bottom-right -->
-    <line x1="4" y1="82" x2="70" y2="118" stroke="#32cd32" stroke-width="3" stroke-linecap="round"/>
-    <!-- Bone ball ends - top-left -->
-    <circle cx="4" cy="82" r="5" fill="none" stroke="#32cd32" stroke-width="2"/>
-    <!-- Bone ball ends - bottom-right -->
-    <circle cx="70" cy="118" r="5" fill="none" stroke="#32cd32" stroke-width="2"/>
-    <!-- Bone 2: top-right to bottom-left -->
-    <line x1="70" y1="82" x2="4" y2="118" stroke="#32cd32" stroke-width="3" stroke-linecap="round"/>
-    <!-- Bone ball ends - top-right -->
-    <circle cx="70" cy="82" r="5" fill="none" stroke="#32cd32" stroke-width="2"/>
-    <!-- Bone ball ends - bottom-left -->
-    <circle cx="4" cy="118" r="5" fill="none" stroke="#32cd32" stroke-width="2"/>
-  </g>
+  <!-- P letterform carved in navy -->
+  <!-- Vertical stem -->
+  <rect x="22" y="24" width="11" height="52" rx="5.5" fill="#07101e"/>
+  <!-- Top bar of bowl -->
+  <rect x="33" y="24" width="22" height="10" rx="5" fill="#07101e"/>
+  <!-- Bottom bar of bowl (mid) -->
+  <rect x="33" y="46" width="22" height="10" rx="5" fill="#07101e"/>
+  <!-- Right arc of bowl -->
+  <rect x="52" y="34" width="10" height="22" rx="5" fill="#07101e"/>
 
-  <!-- Vertical separator line -->
-  <line x1="122" y1="20" x2="122" y2="140" stroke="#32cd32" stroke-width="1.2" opacity="0.4"/>
-  <!-- Small hash tick marks on separator -->
-  <line x1="118" y1="35" x2="126" y2="35" stroke="#32cd32" stroke-width="1" opacity="0.5"/>
-  <line x1="118" y1="80" x2="126" y2="80" stroke="#32cd32" stroke-width="1" opacity="0.5"/>
-  <line x1="118" y1="125" x2="126" y2="125" stroke="#32cd32" stroke-width="1" opacity="0.5"/>
-
-  <!-- Main logotype: PARLEY -->
-  <g filter="url(#glow-soft)">
-    <!-- Using a bold monospace-feel custom path approach via text with spacing -->
+  <!-- Wordmark: PARLEY -->
+  <!-- Using geometric letter paths so it renders identically everywhere -->
+  <g filter="url(#glow)" fill="#00b4d8">
     <text
-      x="144"
-      y="100"
-      font-family="'Courier New', 'Lucida Console', monospace"
-      font-size="72"
-      font-weight="700"
-      letter-spacing="6"
-      fill="#32cd32"
+      x="104"
+      y="71"
+      font-family="'Helvetica Neue', Helvetica, 'Arial', sans-serif"
+      font-size="58"
+      font-weight="800"
+      letter-spacing="-1.5"
     >PARLEY</text>
   </g>
-
-  <!-- Subtitle: hacker terminal prompt style -->
-  <text
-    x="146"
-    y="128"
-    font-family="'Courier New', 'Lucida Console', monospace"
-    font-size="13"
-    font-weight="400"
-    letter-spacing="4"
-    fill="#32cd32"
-    opacity="0.65"
-  >// NEGOTIATE OR DIE_</text>
-
-  <!-- Corner bracket decorations - top left of text area -->
-  <polyline points="144,18 136,18 136,30" fill="none" stroke="#32cd32" stroke-width="1.5" opacity="0.5"/>
-  <!-- Corner bracket - bottom right of text area -->
-  <polyline points="460,142 468,142 468,130" fill="none" stroke="#32cd32" stroke-width="1.5" opacity="0.5"/>
-
-  <!-- Scanline overlay for CRT texture -->
-  <rect x="130" y="15" width="340" height="130" fill="url(#scanlines)" opacity="0.4"/>
 </svg>

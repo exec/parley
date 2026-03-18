@@ -113,7 +113,7 @@ export const AppearanceTab: React.FC = () => {
         <div className="appearance-confirm-overlay">
           <div className="appearance-confirm-dialog">
             <p>Delete "<strong>{theme.customThemes.find(t => t.id === confirmDeleteId)?.name}</strong>"?</p>
-            <p style={{fontSize:'12px',color:'var(--parley-text-muted)'}}>This cannot be undone. If this is your active theme, it will revert to Rory.</p>
+            <p style={{fontSize:'12px',color:'var(--parley-text-muted)'}}>This cannot be undone. If this is your active theme, it will revert to Abyss.</p>
             <div style={{display:'flex',gap:'8px',justifyContent:'flex-end',marginTop:'12px'}}>
               <button className="appearance-cancel-btn" onClick={() => setConfirmDeleteId(null)}>Cancel</button>
               <button className="appearance-danger-btn" onClick={async () => { await theme.deleteCustomTheme(confirmDeleteId); setConfirmDeleteId(null); }}>Delete</button>

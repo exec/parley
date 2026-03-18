@@ -5,7 +5,7 @@ import {
   createTheme, updateTheme, deleteTheme,
 } from '../api/themes';
 
-export const BUILTIN_IDS = ['rory','citron-dark','citron-light','neon-nights','abyss','sakura'];
+export const BUILTIN_IDS = ['abyss','citron-dark','citron-light','neon-nights','rory','sakura'];
 
 interface ThemeContextValue {
   activeTheme: string;
@@ -27,7 +27,7 @@ function applyToDOM(id: string, css?: string | null, baseTheme?: string | null) 
   localStorage.setItem('parley-theme', id);
   const existing = document.getElementById('custom-theme');
   if (id === 'custom' && css) {
-    const base = baseTheme || 'rory';
+    const base = baseTheme || 'abyss';
     document.body.dataset.theme = base;
     localStorage.setItem('parley-theme-base', base);
     if (existing) { existing.textContent = css; }
@@ -42,7 +42,7 @@ function applyToDOM(id: string, css?: string | null, baseTheme?: string | null) 
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [activeTheme, setActiveTheme] = useState(() => localStorage.getItem('parley-theme') || 'rory');
+  const [activeTheme, setActiveTheme] = useState(() => localStorage.getItem('parley-theme') || 'abyss');
   const [activeCustomThemeId, setActiveCustomThemeId] = useState<number | null>(null);
   const [customThemes, setCustomThemes] = useState<UserTheme[]>([]);
 
@@ -92,7 +92,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const deleteCustomTheme = useCallback(async (id: number) => {
     await deleteTheme(id);
     setCustomThemes(prev => prev.filter(x => x.id !== id));
-    if (activeCustomThemeId === id) { setActiveTheme('rory'); setActiveCustomThemeId(null); applyToDOM('rory'); }
+    if (activeCustomThemeId === id) { setActiveTheme('abyss'); setActiveCustomThemeId(null); applyToDOM('abyss'); }
   }, [activeCustomThemeId]);
 
   const applyTheme = useCallback((id: string, css?: string, baseTheme?: string) => {
@@ -122,5 +122,5 @@ export function useTheme() {
 
 /** Call on logout to clear theme state from localStorage. */
 export function resetThemeOnLogout() {
-  applyToDOM('rory', null);
+  applyToDOM('abyss', null);
 }

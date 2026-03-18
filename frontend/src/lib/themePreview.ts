@@ -31,7 +31,7 @@ function esc(s: string): string {
 
 /** Returns a CSS block that sets the base theme variables on [data-theme]. */
 export function themeVarsCSS(base: string): string {
-  const vars = BASE_VARS[base] ?? BASE_VARS.rory;
+  const vars = BASE_VARS[base] ?? BASE_VARS.abyss;
   return `[data-theme]{${vars}}`;
 }
 

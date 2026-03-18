@@ -12,7 +12,7 @@ export const SharedThemePage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [installing, setInstalling] = useState(false);
   const [installed, setInstalled] = useState(false);
-  const prevTheme = useRef(localStorage.getItem('parley-theme') || 'rory');
+  const prevTheme = useRef(localStorage.getItem('parley-theme') || 'abyss');
   const prevCSS = useRef(localStorage.getItem('parley-custom-css') || undefined);
 
   useEffect(() => {

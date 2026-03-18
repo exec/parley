@@ -61,7 +61,7 @@ interface Props {
 export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel }) => {
   const [name, setName] = useState(existing?.name || '');
   const [css, setCSS] = useState(existing?.css || '');
-  const [baseTheme, setBaseTheme] = useState(existing?.base_theme || 'rory');
+  const [baseTheme, setBaseTheme] = useState(existing?.base_theme || 'abyss');
   const [bgUrl, setBgUrl] = useState<string | null>(existing?.background_url || null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);

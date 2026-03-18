@@ -40,10 +40,17 @@ export function Homepage({ currentUser, onCreateServer, onOpenDm }: HomepageProp
   return (
     <div className="homepage">
       <div className="homepage-hero">
-        <div className="homepage-logo-mark">P</div>
-        <h1 className="homepage-title">Welcome to Parley</h1>
+        <div className="homepage-logo-mark">
+          <svg className="homepage-logo-svg" viewBox="0 0 40 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+            {/* Slick geometric P — thick vertical stem, precise bowl */}
+            <rect x="5" y="4" width="6" height="44" rx="3" fill="currentColor" />
+            <path d="M11 4 h10 a14 14 0 0 1 0 28 H11 Z" fill="currentColor" opacity="0.9" />
+            <rect x="11" y="17" width="16" height="5" rx="2.5" fill="var(--parley-channel-bg)" />
+          </svg>
+        </div>
+        <h1 className="homepage-title">Welcome back{currentUser?.display_name || currentUser?.username ? `, ${currentUser.display_name || currentUser.username}` : ''}</h1>
         <p className="homepage-subtitle">
-          Find a friend and start chatting, or create a new server.
+          Search for someone to message, or start a new server.
         </p>
       </div>
 
@@ -58,7 +65,13 @@ export function Homepage({ currentUser, onCreateServer, onOpenDm }: HomepageProp
             onChange={e => handleSearch(e.target.value)}
             autoComplete="off"
           />
-          {isSearching && <div className="homepage-search-spinner" />}
+          {isSearching ? (
+            <div className="homepage-search-spinner" />
+          ) : (
+            <svg className="homepage-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+            </svg>
+          )}
           {searchResults.length > 0 && (
             <div className="homepage-search-results">
               {searchResults.map(user => (
@@ -68,11 +81,11 @@ export function Homepage({ currentUser, onCreateServer, onOpenDm }: HomepageProp
                   onClick={() => handleStartDm(user.id)}
                 >
                   <div className="homepage-result-avatar">
-                    {user.username.charAt(0).toUpperCase()}
+                    {(user.display_name || user.username).charAt(0).toUpperCase()}
                   </div>
                   <div className="homepage-result-info">
-                    <span className="homepage-result-name">{user.username}</span>
-                    <span className="homepage-result-action">Send a message</span>
+                    <span className="homepage-result-name">{user.display_name || user.username}</span>
+                    <span className="homepage-result-action">Open direct message</span>
                   </div>
                 </div>
               ))}
@@ -92,8 +105,8 @@ export function Homepage({ currentUser, onCreateServer, onOpenDm }: HomepageProp
 
       <div className="homepage-actions">
         <button className="homepage-create-btn" onClick={onCreateServer}>
-          <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
-            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="15" height="15">
+            <path d="M12 5v14M5 12h14"/>
           </svg>
           Create a Server
         </button>
