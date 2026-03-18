@@ -1682,6 +1682,12 @@ sysctl -w net.ipv4.tcp_max_syn_backlog=65535
 sysctl -w net.core.rmem_max=16777216
 sysctl -w net.core.wmem_max=16777216
 
+# TCP keepalive: detect dead connections after 60s idle, then every 10s × 6 probes
+# Prevents zombie WS connections from stacking up when clients vanish without FIN
+sysctl -w net.ipv4.tcp_keepalive_time=60
+sysctl -w net.ipv4.tcp_keepalive_intvl=10
+sysctl -w net.ipv4.tcp_keepalive_probes=6
+
 # Persist sysctl settings across reboots
 cat >> /etc/sysctl.conf << 'SYSCTL'
 fs.file-max=2097152
@@ -1691,6 +1697,9 @@ net.core.somaxconn=65535
 net.ipv4.tcp_max_syn_backlog=65535
 net.core.rmem_max=16777216
 net.core.wmem_max=16777216
+net.ipv4.tcp_keepalive_time=60
+net.ipv4.tcp_keepalive_intvl=10
+net.ipv4.tcp_keepalive_probes=6
 SYSCTL
 ```
 
@@ -1798,8 +1807,16 @@ if [ -n "$PG_CONF" ]; then
     sed -i "s/^#*effective_cache_size.*/effective_cache_size = 3GB/" "$PG_CONF"
     # Work memory for sort operations
     sed -i "s/^#*work_mem.*/work_mem = 4MB/" "$PG_CONF"
+    # Huge pages: let Postgres use them if the kernel has them available.
+    # With 1GB shared_buffers, huge pages save ~500 TLB entries and reduce
+    # kernel memory overhead. "try" falls back gracefully if unavailable.
+    sed -i "s/^#*huge_pages.*/huge_pages = try/" "$PG_CONF"
     systemctl restart postgresql
 fi
+
+# Enable huge pages in the kernel (2MB pages; 512 pages covers 1GB shared_buffers)
+echo "vm.nr_hugepages=512" >> /etc/sysctl.conf
+sysctl -w vm.nr_hugepages=512
 ```
 
 - [ ] **Step 4: Update API nodes to connect to PgBouncer (port 6432) instead of Postgres (5432)**
