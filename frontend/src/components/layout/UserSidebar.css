@@ -7,6 +7,15 @@
   flex-direction: column;
   border-left: 1px solid var(--border);
   overflow-y: auto;
+  transition: width 0.22s ease, min-width 0.22s ease;
+  flex-shrink: 0;
+}
+
+.user-sidebar:not(.user-sidebar--open) {
+  width: 0;
+  min-width: 0;
+  overflow: hidden;
+  border-left-width: 0;
 }
 
 .user-sidebar::-webkit-scrollbar {

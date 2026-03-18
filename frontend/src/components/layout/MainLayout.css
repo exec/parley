@@ -113,18 +113,6 @@
   display: none !important;
 }
 
-/* ── Desktop: sidebar collapses in-flow when toggled off ── */
-@media (min-width: 769px) {
-  .user-sidebar {
-    transition: width 0.22s ease, min-width 0.22s ease;
-  }
-  .user-sidebar:not(.user-sidebar--open) {
-    width: 0;
-    min-width: 0;
-    overflow: hidden;
-    border-left-width: 0;
-  }
-}
 
 @media (max-width: 768px) {
   .mobile-backdrop {
@@ -163,10 +151,12 @@
     right: 0;
     top: 0;
     bottom: 0;
-    width: 260px;
-    min-width: 260px;
+    width: 260px !important;
+    min-width: 260px !important;
     height: 100dvh;
     z-index: 100;
+    overflow-y: auto !important;
+    border-left-width: 1px !important;
     transform: translateX(110%);
     transition: transform 0.22s ease;
   }
