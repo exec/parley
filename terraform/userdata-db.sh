@@ -89,9 +89,12 @@ if [ -n "$PG_CONF" ]; then
     sed -i "s/^#*huge_pages.*/huge_pages = try/" "$PG_CONF"
 fi
 
-# Enable huge pages in the kernel (2MB pages; 512 pages covers 1GB shared_buffers)
+# Enable huge pages in the kernel (2MB pages; 512 pages covers 1GB shared_buffers).
+# Guard with || true: if the kernel lacks huge pages support (e.g. cloud kernels),
+# sysctl -w returns non-zero and would abort this set -e script unnecessarily.
+# PostgreSQL's huge_pages=try already falls back gracefully.
 echo "vm.nr_hugepages=512" >> /etc/sysctl.conf
-sysctl -w vm.nr_hugepages=512
+sysctl -w vm.nr_hugepages=512 || true
 
 # Install Redis for cross-node WebSocket broadcasting
 echo "=== Installing Redis ==="
@@ -161,10 +164,10 @@ log_connections = 0
 log_disconnections = 0
 EOF
 
-# PgBouncer auth file — stores the SCRAM verifier, not the plaintext password.
-# Generate with: psql -c "SELECT concat('\"', usename, '\" \"', passwd, '\"') FROM pg_shadow WHERE usename='parley';"
-# For initial setup, a helper script sets this after PostgreSQL is running.
-# See the pg_hba.conf note in Step 3.
+# PgBouncer auth file. With auth_type=scram-sha-256 and PgBouncer 1.17+ (Ubuntu 22.04),
+# plaintext passwords in userlist.txt are supported — PgBouncer computes the SCRAM
+# exchange internally. No separate SCRAM verifier extraction is needed at provisioning.
+# To verify post-boot: psql -h 127.0.0.1 -p 6432 -U parley parley
 echo "\"parley\" \"${db_password}\"" > /etc/pgbouncer/userlist.txt
 chmod 640 /etc/pgbouncer/userlist.txt
 chown postgres:postgres /etc/pgbouncer/userlist.txt
