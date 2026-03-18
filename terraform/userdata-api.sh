@@ -48,6 +48,51 @@ export DEBIAN_FRONTEND=noninteractive
 run_with_retry "apt-get update -y" || true
 run_with_retry "apt-get upgrade -y" || true
 
+echo "=== Applying kernel tuning for high-connection workloads ==="
+
+# Maximum open file descriptors (system-wide)
+sysctl -w fs.file-max=2097152
+
+# Per-process FD limit for new sessions
+echo "* soft nofile 1048576" >> /etc/security/limits.conf
+echo "* hard nofile 1048576" >> /etc/security/limits.conf
+echo "root soft nofile 1048576" >> /etc/security/limits.conf
+echo "root hard nofile 1048576" >> /etc/security/limits.conf
+
+# Increase local port range for outbound connections (DB, Redis)
+sysctl -w net.ipv4.ip_local_port_range="1024 65535"
+
+# Faster recycling of TIME_WAIT sockets
+sysctl -w net.ipv4.tcp_tw_reuse=1
+
+# Increase the backlog queue for incoming connections
+sysctl -w net.core.somaxconn=65535
+sysctl -w net.ipv4.tcp_max_syn_backlog=65535
+
+# Increase socket receive/send buffers
+sysctl -w net.core.rmem_max=16777216
+sysctl -w net.core.wmem_max=16777216
+
+# TCP keepalive: detect dead connections after 60s idle, then every 10s × 6 probes
+# Prevents zombie WS connections from stacking up when clients vanish without FIN
+sysctl -w net.ipv4.tcp_keepalive_time=60
+sysctl -w net.ipv4.tcp_keepalive_intvl=10
+sysctl -w net.ipv4.tcp_keepalive_probes=6
+
+# Persist sysctl settings across reboots
+cat >> /etc/sysctl.conf << 'SYSCTL'
+fs.file-max=2097152
+net.ipv4.ip_local_port_range=1024 65535
+net.ipv4.tcp_tw_reuse=1
+net.core.somaxconn=65535
+net.ipv4.tcp_max_syn_backlog=65535
+net.core.rmem_max=16777216
+net.core.wmem_max=16777216
+net.ipv4.tcp_keepalive_time=60
+net.ipv4.tcp_keepalive_intvl=10
+net.ipv4.tcp_keepalive_probes=6
+SYSCTL
+
 # Install required packages with retry
 echo "=== Installing required packages ==="
 run_with_retry "apt-get install -y git curl build-essential nginx certbot python3-certbot-nginx ufw software-properties-common redis-tools"
@@ -171,6 +216,7 @@ Restart=always
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
+LimitNOFILE=1048576
 
 [Install]
 WantedBy=multi-user.target
