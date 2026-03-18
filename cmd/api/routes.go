@@ -289,6 +289,9 @@ func registerRoutes(
 
 	// WebSocket endpoint — prefers short-lived ticket, falls back to JWT query param
 	router.Get("/ws", handleWebSocket(hub, authService, repo, tickets))
+
+	// Bench provisioning endpoints — no-op in prod builds, active in stresstest builds.
+	registerBenchRoutes(router, repo, authService)
 }
 
 // bridgeUserIDMiddleware copies the userID from auth.UserIDKey to server.UserIDKey
