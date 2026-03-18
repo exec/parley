@@ -7,69 +7,72 @@ import (
 	"time"
 )
 
-// ----- IP-based sliding-window rate limiter -----
+// ----- Token bucket rate limiter -----
+//
+// Token bucket: allows burst up to `burst` requests, then refills at
+// `rate` requests per second. O(1) per Allow call, O(1) memory per key.
 
-type rateLimiter struct {
-	mu       sync.Mutex
-	requests map[string][]time.Time
-	limit    int
-	window   time.Duration
+type tokenBucket struct {
+	tokens   float64
+	lastSeen time.Time
 }
 
+type rateLimiter struct {
+	mu      sync.Mutex
+	buckets map[string]*tokenBucket
+	rate    float64 // tokens per second
+	burst   float64 // maximum token capacity
+}
+
+// newRateLimiter creates a token bucket rate limiter equivalent to limit requests
+// per window. burst = limit, rate = limit/window in tokens/second.
 func newRateLimiter(limit int, window time.Duration) *rateLimiter {
 	rl := &rateLimiter{
-		requests: make(map[string][]time.Time),
-		limit:    limit,
-		window:   window,
+		buckets: make(map[string]*tokenBucket),
+		rate:    float64(limit) / window.Seconds(),
+		burst:   float64(limit),
 	}
 	go rl.cleanup()
 	return rl
 }
 
-// Allow returns true if the key is within the rate limit.
+// Allow returns true if the key has a token available.
 func (rl *rateLimiter) Allow(key string) bool {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 
 	now := time.Now()
-	cutoff := now.Add(-rl.window)
-
-	// Drop timestamps outside the window.
-	prev := rl.requests[key]
-	valid := prev[:0]
-	for _, t := range prev {
-		if t.After(cutoff) {
-			valid = append(valid, t)
-		}
+	b, ok := rl.buckets[key]
+	if !ok {
+		b = &tokenBucket{tokens: rl.burst, lastSeen: now}
+		rl.buckets[key] = b
 	}
 
-	if len(valid) >= rl.limit {
-		rl.requests[key] = valid
-		return false
+	// Refill tokens based on elapsed time.
+	elapsed := now.Sub(b.lastSeen).Seconds()
+	b.tokens += elapsed * rl.rate
+	if b.tokens > rl.burst {
+		b.tokens = rl.burst
 	}
+	b.lastSeen = now
 
-	rl.requests[key] = append(valid, now)
-	return true
+	if b.tokens >= 1.0 {
+		b.tokens -= 1.0
+		return true
+	}
+	return false
 }
 
-// cleanup removes stale entries every 5 minutes to prevent unbounded growth.
+// cleanup removes stale buckets every 5 minutes.
 func (rl *rateLimiter) cleanup() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 	for range ticker.C {
+		threshold := time.Now().Add(-10 * time.Minute)
 		rl.mu.Lock()
-		cutoff := time.Now().Add(-rl.window)
-		for key, times := range rl.requests {
-			valid := times[:0]
-			for _, t := range times {
-				if t.After(cutoff) {
-					valid = append(valid, t)
-				}
-			}
-			if len(valid) == 0 {
-				delete(rl.requests, key)
-			} else {
-				rl.requests[key] = valid
+		for key, b := range rl.buckets {
+			if b.lastSeen.Before(threshold) {
+				delete(rl.buckets, key)
 			}
 		}
 		rl.mu.Unlock()
