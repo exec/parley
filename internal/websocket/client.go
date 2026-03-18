@@ -199,7 +199,10 @@ func (c *Client) WritePump() {
 				return
 			}
 
-			// Flush any additional queued messages as separate frames
+			// Flush any additional queued messages as separate frames.
+			// No sendMu needed here: WritePump is the sole reader of c.send,
+			// so there is no concurrent receive race. A concurrent closeSend()
+			// closing the channel causes <-c.send to return the zero value safely.
 			n := len(c.send)
 			for i := 0; i < n; i++ {
 				c.conn.SetWriteDeadline(time.Now().Add(writeWait))

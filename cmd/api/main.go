@@ -112,8 +112,10 @@ func main() {
 	defer dbConn.Close()
 
 	// Configure the connection pool.
-	// 25 open connections per API node × 3 nodes = 75 total, within Postgres
-	// default max_connections=100 and leaving headroom for admin/migration.
+	// API nodes connect via PgBouncer (port 6432, transaction pooling).
+	// 25 open conns per node × 3 nodes = 75 PgBouncer client slots; well under
+	// max_client_conn=1000. PgBouncer holds default_pool_size=25 backend conns
+	// to PostgreSQL, which is configured with max_connections=150.
 	dbConn.SetMaxOpenConns(25)
 	dbConn.SetMaxIdleConns(5)
 	dbConn.SetConnMaxLifetime(5 * time.Minute)
