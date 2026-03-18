@@ -1,6 +1,7 @@
 package websocket
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
@@ -9,6 +10,8 @@ import (
 
 	goredis "github.com/redis/go-redis/v9"
 )
+
+const redisOnlineKey = "parley:online"
 
 const redisChannel = "parley:events"
 
@@ -86,6 +89,8 @@ func (r *RedisHub) Subscribe() {
 			r.hub.SendLocalToUser(env.UserID, env.Event, []byte(env.Data))
 		case "kick":
 			r.hub.DisconnectUser(env.UserID)
+		case "global":
+			r.hub.BroadcastToAllLocal(env.Event, []byte(env.Data))
 		default:
 			log.Printf("RedisHub: unknown event_type %q, dropping", env.EventType)
 		}
@@ -118,6 +123,47 @@ func (r *RedisHub) PublishToUser(userID, event string, data []byte) {
 	if err := r.pubsub.Publish(redisChannel, env); err != nil {
 		log.Printf("RedisHub: failed to publish user event: %v", err)
 	}
+}
+
+// PublishGlobal publishes an event to all nodes (global broadcast).
+// Each receiving node will deliver it to all their locally connected clients.
+func (r *RedisHub) PublishGlobal(event string, data []byte) {
+	env := RedisEnvelope{
+		NodeID:    r.nodeID,
+		EventType: "global",
+		Event:     event,
+		Data:      json.RawMessage(data),
+	}
+	if err := r.pubsub.Publish(redisChannel, env); err != nil {
+		log.Printf("RedisHub: failed to publish global event: %v", err)
+	}
+}
+
+// MarkOnline records a user as online in the shared Redis presence set.
+func (r *RedisHub) MarkOnline(userID string) {
+	ctx := context.Background()
+	if err := r.pubsub.Client().SAdd(ctx, redisOnlineKey, userID).Err(); err != nil {
+		log.Printf("RedisHub: MarkOnline failed for user %s: %v", userID, err)
+	}
+}
+
+// MarkOffline removes a user from the shared Redis presence set.
+func (r *RedisHub) MarkOffline(userID string) {
+	ctx := context.Background()
+	if err := r.pubsub.Client().SRem(ctx, redisOnlineKey, userID).Err(); err != nil {
+		log.Printf("RedisHub: MarkOffline failed for user %s: %v", userID, err)
+	}
+}
+
+// GetOnlineUserIDs returns all user IDs currently in the shared presence set.
+func (r *RedisHub) GetOnlineUserIDs() []string {
+	ctx := context.Background()
+	ids, err := r.pubsub.Client().SMembers(ctx, redisOnlineKey).Result()
+	if err != nil {
+		log.Printf("RedisHub: GetOnlineUserIDs failed: %v", err)
+		return nil
+	}
+	return ids
 }
 
 // Close shuts down the Redis connection.

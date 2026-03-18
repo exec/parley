@@ -11,6 +11,11 @@ import (
 type Publisher interface {
 	PublishToChannel(channelID, event string, data []byte)
 	PublishToUser(userID, event string, data []byte)
+	// Global presence
+	PublishGlobal(event string, data []byte)
+	MarkOnline(userID string)
+	MarkOffline(userID string)
+	GetOnlineUserIDs() []string
 }
 
 // Hub maintains the set of active clients and broadcasts messages
@@ -113,17 +118,30 @@ func (h *Hub) RegisterClient(client *Client) {
 	isFirstConnection := len(h.userToClient[client.userID]) == 0
 	h.userToClient[client.userID][client] = true
 
-	// Collect all unique online user IDs for the snapshot
-	seen := make(map[string]bool)
-	onlineUserIDs := make([]string, 0, len(h.userToClient))
-	for uid := range h.userToClient {
-		if !seen[uid] {
-			seen[uid] = true
-			onlineUserIDs = append(onlineUserIDs, uid)
-		}
-	}
+	pub := h.publisher
 
 	h.mu.Unlock()
+
+	// Mark online in the cross-node presence store (first connection only)
+	if isFirstConnection && pub != nil {
+		pub.MarkOnline(client.userID)
+	}
+
+	// Build snapshot — use Redis for cross-node truth, fall back to local map
+	var onlineUserIDs []string
+	if pub != nil {
+		onlineUserIDs = pub.GetOnlineUserIDs()
+	} else {
+		h.mu.RLock()
+		seen := make(map[string]bool)
+		for uid := range h.userToClient {
+			if !seen[uid] {
+				seen[uid] = true
+				onlineUserIDs = append(onlineUserIDs, uid)
+			}
+		}
+		h.mu.RUnlock()
+	}
 
 	// Send the new client a snapshot of everyone currently online
 	if snapshotPayload, err := json.Marshal(map[string]interface{}{
@@ -132,12 +150,17 @@ func (h *Hub) RegisterClient(client *Client) {
 		client.Send(EventPresenceSnapshot, snapshotPayload)
 	}
 
-	// Announce arrival globally (only once per user, not once per tab/connection)
+	// Announce arrival (only once per user, not once per tab/connection)
 	if isFirstConnection {
 		if onlinePayload, err := json.Marshal(map[string]string{
 			"user_id": client.userID,
 		}); err == nil {
+			// Deliver to clients on this node
 			h.broadcastToAllLocal(EventUserOnline, onlinePayload)
+			// Deliver to clients on other nodes via Redis
+			if pub != nil {
+				pub.PublishGlobal(EventUserOnline, onlinePayload)
+			}
 		}
 	}
 
@@ -177,14 +200,22 @@ func (h *Hub) UnregisterClient(client *Client) {
 		log.Printf("Client unregistered for user: %s", client.userID)
 	}
 
+	pub := h.publisher
+
 	h.mu.Unlock()
 
-	// Broadcast USER_OFFLINE globally only when the user has no remaining connections.
+	// Broadcast USER_OFFLINE only when the user has no remaining connections.
 	if userFullyOffline {
 		if offlinePayload, err := json.Marshal(map[string]string{
 			"user_id": client.userID,
 		}); err == nil {
+			// Deliver to clients on this node
 			h.broadcastToAllLocal(EventUserOffline, offlinePayload)
+			// Remove from cross-node presence store and notify other nodes
+			if pub != nil {
+				pub.MarkOffline(client.userID)
+				pub.PublishGlobal(EventUserOffline, offlinePayload)
+			}
 		}
 	}
 }
@@ -289,8 +320,14 @@ func (h *Hub) DisconnectUser(userID string) {
 	}
 }
 
-// broadcastToAllLocal sends a message to every locally-connected client.
-// Used for global presence events (USER_ONLINE / USER_OFFLINE).
+// BroadcastToAllLocal sends a message to every locally-connected client without
+// republishing to Redis. Called internally for presence events and by the Redis
+// subscriber when delivering "global" events from other nodes.
+func (h *Hub) BroadcastToAllLocal(messageType string, payload []byte) {
+	h.broadcastToAllLocal(messageType, payload)
+}
+
+// broadcastToAllLocal is the unexported implementation.
 func (h *Hub) broadcastToAllLocal(messageType string, payload []byte) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
