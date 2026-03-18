@@ -153,9 +153,16 @@ listen_port = 6432
 # here to match. If your PostgreSQL version/config uses md5, change both.
 auth_type = scram-sha-256
 auth_file = /etc/pgbouncer/userlist.txt
-pool_mode = transaction
+# Session pooling mode: each client connection gets its own dedicated server
+# connection. This prevents prepared statement contamination across nodes —
+# lib/pq uses extended query protocol (prepared statements) which causes
+# "bind message supplies N parameters but prepared statement requires M" errors
+# in transaction mode when connections are reused across different clients.
+# 3 API nodes × 25 Go pool connections = 75 server connections; well under
+# PostgreSQL's max_connections = 150.
+pool_mode = session
 # lib/pq sends extra_float_digits as a startup parameter; PgBouncer rejects
-# unknown startup params in transaction mode unless explicitly ignored.
+# unknown startup params unless explicitly ignored.
 ignore_startup_parameters = extra_float_digits
 max_client_conn = 1000
 default_pool_size = 25
