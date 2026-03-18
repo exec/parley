@@ -2,6 +2,13 @@
 
 This is a living task list for Parley - a Discord clone.
 
+## Infra — next actions
+
+- [ ] **Dedicated Redis node** — move Redis off the DB droplet to reduce resource contention at high load. Redis is the cross-node WS fan-out bottleneck before Postgres is. Add `s-1vcpu-1gb` ($6/mo).
+- [ ] **Downsize DB droplet** `s-2vcpu-4gb` → `s-1vcpu-2gb` ($24 → $12/mo) to pay for the Redis node. Adjust `userdata-db.sh`: `shared_buffers = 512MB`, `effective_cache_size = 1500MB`. Safe because Redis moving off frees RAM and PgBouncer session pooling caps server connections at 75.
+- [ ] **Wire Redis node into Terraform** — add `redis_ip` var to `variables.tf` and `proxmox/variables.tf`, pass `REDIS_URL=redis://<redis_ip>:6379` to API userdata, move Redis install/config out of `userdata-db.sh` into a new `userdata-redis.sh`.
+- [ ] **Update live servers** once Proxmox bench confirms 25k target — resize DB droplet, provision Redis droplet, update env on all 3 API nodes.
+
 ## Bugs
 
 ### Critical
