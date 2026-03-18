@@ -366,6 +366,35 @@
   cursor: not-allowed;
 }
 
+.cpm-tab-upload {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 8px;
+  background: transparent;
+  border: none;
+  color: var(--parley-text-dim);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: color 0.15s;
+  align-self: center;
+  margin-left: 1px;
+}
+
+.cpm-tab-upload:hover {
+  color: var(--accent);
+}
+
+.cpm-tab-upload:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.cpm-dragging .cpm-window {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent), 0 24px 64px rgba(0, 0, 0, 0.6);
+}
+
 /* ---- Active file meta row ---- */
 
 .cpm-file-meta {

@@ -1,9 +1,9 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, Upload } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { BinChannelTag } from '../../api/types';
 import { createPost } from '../../api/bin';
-import { languageFromFilename } from '../../lib/shiki';
+import { languageFromFilename, isCodeFile } from '../../lib/shiki';
 import './CreatePostModal.css';
 
 interface FileEntry {
@@ -40,7 +40,32 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   const [tagInput, setTagInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [dragging, setDragging] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleUploadFiles = useCallback((fileList: FileList | File[]) => {
+    const arr = Array.from(fileList).filter(f => isCodeFile(f.name));
+    if (arr.length === 0) return;
+    arr.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const content = e.target?.result as string ?? '';
+        setFiles(prev => {
+          const isOnlyEmpty = prev.length === 1 && !prev[0].filename && !prev[0].content;
+          const base = isOnlyEmpty ? [] : prev;
+          const next = [...base, {
+            filename: file.name,
+            language: languageFromFilename(file.name),
+            content,
+          }];
+          setActiveFileIndex(next.length - 1);
+          return next;
+        });
+      };
+      reader.readAsText(file);
+    });
+  }, []);
 
   // Focus title when modal opens
   useEffect(() => {
@@ -49,17 +74,20 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     }
   }, [isOpen]);
 
-  // Close on Escape
+  // Close on Escape; paste files
   useEffect(() => {
     if (!isOpen) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        handleClose();
-      }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose(); };
+    const onPaste = (e: ClipboardEvent) => {
+      if (e.clipboardData?.files?.length) handleUploadFiles(e.clipboardData.files);
     };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [isOpen]);
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('paste', onPaste);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('paste', onPaste);
+    };
+  }, [isOpen, handleUploadFiles]);
 
   const resetForm = useCallback(() => {
     setTitle('');
@@ -182,7 +210,13 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   const allTags = [...Array.from(selectedTagNames), ...customTags];
 
   return (
-    <div className="cpm-overlay" onClick={e => { if (e.target === e.currentTarget) handleClose(); }}>
+    <div
+      className={`cpm-overlay${dragging ? ' cpm-dragging' : ''}`}
+      onClick={e => { if (e.target === e.currentTarget) handleClose(); }}
+      onDragOver={e => { e.preventDefault(); setDragging(true); }}
+      onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false); }}
+      onDrop={e => { e.preventDefault(); setDragging(false); handleUploadFiles(e.dataTransfer.files); }}
+    >
       <div className="cpm-window">
         {/* Title bar */}
         <div className="cpm-titlebar">
@@ -309,6 +343,16 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
               <button type="button" className="cpm-tab-add" onClick={addFile} disabled={loading} title="Add file">
                 +
               </button>
+              <button type="button" className="cpm-tab-upload" onClick={() => fileInputRef.current?.click()} disabled={loading} title="Upload files">
+                <Upload size={13} />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                style={{ display: 'none' }}
+                onChange={e => { if (e.target.files) { handleUploadFiles(e.target.files); e.target.value = ''; } }}
+              />
             </div>
 
             {/* Active file editor */}
