@@ -49,9 +49,6 @@ interface DmPanelProps {
   onOpenSettings?: () => void;
   dmUnreadCounts?: Record<string, number>;
   onlineUserIds?: Set<string>;
-  onOpenFriends?: () => void;
-  pendingRequestCount?: number;
-  isFriendsActive?: boolean;
 }
 
 const DmPanel: React.FC<DmPanelProps> = ({
@@ -63,9 +60,6 @@ const DmPanel: React.FC<DmPanelProps> = ({
   onOpenSettings,
   dmUnreadCounts = {},
   onlineUserIds,
-  onOpenFriends,
-  pendingRequestCount = 0,
-  isFriendsActive = false,
 }) => {
   const [contextMenu, setContextMenu] = useState<{ top: number; left: number } | null>(null);
   const userAreaRef = useRef<HTMLDivElement>(null);
@@ -77,7 +71,9 @@ const DmPanel: React.FC<DmPanelProps> = ({
 
   return (
     <div className="dm-panel">
-      <div className="dm-section-label">Direct Messages</div>
+      <div className="dm-panel-header">
+        <span className="dm-panel-title">Direct Messages</span>
+      </div>
 
       <div className="dm-panel-list">
         {dmChannels.length === 0 ? (

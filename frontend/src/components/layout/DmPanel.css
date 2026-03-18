@@ -8,20 +8,27 @@
   border-right: 1px solid var(--border);
 }
 
-.dm-section-label {
-  padding: 12px 12px 4px;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--parley-text-muted, #8ba3bf);
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
+.dm-panel-header {
+  height: 48px;
+  min-height: 48px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+}
+
+.dm-panel-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--parley-text-normal, #cad5e2);
+  letter-spacing: -0.2px;
 }
 
 .dm-panel-list {
   flex: 1;
   overflow-y: auto;
-  padding: 4px 0 8px;
+  padding: 8px 0;
 }
 
 .dm-panel-list::-webkit-scrollbar {

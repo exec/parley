@@ -736,9 +736,6 @@ function MainApp() {
       onOpenSettings={() => setShowUserSettings(true)}
       dmUnreadCounts={unreadCounts}
       onlineUserIds={onlineUsers}
-      onOpenFriends={handleOpenFriends}
-      pendingRequestCount={pendingRequestCount}
-      isFriendsActive={activeFriendsView}
     />
   );
 
@@ -816,13 +813,6 @@ function MainApp() {
   let mainContent: React.ReactNode;
   const AtMeTopbar = ({ friendsActive }: { friendsActive: boolean }) => (
     <div className="at-me-topbar">
-      <span className="at-me-topbar-icon">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-          <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
-        </svg>
-      </span>
-      <span className="at-me-topbar-title">Direct Messages</span>
-      <div className="at-me-topbar-divider" />
       <button
         className={`at-me-topbar-friends-btn${friendsActive ? ' active' : ''}`}
         onClick={friendsActive ? handleGoHome : handleOpenFriends}
