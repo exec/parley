@@ -118,7 +118,7 @@
   font-weight: 700;
   font-size: 15px;
   color: var(--parley-accent);
-  margin-right: 6px;
+  margin-right: 2px;
   cursor: pointer;
   text-decoration: none;
   display: inline-block;
@@ -143,6 +143,7 @@
 .message-timestamp {
   font-size: 11px;
   color: var(--parley-text-dim);
+  margin-left: 6px;
 }
 
 .message-text {
@@ -434,8 +435,8 @@
   flex-shrink: 0;
 }
 
-.chat-header-status-dot.online { background-color: #3ba55c; }
-.chat-header-status-dot.offline { background-color: #747f8d; }
+.chat-header-status-dot.online { background-color: var(--parley-green); }
+.chat-header-status-dot.offline { background-color: var(--parley-text-muted); }
 
 .chat-header-name {
   font-size: 16px;
@@ -700,7 +701,7 @@
 .emoji-picker {
   position: absolute;
   z-index: 100;
-  background: #111;
+  background: var(--parley-bg-primary);
   border: 1px solid var(--parley-border);
   border-radius: 8px;
   padding: 8px;
@@ -736,7 +737,7 @@
   right: 0;
   width: 340px;
   max-height: 400px;
-  background: #111;
+  background: var(--parley-bg-primary);
   border: 1px solid var(--parley-border);
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.7);
@@ -1078,7 +1079,7 @@
 }
 .msg-badge.bot {
   background: rgba(88,101,242,0.25);
-  color: #8892f0;
+  color: var(--parley-accent);
 }
 .msg-badge.selfbot {
   font-size: 13px;

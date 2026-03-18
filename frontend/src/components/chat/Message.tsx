@@ -11,6 +11,7 @@ import { isCodeFile, languageFromFilename } from '../../lib/shiki';
 import { getParentAuthor } from './NestedReplies';
 import { EditHistoryPopover } from './EditHistoryPopover';
 import { ThemeLinkEmbed } from '../theme/ThemeLinkEmbed';
+import { useTheme } from '../../context/ThemeContext';
 import './Chat.css';
 import './NestedReplies.css';
 
@@ -172,6 +173,7 @@ export const Message: React.FC<MessageProps> = ({
   const userContextMenuRef = useRef<HTMLDivElement>(null);
   const editedSpanRef = useRef<HTMLSpanElement>(null);
 
+  const { compactMode } = useTheme();
   const isOwnMessage = currentUserId && message.author_id === currentUserId;
 
   const formatTimestamp = (dateString: string): string => {
@@ -321,7 +323,7 @@ export const Message: React.FC<MessageProps> = ({
       onMouseLeave={() => setShowActions(false)}
       onContextMenu={handleContextMenu}
     >
-      {isGrouped ? (
+      {isGrouped || compactMode ? (
         <div className="message-avatar-grouped">
           <span className="message-group-time">{formatTimestamp(message.created_at)}</span>
         </div>
@@ -458,6 +460,24 @@ export const Message: React.FC<MessageProps> = ({
               );
             })()}
           </>
+        )}
+
+        {isGrouped && wasEdited && !isEditing && (
+          <span
+            ref={editedSpanRef}
+            className="message-edited"
+            style={{ cursor: 'pointer', position: 'relative' }}
+            onClick={(e) => { e.stopPropagation(); setShowEditHistory(p => !p); }}
+            title="View edit history"
+          >
+            (edited)
+            {showEditHistory && (
+              <EditHistoryPopover
+                messageId={message.id}
+                onClose={() => setShowEditHistory(false)}
+              />
+            )}
+          </span>
         )}
 
         {(message.reactions?.length ?? 0) > 0 && (

@@ -4,6 +4,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { shareTheme, publishTheme } from '../../api/themes';
 import { CustomThemeEditor } from './CustomThemeEditor';
 import { themePreviewStyle } from '../../lib/themePreview';
+import '../ui/styles.css';
 import './AppearanceTab.css';
 
 const PALETTES: Record<string,[string,string,string,string]> = {
@@ -61,6 +62,22 @@ export const AppearanceTab: React.FC = () => {
 
   return (
     <div className="appearance-tab">
+      <div className="appearance-section-title">Message Display</div>
+      <div className="appearance-display-options">
+        <div className="appearance-display-option">
+          <div className="appearance-display-option-info">
+            <div className="appearance-display-option-label">Compact Mode</div>
+            <div className="appearance-display-option-desc">Hide profile pictures and condense messages into a tighter list</div>
+          </div>
+          <button
+            type="button"
+            className={`custom-toggle${theme.compactMode ? ' on' : ''}`}
+            onClick={() => theme.setCompactMode(!theme.compactMode)}
+            aria-pressed={theme.compactMode}
+          />
+        </div>
+      </div>
+
       <div className="appearance-section-title">Built-in Themes</div>
       <div className="appearance-theme-grid">
         {theme.builtinIds.map(id => {

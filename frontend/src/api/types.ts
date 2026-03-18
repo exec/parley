@@ -49,6 +49,7 @@ export interface ServerMember {
   roles?: Role[];
   is_bot?: boolean;
   bot_degraded?: boolean;
+  invite_code?: string;
 }
 
 export interface Channel {

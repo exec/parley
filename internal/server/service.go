@@ -47,17 +47,23 @@ type ServerMember struct {
 	Bio         string    `json:"bio,omitempty"`
 	Badges      int       `json:"badges"`
 	JoinedAt    time.Time `json:"joined_at"`
+	InviteCode  string    `json:"invite_code,omitempty"`
 	Roles       []Role    `json:"roles"`
 	IsBot       bool      `json:"is_bot,omitempty"`
 	BotDegraded bool      `json:"bot_degraded,omitempty"`
 }
 
 type Invite struct {
-	ID        string    `json:"id"`
-	ServerID  string    `json:"server_id"`
-	Code      string    `json:"code"`
-	CreatedBy string    `json:"created_by"`
-	CreatedAt time.Time `json:"created_at"`
+	ID              string     `json:"id"`
+	ServerID        string     `json:"server_id"`
+	Code            string     `json:"code"`
+	CreatedBy       string     `json:"created_by"`
+	CreatorUsername string     `json:"creator_username,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+	MaxUses         *int       `json:"max_uses,omitempty"`
+	ExpiresAt       *time.Time `json:"expires_at,omitempty"`
+	UseCount        int        `json:"use_count"`
+	IsActive        bool       `json:"is_active"`
 }
 
 // ============ Service ============

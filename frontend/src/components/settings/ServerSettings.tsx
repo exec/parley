@@ -1,16 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { X, ChevronUp, ChevronDown } from 'lucide-react';
+import { X } from 'lucide-react';
 import { Server, ServerMember, Role } from '../../api/types';
-import { updateServer, deleteServer, createInvite, setVanityURL, getMyPermissions } from '../../api/servers';
+import { updateServer, deleteServer, setVanityURL, getMyPermissions } from '../../api/servers';
 import { uploadFile } from '../../api/upload';
 import {
   getServerRoles,
   createServerRole,
   deleteServerRole,
   updateServerRole,
-  getMemberRoles,
-  assignRoleToMember,
-  removeRoleFromMember,
 } from '../../api/roles';
 import {
   PERMISSION_CATEGORIES,
@@ -21,10 +18,12 @@ import {
   permToNumber,
 } from '../../lib/permissions';
 import { BotsTab } from './BotsTab';
+import { InvitesTab } from './InvitesTab';
+import { MembersTab } from './MembersTab';
 import './Settings.css';
 
-type Tab = 'overview' | 'roles' | 'bots' | 'danger';
-type RolesSubTab = 'roles' | 'members';
+type Tab = 'overview' | 'roles' | 'invites' | 'members' | 'bots' | 'danger';
+type RolesSubTab = 'roles';
 
 interface Props {
   isOpen: boolean;
@@ -49,13 +48,10 @@ export const ServerSettings: React.FC<Props> = ({
   const [iconUploading, setIconUploading] = useState(false);
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [overviewError, setOverviewError] = useState('');
-  const [inviteCode, setInviteCode] = useState<string | null>(null);
-  const [inviteLoading, setInviteLoading] = useState(false);
   const iconInputRef = useRef<HTMLInputElement>(null);
 
   // Roles state
   const [roles, setRoles] = useState<Role[]>([]);
-  const [rolesSubTab, setRolesSubTab] = useState<RolesSubTab>('roles');
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [rolesLoading, setRolesLoading] = useState(false);
   const [rolesError, setRolesError] = useState('');
@@ -72,9 +68,6 @@ export const ServerSettings: React.FC<Props> = ({
   const [editRolePerms, setEditRolePerms] = useState<bigint>(0n);
   const [editRoleHoist, setEditRoleHoist] = useState(false);
   const [editRolePosition, setEditRolePosition] = useState(0);
-  // Member roles
-  const [memberRoles, setMemberRoles] = useState<Record<string, Set<string>>>({});
-  const [expandedMember, setExpandedMember] = useState<string | null>(null);
 
   // Danger
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -91,7 +84,6 @@ export const ServerSettings: React.FC<Props> = ({
       setVanityUrl(server.vanity_url || '');
       setIconUrl(server.icon_url || '');
       setOverviewError('');
-      setInviteCode(null);
       setShowDeleteConfirm(false);
       setDeleteError('');
       setCreatingRole(false);
@@ -433,7 +425,7 @@ export const ServerSettings: React.FC<Props> = ({
 
               <div className="settings-section">
                 <div className="settings-section-title">Invite People</div>
-                <p style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>Generate a shareable invite link for this server.</p>
+                <p style={{ fontSize: 13, color: 'var(--parley-text-muted)', marginBottom: 12 }}>Generate a shareable invite link for this server.</p>
                 {inviteCode ? (
                   <div className="settings-invite-box">
                     <span className="settings-invite-link">{window.location.origin}/invite/{inviteCode}</span>
@@ -455,7 +447,7 @@ export const ServerSettings: React.FC<Props> = ({
               {rolesError && <div className="settings-error" style={{ marginBottom: 12 }}>{rolesError}</div>}
 
               {/* Sub-tabs */}
-              <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid #1e2228', paddingBottom: 0 }}>
+              <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--parley-border)', paddingBottom: 0 }}>
                 {(['roles', 'members'] as RolesSubTab[]).map(t => (
                   <button
                     key={t}
@@ -463,8 +455,8 @@ export const ServerSettings: React.FC<Props> = ({
                     style={{
                       background: 'none', border: 'none', cursor: 'pointer', padding: '8px 16px',
                       fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
-                      color: rolesSubTab === t ? '#32CD32' : '#555',
-                      borderBottom: rolesSubTab === t ? '2px solid #32CD32' : '2px solid transparent',
+                      color: rolesSubTab === t ? 'var(--parley-accent)' : 'var(--parley-text-muted)',
+                      borderBottom: rolesSubTab === t ? '2px solid var(--parley-accent)' : '2px solid transparent',
                       marginBottom: -1, letterSpacing: '0.3px', textTransform: 'capitalize',
                     }}
                   >
@@ -477,7 +469,7 @@ export const ServerSettings: React.FC<Props> = ({
                 <div className="roles-panel">
                   {/* Left: role list */}
                   <div className="roles-list-col">
-                    {rolesLoading && roles.length === 0 && <div style={{ fontSize: 12, color: '#555' }}>Loading...</div>}
+                    {rolesLoading && roles.length === 0 && <div style={{ fontSize: 12, color: 'var(--parley-text-muted)' }}>Loading...</div>}
                     {roles.map(role => (
                       <button
                         key={role.id}
@@ -512,12 +504,12 @@ export const ServerSettings: React.FC<Props> = ({
                           <label className="settings-form-label" style={{ margin: 0 }}>Color</label>
                           <input type="color" value={newRoleColor} onChange={e => setNewRoleColor(e.target.value)}
                             style={{ width: 40, height: 32, border: 'none', background: 'none', cursor: 'pointer', padding: 0 }} />
-                          <span style={{ fontSize: 13, color: '#777' }}>{newRoleColor}</span>
+                          <span style={{ fontSize: 13, color: 'var(--parley-text-muted)' }}>{newRoleColor}</span>
                         </div>
                         <div className="settings-section-title" style={{ marginBottom: 8 }}>Permissions</div>
                         {PERMISSION_CATEGORIES.map(cat => (
                           <div key={cat.label} style={{ marginBottom: 16 }}>
-                            <div style={{ fontSize: 11, color: '#32CD32', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 6 }}>
+                            <div style={{ fontSize: 11, color: 'var(--parley-accent)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 6 }}>
                               {cat.label}
                             </div>
                             <div className="roles-perms-grid">
@@ -575,7 +567,7 @@ export const ServerSettings: React.FC<Props> = ({
                           </div>
                         )}
                         {selectedRole.is_everyone && (
-                          <div style={{ fontSize: 12, color: '#555', marginBottom: 12, padding: '8px 10px', background: '#0d0f12', borderRadius: 4, border: '1px solid #1e2228' }}>
+                          <div style={{ fontSize: 12, color: 'var(--parley-text-muted)', marginBottom: 12, padding: '8px 10px', background: 'var(--parley-bg-secondary)', borderRadius: 4, border: '1px solid var(--parley-border)' }}>
                             @everyone is the base role assigned to all server members. It cannot be renamed or deleted.
                           </div>
                         )}
@@ -584,7 +576,7 @@ export const ServerSettings: React.FC<Props> = ({
                             <label className="settings-form-label" style={{ margin: 0 }}>Color</label>
                             <input type="color" value={editRoleColor} onChange={e => setEditRoleColor(e.target.value)}
                               style={{ width: 40, height: 32, border: 'none', background: 'none', cursor: 'pointer', padding: 0 }} />
-                            <span style={{ fontSize: 13, color: '#777' }}>{editRoleColor}</span>
+                            <span style={{ fontSize: 13, color: 'var(--parley-text-muted)' }}>{editRoleColor}</span>
                           </div>
                         )}
                         {!selectedRole.is_everyone && (
@@ -612,13 +604,13 @@ export const ServerSettings: React.FC<Props> = ({
                               className="settings-form-input"
                               style={{ width: 80 }}
                             />
-                            <span style={{ fontSize: 12, color: '#555' }}>Lower = higher priority</span>
+                            <span style={{ fontSize: 12, color: 'var(--parley-text-muted)' }}>Lower = higher priority</span>
                           </div>
                         )}
                         <div className="settings-section-title" style={{ marginBottom: 8 }}>Permissions</div>
                         {PERMISSION_CATEGORIES.map(cat => (
                           <div key={cat.label} style={{ marginBottom: 16 }}>
-                            <div style={{ fontSize: 11, color: '#32CD32', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 6 }}>
+                            <div style={{ fontSize: 11, color: 'var(--parley-accent)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 6 }}>
                               {cat.label}
                             </div>
                             <div className="roles-perms-grid">
@@ -657,7 +649,7 @@ export const ServerSettings: React.FC<Props> = ({
                     )}
 
                     {!selectedRole && !creatingRole && (
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#444', fontSize: 13 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--parley-text-muted)', fontSize: 13 }}>
                         {roles.length === 0 ? 'No roles yet — create one!' : 'Select a role to edit'}
                       </div>
                     )}
@@ -667,9 +659,9 @@ export const ServerSettings: React.FC<Props> = ({
 
               {rolesSubTab === 'members' && (
                 <>
-                  <p style={{ fontSize: 13, color: '#666', marginBottom: 14 }}>Click a member to assign or remove roles.</p>
+                  <p style={{ fontSize: 13, color: 'var(--parley-text-muted)', marginBottom: 14 }}>Click a member to assign or remove roles.</p>
                   {roles.length === 0 && (
-                    <div style={{ fontSize: 13, color: '#555', padding: '16px', background: '#0d0f12', border: '1px solid #1e2228', borderRadius: 6 }}>
+                    <div style={{ fontSize: 13, color: 'var(--parley-text-muted)', padding: '16px', background: 'var(--parley-bg-secondary)', border: '1px solid var(--parley-border)', borderRadius: 6 }}>
                       No roles exist yet. Switch to the Roles tab to create some.
                     </div>
                   )}
@@ -693,7 +685,7 @@ export const ServerSettings: React.FC<Props> = ({
                           </div>
                           {isExpanded && (
                             <div className="roles-member-roles-body">
-                              {roles.length === 0 && <div style={{ fontSize: 12, color: '#555' }}>No roles to assign.</div>}
+                              {roles.length === 0 && <div style={{ fontSize: 12, color: 'var(--parley-text-muted)' }}>No roles to assign.</div>}
                               {roles.map(role => {
                                 const isAssigned = assigned.has(role.id);
                                 return (
@@ -736,7 +728,7 @@ export const ServerSettings: React.FC<Props> = ({
               <div className="settings-danger-zone">
                 <div className="settings-danger-title">Delete Server</div>
                 <p className="settings-danger-desc">
-                  Once you delete <strong style={{ color: '#cc7777' }}>{server.name}</strong>, there is no going back.
+                  Once you delete <strong style={{ color: 'var(--parley-danger)' }}>{server.name}</strong>, there is no going back.
                   All channels, messages, and roles will be permanently deleted.
                 </p>
                 {!showDeleteConfirm ? (
@@ -769,9 +761,9 @@ export const ServerSettings: React.FC<Props> = ({
       {/* Unsaved changes confirmation */}
       {unsavedConfirm && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)' }}>
-          <div style={{ background: '#16191d', border: '1px solid #2a2d32', borderRadius: 8, padding: 28, maxWidth: 380, width: '90%' }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#ddd', marginBottom: 8 }}>Unsaved Changes</div>
-            <div style={{ fontSize: 13, color: '#777', marginBottom: 20 }}>You have unsaved changes. Are you sure you want to leave?</div>
+          <div style={{ background: 'var(--parley-bg-secondary)', border: '1px solid var(--parley-border)', borderRadius: 8, padding: 28, maxWidth: 380, width: '90%' }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--parley-text-normal)', marginBottom: 8 }}>Unsaved Changes</div>
+            <div style={{ fontSize: 13, color: 'var(--parley-text-muted)', marginBottom: 20 }}>You have unsaved changes. Are you sure you want to leave?</div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
               <button className="settings-btn settings-btn-secondary" onClick={() => setUnsavedConfirm(false)}>Keep Editing</button>
               <button className="settings-btn settings-btn-danger" onClick={onClose}>Leave Without Saving</button>

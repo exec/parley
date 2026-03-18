@@ -53,7 +53,14 @@ const FriendsView: React.FC<FriendsViewProps> = ({
       setAddFeedback({ msg: `Friend request sent to ${addUsername}!`, ok: true });
       setAddUsername('');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to send request';
+      const raw = err instanceof Error ? err.message : (err as { message?: string })?.message ?? '';
+      const name = addUsername.trim();
+      let msg: string;
+      if (raw.includes('already friends')) msg = `You and ${name} are already friends!`;
+      else if (raw.includes('already pending')) msg = `You've already sent ${name} a friend request.`;
+      else if (raw.includes('user not found')) msg = `${name} doesn't seem to exist.`;
+      else if (raw.includes('yourself')) msg = `You can't send a friend request to yourself.`;
+      else msg = raw || 'Failed to send request.';
       setAddFeedback({ msg, ok: false });
     } finally {
       setAddLoading(false);

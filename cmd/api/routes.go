@@ -242,6 +242,9 @@ func registerRoutes(
 
 			// Invite routes
 			r.Post("/servers/{id}/invites", serverHandler.CreateInvite)
+			r.Get("/servers/{id}/invites", serverHandler.ListServerInvites)
+			r.Delete("/servers/{id}/invites/{code}", serverHandler.RevokeInvite)
+			r.Get("/servers/{id}/invites/{code}/members", serverHandler.GetInviteMembers)
 			r.With(rateLimitMiddleware(inviteLimiter)).Get("/invites/{code}", serverHandler.GetInvite)
 			r.Put("/servers/{id}/vanity", serverHandler.SetVanityURL)
 

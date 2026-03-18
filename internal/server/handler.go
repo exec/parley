@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
+	"parley/internal/db"
 	"parley/internal/permissions"
 )
 
@@ -417,7 +419,23 @@ func (h *Handler) CreateInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	invite, err := h.service.CreateInvite(r.Context(), serverID, userID)
+	var body struct {
+		MaxUses   *int   `json:"max_uses"`
+		ExpiresIn string `json:"expires_in"` // e.g. "30m", "1h", "6h", "12h", "1d", "7d", "30d"
+	}
+	// Ignore decode error (body is optional)
+	json.NewDecoder(r.Body).Decode(&body)
+
+	var expiresAt *time.Time
+	if body.ExpiresIn != "" {
+		dur, err := parseDuration(body.ExpiresIn)
+		if err == nil {
+			t := time.Now().Add(dur)
+			expiresAt = &t
+		}
+	}
+
+	invite, err := h.service.CreateInvite(r.Context(), serverID, userID, body.MaxUses, expiresAt)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		render.JSON(w, r, ErrorResponse{Error: err.Error()})
@@ -1085,6 +1103,113 @@ func (h *Handler) GetMyPermissions(w http.ResponseWriter, r *http.Request) {
 		"permissions": perms,
 		"is_owner":    isOwner,
 	})
+}
+
+// ListServerInvites handles GET /servers/:id/invites
+func (h *Handler) ListServerInvites(w http.ResponseWriter, r *http.Request) {
+	serverID := chi.URLParam(r, "id")
+	userID, ok := r.Context().Value(UserIDKey).(string)
+	if !ok || userID == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+		return
+	}
+	// Check membership
+	sIDInt, _ := idToInt64(serverID)
+	uIDInt, _ := idToInt64(userID)
+	_, err := h.service.Repo().GetMember(r.Context(), sIDInt, uIDInt)
+	if err != nil {
+		w.WriteHeader(http.StatusForbidden)
+		render.JSON(w, r, ErrorResponse{Error: "not a member"})
+		return
+	}
+	invites, err := h.service.GetServerInvites(r.Context(), serverID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		return
+	}
+	if invites == nil {
+		invites = []*Invite{}
+	}
+	render.JSON(w, r, invites)
+}
+
+// RevokeInvite handles DELETE /servers/:id/invites/:code
+func (h *Handler) RevokeInvite(w http.ResponseWriter, r *http.Request) {
+	serverID := chi.URLParam(r, "id")
+	code := chi.URLParam(r, "code")
+	userID, ok := r.Context().Value(UserIDKey).(string)
+	if !ok || userID == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+		return
+	}
+	err := h.service.RevokeInvite(r.Context(), serverID, code, userID)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) || err.Error() == "invite not found" {
+			w.WriteHeader(http.StatusNotFound)
+			render.JSON(w, r, ErrorResponse{Error: "invite not found"})
+			return
+		}
+		if err.Error() == "not a member of this server" {
+			w.WriteHeader(http.StatusForbidden)
+			render.JSON(w, r, ErrorResponse{Error: err.Error()})
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// GetInviteMembers handles GET /servers/:id/invites/:code/members
+func (h *Handler) GetInviteMembers(w http.ResponseWriter, r *http.Request) {
+	serverID := chi.URLParam(r, "id")
+	code := chi.URLParam(r, "code")
+	userID, ok := r.Context().Value(UserIDKey).(string)
+	if !ok || userID == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+		return
+	}
+	members, err := h.service.GetInviteMembers(r.Context(), serverID, code, userID)
+	if err != nil {
+		if err.Error() == "not a member of this server" {
+			w.WriteHeader(http.StatusForbidden)
+			render.JSON(w, r, ErrorResponse{Error: err.Error()})
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		return
+	}
+	if members == nil {
+		members = []*db.InviteMember{}
+	}
+	render.JSON(w, r, members)
+}
+
+// parseDuration parses a friendly duration string used for invite expiry.
+func parseDuration(s string) (time.Duration, error) {
+	switch s {
+	case "30m":
+		return 30 * time.Minute, nil
+	case "1h":
+		return time.Hour, nil
+	case "6h":
+		return 6 * time.Hour, nil
+	case "12h":
+		return 12 * time.Hour, nil
+	case "1d":
+		return 24 * time.Hour, nil
+	case "7d":
+		return 7 * 24 * time.Hour, nil
+	case "30d":
+		return 30 * 24 * time.Hour, nil
+	}
+	return 0, errors.New("unknown duration: " + s)
 }
 
 // SetVanityURL handles PUT /servers/:id/vanity

@@ -12,6 +12,7 @@ interface ThemeContextValue {
   activeCustomThemeId: number | null;
   customThemes: UserTheme[];
   builtinIds: string[];
+  compactMode: boolean;
   setBuiltin(id: string): Promise<void>;
   setCustom(id: number, themeData?: UserTheme): Promise<void>;
   createCustomTheme(t: NewTheme): Promise<UserTheme>;
@@ -19,6 +20,7 @@ interface ThemeContextValue {
   deleteCustomTheme(id: number): Promise<void>;
   setThemePublished(id: number, published: boolean): void;
   applyTheme(id: string, css?: string, baseTheme?: string): void;
+  setCompactMode(v: boolean): void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -45,6 +47,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [activeTheme, setActiveTheme] = useState(() => localStorage.getItem('parley-theme') || 'abyss');
   const [activeCustomThemeId, setActiveCustomThemeId] = useState<number | null>(null);
   const [customThemes, setCustomThemes] = useState<UserTheme[]>([]);
+  const [compactMode, setCompactModeState] = useState(() => localStorage.getItem('parley-compact-mode') === 'true');
+
+  const setCompactMode = useCallback((v: boolean) => {
+    setCompactModeState(v);
+    localStorage.setItem('parley-compact-mode', v ? 'true' : 'false');
+  }, []);
 
   useEffect(() => {
     // Always apply the cached theme immediately so CSS variables resolve on
@@ -114,6 +122,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   return (
     <ThemeContext.Provider value={{
       activeTheme, activeCustomThemeId, customThemes, builtinIds: BUILTIN_IDS,
+      compactMode, setCompactMode,
       setBuiltin, setCustom, createCustomTheme, updateCustomTheme, deleteCustomTheme, setThemePublished, applyTheme,
     }}>
       {children}

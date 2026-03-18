@@ -6,7 +6,20 @@ export interface Invite {
   server_id: string;
   code: string;
   created_by: string;
+  creator_username: string;
   created_at: string;
+  max_uses?: number;
+  expires_at?: string;
+  use_count: number;
+  is_active: boolean;
+}
+
+export interface InviteMember {
+  user_id: string;
+  username: string;
+  display_name: string;
+  avatar_url: string;
+  joined_at: string;
 }
 
 export async function getServers(): Promise<Server[]> {
@@ -72,8 +85,20 @@ export async function updateMemberNickname(
   });
 }
 
-export async function createInvite(serverId: string): Promise<Invite> {
-  return apiClient.post<Invite>(`/servers/${serverId}/invites`, {});
+export async function createInvite(serverId: string, options?: { max_uses?: number; expires_in?: string }): Promise<Invite> {
+  return apiClient.post<Invite>(`/servers/${serverId}/invites`, options ?? {});
+}
+
+export async function listServerInvites(serverId: string): Promise<Invite[]> {
+  return apiClient.get<Invite[]>(`/servers/${serverId}/invites`);
+}
+
+export async function revokeInvite(serverId: string, code: string): Promise<void> {
+  return apiClient.delete<void>(`/servers/${serverId}/invites/${code}`);
+}
+
+export async function getInviteMembers(serverId: string, code: string): Promise<InviteMember[]> {
+  return apiClient.get<InviteMember[]>(`/servers/${serverId}/invites/${code}/members`);
 }
 
 export async function getInvite(code: string): Promise<{ invite: Invite; server: Server }> {

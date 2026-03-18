@@ -153,18 +153,24 @@ func (r *Repository) DeleteServer(ctx context.Context, id int64) error {
 
 func (r *Repository) AddMember(ctx context.Context, member *ServerMember) error {
 	query := `
-		INSERT INTO server_members (server_id, user_id, nickname, joined_at)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO server_members (server_id, user_id, nickname, joined_at, invite_code)
+		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id
 	`
 
 	member.JoinedAt = time.Now()
+
+	var inviteCode sql.NullString
+	if member.InviteCode != "" {
+		inviteCode = sql.NullString{String: member.InviteCode, Valid: true}
+	}
 
 	err := r.db.QueryRowContext(ctx, query,
 		member.ServerID,
 		member.UserID,
 		member.Nickname,
 		member.JoinedAt,
+		inviteCode,
 	).Scan(&member.ID)
 
 	return err

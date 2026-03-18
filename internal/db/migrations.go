@@ -696,6 +696,15 @@ SET permissions = permissions | (1::bigint << 29)
 WHERE name = '@everyone'
   AND (permissions & (1::bigint << 29)) = 0;
 `,
+
+	`ALTER TABLE invites
+    ADD COLUMN IF NOT EXISTS max_uses INT DEFAULT NULL,
+    ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP DEFAULT NULL,
+    ADD COLUMN IF NOT EXISTS use_count INT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMP DEFAULT NULL;
+ALTER TABLE server_members
+    ADD COLUMN IF NOT EXISTS invite_code VARCHAR(16) DEFAULT NULL;
+CREATE INDEX IF NOT EXISTS idx_server_members_invite_code ON server_members(invite_code) WHERE invite_code IS NOT NULL;`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

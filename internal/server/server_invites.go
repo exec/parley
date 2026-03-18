@@ -4,11 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"parley/internal/db"
 )
 
-func (s *ServerService) CreateInvite(ctx context.Context, serverID, createdBy string) (*Invite, error) {
+func (s *ServerService) CreateInvite(ctx context.Context, serverID, createdBy string, maxUses *int, expiresAt *time.Time) (*Invite, error) {
 	if serverID == "" {
 		return nil, errors.New("server ID is required")
 	}
@@ -49,6 +50,8 @@ func (s *ServerService) CreateInvite(ctx context.Context, serverID, createdBy st
 		ServerID:  serverIDInt,
 		Code:      code,
 		CreatedBy: createdByInt,
+		MaxUses:   maxUses,
+		ExpiresAt: expiresAt,
 	}
 	if err = s.repo.CreateInvite(ctx, invite); err != nil {
 		return nil, err
@@ -60,6 +63,10 @@ func (s *ServerService) CreateInvite(ctx context.Context, serverID, createdBy st
 		Code:      invite.Code,
 		CreatedBy: int64ToID(invite.CreatedBy),
 		CreatedAt: invite.CreatedAt,
+		MaxUses:   invite.MaxUses,
+		ExpiresAt: invite.ExpiresAt,
+		UseCount:  0,
+		IsActive:  true,
 	}, nil
 }
 
@@ -76,12 +83,20 @@ func (s *ServerService) GetInviteByCode(ctx context.Context, code string) (*Invi
 		return nil, err
 	}
 
+	now := time.Now()
+	isActive := invite.RevokedAt == nil &&
+		(invite.ExpiresAt == nil || now.Before(*invite.ExpiresAt)) &&
+		(invite.MaxUses == nil || invite.UseCount < *invite.MaxUses)
 	return &Invite{
 		ID:        int64ToID(invite.ID),
 		ServerID:  int64ToID(invite.ServerID),
 		Code:      invite.Code,
 		CreatedBy: int64ToID(invite.CreatedBy),
 		CreatedAt: invite.CreatedAt,
+		MaxUses:   invite.MaxUses,
+		ExpiresAt: invite.ExpiresAt,
+		UseCount:  invite.UseCount,
+		IsActive:  isActive,
 	}, nil
 }
 
@@ -123,9 +138,10 @@ func (s *ServerService) JoinServerByInvite(ctx context.Context, code, userID str
 	}
 
 	member := &db.ServerMember{
-		ServerID: server.ID,
-		UserID:   userIDInt,
-		Nickname: "",
+		ServerID:   server.ID,
+		UserID:     userIDInt,
+		Nickname:   "",
+		InviteCode: code,
 	}
 	if err = s.repo.AddMember(ctx, member); err != nil {
 		// Already a member — just return the server
@@ -172,6 +188,76 @@ func (s *ServerService) JoinServerByVanityURL(ctx context.Context, vanityURL, us
 	}
 
 	return dbServerToService(server), nil
+}
+
+func (s *ServerService) GetServerInvites(ctx context.Context, serverID string) ([]*Invite, error) {
+	serverIDInt, err := idToInt64(serverID)
+	if err != nil {
+		return nil, errors.New("invalid server ID")
+	}
+
+	invites, err := s.repo.GetServerInvites(ctx, serverIDInt)
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	result := make([]*Invite, 0, len(invites))
+	for _, inv := range invites {
+		isActive := inv.RevokedAt == nil &&
+			(inv.ExpiresAt == nil || now.Before(*inv.ExpiresAt)) &&
+			(inv.MaxUses == nil || inv.UseCount < *inv.MaxUses)
+		result = append(result, &Invite{
+			ID:              int64ToID(inv.ID),
+			ServerID:        int64ToID(inv.ServerID),
+			Code:            inv.Code,
+			CreatedBy:       int64ToID(inv.CreatedBy),
+			CreatorUsername: inv.CreatorUsername,
+			CreatedAt:       inv.CreatedAt,
+			MaxUses:         inv.MaxUses,
+			ExpiresAt:       inv.ExpiresAt,
+			UseCount:        inv.UseCount,
+			IsActive:        isActive,
+		})
+	}
+	return result, nil
+}
+
+func (s *ServerService) RevokeInvite(ctx context.Context, serverID, code, requestingUserID string) error {
+	serverIDInt, err := idToInt64(serverID)
+	if err != nil {
+		return errors.New("invalid server ID")
+	}
+
+	// Check requester is a member
+	userIDInt, err := idToInt64(requestingUserID)
+	if err != nil {
+		return errors.New("invalid user ID")
+	}
+	_, err = s.repo.GetMember(ctx, serverIDInt, userIDInt)
+	if err != nil {
+		return errors.New("not a member of this server")
+	}
+
+	return s.repo.RevokeInvite(ctx, code, serverIDInt)
+}
+
+func (s *ServerService) GetInviteMembers(ctx context.Context, serverID, code, requestingUserID string) ([]*db.InviteMember, error) {
+	serverIDInt, err := idToInt64(serverID)
+	if err != nil {
+		return nil, errors.New("invalid server ID")
+	}
+
+	userIDInt, err := idToInt64(requestingUserID)
+	if err != nil {
+		return nil, errors.New("invalid user ID")
+	}
+	_, err = s.repo.GetMember(ctx, serverIDInt, userIDInt)
+	if err != nil {
+		return nil, errors.New("not a member of this server")
+	}
+
+	return s.repo.GetMembersByInviteCode(ctx, code, serverIDInt)
 }
 
 func (s *ServerService) SetVanityURL(ctx context.Context, serverID, userID, vanityURL string) (*Server, error) {

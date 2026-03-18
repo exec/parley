@@ -93,7 +93,8 @@ type ServerMember struct {
 	ServerID  int64        `json:"server_id" db:"server_id"`
 	UserID    int64        `json:"user_id" db:"user_id"`
 	Nickname  string       `json:"nickname" db:"nickname"`
-	JoinedAt  time.Time    `json:"joined_at" db:"joined_at"`
+	JoinedAt   time.Time    `json:"joined_at" db:"joined_at"`
+	InviteCode string       `json:"invite_code,omitempty" db:"invite_code"`
 	Username    string       `json:"username" db:"-"`
 	DisplayName string       `json:"display_name,omitempty" db:"-"`
 	AvatarURL   string       `json:"avatar_url,omitempty" db:"-"`
@@ -200,11 +201,15 @@ type ReactionGroup struct {
 
 // Invite represents an invite code for a server
 type Invite struct {
-	ID        int64     `json:"id" db:"id"`
-	ServerID  int64     `json:"server_id" db:"server_id"`
-	Code      string    `json:"code" db:"code"`
-	CreatedBy int64     `json:"created_by" db:"created_by"`
-	CreatedAt time.Time `json:"created_at" db:"created_at"`
+	ID        int64      `json:"id" db:"id"`
+	ServerID  int64      `json:"server_id" db:"server_id"`
+	Code      string     `json:"code" db:"code"`
+	CreatedBy int64      `json:"created_by" db:"created_by"`
+	CreatedAt time.Time  `json:"created_at" db:"created_at"`
+	MaxUses   *int       `json:"max_uses,omitempty" db:"max_uses"`
+	ExpiresAt *time.Time `json:"expires_at,omitempty" db:"expires_at"`
+	UseCount  int        `json:"use_count" db:"use_count"`
+	RevokedAt *time.Time `json:"revoked_at,omitempty" db:"revoked_at"`
 }
 
 // ServerRole represents a role within a server

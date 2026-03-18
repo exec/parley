@@ -316,13 +316,6 @@
   border-bottom-color: var(--accent);
 }
 
-.post-view-files .code-block {
-  flex: 1;
-  overflow-y: auto;
-  border-radius: 0;
-  border: none;
-  border-top: none;
-}
 
 /* Files body (wraps CodeBlock + inline form) */
 
@@ -333,9 +326,26 @@
   flex-direction: column;
 }
 
+/* In PostView the files-body is the single scroll container —
+   let the code block expand naturally and disable its own scroll. */
 .post-view-files-body .code-block {
   border-radius: 0;
   border: none;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.post-view-files-body .code-block-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.post-view-files-body .code-block-body {
+  max-height: none;
+  overflow-y: visible;
+  flex: 1;
 }
 
 /* Comments tab */
