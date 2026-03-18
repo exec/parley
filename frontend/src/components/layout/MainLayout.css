@@ -113,6 +113,19 @@
   display: none !important;
 }
 
+/* ── Desktop: sidebar collapses in-flow when toggled off ── */
+@media (min-width: 769px) {
+  .user-sidebar {
+    transition: width 0.22s ease, min-width 0.22s ease;
+  }
+  .user-sidebar:not(.user-sidebar--open) {
+    width: 0;
+    min-width: 0;
+    overflow: hidden;
+    border-left-width: 0;
+  }
+}
+
 @media (max-width: 768px) {
   .mobile-backdrop {
     display: block;
@@ -122,14 +135,19 @@
     z-index: 90;
   }
 
-  /* Channel list becomes a fixed overlay slide-in from left */
+  /* Sidebar (server icons) — hide on mobile, show via drawer or bottom nav */
+  .sidebar {
+    display: none;
+  }
+
+  /* Channel list: fixed overlay, full width, slides from left */
   .channel-list {
     position: fixed;
-    left: 72px;
+    left: 0;
     top: 0;
     bottom: 0;
-    width: 240px;
-    min-width: 240px;
+    width: 280px;
+    min-width: 280px;
     height: 100dvh;
     z-index: 100;
     transform: translateX(-110%);
@@ -139,14 +157,14 @@
     transform: translateX(0);
   }
 
-  /* Members sidebar becomes a fixed overlay slide-in from right */
+  /* Members sidebar: fixed overlay, slides from right */
   .user-sidebar {
     position: fixed;
     right: 0;
     top: 0;
     bottom: 0;
-    width: 240px;
-    min-width: 240px;
+    width: 260px;
+    min-width: 260px;
     height: 100dvh;
     z-index: 100;
     transform: translateX(110%);
@@ -156,9 +174,19 @@
     transform: translateX(0);
   }
 
+  /* Chat takes full width on mobile */
+  .main-content {
+    width: 100%;
+  }
+
   /* Show hamburger on mobile */
   .chat-header-btn--hamburger {
     display: flex !important;
+  }
+
+  /* Voice widget sticks above bottom of screen with safe area */
+  .voice-widget {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 }
 

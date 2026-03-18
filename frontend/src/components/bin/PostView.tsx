@@ -2,8 +2,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { BinPost, BinPostVersion, BinLineComment, Message } from '../../api/types';
-import { getPost, getVersions, getVersion, getLineComments } from '../../api/bin';
-import { getMessages, sendMessage as apiSendMessage } from '../../api/messages';
+import { getPost, getVersions, getVersion, getLineComments, deletePost, updateLineComment, deleteLineComment } from '../../api/bin';
+import { getMessages, sendMessage as apiSendMessage, editMessage, deleteMessage, toggleReaction } from '../../api/messages';
 import { CodeBlock } from '../ui/CodeBlock';
 import ShikiCodeBlock from '../ui/ShikiCodeBlock';
 import { MessageList } from '../chat/MessageList';
@@ -14,6 +14,7 @@ import './PostView.css';
 interface PostViewProps {
   postId: string;
   onBack: () => void;
+  currentUserId?: string;
 }
 
 type TabKey = 'files' | 'comments' | 'linenotes';
@@ -39,7 +40,7 @@ function formatRelativeTime(dateStr: string): string {
   return date.toLocaleDateString();
 }
 
-export const PostView: React.FC<PostViewProps> = ({ postId, onBack }) => {
+export const PostView: React.FC<PostViewProps> = ({ postId, onBack, currentUserId }) => {
   const [post, setPost] = useState<BinPost | null>(null);
   const [versions, setVersions] = useState<BinPostVersion[]>([]);
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
@@ -57,6 +58,12 @@ export const PostView: React.FC<PostViewProps> = ({ postId, onBack }) => {
   const [threadMessages, setThreadMessages] = useState<Message[]>([]);
   const [threadLoading, setThreadLoading] = useState(false);
   const threadChannelIdRef = useRef<string | null>(null);
+
+  // Reply-to state for thread comments
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+
+  // Line note edit state: commentId -> draft content (null = not editing)
+  const [editingLineNote, setEditingLineNote] = useState<Record<string, string | null>>({});
 
   const refreshLineComments = useCallback(async () => {
     try {
@@ -180,22 +187,112 @@ export const PostView: React.FC<PostViewProps> = ({ postId, onBack }) => {
   );
 
   const handleSendThreadMessage = useCallback(
-    async (content: string) => {
+    async (content: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string, parentId?: string) => {
       const channelId = threadChannelIdRef.current;
-      if (!channelId || !content.trim()) return;
+      if (!channelId || (!content.trim() && !attachmentUrl)) return;
       const nonce = crypto.randomUUID();
       try {
-        const confirmed = await apiSendMessage(channelId, content, nonce);
+        const confirmed = await apiSendMessage(channelId, content, nonce, attachmentUrl, attachmentName, attachmentType, parentId);
         setThreadMessages((prev) => {
           if (prev.some((m) => m.id === confirmed.id)) return prev;
           return [...prev, confirmed];
         });
+        setReplyTo(null);
       } catch {
         // swallow — user can retry
       }
     },
     []
   );
+
+  // Thread message action handlers
+  const handleEditThreadMessage = useCallback(
+    async (message: Message) => {
+      const newContent = window.prompt('Edit message:', message.content);
+      if (newContent === null || newContent === message.content) return;
+      try {
+        const updated = await editMessage(message.id, newContent);
+        setThreadMessages((prev) =>
+          prev.map((m) => (m.id === updated.id ? updated : m))
+        );
+      } catch {
+        // swallow
+      }
+    },
+    []
+  );
+
+  const handleDeleteThreadMessage = useCallback(
+    async (messageId: string) => {
+      if (!window.confirm('Delete this message?')) return;
+      try {
+        await deleteMessage(messageId);
+        setThreadMessages((prev) => prev.filter((m) => m.id !== messageId));
+      } catch {
+        // swallow
+      }
+    },
+    []
+  );
+
+  const handleReactThreadMessage = useCallback(
+    async (messageId: string, emoji: string) => {
+      try {
+        await toggleReaction(messageId, emoji);
+        // Refresh messages to get updated reaction counts
+        const channelId = threadChannelIdRef.current;
+        if (channelId) {
+          const msgs = await getMessages(channelId, { limit: 100 });
+          setThreadMessages(msgs);
+        }
+      } catch {
+        // swallow
+      }
+    },
+    []
+  );
+
+  // Delete post handler
+  const handleDeletePost = useCallback(async () => {
+    if (!window.confirm('Are you sure you want to delete this post? This action cannot be undone.')) return;
+    try {
+      await deletePost(postId);
+      onBack();
+    } catch {
+      // swallow
+    }
+  }, [postId, onBack]);
+
+  // Line note edit/delete handlers
+  const handleStartEditLineNote = useCallback((commentId: string, currentContent: string) => {
+    setEditingLineNote((prev) => ({ ...prev, [commentId]: currentContent }));
+  }, []);
+
+  const handleCancelEditLineNote = useCallback((commentId: string) => {
+    setEditingLineNote((prev) => ({ ...prev, [commentId]: null }));
+  }, []);
+
+  const handleSaveEditLineNote = useCallback(async (commentId: string) => {
+    const newContent = editingLineNote[commentId];
+    if (newContent === null || newContent === undefined) return;
+    try {
+      await updateLineComment(commentId, newContent);
+      await refreshLineComments();
+      setEditingLineNote((prev) => ({ ...prev, [commentId]: null }));
+    } catch {
+      // swallow
+    }
+  }, [editingLineNote, refreshLineComments]);
+
+  const handleDeleteLineNote = useCallback(async (commentId: string) => {
+    if (!window.confirm('Delete this line note?')) return;
+    try {
+      await deleteLineComment(commentId);
+      await refreshLineComments();
+    } catch {
+      // swallow
+    }
+  }, [refreshLineComments]);
 
   if (loading) {
     return (
@@ -216,6 +313,7 @@ export const PostView: React.FC<PostViewProps> = ({ postId, onBack }) => {
   }
 
   const authorInitials = (post.author_username || '?').slice(0, 2).toUpperCase();
+  const isPostAuthor = currentUserId !== undefined && String(currentUserId) === String(post.author_id);
 
   return (
     <div className="post-view">
@@ -264,6 +362,16 @@ export const PostView: React.FC<PostViewProps> = ({ postId, onBack }) => {
             )}
           </div>
         </div>
+
+        {isPostAuthor && (
+          <button
+            className="post-view-delete-btn"
+            onClick={handleDeletePost}
+            title="Delete post"
+          >
+            Delete
+          </button>
+        )}
       </div>
 
       {/* ── Old-version banner ── */}
@@ -375,10 +483,18 @@ export const PostView: React.FC<PostViewProps> = ({ postId, onBack }) => {
                 <MessageList
                   messages={threadMessages}
                   allMessages={threadMessages}
+                  currentUserId={currentUserId}
+                  onEdit={handleEditThreadMessage}
+                  onDelete={handleDeleteThreadMessage}
+                  onReact={handleReactThreadMessage}
+                  onReply={(msg) => setReplyTo(msg)}
                 />
                 <MessageInput
                   channelName="thread"
                   onSendMessage={handleSendThreadMessage}
+                  replyTo={replyTo}
+                  serverId={undefined}
+                  channelId={threadChannelIdRef.current || undefined}
                 />
               </>
             )}
@@ -396,6 +512,10 @@ export const PostView: React.FC<PostViewProps> = ({ postId, onBack }) => {
                 const file = (versionFiles ?? post.files ?? []).find(
                   (f) => f.id === comment.file_id
                 );
+                const isNoteAuthor = currentUserId !== undefined && String(currentUserId) === String(comment.author_id);
+                const draftContent = editingLineNote[comment.id];
+                const isEditing = draftContent !== null && draftContent !== undefined;
+
                 return (
                   <div key={comment.id} className="post-view-linenote">
                     <div className="post-view-linenote-header">
@@ -411,8 +531,55 @@ export const PostView: React.FC<PostViewProps> = ({ postId, onBack }) => {
                         <span className="post-view-linenote-username">{comment.author_username}</span>
                         <span className="post-view-linenote-time">{formatRelativeTime(comment.created_at)}</span>
                       </div>
+                      {isNoteAuthor && (
+                        <div className="post-view-linenote-actions">
+                          {!isEditing && (
+                            <button
+                              className="post-view-linenote-action-btn"
+                              onClick={() => handleStartEditLineNote(comment.id, comment.content)}
+                              title="Edit"
+                            >
+                              Edit
+                            </button>
+                          )}
+                          <button
+                            className="post-view-linenote-action-btn post-view-linenote-action-btn--delete"
+                            onClick={() => handleDeleteLineNote(comment.id)}
+                            title="Delete"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    <div className="post-view-linenote-content">{comment.content}</div>
+                    {isEditing ? (
+                      <div className="post-view-linenote-edit">
+                        <textarea
+                          className="post-view-linenote-edit-textarea"
+                          value={draftContent}
+                          onChange={(e) =>
+                            setEditingLineNote((prev) => ({ ...prev, [comment.id]: e.target.value }))
+                          }
+                          rows={3}
+                        />
+                        <div className="post-view-linenote-edit-actions">
+                          <button
+                            className="post-view-linenote-action-btn"
+                            onClick={() => handleSaveEditLineNote(comment.id)}
+                          >
+                            Save
+                          </button>
+                          <button
+                            className="post-view-linenote-action-btn"
+                            onClick={() => handleCancelEditLineNote(comment.id)}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="post-view-linenote-content">{comment.content}</div>
+                    )}
                   </div>
                 );
               })

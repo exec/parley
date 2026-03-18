@@ -13,9 +13,10 @@ interface BinChannelProps {
   serverId?: string;
   onOpenPost: (postId: string) => void;
   onNewPost: () => void;
+  currentUserId?: string;
 }
 
-export const BinChannel: React.FC<BinChannelProps> = ({ channelId, serverId, onOpenPost, onNewPost }) => {
+export const BinChannel: React.FC<BinChannelProps> = ({ channelId, serverId, onOpenPost, onNewPost, currentUserId: _currentUserId }) => {
   const { hasPerm: checkPerm } = usePermissions(serverId, channelId);
   const canCreatePosts = !serverId || checkPerm(PERM_CREATE_POSTS);
   const [posts, setPosts] = useState<BinPost[]>([]);

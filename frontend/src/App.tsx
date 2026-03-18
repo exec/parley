@@ -188,8 +188,8 @@ function MainApp() {
   // Reply-to state for nested replies
   const [replyTo, setReplyTo] = useState<Message | null>(null);
 
-  // Sidebar visibility
-  const [showMembers, setShowMembers] = useState(true);
+  // Sidebar visibility — open by default on desktop, closed on mobile
+  const [showMembers, setShowMembers] = useState(() => window.innerWidth > 768);
   const [showChannelList, setShowChannelList] = useState(false); // mobile drawer, starts closed
 
   // Bin channel state
@@ -670,7 +670,7 @@ function MainApp() {
       serverName={activeServer?.name ?? ''}
       channels={channels}
       activeChannelId={activeChannel?.id ?? null}
-      onChannelSelect={selectChannel}
+      onChannelSelect={(id) => { selectChannel(id); if (window.innerWidth <= 768) setShowChannelList(false); }}
       onCreateChannel={() => setShowCreateChannel(true)}
       onDeleteChannel={deleteChannel}
       onManageRoles={() => { setServerSettingsInitialTab('roles'); setShowServerSettings(true); }}
@@ -849,13 +849,14 @@ function MainApp() {
     );
   } else if (activeChannel?.type === 2) {
     mainContent = activePostId ? (
-      <PostView postId={activePostId} onBack={() => setActivePostId(null)} />
+      <PostView postId={activePostId} onBack={() => setActivePostId(null)} currentUserId={currentUser?.id} />
     ) : (
       <BinChannel
         channelId={activeChannel.id}
         serverId={activeServer?.id}
         onOpenPost={setActivePostId}
         onNewPost={() => setShowCreatePost(true)}
+        currentUserId={currentUser?.id}
       />
     );
   } else if (isViewingVC && vcChannel && currentUser) {

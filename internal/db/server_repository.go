@@ -268,3 +268,38 @@ func (r *Repository) GetServerMembers(ctx context.Context, serverID int64) ([]*S
 	}
 	return members, nil
 }
+
+func (r *Repository) GetMembersByRole(ctx context.Context, serverID, roleID int64) ([]*ServerMember, error) {
+	query := `
+		SELECT sm.id, sm.server_id, sm.user_id, sm.nickname, sm.joined_at
+		FROM server_members sm
+		JOIN member_roles mr ON mr.server_id = sm.server_id AND mr.user_id = sm.user_id
+		WHERE mr.server_id = $1 AND mr.role_id = $2
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, serverID, roleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var members []*ServerMember
+	for rows.Next() {
+		var member ServerMember
+		err := rows.Scan(
+			&member.ID,
+			&member.ServerID,
+			&member.UserID,
+			&member.Nickname,
+			&member.JoinedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		members = append(members, &member)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return members, nil
+}

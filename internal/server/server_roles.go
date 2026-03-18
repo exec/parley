@@ -95,6 +95,15 @@ func (s *ServerService) UpdateServerRole(ctx context.Context, serverID, roleID, 
 			s.hub.BroadcastToChannel("server:"+serverID, ws.EventRoleUpdate, payload)
 		}
 	}
+	// Broadcast MEMBER_ROLE_UPDATE to each member who has this role so their
+	// frontend re-fetches channel permissions with the updated role data.
+	members, err := s.repo.GetMembersByRole(ctx, sID, rID)
+	if err == nil {
+		for _, m := range members {
+			uIDStr := int64ToID(m.UserID)
+			s.broadcastRoleUpdate(ctx, serverID, uIDStr, sID, m.UserID)
+		}
+	}
 	return &r, nil
 }
 
