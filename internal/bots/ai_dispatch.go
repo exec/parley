@@ -117,6 +117,10 @@ func (d *Dispatcher) BuildTrigger(postFn PostFunc) func(ctx context.Context, msg
 				if lastErr == nil {
 					return
 				}
+				// Don't retry on permanent errors (4xx responses)
+				if isPermanentError(lastErr) {
+					break
+				}
 			}
 			log.Printf("bot dispatch error: %v", lastErr)
 		}()
@@ -149,6 +153,9 @@ func (d *Dispatcher) dispatch(ctx context.Context, serverIDInt int64, channelID,
 			if err != nil {
 				return fmt.Errorf("decrypt api key: %w", err)
 			}
+		}
+		if provider != "parley" && apiKey == "" {
+			return fmt.Errorf("provider %s requires an API key", provider)
 		}
 	}
 
@@ -338,6 +345,21 @@ func (d *Dispatcher) preprocessContent(ctx context.Context, content, botUserIDSt
 	})
 
 	return strings.TrimSpace(content)
+}
+
+// isPermanentError returns true for errors that should not be retried,
+// i.e. 4xx HTTP responses from providers (bad key, quota, invalid model, etc.).
+func isPermanentError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	for _, code := range []string{" 400:", " 401:", " 403:", " 404:", " 422:"} {
+		if strings.Contains(msg, code) {
+			return true
+		}
+	}
+	return false
 }
 
 // --- Ollama (Parley provider) ---
