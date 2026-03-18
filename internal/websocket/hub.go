@@ -281,6 +281,9 @@ func (h *Hub) UnsubscribeFromChannel(channelID string, client *Client) {
 	// Maintain inverse index
 	if h.clientChannels[client] != nil {
 		delete(h.clientChannels[client], channelID)
+		if len(h.clientChannels[client]) == 0 {
+			delete(h.clientChannels, client)
+		}
 	}
 
 	h.mu.Unlock()

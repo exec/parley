@@ -1,8 +1,6 @@
 package websocket
 
 import (
-	"fmt"
-	"sync"
 	"testing"
 )
 
@@ -89,6 +87,13 @@ func TestSafeSendToFullChannel(t *testing.T) {
 	}
 }
 
-// Ensure fmt and sync are used so Task 2's tests can extend this file.
-var _ = fmt.Sprintf
-var _ sync.Mutex
+func TestSafeSendDelivers(t *testing.T) {
+	ch := make(chan []byte, 1)
+	sent := safeSend(ch, []byte("hello"))
+	if !sent {
+		t.Error("safeSend should return true when channel has capacity")
+	}
+	if msg := <-ch; string(msg) != "hello" {
+		t.Errorf("got %q, want %q", msg, "hello")
+	}
+}
