@@ -2,24 +2,25 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--bg-primary, #313338);
-  color: var(--text-primary, #dcddde);
+  background: var(--parley-channel-bg, #0a1628);
+  color: var(--parley-text-normal, #cad5e2);
 }
 
 .friends-view-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 16px 20px 0;
-  border-bottom: 1px solid var(--bg-tertiary, #1e1f22);
+  gap: 4px;
+  padding: 12px 20px 0;
+  border-bottom: 1px solid rgba(139, 163, 191, 0.1);
+  flex-shrink: 0;
 }
 
 .friends-tab {
-  padding: 8px 12px;
+  padding: 8px 14px;
   border-radius: 4px 4px 0 0;
   border: none;
   background: none;
-  color: var(--text-muted, #96989d);
+  color: var(--parley-text-muted, #8ba3bf);
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
@@ -28,20 +29,21 @@
   gap: 6px;
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
+  font-family: inherit;
+  transition: color 0.12s;
 }
 
 .friends-tab:hover {
-  background: var(--bg-modifier-hover, #3f4147);
-  color: var(--text-primary, #dcddde);
+  color: var(--parley-text-normal, #cad5e2);
 }
 
 .friends-tab.active {
-  color: var(--text-primary, #dcddde);
-  border-bottom-color: var(--brand, #5865f2);
+  color: var(--parley-text-normal, #cad5e2);
+  border-bottom-color: var(--parley-accent, #00b4d8);
 }
 
 .friends-tab-badge {
-  background: var(--status-danger, #ed4245);
+  background: var(--parley-danger, #ed4245);
   color: #fff;
   border-radius: 10px;
   padding: 0 5px;
@@ -61,7 +63,8 @@
   text-transform: uppercase;
   font-size: 11px;
   font-weight: 700;
-  color: var(--text-muted, #96989d);
+  color: var(--parley-text-muted, #8ba3bf);
+  letter-spacing: 0.6px;
   margin-bottom: 8px;
   margin-top: 16px;
 }
@@ -77,10 +80,11 @@
   padding: 10px 8px;
   border-radius: 8px;
   cursor: default;
+  transition: background 0.12s;
 }
 
 .friends-list-item:hover {
-  background: var(--bg-modifier-hover, #3f4147);
+  background: var(--parley-bg-hover, #152c52);
 }
 
 .friends-avatar-wrap {
@@ -94,7 +98,7 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: var(--bg-tertiary, #1e1f22);
+  background: var(--parley-bg-hover, #152c52);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -110,12 +114,12 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  border: 2px solid var(--bg-primary, #313338);
-  background: var(--status-offline, #80848e);
+  border: 2px solid var(--parley-channel-bg, #0a1628);
+  background: var(--parley-gray, #747f8d);
 }
 
 .friends-status-dot.online {
-  background: var(--status-online, #23a55a);
+  background: var(--parley-green, #00b4d8);
 }
 
 .friends-name {
@@ -125,12 +129,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--parley-text-normal, #cad5e2);
 }
 
 .friends-actions {
   display: flex;
   gap: 6px;
   opacity: 0;
+  transition: opacity 0.12s;
 }
 
 .friends-list-item:hover .friends-actions {
@@ -138,46 +144,52 @@
 }
 
 .friends-btn {
-  padding: 4px 12px;
+  padding: 5px 14px;
   border-radius: 4px;
   border: none;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s, color 0.12s;
 }
 
 .friends-btn.primary {
-  background: var(--brand, #5865f2);
-  color: #fff;
+  background: rgba(0, 180, 216, 0.15);
+  color: var(--parley-accent, #00b4d8);
+  border: 1px solid rgba(0, 180, 216, 0.3);
 }
 
 .friends-btn.primary:hover {
-  background: var(--brand-hover, #4752c4);
+  background: rgba(0, 180, 216, 0.25);
+  border-color: rgba(0, 180, 216, 0.5);
 }
 
 .friends-btn.danger {
   background: transparent;
-  color: var(--status-danger, #ed4245);
-  border: 1px solid var(--status-danger, #ed4245);
+  color: var(--parley-danger, #ed4245);
+  border: 1px solid rgba(237, 66, 69, 0.4);
 }
 
 .friends-btn.danger:hover {
-  background: var(--status-danger, #ed4245);
+  background: var(--parley-danger, #ed4245);
   color: #fff;
+  border-color: transparent;
 }
 
 .friends-btn.ghost {
-  background: var(--bg-secondary, #2b2d31);
-  color: var(--text-primary, #dcddde);
+  background: var(--parley-bg-hover, #152c52);
+  color: var(--parley-text-normal, #cad5e2);
+  border: 1px solid rgba(139, 163, 191, 0.15);
 }
 
 .friends-btn.ghost:hover {
-  background: var(--bg-modifier-hover, #3f4147);
+  background: rgba(139, 163, 191, 0.12);
 }
 
 .friends-empty {
   text-align: center;
-  color: var(--text-muted, #96989d);
+  color: var(--parley-text-muted, #8ba3bf);
   padding: 40px 0;
   font-size: 14px;
 }
@@ -191,16 +203,24 @@
 .add-friend-input {
   flex: 1;
   padding: 10px 14px;
-  background: var(--bg-tertiary, #1e1f22);
-  border: 1px solid var(--bg-tertiary, #1e1f22);
+  background: var(--parley-bg-secondary, #0d1f3c);
+  border: 1px solid rgba(139, 163, 191, 0.15);
   border-radius: 6px;
-  color: var(--text-primary, #dcddde);
+  color: var(--parley-text-normal, #cad5e2);
   font-size: 14px;
   outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s;
 }
 
 .add-friend-input:focus {
-  border-color: var(--brand, #5865f2);
+  border-color: rgba(0, 180, 216, 0.4);
+  box-shadow: 0 0 0 3px rgba(0, 180, 216, 0.08);
+}
+
+.add-friend-input::placeholder {
+  color: var(--parley-text-muted, #8ba3bf);
+  opacity: 0.6;
 }
 
 .add-friend-feedback {
@@ -210,9 +230,9 @@
 }
 
 .add-friend-feedback.success {
-  color: var(--status-online, #23a55a);
+  color: var(--parley-green, #00b4d8);
 }
 
 .add-friend-feedback.error {
-  color: var(--status-danger, #ed4245);
+  color: var(--parley-danger, #ed4245);
 }

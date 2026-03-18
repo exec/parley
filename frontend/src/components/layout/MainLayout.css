@@ -165,3 +165,89 @@
 .main-content--voice-connected {
   padding-bottom: 96px;
 }
+
+/* ── @me (DM home) layout ─────────────────────────────── */
+
+.at-me-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.at-me-topbar {
+  height: 48px;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 4px;
+  background: var(--parley-channel-bg, #0a1628);
+  border-bottom: 1px solid rgba(var(--accent-rgb, 0, 180, 216), 0.15);
+  flex-shrink: 0;
+}
+
+.at-me-topbar-icon {
+  color: var(--parley-text-muted, #8ba3bf);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.at-me-topbar-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--parley-text-normal, #cad5e2);
+  letter-spacing: -0.2px;
+}
+
+.at-me-topbar-divider {
+  width: 1px;
+  height: 20px;
+  background: rgba(139, 163, 191, 0.2);
+  margin: 0 8px;
+  flex-shrink: 0;
+}
+
+.at-me-topbar-friends-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--parley-text-muted, #8ba3bf);
+  transition: background 0.12s, color 0.12s;
+  font-family: inherit;
+}
+
+.at-me-topbar-friends-btn:hover {
+  background: var(--parley-bg-hover, #152c52);
+  color: var(--parley-text-normal, #cad5e2);
+}
+
+.at-me-topbar-friends-btn.active {
+  background: rgba(0, 180, 216, 0.12);
+  color: var(--parley-accent, #00b4d8);
+}
+
+.at-me-topbar-friends-badge {
+  background: var(--parley-danger, #ed4245);
+  color: #fff;
+  border-radius: 10px;
+  padding: 0 5px;
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 16px;
+  text-align: center;
+}
+
+.at-me-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}

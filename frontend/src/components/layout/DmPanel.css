@@ -8,28 +8,26 @@
   border-right: 1px solid var(--border);
 }
 
-.dm-panel-header {
-  height: 48px;
-  min-height: 48px;
-  padding: 0 16px;
-  display: flex;
-  align-items: center;
-  background-color: var(--bg-tertiary);
+.dm-panel-nav {
+  padding: 8px 8px 6px;
+  flex-shrink: 0;
   border-bottom: 1px solid var(--border);
 }
 
-.dm-panel-title {
-  font-size: 13px;
-  font-weight: bold;
-  color: var(--text-primary);
+.dm-section-label {
+  padding: 12px 12px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--parley-text-muted, #8ba3bf);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.8px;
+  flex-shrink: 0;
 }
 
 .dm-panel-list {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 0;
+  padding: 4px 0 8px;
 }
 
 .dm-panel-list::-webkit-scrollbar {
@@ -296,28 +294,29 @@
 .dm-friends-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
-  padding: 8px 10px;
+  padding: 9px 10px;
   background: none;
   border: none;
   border-radius: 6px;
-  color: var(--text-muted, #96989d);
+  color: var(--parley-text-muted, #8ba3bf);
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
   text-align: left;
-  margin-bottom: 4px;
+  font-family: inherit;
+  transition: background 0.12s, color 0.12s;
 }
 
 .dm-friends-btn:hover {
-  background: var(--bg-modifier-hover, #3f4147);
-  color: var(--text-primary, #dcddde);
+  background: var(--parley-bg-hover, #152c52);
+  color: var(--parley-text-normal, #cad5e2);
 }
 
 .dm-friends-btn.active {
-  background: var(--bg-modifier-selected, #404249);
-  color: var(--text-primary, #dcddde);
+  background: rgba(0, 180, 216, 0.12);
+  color: var(--parley-accent, #00b4d8);
 }
 
 .dm-friends-badge {
