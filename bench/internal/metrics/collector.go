@@ -17,20 +17,20 @@ type Collector struct {
 }
 
 type opStats struct {
-	mu      sync.Mutex
-	count   int64
-	errors  map[int]int64
-	latency *Histogram
+	mu          sync.Mutex
+	count       int64
+	statusCodes map[int]int64
+	latency     *Histogram
 }
 
 // OpReport is the computed summary for one operation type.
 type OpReport struct {
-	Count  int64
-	RPS    float64
-	P50    time.Duration
-	P95    time.Duration
-	P99    time.Duration
-	Errors map[int]int64
+	Count       int64
+	RPS         float64
+	P50         time.Duration
+	P95         time.Duration
+	P99         time.Duration
+	StatusCodes map[int]int64 // counts by HTTP status code (all codes, including 2xx)
 }
 
 // Report is the full summary returned by Collector.Report().
@@ -59,8 +59,8 @@ func (c *Collector) Record(op string, d time.Duration, statusCode int) {
 	s, ok := c.ops[op]
 	if !ok {
 		s = &opStats{
-			errors:  make(map[int]int64),
-			latency: NewHistogram(),
+			statusCodes: make(map[int]int64),
+			latency:     NewHistogram(),
 		}
 		c.ops[op] = s
 	}
@@ -68,7 +68,7 @@ func (c *Collector) Record(op string, d time.Duration, statusCode int) {
 
 	s.mu.Lock()
 	s.count++
-	s.errors[statusCode]++
+	s.statusCodes[statusCode]++
 	s.latency.Record(d)
 	s.mu.Unlock()
 }
@@ -96,17 +96,17 @@ func (c *Collector) Report() *Report {
 	opReports := make(map[string]*OpReport, len(c.ops))
 	for name, s := range c.ops {
 		s.mu.Lock()
-		errs := make(map[int]int64, len(s.errors))
-		for k, v := range s.errors {
-			errs[k] = v
+		codes := make(map[int]int64, len(s.statusCodes))
+		for k, v := range s.statusCodes {
+			codes[k] = v
 		}
 		opReports[name] = &OpReport{
-			Count:  s.count,
-			RPS:    float64(s.count) / elapsedSec,
-			P50:    s.latency.Percentile(50),
-			P95:    s.latency.Percentile(95),
-			P99:    s.latency.Percentile(99),
-			Errors: errs,
+			Count:       s.count,
+			RPS:         float64(s.count) / elapsedSec,
+			P50:         s.latency.Percentile(50),
+			P95:         s.latency.Percentile(95),
+			P99:         s.latency.Percentile(99),
+			StatusCodes: codes,
 		}
 		s.mu.Unlock()
 	}

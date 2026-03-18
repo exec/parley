@@ -23,8 +23,8 @@ func TestCollectorRecord(t *testing.T) {
 	if op.Count != 3 {
 		t.Errorf("count = %d, want 3", op.Count)
 	}
-	if op.Errors[http.StatusTooManyRequests] != 1 {
-		t.Errorf("429 count = %d, want 1", op.Errors[http.StatusTooManyRequests])
+	if op.StatusCodes[http.StatusTooManyRequests] != 1 {
+		t.Errorf("429 count = %d, want 1", op.StatusCodes[http.StatusTooManyRequests])
 	}
 	if op.P50 < 10*time.Millisecond || op.P50 > 30*time.Millisecond {
 		t.Errorf("p50 = %v, out of expected range", op.P50)
