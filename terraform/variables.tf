@@ -173,3 +173,10 @@ variable "ollama_model" {
   type        = string
   default     = "devstral-small-2:24b-cloud"
 }
+
+variable "bot_key_secret" {
+  description = "Secret for deriving the AES-256 bot API key encryption key"
+  type        = string
+  sensitive   = true
+  default     = ""
+}

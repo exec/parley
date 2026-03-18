@@ -92,6 +92,7 @@ resource "digitalocean_droplet" "parley_api" {
     OLLAMA_API_URL           = var.ollama_api_url
     OLLAMA_API_KEY           = var.ollama_api_key
     OLLAMA_MODEL             = var.ollama_model
+    BOT_KEY_SECRET           = var.bot_key_secret
   })
 
   tags = ["parley", "api"]

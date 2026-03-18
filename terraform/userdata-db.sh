@@ -154,6 +154,9 @@ listen_port = 6432
 auth_type = scram-sha-256
 auth_file = /etc/pgbouncer/userlist.txt
 pool_mode = transaction
+# lib/pq sends extra_float_digits as a startup parameter; PgBouncer rejects
+# unknown startup params in transaction mode unless explicitly ignored.
+ignore_startup_parameters = extra_float_digits
 max_client_conn = 1000
 default_pool_size = 25
 reserve_pool_size = 5
