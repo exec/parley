@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { Server, ServerMember, Role } from '../../api/types';
 import { updateServer, deleteServer, setVanityURL, getMyPermissions } from '../../api/servers';
@@ -23,7 +23,6 @@ import { MembersTab } from './MembersTab';
 import './Settings.css';
 
 type Tab = 'overview' | 'roles' | 'invites' | 'members' | 'bots' | 'danger';
-type RolesSubTab = 'roles';
 
 interface Props {
   isOpen: boolean;
@@ -37,7 +36,7 @@ interface Props {
 }
 
 export const ServerSettings: React.FC<Props> = ({
-  isOpen, onClose, server, members, onUpdate, onDelete, onCreateInvite, initialTab,
+  isOpen, onClose, server, members, onUpdate, onDelete, initialTab,
 }) => {
   const [activeTab, setActiveTab] = useState<Tab>(initialTab ?? 'overview');
 
@@ -138,27 +137,6 @@ export const ServerSettings: React.FC<Props> = ({
     }
   };
 
-  const loadAllMemberRoles = useCallback(async () => {
-    if (!server || members.length === 0) return;
-    const entries = await Promise.all(
-      members.map(async m => {
-        try {
-          const r = await getMemberRoles(server.id, m.user_id);
-          return [m.user_id, new Set((r ?? []).map((role: Role) => role.id))] as const;
-        } catch {
-          return [m.user_id, new Set<string>()] as const;
-        }
-      })
-    );
-    setMemberRoles(Object.fromEntries(entries));
-  }, [server, members]);
-
-  useEffect(() => {
-    if (isOpen && activeTab === 'roles' && rolesSubTab === 'members') {
-      loadAllMemberRoles();
-    }
-  }, [isOpen, activeTab, rolesSubTab, loadAllMemberRoles]);
-
   // Sync edit fields when selected role changes
   useEffect(() => {
     const role = roles.find(r => r.id === selectedRoleId);
@@ -227,20 +205,6 @@ export const ServerSettings: React.FC<Props> = ({
     }
   };
 
-  const handleCreateInvite = async () => {
-    if (!server) return;
-    setInviteLoading(true);
-    try {
-      const invite = await createInvite(server.id);
-      setInviteCode(invite.code);
-      onCreateInvite(invite.code);
-    } catch (err) {
-      setOverviewError(err instanceof Error ? err.message : 'Failed to create invite');
-    } finally {
-      setInviteLoading(false);
-    }
-  };
-
   /* ---- Roles handlers ---- */
 
   const handleAddRole = async () => {
@@ -283,30 +247,10 @@ export const ServerSettings: React.FC<Props> = ({
       await deleteServerRole(server.id, roleId);
       setRoles(prev => prev.filter(r => r.id !== roleId));
       if (selectedRoleId === roleId) setSelectedRoleId(null);
-      setMemberRoles(prev => {
-        const next = { ...prev };
-        Object.keys(next).forEach(uid => { next[uid] = new Set([...next[uid]].filter(rid => rid !== roleId)); });
-        return next;
-      });
     } catch (e) {
       setRolesError(e instanceof Error ? e.message : 'Failed to delete role');
     } finally {
       setRolesLoading(false);
-    }
-  };
-
-  const handleToggleMemberRole = async (userId: string, roleId: string, currentlyAssigned: boolean) => {
-    if (!server) return;
-    try {
-      if (currentlyAssigned) {
-        await removeRoleFromMember(server.id, userId, roleId);
-        setMemberRoles(prev => { const s = new Set(prev[userId] ?? []); s.delete(roleId); return { ...prev, [userId]: s }; });
-      } else {
-        await assignRoleToMember(server.id, userId, roleId);
-        setMemberRoles(prev => { const s = new Set(prev[userId] ?? []); s.add(roleId); return { ...prev, [userId]: s }; });
-      }
-    } catch (e) {
-      setRolesError(e instanceof Error ? e.message : 'Failed to update role');
     }
   };
 
@@ -342,6 +286,12 @@ export const ServerSettings: React.FC<Props> = ({
           </button>
           <button className={`settings-nav-item${activeTab === 'roles' ? ' active' : ''}`} onClick={() => setActiveTab('roles')}>
             Roles
+          </button>
+          <button className={`settings-nav-item${activeTab === 'invites' ? ' active' : ''}`} onClick={() => setActiveTab('invites')}>
+            Invites
+          </button>
+          <button className={`settings-nav-item${activeTab === 'members' ? ' active' : ''}`} onClick={() => setActiveTab('members')}>
+            Members
           </button>
           <button className={`settings-nav-item${activeTab === 'bots' ? ' active' : ''}`} onClick={() => setActiveTab('bots')}>
             Bots
@@ -423,21 +373,6 @@ export const ServerSettings: React.FC<Props> = ({
                 )}
               </div>
 
-              <div className="settings-section">
-                <div className="settings-section-title">Invite People</div>
-                <p style={{ fontSize: 13, color: 'var(--parley-text-muted)', marginBottom: 12 }}>Generate a shareable invite link for this server.</p>
-                {inviteCode ? (
-                  <div className="settings-invite-box">
-                    <span className="settings-invite-link">{window.location.origin}/invite/{inviteCode}</span>
-                    <button className="settings-btn settings-btn-ghost" onClick={() => navigator.clipboard.writeText(`${window.location.origin}/invite/${inviteCode}`)}>Copy</button>
-                    <button className="settings-btn settings-btn-ghost" onClick={() => setInviteCode(null)}>Dismiss</button>
-                  </div>
-                ) : (
-                  <button className="settings-btn settings-btn-secondary" onClick={handleCreateInvite} disabled={inviteLoading}>
-                    {inviteLoading ? 'Generating...' : 'Create Invite Link'}
-                  </button>
-                )}
-              </div>
             </>
           )}
 
@@ -446,26 +381,7 @@ export const ServerSettings: React.FC<Props> = ({
               <h2 className="settings-page-title">Roles</h2>
               {rolesError && <div className="settings-error" style={{ marginBottom: 12 }}>{rolesError}</div>}
 
-              {/* Sub-tabs */}
-              <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--parley-border)', paddingBottom: 0 }}>
-                {(['roles', 'members'] as RolesSubTab[]).map(t => (
-                  <button
-                    key={t}
-                    onClick={() => setRolesSubTab(t)}
-                    style={{
-                      background: 'none', border: 'none', cursor: 'pointer', padding: '8px 16px',
-                      fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
-                      color: rolesSubTab === t ? 'var(--parley-accent)' : 'var(--parley-text-muted)',
-                      borderBottom: rolesSubTab === t ? '2px solid var(--parley-accent)' : '2px solid transparent',
-                      marginBottom: -1, letterSpacing: '0.3px', textTransform: 'capitalize',
-                    }}
-                  >
-                    {t === 'roles' ? 'Roles' : 'Members'}
-                  </button>
-                ))}
-              </div>
-
-              {rolesSubTab === 'roles' && (
+              {(
                 <div className="roles-panel">
                   {/* Left: role list */}
                   <div className="roles-list-col">
@@ -656,61 +572,12 @@ export const ServerSettings: React.FC<Props> = ({
                   </div>
                 </div>
               )}
-
-              {rolesSubTab === 'members' && (
-                <>
-                  <p style={{ fontSize: 13, color: 'var(--parley-text-muted)', marginBottom: 14 }}>Click a member to assign or remove roles.</p>
-                  {roles.length === 0 && (
-                    <div style={{ fontSize: 13, color: 'var(--parley-text-muted)', padding: '16px', background: 'var(--parley-bg-secondary)', border: '1px solid var(--parley-border)', borderRadius: 6 }}>
-                      No roles exist yet. Switch to the Roles tab to create some.
-                    </div>
-                  )}
-                  <div className="roles-members-list">
-                    {members.map(member => {
-                      const assigned = memberRoles[member.user_id] ?? new Set();
-                      const isExpanded = expandedMember === member.user_id;
-                      return (
-                        <div key={member.id} className="roles-member-item">
-                          <div className="roles-member-header" onClick={() => setExpandedMember(isExpanded ? null : member.user_id)}>
-                            <div className="roles-member-avatar">
-                              {member.avatar_url
-                                ? <img src={member.avatar_url} alt={member.username} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-                                : (member.username || 'U').charAt(0).toUpperCase()
-                              }
-                            </div>
-                            <span className="roles-member-name">{member.nickname || member.username}</span>
-                            <span className="roles-member-count">
-                              {assigned.size > 0 ? `${assigned.size} role${assigned.size !== 1 ? 's' : ''}` : 'No roles'} {isExpanded ? <ChevronUp size={14} color="currentColor" /> : <ChevronDown size={14} color="currentColor" />}
-                            </span>
-                          </div>
-                          {isExpanded && (
-                            <div className="roles-member-roles-body">
-                              {roles.length === 0 && <div style={{ fontSize: 12, color: 'var(--parley-text-muted)' }}>No roles to assign.</div>}
-                              {roles.map(role => {
-                                const isAssigned = assigned.has(role.id);
-                                return (
-                                  <div key={role.id} className="roles-member-role-row" onClick={() => handleToggleMemberRole(member.user_id, role.id, isAssigned)}>
-                                    <button
-                                      type="button"
-                                      className={`custom-toggle${isAssigned ? ' on' : ''}`}
-                                      onClick={e => { e.stopPropagation(); handleToggleMemberRole(member.user_id, role.id, isAssigned); }}
-                                      aria-pressed={isAssigned}
-                                    />
-                                    <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: role.color, display: 'inline-block', flexShrink: 0 }} />
-                                    <span style={{ color: role.color }}>{role.name}</span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
             </>
           )}
+
+          {activeTab === 'invites' && <InvitesTab server={server} />}
+
+          {activeTab === 'members' && <MembersTab server={server} members={members} />}
 
           {activeTab === 'bots' && (
             <BotsTab
