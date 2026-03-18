@@ -3,33 +3,13 @@ import { createHighlighter, type Highlighter, type ThemedToken } from 'shiki';
 let highlighterPromise: Promise<Highlighter> | null = null;
 const loadedLanguages = new Set<string>();
 
-const parleyTheme = {
-  name: 'parley',
-  type: 'dark' as const,
-  colors: {
-    'editor.background': '#0a0a0a',
-    'editor.foreground': '#e0e0e0',
-  },
-  tokenColors: [
-    { scope: ['keyword', 'storage.type', 'storage.modifier'], settings: { foreground: '#32CD32' } },
-    { scope: ['string', 'string.quoted'], settings: { foreground: '#228B22' } },
-    { scope: ['comment', 'punctuation.definition.comment'], settings: { foreground: '#555555' } },
-    { scope: ['constant.numeric', 'constant.language'], settings: { foreground: '#66ff66' } },
-    { scope: ['entity.name.type', 'support.type'], settings: { foreground: '#44aa44' } },
-    { scope: ['entity.name.function', 'support.function'], settings: { foreground: '#ffffff' } },
-    { scope: ['variable', 'variable.other'], settings: { foreground: '#e0e0e0' } },
-    { scope: ['punctuation'], settings: { foreground: '#888888' } },
-    { scope: ['entity.name.tag'], settings: { foreground: '#32CD32' } },
-    { scope: ['entity.other.attribute-name'], settings: { foreground: '#44aa44' } },
-  ],
-};
-
+const THEME = 'github-dark';
 const DEFAULT_LANG = 'plaintext';
 
 export async function getHighlighter(): Promise<Highlighter> {
   if (!highlighterPromise) {
     highlighterPromise = createHighlighter({
-      themes: [parleyTheme],
+      themes: [THEME],
       langs: [DEFAULT_LANG],
     });
   }
@@ -51,7 +31,7 @@ export async function highlightLines(code: string, lang: string): Promise<Themed
     }
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const result = hl.codeToTokens(code, { lang: language as any, theme: 'parley' });
+  const result = hl.codeToTokens(code, { lang: language as any, theme: THEME });
   return result.tokens;
 }
 
@@ -63,10 +43,10 @@ export async function highlight(code: string, lang: string): Promise<string> {
       await hl.loadLanguage(language as Parameters<Highlighter['loadLanguage']>[0]);
       loadedLanguages.add(language);
     } catch {
-      return hl.codeToHtml(code, { lang: DEFAULT_LANG, theme: 'parley' });
+      return hl.codeToHtml(code, { lang: DEFAULT_LANG, theme: THEME });
     }
   }
-  return hl.codeToHtml(code, { lang: language, theme: 'parley' });
+  return hl.codeToHtml(code, { lang: language, theme: THEME });
 }
 
 const EXT_MAP: Record<string, string> = {

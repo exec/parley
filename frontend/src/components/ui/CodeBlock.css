@@ -1,6 +1,6 @@
 /* =========================================================
    CodeBlock — syntax-highlighted code display
-   Green terminal theme: #32CD32 on #0a0a0a
+   Uses github-dark Shiki theme; background overridden by CSS vars
    ========================================================= */
 
 .code-block {
