@@ -84,6 +84,11 @@ export const PostView: React.FC<PostViewProps> = ({ postId, onBack }) => {
         setLineComments(fetchedComments);
         threadChannelIdRef.current = fetchedPost.thread_channel_id;
         setActiveFileIndex(0);
+        // Auto-select the latest version so line comments always reference
+        // bin_post_version_files IDs (required by the FK constraint).
+        if (fetchedVersions.length > 0) {
+          setSelectedVersionId(fetchedVersions[0].id);
+        }
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load post');
@@ -137,10 +142,11 @@ export const PostView: React.FC<PostViewProps> = ({ postId, onBack }) => {
     return () => { cancelled = true; };
   }, [postId, selectedVersionId]);
 
-  const currentFiles = versionFiles ?? post?.files ?? [];
+  const currentFiles = versionFiles ?? [];
   const activeFile = currentFiles[activeFileIndex] ?? null;
 
-  const isViewingOldVersion = selectedVersionId !== null;
+  // "old version" means viewing something other than the latest (versions[0])
+  const isViewingOldVersion = selectedVersionId !== null && selectedVersionId !== versions[0]?.id;
   const currentVersionObj = versions.find((v) => v.id === selectedVersionId);
 
   const highlightedLines = React.useMemo(() => {
@@ -154,17 +160,11 @@ export const PostView: React.FC<PostViewProps> = ({ postId, onBack }) => {
 
   const handleLineClick = useCallback(
     (lineNumber: number) => {
-      if (!activeFile) return;
-      // Determine the version id: use the currently loaded version or fall back to
-      // the latest version (versions[0]) from the list. If no versions loaded yet,
-      // use an empty string — the form will still render.
-      const versionId =
-        selectedVersionId ??
-        (versions.length > 0 ? versions[versions.length - 1].id : '');
+      if (!activeFile || !selectedVersionId) return;
       setActiveLineComment({
         lineNumber,
         fileId: activeFile.id,
-        versionId,
+        versionId: selectedVersionId,
       });
     },
     [activeFile, selectedVersionId, versions]
@@ -235,10 +235,9 @@ export const PostView: React.FC<PostViewProps> = ({ postId, onBack }) => {
                 value={selectedVersionId ?? ''}
                 onChange={(e) => setSelectedVersionId(e.target.value || null)}
               >
-                <option value="">Latest</option>
-                {versions.map((v) => (
+                {versions.map((v, i) => (
                   <option key={v.id} value={v.id}>
-                    v{v.version}{v.description ? ` — ${v.description}` : ''}
+                    v{v.version}{i === 0 ? ' (Latest)' : ''}{v.description ? ` — ${v.description}` : ''}
                   </option>
                 ))}
               </select>
