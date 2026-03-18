@@ -142,7 +142,7 @@ const DmPanel: React.FC<DmPanelProps> = ({
             <span className="dm-panel-status-dot online" />
           </div>
           <div className="dm-panel-user-details">
-            <div className="dm-panel-username">{currentUser?.username || 'User'}</div>
+            <div className="dm-panel-username">{currentUser?.display_name || currentUser?.username || 'User'}</div>
             <div className="dm-panel-status">Online</div>
           </div>
           <span onClick={e => e.stopPropagation()}><ThemePopover onOpenSettings={() => onOpenSettings?.()} /></span>

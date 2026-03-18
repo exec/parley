@@ -616,11 +616,14 @@ const ChannelList: React.FC<ChannelListProps> = ({
 
       <div className="user-area clickable" onClick={e => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setUserContextMenu({ top: r.top, left: r.left }); }} title="Click for user settings">
         <div className="user-info">
-          <div className="user-avatar">
-            {currentUser?.avatar_url
-              ? <img src={currentUser.avatar_url} alt={currentUser.username} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-              : <span className="user-avatar-placeholder">{currentUser?.username?.charAt(0).toUpperCase() || 'U'}</span>
-            }
+          <div className="user-avatar-wrap">
+            <div className="user-avatar">
+              {currentUser?.avatar_url
+                ? <img src={currentUser.avatar_url} alt={currentUser.username} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                : <span className="user-avatar-placeholder">{currentUser?.username?.charAt(0).toUpperCase() || 'U'}</span>
+              }
+            </div>
+            <span className="user-status-dot online" />
           </div>
           <div className="user-details">
             <div className="username">{currentUser?.display_name || currentUser?.username || 'User'}</div>
