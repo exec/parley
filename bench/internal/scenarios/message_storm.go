@@ -88,6 +88,9 @@ func RunMessageStorm(ctx context.Context, opts MessageStormOptions) error {
 		}
 	}()
 
+	if opts.Rate <= 0 {
+		opts.Rate = 1
+	}
 	deadline := time.Now().Add(opts.Duration)
 	interval := time.Duration(float64(time.Second) / opts.Rate)
 

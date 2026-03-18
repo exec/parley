@@ -80,6 +80,9 @@ func RunAuthFlood(ctx context.Context, opts AuthFloodOptions) error {
 				col.Record("login", elapsed, status)
 
 				elapsedSec := time.Since(start).Seconds()
+				if elapsedSec < 0.001 {
+					elapsedSec = 0.001
+				}
 				rep.Progress("workers:%d  elapsed:%.0fs  rps:%.1f",
 					opts.Workers,
 					elapsedSec,
@@ -92,10 +95,10 @@ func RunAuthFlood(ctx context.Context, opts AuthFloodOptions) error {
 	wg.Wait()
 	rep.Summary("auth-flood", col.Report())
 	rep.Println("Tip: 429 count shows the rate limiter working. bcrypt p99 shows server CPU cost per auth.")
-	if col.Report().Ops["login"] != nil {
-		codes := col.Report().Ops["login"].StatusCodes
+	if r := col.Report(); r.Ops["login"] != nil {
+		codes := r.Ops["login"].StatusCodes
 		if codes[http.StatusTooManyRequests] > 0 {
-			pct := float64(codes[http.StatusTooManyRequests]) / float64(col.Report().Ops["login"].Count) * 100
+			pct := float64(codes[http.StatusTooManyRequests]) / float64(r.Ops["login"].Count) * 100
 			rep.Println("  429 rate: %.1f%% (rate limiter hit)", pct)
 		}
 	}

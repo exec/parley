@@ -141,6 +141,9 @@ func RunBroadcastAmp(ctx context.Context, opts BroadcastAmpOptions) error {
 		opts.Host, opts.BenchSecret,
 	)
 
+	if opts.Rate <= 0 {
+		opts.Rate = 1
+	}
 	deadline := time.Now().Add(opts.Duration)
 	interval := time.Duration(float64(time.Second) / opts.Rate)
 

@@ -63,6 +63,10 @@ func RunMixed(ctx context.Context, opts MixedOptions) error {
 
 	start := time.Now()
 
+	if opts.Users < 5 {
+		rep.Println("WARNING: --users %d is too small for role split (need ≥5). All users will be readers.", opts.Users)
+	}
+
 	// Assign roles: 20% writers, 60% readers, 20% typing spammers.
 	nWriters := opts.Users / 5
 	nTypers := opts.Users / 5

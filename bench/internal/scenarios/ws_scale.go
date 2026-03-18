@@ -79,7 +79,10 @@ func RunWSScale(ctx context.Context, opts WSScaleOptions) error {
 	rep.Println("\nRamp complete: %d connected, %d failed. Sustaining for %s...",
 		connected.Load(), int64(opts.Max)-connected.Load(), opts.SustainFor)
 
-	time.Sleep(opts.SustainFor)
+	select {
+	case <-ctx.Done():
+	case <-time.After(opts.SustainFor):
+	}
 
 	rep.Println("Draining connections...")
 	mu.Lock()
