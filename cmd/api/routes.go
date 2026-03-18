@@ -83,6 +83,9 @@ func registerRoutes(
 	// Rate limiter for message writes: 5 messages/second per authenticated user (burst 10).
 	// Keyed on user ID, not IP, to prevent cross-IP bypasses by the same account.
 	msgWriteLimiter := newRateLimiter(10, 2*time.Second) // burst=10, rate=5/s
+	// Rate limiter for message search: 20 per authenticated user per minute.
+	// Search uses ILIKE sequential scans — expensive without a full-text index.
+	msgSearchLimiter := newRateLimiter(20, time.Minute)
 
 	router.Route("/api", func(r chi.Router) {
 		// Auth routes
@@ -184,7 +187,7 @@ func registerRoutes(
 
 			// Message routes
 			messageHandler := message.NewHandler(messageService)
-			r.Get("/servers/{id}/messages/search", messageHandler.SearchMessages)
+			r.With(userRateLimitMiddleware(msgSearchLimiter)).Get("/servers/{id}/messages/search", messageHandler.SearchMessages)
 			r.With(rateLimitMiddleware(msgReadLimiter)).Get("/channels/{channelID}/messages", messageHandler.GetChannelMessages)
 			r.With(userRateLimitMiddleware(msgWriteLimiter)).Post("/channels/{channelID}/messages", messageHandler.SendMessage)
 			r.Put("/messages/{id}", messageHandler.EditMessage)

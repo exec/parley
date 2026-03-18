@@ -145,12 +145,13 @@
 }
 
 body {
-  font-family: 'gg sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-family: 'Outfit', 'gg sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   background-color: var(--parley-bg-primary);
   color: var(--parley-text-normal);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'kern' 1, 'liga' 1;
 }
 
 #root {
@@ -249,6 +250,6 @@ input {
 
 .login-form button:hover,
 .register-form button:hover {
-  background-color: #4752c4;
+  background-color: var(--parley-accent-hover);
 }
 

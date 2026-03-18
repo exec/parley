@@ -29,14 +29,17 @@ export const BinChannel: React.FC<BinChannelProps> = ({ channelId, serverId, onO
     setLoading(true);
     setError(null);
     try {
-      const [fetchedPosts, fetchedTags] = await Promise.all([
+      const [postsResult, tagsResult] = await Promise.allSettled([
         listPosts(channelId),
         getTags(channelId),
       ]);
-      setPosts(fetchedPosts);
-      setTags(fetchedTags);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load posts');
+      if (postsResult.status === 'rejected') {
+        const err = postsResult.reason;
+        setError((err as any)?.message || 'Failed to load posts');
+      } else {
+        setPosts(postsResult.value);
+      }
+      setTags(tagsResult.status === 'fulfilled' ? tagsResult.value : []);
     } finally {
       setLoading(false);
     }
@@ -143,11 +146,13 @@ export const BinChannel: React.FC<BinChannelProps> = ({ channelId, serverId, onO
           {filteredPosts.length === 0 ? (
             <div className="bin-empty-state">
               <div className="bin-empty-icon">&lt;/&gt;</div>
-              <div className="bin-empty-label">No posts yet</div>
+              <div className="bin-empty-label">
+                {selectedTags.size > 0 ? 'No matching posts' : 'No posts yet'}
+              </div>
               <div className="bin-empty-hint">
                 {selectedTags.size > 0
                   ? 'No posts match the selected tags.'
-                  : 'Be the first to share some code.'}
+                  : 'Be the first to share some code!'}
               </div>
             </div>
           ) : (

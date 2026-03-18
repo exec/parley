@@ -9,6 +9,7 @@ import (
 
 	"parley/internal/auth"
 	"parley/internal/db"
+	"parley/internal/httputil"
 )
 
 // Handler handles HTTP requests for bin posts, versions, line comments, and tags.
@@ -34,23 +35,23 @@ type createPostRequest struct {
 func (h *Handler) CreatePost(w http.ResponseWriter, r *http.Request) {
 	channelID := chi.URLParam(r, "channelID")
 	if channelID == "" {
-		http.Error(w, "channel ID is required", http.StatusBadRequest)
+		httputil.JSONError(w, "channel ID is required", http.StatusBadRequest)
 		return
 	}
 
 	userID := auth.GetUserIDFromContext(r)
 	if userID == "" {
-		http.Error(w, "user not authenticated", http.StatusUnauthorized)
+		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
 		return
 	}
 
 	var req createPostRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 	if req.Title == "" {
-		http.Error(w, "title is required", http.StatusBadRequest)
+		httputil.JSONError(w, "title is required", http.StatusBadRequest)
 		return
 	}
 
@@ -58,11 +59,13 @@ func (h *Handler) CreatePost(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch err.Error() {
 		case "channel not found":
-			http.Error(w, err.Error(), http.StatusNotFound)
+			httputil.JSONError(w, err.Error(), http.StatusNotFound)
 		case "channel is not a bin channel":
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			httputil.JSONError(w, err.Error(), http.StatusBadRequest)
+		case "forbidden":
+			httputil.JSONError(w, "you do not have permission to create posts in this channel", http.StatusForbidden)
 		default:
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
 		}
 		return
 	}
@@ -76,7 +79,7 @@ func (h *Handler) CreatePost(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ListPosts(w http.ResponseWriter, r *http.Request) {
 	channelID := chi.URLParam(r, "channelID")
 	if channelID == "" {
-		http.Error(w, "channel ID is required", http.StatusBadRequest)
+		httputil.JSONError(w, "channel ID is required", http.StatusBadRequest)
 		return
 	}
 
@@ -104,11 +107,11 @@ func (h *Handler) ListPosts(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch err.Error() {
 		case "channel not found":
-			http.Error(w, err.Error(), http.StatusNotFound)
+			httputil.JSONError(w, err.Error(), http.StatusNotFound)
 		case "channel is not a bin channel":
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			httputil.JSONError(w, err.Error(), http.StatusBadRequest)
 		default:
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
 		}
 		return
 	}
@@ -121,7 +124,7 @@ func (h *Handler) ListPosts(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetPost(w http.ResponseWriter, r *http.Request) {
 	postID := chi.URLParam(r, "postID")
 	if postID == "" {
-		http.Error(w, "post ID is required", http.StatusBadRequest)
+		httputil.JSONError(w, "post ID is required", http.StatusBadRequest)
 		return
 	}
 
@@ -129,10 +132,10 @@ func (h *Handler) GetPost(w http.ResponseWriter, r *http.Request) {
 	post, err := h.service.GetPost(r.Context(), postID, userID)
 	if err != nil {
 		if err.Error() == "post not found" {
-			http.Error(w, err.Error(), http.StatusNotFound)
+			httputil.JSONError(w, err.Error(), http.StatusNotFound)
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -151,23 +154,23 @@ type editPostRequest struct {
 func (h *Handler) EditPost(w http.ResponseWriter, r *http.Request) {
 	postID := chi.URLParam(r, "postID")
 	if postID == "" {
-		http.Error(w, "post ID is required", http.StatusBadRequest)
+		httputil.JSONError(w, "post ID is required", http.StatusBadRequest)
 		return
 	}
 
 	userID := auth.GetUserIDFromContext(r)
 	if userID == "" {
-		http.Error(w, "user not authenticated", http.StatusUnauthorized)
+		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
 		return
 	}
 
 	var req editPostRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 	if req.Title == "" {
-		http.Error(w, "title is required", http.StatusBadRequest)
+		httputil.JSONError(w, "title is required", http.StatusBadRequest)
 		return
 	}
 
@@ -175,11 +178,11 @@ func (h *Handler) EditPost(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch err.Error() {
 		case "post not found":
-			http.Error(w, err.Error(), http.StatusNotFound)
+			httputil.JSONError(w, err.Error(), http.StatusNotFound)
 		case "forbidden":
-			http.Error(w, err.Error(), http.StatusForbidden)
+			httputil.JSONError(w, err.Error(), http.StatusForbidden)
 		default:
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
 		}
 		return
 	}
@@ -192,24 +195,24 @@ func (h *Handler) EditPost(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) DeletePost(w http.ResponseWriter, r *http.Request) {
 	postID := chi.URLParam(r, "postID")
 	if postID == "" {
-		http.Error(w, "post ID is required", http.StatusBadRequest)
+		httputil.JSONError(w, "post ID is required", http.StatusBadRequest)
 		return
 	}
 
 	userID := auth.GetUserIDFromContext(r)
 	if userID == "" {
-		http.Error(w, "user not authenticated", http.StatusUnauthorized)
+		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
 		return
 	}
 
 	if err := h.service.DeletePost(r.Context(), postID, userID); err != nil {
 		switch err.Error() {
 		case "post not found":
-			http.Error(w, err.Error(), http.StatusNotFound)
+			httputil.JSONError(w, err.Error(), http.StatusNotFound)
 		case "forbidden":
-			http.Error(w, err.Error(), http.StatusForbidden)
+			httputil.JSONError(w, err.Error(), http.StatusForbidden)
 		default:
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
 		}
 		return
 	}
@@ -223,13 +226,13 @@ func (h *Handler) DeletePost(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetVersions(w http.ResponseWriter, r *http.Request) {
 	postID := chi.URLParam(r, "postID")
 	if postID == "" {
-		http.Error(w, "post ID is required", http.StatusBadRequest)
+		httputil.JSONError(w, "post ID is required", http.StatusBadRequest)
 		return
 	}
 
 	versions, err := h.service.GetVersions(r.Context(), postID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -241,17 +244,17 @@ func (h *Handler) GetVersions(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetVersion(w http.ResponseWriter, r *http.Request) {
 	versionID := chi.URLParam(r, "versionID")
 	if versionID == "" {
-		http.Error(w, "version ID is required", http.StatusBadRequest)
+		httputil.JSONError(w, "version ID is required", http.StatusBadRequest)
 		return
 	}
 
 	version, err := h.service.GetVersion(r.Context(), versionID)
 	if err != nil {
 		if err.Error() == "version not found" {
-			http.Error(w, err.Error(), http.StatusNotFound)
+			httputil.JSONError(w, err.Error(), http.StatusNotFound)
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -273,31 +276,31 @@ type createLineCommentRequest struct {
 func (h *Handler) CreateLineComment(w http.ResponseWriter, r *http.Request) {
 	postID := chi.URLParam(r, "postID")
 	if postID == "" {
-		http.Error(w, "post ID is required", http.StatusBadRequest)
+		httputil.JSONError(w, "post ID is required", http.StatusBadRequest)
 		return
 	}
 
 	userID := auth.GetUserIDFromContext(r)
 	if userID == "" {
-		http.Error(w, "user not authenticated", http.StatusUnauthorized)
+		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
 		return
 	}
 
 	var req createLineCommentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 	if req.Content == "" {
-		http.Error(w, "content is required", http.StatusBadRequest)
+		httputil.JSONError(w, "content is required", http.StatusBadRequest)
 		return
 	}
 	if req.VersionID == "" {
-		http.Error(w, "version_id is required", http.StatusBadRequest)
+		httputil.JSONError(w, "version_id is required", http.StatusBadRequest)
 		return
 	}
 	if req.FileID == "" {
-		http.Error(w, "file_id is required", http.StatusBadRequest)
+		httputil.JSONError(w, "file_id is required", http.StatusBadRequest)
 		return
 	}
 
@@ -305,11 +308,11 @@ func (h *Handler) CreateLineComment(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch err.Error() {
 		case "post not found":
-			http.Error(w, err.Error(), http.StatusNotFound)
+			httputil.JSONError(w, err.Error(), http.StatusNotFound)
 		case "forbidden":
-			http.Error(w, err.Error(), http.StatusForbidden)
+			httputil.JSONError(w, err.Error(), http.StatusForbidden)
 		default:
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			httputil.JSONError(w, err.Error(), http.StatusBadRequest)
 		}
 		return
 	}
@@ -323,7 +326,7 @@ func (h *Handler) CreateLineComment(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetLineComments(w http.ResponseWriter, r *http.Request) {
 	postID := chi.URLParam(r, "postID")
 	if postID == "" {
-		http.Error(w, "post ID is required", http.StatusBadRequest)
+		httputil.JSONError(w, "post ID is required", http.StatusBadRequest)
 		return
 	}
 
@@ -338,7 +341,7 @@ func (h *Handler) GetLineComments(w http.ResponseWriter, r *http.Request) {
 	commentUserID := auth.GetUserIDFromContext(r)
 	comments, err := h.service.GetLineComments(r.Context(), postID, commentUserID, versionID, fileID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		httputil.JSONError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -354,23 +357,23 @@ type updateLineCommentRequest struct {
 func (h *Handler) UpdateLineComment(w http.ResponseWriter, r *http.Request) {
 	commentID := chi.URLParam(r, "id")
 	if commentID == "" {
-		http.Error(w, "comment ID is required", http.StatusBadRequest)
+		httputil.JSONError(w, "comment ID is required", http.StatusBadRequest)
 		return
 	}
 
 	userID := auth.GetUserIDFromContext(r)
 	if userID == "" {
-		http.Error(w, "user not authenticated", http.StatusUnauthorized)
+		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
 		return
 	}
 
 	var req updateLineCommentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 	if req.Content == "" {
-		http.Error(w, "content is required", http.StatusBadRequest)
+		httputil.JSONError(w, "content is required", http.StatusBadRequest)
 		return
 	}
 
@@ -378,11 +381,11 @@ func (h *Handler) UpdateLineComment(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch err.Error() {
 		case "comment not found":
-			http.Error(w, err.Error(), http.StatusNotFound)
+			httputil.JSONError(w, err.Error(), http.StatusNotFound)
 		case "forbidden":
-			http.Error(w, err.Error(), http.StatusForbidden)
+			httputil.JSONError(w, err.Error(), http.StatusForbidden)
 		default:
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
 		}
 		return
 	}
@@ -395,24 +398,24 @@ func (h *Handler) UpdateLineComment(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) DeleteLineComment(w http.ResponseWriter, r *http.Request) {
 	commentID := chi.URLParam(r, "id")
 	if commentID == "" {
-		http.Error(w, "comment ID is required", http.StatusBadRequest)
+		httputil.JSONError(w, "comment ID is required", http.StatusBadRequest)
 		return
 	}
 
 	userID := auth.GetUserIDFromContext(r)
 	if userID == "" {
-		http.Error(w, "user not authenticated", http.StatusUnauthorized)
+		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
 		return
 	}
 
 	if err := h.service.DeleteLineComment(r.Context(), commentID, userID); err != nil {
 		switch err.Error() {
 		case "comment not found":
-			http.Error(w, err.Error(), http.StatusNotFound)
+			httputil.JSONError(w, err.Error(), http.StatusNotFound)
 		case "forbidden":
-			http.Error(w, err.Error(), http.StatusForbidden)
+			httputil.JSONError(w, err.Error(), http.StatusForbidden)
 		default:
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
 		}
 		return
 	}
@@ -431,33 +434,33 @@ type createTagRequest struct {
 func (h *Handler) CreateTag(w http.ResponseWriter, r *http.Request) {
 	channelID := chi.URLParam(r, "channelID")
 	if channelID == "" {
-		http.Error(w, "channel ID is required", http.StatusBadRequest)
+		httputil.JSONError(w, "channel ID is required", http.StatusBadRequest)
 		return
 	}
 
 	tagUserID := auth.GetUserIDFromContext(r)
 	if tagUserID == "" {
-		http.Error(w, "user not authenticated", http.StatusUnauthorized)
+		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
 		return
 	}
 
 	var req createTagRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 	if req.Name == "" {
-		http.Error(w, "name is required", http.StatusBadRequest)
+		httputil.JSONError(w, "name is required", http.StatusBadRequest)
 		return
 	}
 
 	tag, err := h.service.CreateTag(r.Context(), channelID, tagUserID, req.Name, req.Color)
 	if err != nil {
 		if err.Error() == "forbidden" {
-			http.Error(w, err.Error(), http.StatusForbidden)
+			httputil.JSONError(w, err.Error(), http.StatusForbidden)
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -470,13 +473,13 @@ func (h *Handler) CreateTag(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetTags(w http.ResponseWriter, r *http.Request) {
 	channelID := chi.URLParam(r, "channelID")
 	if channelID == "" {
-		http.Error(w, "channel ID is required", http.StatusBadRequest)
+		httputil.JSONError(w, "channel ID is required", http.StatusBadRequest)
 		return
 	}
 
 	tags, err := h.service.GetTags(r.Context(), channelID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -488,24 +491,24 @@ func (h *Handler) GetTags(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) DeleteTag(w http.ResponseWriter, r *http.Request) {
 	tagID := chi.URLParam(r, "tagID")
 	if tagID == "" {
-		http.Error(w, "tag ID is required", http.StatusBadRequest)
+		httputil.JSONError(w, "tag ID is required", http.StatusBadRequest)
 		return
 	}
 
 	deleteTagUserID := auth.GetUserIDFromContext(r)
 	if deleteTagUserID == "" {
-		http.Error(w, "user not authenticated", http.StatusUnauthorized)
+		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
 		return
 	}
 
 	if err := h.service.DeleteTag(r.Context(), tagID, deleteTagUserID); err != nil {
 		switch err.Error() {
 		case "tag not found":
-			http.Error(w, err.Error(), http.StatusNotFound)
+			httputil.JSONError(w, err.Error(), http.StatusNotFound)
 		case "forbidden":
-			http.Error(w, err.Error(), http.StatusForbidden)
+			httputil.JSONError(w, err.Error(), http.StatusForbidden)
 		default:
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
 		}
 		return
 	}

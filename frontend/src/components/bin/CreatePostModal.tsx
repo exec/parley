@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { Modal } from '../ui/Modal';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { BinChannelTag } from '../../api/types';
 import { createPost } from '../../api/bin';
@@ -34,16 +34,38 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [files, setFiles] = useState<FileEntry[]>([makeEmptyFile()]);
+  const [activeFileIndex, setActiveFileIndex] = useState(0);
   const [selectedTagNames, setSelectedTagNames] = useState<Set<string>>(new Set());
   const [customTags, setCustomTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const titleRef = useRef<HTMLInputElement>(null);
+
+  // Focus title when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => titleRef.current?.focus(), 50);
+    }
+  }, [isOpen]);
+
+  // Close on Escape
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleClose();
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [isOpen]);
 
   const resetForm = useCallback(() => {
     setTitle('');
     setDescription('');
     setFiles([makeEmptyFile()]);
+    setActiveFileIndex(0);
     setSelectedTagNames(new Set());
     setCustomTags([]);
     setTagInput('');
@@ -61,23 +83,29 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     setFiles(prev => {
       const next = [...prev];
       next[index] = { ...next[index], [field]: value };
-      // Auto-detect language when filename changes
       if (field === 'filename' && !next[index].language) {
         const detected = languageFromFilename(value);
-        if (detected) {
-          next[index] = { ...next[index], language: detected };
-        }
+        if (detected) next[index] = { ...next[index], language: detected };
       }
       return next;
     });
   };
 
   const addFile = () => {
-    setFiles(prev => [...prev, makeEmptyFile()]);
+    setFiles(prev => {
+      const next = [...prev, makeEmptyFile()];
+      setActiveFileIndex(next.length - 1);
+      return next;
+    });
   };
 
   const removeFile = (index: number) => {
-    setFiles(prev => prev.filter((_, i) => i !== index));
+    if (files.length === 1) return;
+    setFiles(prev => {
+      const next = prev.filter((_, i) => i !== index);
+      setActiveFileIndex(i => Math.min(i, next.length - 1));
+      return next;
+    });
   };
 
   // ---- Tag management ----
@@ -85,11 +113,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   const toggleAdminTag = (tagName: string) => {
     setSelectedTagNames(prev => {
       const next = new Set(prev);
-      if (next.has(tagName)) {
-        next.delete(tagName);
-      } else {
-        next.add(tagName);
-      }
+      if (next.has(tagName)) next.delete(tagName);
+      else next.add(tagName);
       return next;
     });
   };
@@ -127,10 +152,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     setLoading(true);
     setError('');
 
-    const allTags = [
-      ...Array.from(selectedTagNames),
-      ...customTags,
-    ];
+    const allTags = [...Array.from(selectedTagNames), ...customTags];
 
     try {
       const post = await createPost(channelId, {
@@ -147,168 +169,196 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       resetForm();
       onCreated(post.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create post');
+      setError((err as any)?.message || 'Failed to create post');
     } finally {
       setLoading(false);
     }
   };
 
+  if (!isOpen) return null;
+
+  const activeFile = files[activeFileIndex] ?? files[0];
+
+  const allTags = [...Array.from(selectedTagNames), ...customTags];
+
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} title="New Post">
-      <div className="create-post-modal">
-        <form onSubmit={handleSubmit} className="modal-form">
-          {error && <div className="modal-error">{error}</div>}
+    <div className="cpm-overlay" onClick={e => { if (e.target === e.currentTarget) handleClose(); }}>
+      <div className="cpm-window">
+        {/* Title bar */}
+        <div className="cpm-titlebar">
+          <span className="cpm-titlebar-label">New Post</span>
+          <button className="cpm-close-btn" onClick={handleClose} aria-label="Close">
+            <X size={16} />
+          </button>
+        </div>
 
-          {/* Title */}
-          <div className="form-group">
-            <label className="form-label">Title <span style={{ color: 'var(--parley-danger)', marginLeft: 2 }}>*</span></label>
-            <input
-              className="form-input"
-              type="text"
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              placeholder="Post title"
-              autoFocus
-              disabled={loading}
-            />
-          </div>
+        <form onSubmit={handleSubmit} className="cpm-body">
+          {/* Metadata row */}
+          <div className="cpm-meta">
+            <div className="cpm-meta-left">
+              <div className="cpm-field cpm-field-title">
+                <label className="cpm-label">
+                  Title <span className="cpm-required">*</span>
+                </label>
+                <input
+                  ref={titleRef}
+                  className="cpm-input"
+                  type="text"
+                  value={title}
+                  onChange={e => setTitle(e.target.value)}
+                  placeholder="Post title"
+                  disabled={loading}
+                />
+              </div>
+              <div className="cpm-field cpm-field-desc">
+                <label className="cpm-label">
+                  Description <span className="cpm-optional">optional</span>
+                </label>
+                <textarea
+                  className="cpm-input cpm-desc-textarea"
+                  value={description}
+                  onChange={e => setDescription(e.target.value)}
+                  placeholder="Brief description — supports markdown"
+                  disabled={loading}
+                  rows={2}
+                />
+              </div>
+            </div>
 
-          {/* Description */}
-          <div className="form-group">
-            <label className="form-label">
-              Description <span style={{ color: 'var(--parley-text-dim)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>optional</span>
-            </label>
-            <textarea
-              className="form-input create-post-desc-textarea"
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              placeholder="Describe your post — supports markdown and ``` code blocks ```"
-              disabled={loading}
-            />
-          </div>
-
-          {/* Files */}
-          <div className="form-group">
-            <label className="form-label">Files</label>
-            <div className="create-post-files">
-              {files.map((file, index) => (
-                <div key={index} className="create-post-file-entry">
-                  <div className="create-post-file-header">
-                    <span className="create-post-file-number">File {index + 1}</span>
-                    <div className="create-post-file-header-inputs">
-                      <input
-                        className="form-input create-post-filename-input"
-                        type="text"
-                        value={file.filename}
-                        onChange={e => updateFile(index, 'filename', e.target.value)}
-                        placeholder="filename.ts"
-                        disabled={loading}
-                      />
-                      <input
-                        className="form-input create-post-language-input"
-                        type="text"
-                        value={file.language}
-                        onChange={e => updateFile(index, 'language', e.target.value)}
-                        placeholder="language"
-                        disabled={loading}
-                      />
+            <div className="cpm-meta-right">
+              <div className="cpm-field">
+                <label className="cpm-label">Tags</label>
+                <div className="cpm-tags-area">
+                  {availableTags.length > 0 && (
+                    <div className="cpm-tag-pills">
+                      {availableTags.map(tag => (
+                        <button
+                          key={tag.id}
+                          type="button"
+                          className={`cpm-tag-pill${selectedTagNames.has(tag.name) ? ' selected' : ''}`}
+                          style={{ borderColor: tag.color, color: tag.color }}
+                          onClick={() => toggleAdminTag(tag.name)}
+                          disabled={loading}
+                        >
+                          {tag.name}
+                        </button>
+                      ))}
                     </div>
-                    {files.length > 1 && (
-                      <button
-                        type="button"
-                        className="create-post-file-remove"
-                        onClick={() => removeFile(index)}
-                        disabled={loading}
-                        title="Remove file"
-                      >
-                        &times;
-                      </button>
-                    )}
+                  )}
+                  <div className="cpm-tag-input-row">
+                    <input
+                      className="cpm-input cpm-tag-input"
+                      type="text"
+                      value={tagInput}
+                      onChange={e => setTagInput(e.target.value)}
+                      onKeyDown={handleTagInputKeyDown}
+                      placeholder="Custom tag, press Enter"
+                      disabled={loading}
+                    />
                   </div>
-                  <textarea
-                    className="create-post-code-textarea"
-                    value={file.content}
-                    onChange={e => updateFile(index, 'content', e.target.value)}
-                    placeholder="Paste or type code here..."
-                    spellCheck={false}
-                    disabled={loading}
-                  />
+                  {allTags.length > 0 && (
+                    <div className="cpm-selected-tags">
+                      {Array.from(selectedTagNames).map(name => {
+                        const t = availableTags.find(at => at.name === name);
+                        return (
+                          <span key={name} className="cpm-selected-tag" style={t ? { borderColor: t.color, color: t.color } : {}}>
+                            {name}
+                            <button type="button" className="cpm-tag-remove" onClick={() => toggleAdminTag(name)}>×</button>
+                          </span>
+                        );
+                      })}
+                      {customTags.map(tag => (
+                        <span key={tag} className="cpm-selected-tag cpm-custom-tag">
+                          {tag}
+                          <button type="button" className="cpm-tag-remove" onClick={() => removeCustomTag(tag)}>×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              ))}
-
-              <button
-                type="button"
-                className="add-file-btn"
-                onClick={addFile}
-                disabled={loading}
-              >
-                + Add File
-              </button>
+              </div>
             </div>
           </div>
 
-          {/* Tags */}
-          <div className="form-group">
-            <label className="form-label">Tags</label>
-
-            {availableTags.length > 0 && (
-              <div className="create-post-tag-pills">
-                {availableTags.map(tag => (
-                  <button
-                    key={tag.id}
-                    type="button"
-                    className={`create-post-tag-pill${selectedTagNames.has(tag.name) ? ' selected' : ''}`}
-                    style={{ borderColor: tag.color, color: tag.color }}
-                    onClick={() => toggleAdminTag(tag.name)}
-                    disabled={loading}
-                  >
-                    {tag.name}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {customTags.length > 0 && (
-              <div className="create-post-custom-tags">
-                {customTags.map(tag => (
-                  <span key={tag} className="create-post-custom-tag">
-                    {tag}
-                    <button
-                      type="button"
-                      className="create-post-custom-tag-remove"
-                      onClick={() => removeCustomTag(tag)}
-                      disabled={loading}
-                    >
-                      &times;
-                    </button>
+          {/* Editor area */}
+          <div className="cpm-editor">
+            {/* File tabs */}
+            <div className="cpm-tabs">
+              {files.map((file, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className={`cpm-tab${i === activeFileIndex ? ' active' : ''}`}
+                  onClick={() => setActiveFileIndex(i)}
+                >
+                  <span className="cpm-tab-name">
+                    {file.filename || `untitled-${i + 1}`}
                   </span>
-                ))}
-              </div>
-            )}
+                  {files.length > 1 && (
+                    <span
+                      className="cpm-tab-close"
+                      onClick={e => { e.stopPropagation(); removeFile(i); }}
+                      role="button"
+                      aria-label="Remove file"
+                    >
+                      ×
+                    </span>
+                  )}
+                </button>
+              ))}
+              <button type="button" className="cpm-tab-add" onClick={addFile} disabled={loading} title="Add file">
+                +
+              </button>
+            </div>
 
-            <input
-              className="form-input create-post-tag-input"
-              type="text"
-              value={tagInput}
-              onChange={e => setTagInput(e.target.value)}
-              onKeyDown={handleTagInputKeyDown}
-              placeholder="Add custom tag and press Enter"
+            {/* Active file editor */}
+            <div className="cpm-file-meta">
+              <input
+                className="cpm-input cpm-filename-input"
+                type="text"
+                value={activeFile.filename}
+                onChange={e => updateFile(activeFileIndex, 'filename', e.target.value)}
+                placeholder="filename.ts"
+                disabled={loading}
+              />
+              <input
+                className="cpm-input cpm-lang-input"
+                type="text"
+                value={activeFile.language}
+                onChange={e => updateFile(activeFileIndex, 'language', e.target.value)}
+                placeholder="language"
+                disabled={loading}
+              />
+            </div>
+
+            <textarea
+              className="cpm-code-editor"
+              value={activeFile.content}
+              onChange={e => updateFile(activeFileIndex, 'content', e.target.value)}
+              placeholder="Paste or type your code here..."
+              spellCheck={false}
               disabled={loading}
             />
-            <div className="create-post-tag-hint">Press Enter to add a custom tag</div>
           </div>
 
-          <div className="modal-actions">
-            <Button type="button" variant="secondary" onClick={handleClose} disabled={loading}>
-              Cancel
-            </Button>
-            <Button type="submit" variant="primary" loading={loading}>
-              Create Post
-            </Button>
+          {/* Footer */}
+          <div className="cpm-footer">
+            <div className="cpm-footer-left">
+              {error && <span className="cpm-error">{error}</span>}
+              <span className="cpm-file-count">{files.length} file{files.length !== 1 ? 's' : ''}</span>
+            </div>
+            <div className="cpm-footer-actions">
+              <Button type="button" variant="secondary" onClick={handleClose} disabled={loading}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" loading={loading}>
+                Create Post
+              </Button>
+            </div>
           </div>
         </form>
       </div>
-    </Modal>
+    </div>
   );
 };
 

@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -618,11 +619,17 @@ func (s *AuthService) ValidateToken(tokenString string) (string, error) {
 func (s *AuthService) IsForceLoggedOut(ctx context.Context, userID string, issuedAt int64) (bool, error) {
 	var id int64
 	fmt.Sscan(userID, &id)
-	dbUser, err := s.repo.GetUserByID(ctx, id)
+	var forceLogoutAt sql.NullTime
+	err := s.repo.DB().QueryRowContext(ctx,
+		`SELECT force_logout_at FROM users WHERE id = $1`, id,
+	).Scan(&forceLogoutAt)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
 	if err != nil {
 		return false, err
 	}
-	if dbUser.ForceLogoutAt != nil && issuedAt <= dbUser.ForceLogoutAt.Unix() {
+	if forceLogoutAt.Valid && issuedAt <= forceLogoutAt.Time.Unix() {
 		return true, nil
 	}
 	return false, nil

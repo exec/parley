@@ -48,6 +48,14 @@ type Client struct {
 	// displayName is the server-resolved display name for the user (COALESCE(display_name, username)).
 	// It is set at connection time and never overwritten by client-supplied data.
 	displayName string
+
+	// wsMsgBucket is a token-bucket rate limiter for inbound WebSocket messages.
+	// Zero value is safe: the IsZero check in allowWSMessage handles initialization.
+	wsMsgBucket struct {
+		mu       sync.Mutex
+		tokens   float64
+		lastSeen time.Time
+	}
 }
 
 // NewClient creates a new client
@@ -102,6 +110,12 @@ func (c *Client) ReadPump() {
 		if err := json.Unmarshal(message, &wsMsg); err != nil {
 			log.Printf("Error parsing message: %v", err)
 			continue
+		}
+
+		// Enforce per-connection message rate limit (30 msg/s, burst 60).
+		if !c.allowWSMessage() {
+			log.Printf("ReadPump: user %s exceeded WS message rate limit, disconnecting", c.userID)
+			return
 		}
 
 		// Handle different message types
@@ -175,6 +189,32 @@ func (c *Client) handleMessage(msg WSMessage) {
 	default:
 		log.Printf("Unknown message type: %s", msg.Type)
 	}
+}
+
+// allowWSMessage implements a token-bucket rate limiter for inbound messages.
+// It allows up to 30 messages/second with a burst of 60. Returns true if the
+// message is within limits (consuming one token), false if the bucket is empty.
+func (c *Client) allowWSMessage() bool {
+	const rate = 30.0  // tokens per second
+	const burst = 60.0
+	c.wsMsgBucket.mu.Lock()
+	defer c.wsMsgBucket.mu.Unlock()
+	now := time.Now()
+	if c.wsMsgBucket.lastSeen.IsZero() {
+		c.wsMsgBucket.tokens = burst
+		c.wsMsgBucket.lastSeen = now
+	}
+	elapsed := now.Sub(c.wsMsgBucket.lastSeen).Seconds()
+	c.wsMsgBucket.tokens += elapsed * rate
+	if c.wsMsgBucket.tokens > burst {
+		c.wsMsgBucket.tokens = burst
+	}
+	c.wsMsgBucket.lastSeen = now
+	if c.wsMsgBucket.tokens >= 1.0 {
+		c.wsMsgBucket.tokens--
+		return true
+	}
+	return false
 }
 
 // WritePump writes messages to the WebSocket connection

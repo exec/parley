@@ -16,7 +16,7 @@
 
 .post-list-item:hover {
   border-color: var(--accent);
-  background: #0a140a;
+  background: var(--parley-bg-hover);
 }
 
 /* ---- Top row: title + meta ---- */
@@ -95,7 +95,7 @@
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: #1a3a1a;
+  background: rgba(var(--accent-rgb), 0.15);
   display: flex;
   align-items: center;
   justify-content: center;

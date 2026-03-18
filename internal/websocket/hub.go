@@ -16,6 +16,10 @@ import (
 // is ~150KB of JSON with no practical benefit.
 const presenceSnapshotMax = 500
 
+// maxConnectionsPerUser is the maximum number of concurrent WebSocket connections
+// allowed per user. Connections beyond this limit are rejected immediately.
+const maxConnectionsPerUser = 10
+
 // Publisher is implemented by RedisHub to cross-publish events to other nodes.
 // Hub holds an optional reference to it.
 type Publisher interface {
@@ -146,6 +150,13 @@ func (h *Hub) Run() {
 // and sends a PRESENCE_SNAPSHOT of all online users to the new client.
 func (h *Hub) RegisterClient(client *Client) {
 	h.mu.Lock()
+
+	if h.userToClient[client.userID] != nil && len(h.userToClient[client.userID]) >= maxConnectionsPerUser {
+		h.mu.Unlock()
+		client.closeSend()
+		log.Printf("RegisterClient: user %s exceeded max connections (%d), rejecting", client.userID, maxConnectionsPerUser)
+		return
+	}
 
 	h.clients[client] = true
 

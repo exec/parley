@@ -33,9 +33,11 @@
 
 .homepage-title {
   font-size: 28px;
-  font-weight: bold;
+  font-weight: 700;
+  font-family: 'Syne', 'Outfit', sans-serif;
   color: var(--text-primary);
   margin: 0;
+  letter-spacing: -0.3px;
 }
 
 .homepage-subtitle {
@@ -81,6 +83,7 @@
 .homepage-search-input:focus {
   outline: none;
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.15);
 }
 
 .homepage-search-input::placeholder {
@@ -127,7 +130,7 @@
 }
 
 .homepage-search-result:hover {
-  background-color: #1a2a1a;
+  background-color: var(--parley-bg-hover);
 }
 
 .homepage-result-avatar {

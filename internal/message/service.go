@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"parley/internal/cache"
 	"parley/internal/db"
 	"parley/internal/permissions"
 	"parley/internal/validation"
@@ -54,6 +55,7 @@ type MessageService struct {
 	repo        *db.Repository
 	broadcaster Broadcaster
 	botTrigger  BotTriggerFunc
+	memberCache *cache.MembershipCache
 }
 
 // NewMessageService creates a new MessageService with the given repository
@@ -69,6 +71,13 @@ func (s *MessageService) SetBroadcaster(b Broadcaster) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.broadcaster = b
+}
+
+// SetMemberCache sets the membership cache for permission result caching.
+func (s *MessageService) SetMemberCache(mc *cache.MembershipCache) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.memberCache = mc
 }
 
 // SetBotTrigger registers a function to call after each message is created.
@@ -107,14 +116,20 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 		return nil, errors.New("invalid author ID")
 	}
 
+	// Single user lookup — used for both bot check (maxLen) and response population.
+	var authorUsername, authorDisplayName, authorAvatarURL string
+	var authorIsBot bool
+	if err := s.repo.DB().QueryRowContext(ctx,
+		"SELECT username, COALESCE(display_name, ''), COALESCE(avatar_url, ''), is_bot FROM users WHERE id = $1",
+		authorIDInt,
+	).Scan(&authorUsername, &authorDisplayName, &authorAvatarURL, &authorIsBot); err != nil {
+		log.Printf("SendMessage: failed to fetch user info for author %d: %v", authorIDInt, err)
+	}
+
 	// Bots get a higher message length limit than human users.
 	maxLen := 4000
-	{
-		var isBot bool
-		_ = s.repo.DB().QueryRowContext(ctx, `SELECT is_bot FROM users WHERE id=$1`, authorIDInt).Scan(&isBot)
-		if isBot {
-			maxLen = 8000
-		}
+	if authorIsBot {
+		maxLen = 8000
 	}
 	if len(content) > maxLen {
 		return nil, fmt.Errorf("message content exceeds maximum length of %d characters", maxLen)
@@ -129,7 +144,12 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 	if err != nil {
 		return nil, errors.New("server not found")
 	}
-	canSend, err := permissions.HasChannelPermission(ctx, s.repo, srv.ID, authorIDInt, srv.OwnerID, channelIDInt, permissions.PermSendMessages)
+	var canSend bool
+	if s.memberCache != nil {
+		canSend, err = permissions.HasChannelPermissionCached(ctx, s.repo, s.memberCache, srv.ID, authorIDInt, srv.OwnerID, channelIDInt, permissions.PermSendMessages)
+	} else {
+		canSend, err = permissions.HasChannelPermission(ctx, s.repo, srv.ID, authorIDInt, srv.OwnerID, channelIDInt, permissions.PermSendMessages)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -151,13 +171,6 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 	dbMsg, err := s.repo.CreateMessage(ctx, channelIDInt, authorIDInt, content, nonce, attachmentURL, attachmentName, attachmentType, viaAPI, parentIDPtr)
 	if err != nil {
 		return nil, err
-	}
-
-	// Look up author username, display_name, avatar, and bot status
-	var authorUsername, authorDisplayName, authorAvatarURL string
-	var authorIsBot bool
-	if err := s.repo.DB().QueryRowContext(ctx, "SELECT username, COALESCE(display_name, ''), COALESCE(avatar_url, ''), is_bot FROM users WHERE id = $1", authorIDInt).Scan(&authorUsername, &authorDisplayName, &authorAvatarURL, &authorIsBot); err != nil {
-		log.Printf("SendMessage: failed to fetch user info for author %d: %v", authorIDInt, err)
 	}
 
 	// Look up parent author info if this is a reply
@@ -281,7 +294,12 @@ func (s *MessageService) GetChannelMessages(ctx context.Context, channelID, user
 	if err != nil {
 		return nil, errors.New("server not found")
 	}
-	canView, err := permissions.HasChannelPermission(ctx, s.repo, srv.ID, userIDInt, srv.OwnerID, channelIDInt, permissions.PermViewChannel)
+	var canView bool
+	if s.memberCache != nil {
+		canView, err = permissions.HasChannelPermissionCached(ctx, s.repo, s.memberCache, srv.ID, userIDInt, srv.OwnerID, channelIDInt, permissions.PermViewChannel)
+	} else {
+		canView, err = permissions.HasChannelPermission(ctx, s.repo, srv.ID, userIDInt, srv.OwnerID, channelIDInt, permissions.PermViewChannel)
+	}
 	if err != nil {
 		return nil, err
 	}

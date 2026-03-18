@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 
+	"parley/internal/cache"
 	"parley/internal/db"
 )
 
@@ -213,6 +214,20 @@ func HasChannelPermission(ctx context.Context, repo *db.Repository, serverID, us
 
 	channelPerms := ComputeChannelPermissions(basePerms, userID, roleIDs, everyoneID, overwrites)
 	return HasPerm(channelPerms, perm), nil
+}
+
+// HasChannelPermissionCached is like HasChannelPermission but caches results
+// in mc for 45 seconds to avoid repeated DB lookups for stable permission data.
+func HasChannelPermissionCached(ctx context.Context, repo *db.Repository, mc *cache.MembershipCache, serverID, userID, ownerID, channelID int64, perm int64) (bool, error) {
+	if allowed, ok := mc.GetPerm(serverID, userID, channelID, perm); ok {
+		return allowed, nil
+	}
+	allowed, err := HasChannelPermission(ctx, repo, serverID, userID, ownerID, channelID, perm)
+	if err != nil {
+		return false, err
+	}
+	mc.SetPerm(serverID, userID, channelID, perm, allowed)
+	return allowed, nil
 }
 
 // ParseInt64 is a convenience wrapper for strconv.ParseInt used by handlers.

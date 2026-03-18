@@ -4,7 +4,7 @@
   flex-direction: column;
   height: 100%;
   background-color: var(--parley-channel-bg);
-  color: var(--parley-accent);
+  color: var(--parley-text-normal);
 }
 
 /* Message List Styles */
@@ -17,16 +17,21 @@
 }
 
 .message-list-container::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 
 .message-list-container::-webkit-scrollbar-track {
-  background: var(--parley-channel-bg);
+  background: transparent;
 }
 
 .message-list-container::-webkit-scrollbar-thumb {
-  background: var(--parley-accent);
-  border-radius: 4px;
+  background: rgba(var(--accent-rgb), 0.3);
+  border-radius: 3px;
+  transition: background 0.2s ease;
+}
+
+.message-list-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--accent-rgb), 0.5);
 }
 
 /* Date Group Header */
@@ -43,15 +48,17 @@
 .date-divider-line {
   flex: 1;
   height: 1px;
-  background-color: var(--parley-accent);
-  opacity: 0.3;
+  background-color: var(--parley-border);
 }
 
 .date-divider-text {
   padding: 0 16px;
-  font-size: 12px;
-  color: var(--parley-accent);
-  opacity: 0.7;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--parley-text-muted);
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 /* Individual Message Styles */
@@ -108,12 +115,14 @@
 }
 
 .message-author {
-  font-weight: 600;
+  font-weight: 700;
+  font-size: 15px;
   color: var(--parley-accent);
-  margin-right: 4px;
+  margin-right: 6px;
   cursor: pointer;
   text-decoration: none;
   display: inline-block;
+  letter-spacing: 0.01em;
 }
 
 .message-author:hover {
@@ -133,15 +142,14 @@
 
 .message-timestamp {
   font-size: 11px;
-  color: var(--parley-accent);
-  opacity: 0.6;
+  color: var(--parley-text-dim);
 }
 
 .message-text {
-  color: var(--parley-text-muted);
+  color: var(--parley-text-normal);
   word-wrap: break-word;
   white-space: pre-wrap;
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
 .message-text--jumbo {
@@ -158,11 +166,12 @@
   display: flex;
   gap: 4px;
   opacity: 0;
-  transition: opacity 0.15s ease;
-  background-color: var(--parley-channel-bg);
+  transition: opacity 0.12s ease;
+  background-color: var(--parley-bg-secondary);
   padding: 4px;
-  border-radius: 4px;
-  border: 1px solid var(--parley-accent);
+  border-radius: 6px;
+  border: 1px solid var(--parley-border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 
 .message:hover .message-actions {
@@ -258,23 +267,24 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background-color: rgba(var(--accent-rgb), 0.1);
-  border: 1px solid var(--parley-accent);
+  background-color: var(--parley-input);
+  border: 1px solid rgba(var(--accent-rgb), 0.25);
   border-radius: 8px;
   padding: 8px 12px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .message-input-wrapper:focus-within {
-  border-color: var(--parley-accent);
-  box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.2);
+  border-color: rgba(var(--accent-rgb), 0.6);
+  box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.12);
 }
 
 .message-textarea {
   flex: 1;
   background: transparent;
   border: none;
-  color: #ffffff;
-  font-size: 14px;
+  color: var(--parley-text-normal);
+  font-size: 15px;
   font-family: inherit;
   resize: none;
   max-height: 200px;
@@ -284,12 +294,11 @@
 }
 
 .message-textarea::placeholder {
-  color: #ffffff;
-  opacity: 0.35;
+  color: var(--parley-text-muted);
 }
 
 .message-textarea::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
 }
 
 .message-textarea::-webkit-scrollbar-track {
@@ -297,8 +306,8 @@
 }
 
 .message-textarea::-webkit-scrollbar-thumb {
-  background: var(--parley-accent);
-  border-radius: 3px;
+  background: rgba(var(--accent-rgb), 0.3);
+  border-radius: 2px;
 }
 
 .send-button {
@@ -326,8 +335,7 @@
   display: flex;
   justify-content: center;
   padding: 20px;
-  color: var(--parley-accent);
-  opacity: 0.7;
+  color: var(--parley-text-muted);
 }
 
 .message-empty {
@@ -336,8 +344,7 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: var(--parley-accent);
-  opacity: 0.7;
+  color: var(--parley-text-muted);
   text-align: center;
   padding: 20px;
 }
@@ -407,7 +414,7 @@
   background: none;
   border: none;
   cursor: pointer;
-  color: #555;
+  color: var(--parley-text-dim);
   padding: 4px 6px;
   border-radius: 4px;
   display: flex;
@@ -416,8 +423,8 @@
   transition: color 0.15s, background 0.15s;
 }
 .chat-header-btn:hover {
-  color: #aaa;
-  background: rgba(255,255,255,0.05);
+  color: var(--parley-text-normal);
+  background: var(--parley-bg-hover);
 }
 
 .chat-header-status-dot {
@@ -438,7 +445,7 @@
 
 .channel-topic {
   font-size: 12px;
-  color: #555;
+  color: var(--parley-text-muted);
   margin-top: 2px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -446,7 +453,7 @@
 }
 
 .channel-topic-placeholder {
-  color: #333;
+  color: var(--parley-text-dim);
   font-style: italic;
 }
 
@@ -456,7 +463,7 @@
 
 .chat-header-editable:hover .channel-topic,
 .chat-header-editable:hover .channel-topic-placeholder {
-  color: #888;
+  color: var(--parley-text-secondary);
 }
 
 .channel-topic-input {
@@ -466,7 +473,7 @@
   background: transparent;
   border: none;
   border-bottom: 1px solid var(--parley-accent);
-  color: #aaa;
+  color: var(--parley-text-normal);
   font-size: 12px;
   font-family: inherit;
   outline: none;
@@ -749,7 +756,7 @@
   background: var(--parley-hover);
   border: 1px solid var(--parley-border);
   border-radius: 4px;
-  color: #fff;
+  color: var(--parley-text-normal);
   padding: 6px 10px;
   font-size: 13px;
   outline: none;
@@ -862,7 +869,7 @@
   flex-shrink: 0;
   background: transparent;
   border: none;
-  color: #555;
+  color: var(--parley-text-muted);
   cursor: pointer;
   padding: 4px 5px;
   display: flex;
@@ -931,7 +938,7 @@
 }
 
 .recording-hint {
-  color: #555;
+  color: var(--parley-text-dim);
   font-size: 11px;
   margin-left: auto;
 }
@@ -981,7 +988,7 @@
 .attachment-preview-remove {
   background: none;
   border: none;
-  color: #555;
+  color: var(--parley-text-muted);
   cursor: pointer;
   font-size: 13px;
   padding: 0 2px;

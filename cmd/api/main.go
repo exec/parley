@@ -244,6 +244,8 @@ func main() {
 		passkeySvc = passkey.New(repo, redisHub.Client(), siteURL)
 	}
 
+	messageService.SetMemberCache(memberCache)
+
 	// Set up hub broadcasting for message service
 	hubBroadcaster := &HubBroadcaster{hub: hub}
 	messageService.SetBroadcaster(hubBroadcaster)

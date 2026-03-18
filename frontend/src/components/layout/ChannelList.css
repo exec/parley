@@ -26,8 +26,10 @@
 }
 
 .server-name {
-  font-size: 16px;
-  font-weight: bold;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: 'Syne', 'Outfit', sans-serif;
+  letter-spacing: -0.2px;
   color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -58,16 +60,20 @@
 }
 
 .channels-container::-webkit-scrollbar {
-  width: 8px;
+  width: 4px;
 }
 
 .channels-container::-webkit-scrollbar-track {
-  background: var(--bg-secondary);
+  background: transparent;
 }
 
 .channels-container::-webkit-scrollbar-thumb {
-  background: var(--bg-tertiary);
-  border-radius: 4px;
+  background: rgba(var(--accent-rgb), 0.2);
+  border-radius: 2px;
+}
+
+.channels-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--accent-rgb), 0.4);
 }
 
 .category-header {
@@ -106,7 +112,7 @@
   border-radius: 4px;
   cursor: pointer;
   color: var(--text-secondary);
-  transition: all 0.2s ease;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .channel-item:hover {

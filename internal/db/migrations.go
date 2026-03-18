@@ -687,6 +687,15 @@ CREATE TABLE IF NOT EXISTS friend_requests (
 CREATE INDEX IF NOT EXISTS idx_friend_requests_receiver ON friend_requests(receiver_id);
 CREATE INDEX IF NOT EXISTS idx_friend_requests_sender   ON friend_requests(sender_id);
 `,
+
+	`-- Migration 37: Grant PermCreatePosts (bit 1<<29) to all existing @everyone roles.
+-- Servers created before the Bin feature was added have this bit missing from their
+-- @everyone permissions, which prevents all members from creating posts.
+UPDATE server_roles
+SET permissions = permissions | (1::bigint << 29)
+WHERE name = '@everyone'
+  AND (permissions & (1::bigint << 29)) = 0;
+`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

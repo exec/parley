@@ -13,41 +13,63 @@ import (
 //
 // Token bucket: allows burst up to `burst` requests, then refills at
 // `rate` requests per second. O(1) per Allow call, O(1) memory per key.
+//
+// Sharded across 64 independent buckets to reduce lock contention under
+// high concurrency. Different IP/user keys almost never share a shard.
+
+const numShards = 64
 
 type tokenBucket struct {
 	tokens   float64
 	lastSeen time.Time
 }
 
-type rateLimiter struct {
+type rateShard struct {
 	mu      sync.Mutex
 	buckets map[string]*tokenBucket
-	rate    float64 // tokens per second
-	burst   float64 // maximum token capacity
+}
+
+type rateLimiter struct {
+	shards [numShards]rateShard
+	rate   float64 // tokens per second
+	burst  float64 // maximum token capacity
 }
 
 // newRateLimiter creates a token bucket rate limiter equivalent to limit requests
 // per window. burst = limit, rate = limit/window in tokens/second.
 func newRateLimiter(limit int, window time.Duration) *rateLimiter {
 	rl := &rateLimiter{
-		buckets: make(map[string]*tokenBucket),
-		rate:    float64(limit) / window.Seconds(),
-		burst:   float64(limit),
+		rate:  float64(limit) / window.Seconds(),
+		burst: float64(limit),
+	}
+	for i := range rl.shards {
+		rl.shards[i].buckets = make(map[string]*tokenBucket)
 	}
 	go rl.cleanup()
 	return rl
 }
 
+// shard returns the rateShard responsible for key using an FNV-1a hash.
+func (rl *rateLimiter) shard(key string) *rateShard {
+	h := uint32(2166136261)
+	for i := 0; i < len(key); i++ {
+		h ^= uint32(key[i])
+		h *= 16777619
+	}
+	return &rl.shards[h%numShards]
+}
+
 // Allow returns true if the key has a token available.
 func (rl *rateLimiter) Allow(key string) bool {
-	rl.mu.Lock()
-	defer rl.mu.Unlock()
+	s := rl.shard(key)
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	now := time.Now()
-	b, ok := rl.buckets[key]
+	b, ok := s.buckets[key]
 	if !ok {
 		b = &tokenBucket{tokens: rl.burst, lastSeen: now}
-		rl.buckets[key] = b
+		s.buckets[key] = b
 	}
 
 	// Refill tokens based on elapsed time.
@@ -59,7 +81,7 @@ func (rl *rateLimiter) Allow(key string) bool {
 	b.lastSeen = now
 
 	if b.tokens >= 1.0 {
-		b.tokens -= 1.0
+		b.tokens--
 		return true
 	}
 	return false
@@ -71,13 +93,16 @@ func (rl *rateLimiter) cleanup() {
 	defer ticker.Stop()
 	for range ticker.C {
 		threshold := time.Now().Add(-10 * time.Minute)
-		rl.mu.Lock()
-		for key, b := range rl.buckets {
-			if b.lastSeen.Before(threshold) {
-				delete(rl.buckets, key)
+		for i := range rl.shards {
+			s := &rl.shards[i]
+			s.mu.Lock()
+			for key, b := range s.buckets {
+				if b.lastSeen.Before(threshold) {
+					delete(s.buckets, key)
+				}
 			}
+			s.mu.Unlock()
 		}
-		rl.mu.Unlock()
 	}
 }
 

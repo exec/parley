@@ -35,14 +35,14 @@
   bottom: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
-  background: #111;
-  color: #eee;
+  background: var(--parley-bg-tertiary);
+  color: var(--parley-text-normal);
   font-size: 11px;
   font-weight: 500;
   white-space: nowrap;
   padding: 3px 7px;
   border-radius: 4px;
-  border: 1px solid rgba(50,205,50,0.2);
+  border: 1px solid var(--parley-border);
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.12s;

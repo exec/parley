@@ -5,39 +5,74 @@
   justify-content: center;
   background-color: var(--parley-bg-primary);
   background-image:
-    radial-gradient(circle at 20% 50%, rgba(88, 101, 242, 0.1) 0%, transparent 50%),
-    radial-gradient(circle at 80% 80%, rgba(88, 101, 242, 0.08) 0%, transparent 40%);
+    radial-gradient(ellipse at 15% 40%, rgba(var(--accent-rgb), 0.12) 0%, transparent 55%),
+    radial-gradient(ellipse at 85% 75%, rgba(var(--accent-rgb), 0.07) 0%, transparent 45%),
+    radial-gradient(ellipse at 50% 0%, rgba(var(--accent-rgb), 0.05) 0%, transparent 60%);
   padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle noise texture overlay */
+.auth-page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 200px 200px;
+  pointer-events: none;
+  opacity: 0.4;
 }
 
 .auth-container {
   width: 100%;
-  max-width: 480px;
+  max-width: 460px;
+  position: relative;
+  z-index: 1;
+  animation: auth-enter 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes auth-enter {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .auth-card {
   background-color: var(--parley-bg-secondary);
   border-radius: 12px;
-  padding: 32px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  padding: 36px 32px 32px;
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.35),
+    0 8px 24px rgba(0, 0, 0, 0.25),
+    0 0 0 1px rgba(255, 255, 255, 0.04);
 }
 
 .auth-header {
   text-align: center;
-  margin-bottom: 28px;
+  margin-bottom: 32px;
 }
 
 .auth-title {
-  font-size: 24px;
+  font-size: 26px;
   font-weight: 700;
   color: var(--parley-text-normal);
   margin: 0 0 8px 0;
+  letter-spacing: -0.3px;
+  font-family: 'Syne', 'Outfit', sans-serif;
 }
 
 .auth-subtitle {
   font-size: 14px;
   color: var(--parley-text-muted);
   margin: 0;
+  line-height: 1.5;
 }
 
 .auth-form {
@@ -47,24 +82,29 @@
 }
 
 .auth-error-banner {
-  background-color: rgba(218, 55, 60, 0.15);
+  background-color: rgba(var(--parley-danger-rgb, 240, 71, 71), 0.12);
   border: 1px solid var(--parley-red);
-  border-radius: 4px;
+  border-radius: 6px;
   padding: 12px 16px;
   color: var(--parley-red);
-  font-size: 14px;
+  font-size: 13px;
   text-align: center;
+  line-height: 1.5;
 }
 
 .auth-form .btn {
   width: 100%;
   margin-top: 8px;
+  padding: 13px 16px;
+  font-size: 15px;
+  letter-spacing: 0.01em;
+  border-radius: 6px;
 }
 
 .auth-footer {
   margin-top: 24px;
-  padding-top: 24px;
-  border-top: 1px solid var(--parley-gray);
+  padding-top: 20px;
+  border-top: 1px solid var(--parley-border);
   text-align: center;
 }
 
@@ -74,26 +114,29 @@
 }
 
 .auth-link {
-  color: var(--parley-blurple);
+  color: var(--parley-accent);
   text-decoration: none;
-  font-weight: 500;
-  transition: color 0.2s ease;
+  font-weight: 600;
+  transition: color 0.15s ease, text-decoration-color 0.15s ease;
+  text-decoration-line: underline;
+  text-decoration-color: transparent;
 }
 
 .auth-link:hover {
-  color: var(--parley-accent);
-  text-decoration: underline;
+  color: var(--parley-accent-hover);
+  text-decoration-color: var(--parley-accent-hover);
 }
 
 .auth-success-banner {
-  background-color: rgba(var(--accent-rgb), 0.15);
+  background-color: rgba(var(--accent-rgb), 0.1);
   border: 1px solid var(--parley-green);
-  border-radius: 4px;
+  border-radius: 6px;
   padding: 12px 16px;
   color: var(--parley-green);
-  font-size: 14px;
+  font-size: 13px;
   text-align: center;
   margin-bottom: 8px;
+  line-height: 1.5;
 }
 
 .auth-forgot-link {
@@ -101,22 +144,32 @@
   text-align: right;
   font-size: 12px;
   margin-top: 4px;
-  color: var(--parley-blurple);
+  color: var(--parley-text-muted);
   text-decoration: none;
+  transition: color 0.15s ease;
 }
 
 .auth-forgot-link:hover {
+  color: var(--parley-accent);
   text-decoration: underline;
+}
+
+/* Input label inside auth forms — override styles.css for better weight */
+.auth-form .input-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 /* Responsive adjustments */
 @media (max-width: 480px) {
   .auth-card {
-    padding: 24px 20px;
+    padding: 28px 20px 24px;
   }
 
   .auth-title {
-    font-size: 20px;
+    font-size: 22px;
   }
 
   .auth-subtitle {
