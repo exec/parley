@@ -10,6 +10,12 @@ import (
 // Never acquire h.mu while holding sendMu — this would invert the ordering
 // and risk deadlock.
 
+// presenceSnapshotMax caps the number of online user IDs sent in the
+// PRESENCE_SNAPSHOT event on connect. The frontend fills in remaining users
+// incrementally via USER_ONLINE events. Sending all 25k IDs per connection
+// is ~150KB of JSON with no practical benefit.
+const presenceSnapshotMax = 500
+
 // Publisher is implemented by RedisHub to cross-publish events to other nodes.
 // Hub holds an optional reference to it.
 type Publisher interface {
@@ -159,20 +165,23 @@ func (h *Hub) RegisterClient(client *Client) {
 		pub.MarkOnline(client.userID)
 	}
 
-	// Build snapshot — use Redis for cross-node truth, fall back to local map
+	// Build snapshot — use Redis for cross-node truth, fall back to local map.
+	// Capped at presenceSnapshotMax to prevent ~150KB payloads at 25k users.
 	var onlineUserIDs []string
 	if pub != nil {
 		onlineUserIDs = pub.GetOnlineUserIDs()
 	} else {
 		h.mu.RLock()
-		seen := make(map[string]bool)
 		for uid := range h.userToClient {
-			if !seen[uid] {
-				seen[uid] = true
-				onlineUserIDs = append(onlineUserIDs, uid)
+			onlineUserIDs = append(onlineUserIDs, uid)
+			if len(onlineUserIDs) >= presenceSnapshotMax {
+				break
 			}
 		}
 		h.mu.RUnlock()
+	}
+	if len(onlineUserIDs) > presenceSnapshotMax {
+		onlineUserIDs = onlineUserIDs[:presenceSnapshotMax]
 	}
 
 	// Send the new client a snapshot of everyone currently online
@@ -196,7 +205,6 @@ func (h *Hub) RegisterClient(client *Client) {
 		}
 	}
 
-	log.Printf("Client registered for user: %s", client.userID)
 }
 
 // UnregisterClient removes a client from the hub and broadcasts USER_OFFLINE
@@ -233,7 +241,6 @@ func (h *Hub) UnregisterClient(client *Client) {
 			delete(h.clientChannels, client)
 		}
 
-		log.Printf("Client unregistered for user: %s", client.userID)
 	}
 
 	pub := h.publisher
@@ -273,8 +280,6 @@ func (h *Hub) SubscribeToChannel(channelID string, client *Client) {
 	h.clientChannels[client][channelID] = true
 
 	h.mu.Unlock()
-
-	log.Printf("Client %s subscribed to channel: %s", client.userID, channelID)
 }
 
 // UnsubscribeFromChannel removes a client from a channel's subscriber list.
@@ -298,8 +303,6 @@ func (h *Hub) UnsubscribeFromChannel(channelID string, client *Client) {
 	}
 
 	h.mu.Unlock()
-
-	log.Printf("Client %s unsubscribed from channel: %s", client.userID, channelID)
 }
 
 // SendToUser sends a message to a specific user by their userID.

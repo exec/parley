@@ -155,10 +155,11 @@ func (r *RedisHub) MarkOffline(userID string) {
 	}
 }
 
-// GetOnlineUserIDs returns all user IDs currently in the shared presence set.
+// GetOnlineUserIDs returns a sample of online user IDs for the presence snapshot.
+// Uses SRANDMEMBER to avoid loading the full set (potentially 25k+ IDs) from Redis.
 func (r *RedisHub) GetOnlineUserIDs() []string {
 	ctx := context.Background()
-	ids, err := r.pubsub.Client().SMembers(ctx, redisOnlineKey).Result()
+	ids, err := r.pubsub.Client().SRandMemberN(ctx, redisOnlineKey, presenceSnapshotMax).Result()
 	if err != nil {
 		log.Printf("RedisHub: GetOnlineUserIDs failed: %v", err)
 		return nil

@@ -55,7 +55,7 @@ func NewClient(hub *Hub, conn *websocket.Conn, userID string, displayName string
 	return &Client{
 		hub:         hub,
 		conn:        conn,
-		send:        make(chan []byte, 256),
+		send:        make(chan []byte, 1024),
 		userID:      userID,
 		displayName: displayName,
 	}

@@ -1,6 +1,7 @@
 package websocket
 
 import (
+	"encoding/json"
 	"fmt"
 	"sync"
 	"testing"
@@ -134,6 +135,59 @@ func TestBroadcastToChannelConcurrentUnregister(t *testing.T) {
 
 	wg.Wait()
 	// Success: no panic, no race (run with -race)
+}
+
+func TestPresenceSnapshotCapped(t *testing.T) {
+	// RegisterClient on a hub without a publisher should send a snapshot
+	// with at most presenceSnapshotMax user IDs.
+	hub := NewHub()
+
+	// Populate userToClient with more than presenceSnapshotMax users
+	hub.mu.Lock()
+	for i := 0; i < presenceSnapshotMax+50; i++ {
+		uid := fmt.Sprintf("user%d", i)
+		c := newTestClient(hub, uid)
+		hub.clients[c] = true
+		hub.userToClient[uid] = map[*Client]bool{c: true}
+	}
+	hub.mu.Unlock()
+
+	incoming := newTestClient(hub, "newcomer")
+	hub.RegisterClient(incoming)
+
+	// Drain the send channel to find the PRESENCE_SNAPSHOT message
+	var snapshotMsg []byte
+	for {
+		select {
+		case msg := <-incoming.send:
+			var parsed struct {
+				Type    string `json:"type"`
+				Payload struct {
+					UserIDs []string `json:"user_ids"`
+				} `json:"payload"`
+			}
+			if err := json.Unmarshal(msg, &parsed); err == nil && parsed.Type == EventPresenceSnapshot {
+				snapshotMsg = msg
+			}
+		default:
+			goto done
+		}
+	}
+done:
+	if snapshotMsg == nil {
+		t.Fatal("no PRESENCE_SNAPSHOT received")
+	}
+
+	var wrapper struct {
+		Payload struct {
+			UserIDs []string `json:"user_ids"`
+		} `json:"payload"`
+	}
+	json.Unmarshal(snapshotMsg, &wrapper)
+	if len(wrapper.Payload.UserIDs) > presenceSnapshotMax {
+		t.Errorf("snapshot contains %d user IDs, want at most %d",
+			len(wrapper.Payload.UserIDs), presenceSnapshotMax)
+	}
 }
 
 // TestBroadcastToChannelSlowClientMinimalEviction verifies that a slow client
