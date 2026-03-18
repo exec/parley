@@ -1,6 +1,8 @@
 package websocket
 
 import (
+	"fmt"
+	"sync"
 	"testing"
 )
 
@@ -67,33 +69,112 @@ func TestUnregisterCleansInverseIndex(t *testing.T) {
 }
 
 func TestSafeSendToClosedChannel(t *testing.T) {
-	ch := make(chan []byte, 4)
-	close(ch)
+	c := &Client{send: make(chan []byte, 4)}
+	c.closeSend() // mark closed and close channel
 
 	// Must not panic
-	sent := safeSend(ch, []byte("hello"))
+	sent := safeSend(c, []byte("hello"))
 	if sent {
 		t.Error("safeSend should return false for closed channel")
 	}
 }
 
 func TestSafeSendToFullChannel(t *testing.T) {
-	ch := make(chan []byte, 1)
-	ch <- []byte("full")
+	c := &Client{send: make(chan []byte, 1)}
+	c.send <- []byte("full")
 
-	sent := safeSend(ch, []byte("overflow"))
+	sent := safeSend(c, []byte("overflow"))
 	if sent {
 		t.Error("safeSend should return false for full channel")
 	}
 }
 
 func TestSafeSendDelivers(t *testing.T) {
-	ch := make(chan []byte, 1)
-	sent := safeSend(ch, []byte("hello"))
+	c := &Client{send: make(chan []byte, 1)}
+	sent := safeSend(c, []byte("hello"))
 	if !sent {
 		t.Error("safeSend should return true when channel has capacity")
 	}
-	if msg := <-ch; string(msg) != "hello" {
+	if msg := <-c.send; string(msg) != "hello" {
 		t.Errorf("got %q, want %q", msg, "hello")
+	}
+}
+
+func TestBroadcastToChannelConcurrentUnregister(t *testing.T) {
+	hub := NewHub()
+	const N = 50
+
+	clients := make([]*Client, N)
+	for i := range clients {
+		clients[i] = newTestClient(hub, fmt.Sprintf("user%d", i))
+		hub.RegisterClient(clients[i])
+		hub.SubscribeToChannel("ch1", clients[i])
+	}
+
+	var wg sync.WaitGroup
+
+	// Concurrent broadcasts
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			hub.BroadcastToChannel("ch1", "TEST", []byte(`{"x":1}`))
+		}()
+	}
+
+	// Concurrent unregisters
+	for _, c := range clients[:25] {
+		wg.Add(1)
+		c := c
+		go func() {
+			defer wg.Done()
+			hub.UnregisterClient(c)
+		}()
+	}
+
+	wg.Wait()
+	// Success: no panic, no race (run with -race)
+}
+
+// TestBroadcastToChannelSlowClientMinimalEviction verifies that a slow client
+// (full send buffer) is removed from channelSubs for that channel but is NOT
+// immediately removed from h.clients — USER_OFFLINE is deferred to UnregisterClient
+// via the natural WritePump-exit teardown chain.
+//
+// This test FAILS with the old code (which deleted from h.clients in the eviction
+// block, bypassing USER_OFFLINE), and PASSES with the new minimal-eviction approach.
+func TestBroadcastToChannelSlowClientMinimalEviction(t *testing.T) {
+	hub := NewHub()
+
+	slow := &Client{
+		hub:    hub,
+		send:   make(chan []byte, 0), // zero-capacity: always "full"
+		userID: "slow",
+	}
+	fast := newTestClient(hub, "fast")
+
+	hub.RegisterClient(slow)
+	hub.RegisterClient(fast)
+	hub.SubscribeToChannel("ch1", slow)
+	hub.SubscribeToChannel("ch1", fast)
+
+	hub.BroadcastToChannel("ch1", "TEST", []byte(`{}`))
+
+	hub.mu.RLock()
+	_, slowInChannelSubs := hub.channelSubs["ch1"][slow]
+	_, slowInClients := hub.clients[slow]
+	_, fastInClients := hub.clients[fast]
+	hub.mu.RUnlock()
+
+	if slowInChannelSubs {
+		t.Error("slow client should be removed from channelSubs (won't receive future broadcasts)")
+	}
+	if !slowInClients {
+		// If we prematurely delete from h.clients, UnregisterClient's guard
+		// fails and USER_OFFLINE never fires — user appears permanently online.
+		t.Error("slow client must remain in h.clients until UnregisterClient fires naturally")
+	}
+	if !fastInClients {
+		t.Error("fast client should be unaffected")
 	}
 }

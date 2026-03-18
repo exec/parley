@@ -18,16 +18,23 @@ type Publisher interface {
 	GetOnlineUserIDs() []string
 }
 
-// safeSend attempts a non-blocking send to ch. Returns false if the channel is
-// full or has been closed (closed-channel send would panic without the recover).
-func safeSend(ch chan []byte, msg []byte) (sent bool) {
-	defer func() {
-		if recover() != nil {
-			sent = false
-		}
-	}()
+// safeSend attempts a non-blocking send to the client's send channel.
+// Returns false if the client is already closed or the channel buffer is full.
+//
+// Concurrency safety: closeSend holds client.sendMu.Lock() while closing the
+// channel. safeSend holds client.sendMu.RLock() while sending. This prevents
+// close(send) and send<-msg from ever executing concurrently, eliminating the
+// data race that the Go race detector would otherwise flag.
+func safeSend(client *Client, msg []byte) bool {
+	client.sendMu.RLock()
+	defer client.sendMu.RUnlock()
+
+	if client.closed {
+		return false
+	}
+
 	select {
-	case ch <- msg:
+	case client.send <- msg:
 		return true
 	default:
 		return false
@@ -294,48 +301,43 @@ func (h *Hub) UnsubscribeFromChannel(channelID string, client *Client) {
 // SendToUser sends a message to a specific user by their userID.
 // It also publishes to Redis (if a publisher is set) so other nodes deliver it too.
 func (h *Hub) SendToUser(userID string, messageType string, payload []byte) error {
-	h.mu.Lock()
+	wsMsg := WSMessage{Type: messageType, Payload: payload}
+	msgBytes, err := json.Marshal(wsMsg)
+	if err != nil {
+		return err
+	}
 
-	// Capture publisher reference while holding lock, then release before calling it
+	h.mu.RLock()
 	pub := h.publisher
+	userClients := h.userToClient[userID]
+	clients := make([]*Client, 0, len(userClients))
+	for c := range userClients {
+		clients = append(clients, c)
+	}
+	h.mu.RUnlock()
 
-	clients := h.userToClient[userID]
-	if clients == nil || len(clients) == 0 {
-		h.mu.Unlock()
-		// Still publish cross-node — the user may be on a different node
+	if len(clients) == 0 {
 		if pub != nil {
 			pub.PublishToUser(userID, messageType, payload)
 		}
 		return nil
 	}
 
-	// Create WSMessage
-	wsMsg := WSMessage{
-		Type:    messageType,
-		Payload: payload,
-	}
-
-	msgBytes, err := json.Marshal(wsMsg)
-	if err != nil {
-		h.mu.Unlock()
-		return err
-	}
-
-	// Send to all connected clients for this user
-	for client := range clients {
-		select {
-		case client.send <- msgBytes:
-		default:
-			// Client's send buffer is full, close the connection
-			delete(h.clients, client)
-			client.closeSend()
-			delete(h.userToClient[userID], client)
+	var toEvict []*Client
+	for _, client := range clients {
+		if !safeSend(client, msgBytes) {
+			toEvict = append(toEvict, client)
 		}
 	}
 
-	h.mu.Unlock()
+	if len(toEvict) > 0 {
+		h.mu.Lock()
+		for _, client := range toEvict {
+			client.closeSend()
+		}
+		h.mu.Unlock()
+	}
 
-	// Publish cross-node so other nodes can deliver to their local clients
 	if pub != nil {
 		pub.PublishToUser(userID, messageType, payload)
 	}
@@ -368,25 +370,35 @@ func (h *Hub) BroadcastToAllLocal(messageType string, payload []byte) {
 
 // broadcastToAllLocal is the unexported implementation.
 func (h *Hub) broadcastToAllLocal(messageType string, payload []byte) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
 	wsMsg := WSMessage{Type: messageType, Payload: payload}
 	msgBytes, err := json.Marshal(wsMsg)
 	if err != nil {
 		return
 	}
 
-	for client := range h.clients {
-		select {
-		case client.send <- msgBytes:
-		default:
-			delete(h.clients, client)
-			client.closeSend()
-			if h.userToClient[client.userID] != nil {
-				delete(h.userToClient[client.userID], client)
-			}
+	h.mu.RLock()
+	clients := make([]*Client, 0, len(h.clients))
+	for c := range h.clients {
+		clients = append(clients, c)
+	}
+	h.mu.RUnlock()
+
+	var toEvict []*Client
+	for _, client := range clients {
+		if !safeSend(client, msgBytes) {
+			toEvict = append(toEvict, client)
 		}
+	}
+
+	if len(toEvict) > 0 {
+		h.mu.Lock()
+		for _, client := range toEvict {
+			// Minimal eviction: close the send channel only.
+			// Full cleanup (h.clients, h.userToClient, clientChannels) happens
+			// when UnregisterClient fires naturally after closeSend drains.
+			client.closeSend()
+		}
+		h.mu.Unlock()
 	}
 }
 
@@ -394,14 +406,6 @@ func (h *Hub) broadcastToAllLocal(messageType string, payload []byte) {
 // No Redis publish — use this when delivering events received from Redis to avoid
 // the infinite re-broadcast loop that would occur if we published back to Redis.
 func (h *Hub) BroadcastLocalToChannel(channelID string, messageType string, payload []byte) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	clients := h.channelSubs[channelID]
-	if clients == nil || len(clients) == 0 {
-		return
-	}
-
 	wsMsg := WSMessage{Type: messageType, Payload: payload}
 	msgBytes, err := json.Marshal(wsMsg)
 	if err != nil {
@@ -409,99 +413,136 @@ func (h *Hub) BroadcastLocalToChannel(channelID string, messageType string, payl
 		return
 	}
 
-	for client := range clients {
-		select {
-		case client.send <- msgBytes:
-		default:
-			delete(h.clients, client)
-			client.closeSend()
-			if h.userToClient[client.userID] != nil {
-				delete(h.userToClient[client.userID], client)
-			}
-			delete(h.channelSubs[channelID], client)
+	h.mu.RLock()
+	subs := h.channelSubs[channelID]
+	if len(subs) == 0 {
+		h.mu.RUnlock()
+		return
+	}
+	clients := make([]*Client, 0, len(subs))
+	for c := range subs {
+		clients = append(clients, c)
+	}
+	h.mu.RUnlock()
+
+	var toEvict []*Client
+	for _, client := range clients {
+		if !safeSend(client, msgBytes) {
+			toEvict = append(toEvict, client)
 		}
+	}
+
+	if len(toEvict) > 0 {
+		h.mu.Lock()
+		for _, client := range toEvict {
+			client.closeSend()
+			delete(h.channelSubs[channelID], client)
+			if h.clientChannels[client] != nil {
+				delete(h.clientChannels[client], channelID)
+			}
+		}
+		if len(h.channelSubs[channelID]) == 0 {
+			delete(h.channelSubs, channelID)
+		}
+		h.mu.Unlock()
 	}
 }
 
 // SendLocalToUser delivers to local clients for a user ONLY — no Redis publish.
 func (h *Hub) SendLocalToUser(userID string, messageType string, payload []byte) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	clients := h.userToClient[userID]
-	if clients == nil || len(clients) == 0 {
-		return
-	}
-
 	wsMsg := WSMessage{Type: messageType, Payload: payload}
 	msgBytes, err := json.Marshal(wsMsg)
 	if err != nil {
 		return
 	}
 
-	for client := range clients {
-		select {
-		case client.send <- msgBytes:
-		default:
-			delete(h.clients, client)
-			client.closeSend()
-			delete(h.userToClient[userID], client)
+	h.mu.RLock()
+	userClients := h.userToClient[userID]
+	clients := make([]*Client, 0, len(userClients))
+	for c := range userClients {
+		clients = append(clients, c)
+	}
+	h.mu.RUnlock()
+
+	var toEvict []*Client
+	for _, client := range clients {
+		if !safeSend(client, msgBytes) {
+			toEvict = append(toEvict, client)
 		}
+	}
+
+	if len(toEvict) > 0 {
+		h.mu.Lock()
+		for _, client := range toEvict {
+			client.closeSend()
+		}
+		h.mu.Unlock()
 	}
 }
 
 // BroadcastToChannel sends a message to all clients subscribed to a channel.
 // It also publishes to Redis (if a publisher is set) so other nodes deliver it too.
+//
+// Performance: JSON marshaling happens once outside the lock. Subscriber snapshot
+// is taken under RLock. Sends happen outside all locks. Evictions (slow/full
+// send buffers) take a brief WLock at the end.
 func (h *Hub) BroadcastToChannel(channelID string, messageType string, payload []byte) {
-	h.mu.Lock()
+	// Step 1: Marshal outside all locks — pure CPU, no shared state.
+	wsMsg := WSMessage{Type: messageType, Payload: payload}
+	msgBytes, err := json.Marshal(wsMsg)
+	if err != nil {
+		log.Printf("BroadcastToChannel: marshal error: %v", err)
+		return
+	}
 
-	// Capture publisher reference while holding lock, then release before calling it
+	// Step 2: Snapshot subscribers and publisher under RLock.
+	h.mu.RLock()
 	pub := h.publisher
-
-	clients := h.channelSubs[channelID]
-	if clients == nil || len(clients) == 0 {
-		h.mu.Unlock()
-		// Still publish cross-node — subscribers may be on other nodes
+	subs := h.channelSubs[channelID]
+	if len(subs) == 0 {
+		h.mu.RUnlock()
 		if pub != nil {
 			pub.PublishToChannel(channelID, messageType, payload)
 		}
 		return
 	}
-
-	// Create WSMessage
-	wsMsg := WSMessage{
-		Type:    messageType,
-		Payload: payload,
+	clients := make([]*Client, 0, len(subs))
+	for c := range subs {
+		clients = append(clients, c)
 	}
+	h.mu.RUnlock()
 
-	msgBytes, err := json.Marshal(wsMsg)
-	if err != nil {
-		h.mu.Unlock()
-		log.Printf("Error marshaling broadcast message: %v", err)
-		return
-	}
-
-	// Send to all subscribed clients
-	for client := range clients {
-		select {
-		case client.send <- msgBytes:
-		default:
-			// Client's send buffer is full, close the connection
-			delete(h.clients, client)
-			client.closeSend()
-
-			// Remove from user map
-			if h.userToClient[client.userID] != nil {
-				delete(h.userToClient[client.userID], client)
-			}
-
-			delete(h.channelSubs[channelID], client)
+	// Step 3: Send outside all locks. safeSend handles closed channels (evicted
+	// clients) and full buffers without panicking.
+	var toEvict []*Client
+	for _, client := range clients {
+		if !safeSend(client, msgBytes) {
+			toEvict = append(toEvict, client)
 		}
 	}
 
-	h.mu.Unlock()
+	// Step 4: Minimal eviction under a brief WLock.
+	// We remove from channelSubs so future broadcasts skip this dead client.
+	// We do NOT delete from h.clients — that would bypass UnregisterClient's
+	// guard and cause USER_OFFLINE to never fire. The natural teardown chain
+	// (closeSend → WritePump exit → conn.Close → ReadPump unregister → UnregisterClient)
+	// handles full map cleanup and presence broadcasting.
+	if len(toEvict) > 0 {
+		h.mu.Lock()
+		for _, client := range toEvict {
+			client.closeSend()
+			delete(h.channelSubs[channelID], client)
+			if h.clientChannels[client] != nil {
+				delete(h.clientChannels[client], channelID)
+			}
+		}
+		if len(h.channelSubs[channelID]) == 0 {
+			delete(h.channelSubs, channelID)
+		}
+		h.mu.Unlock()
+	}
 
-	// Publish cross-node so other nodes can deliver to their local channel subscribers
+	// Step 5: Cross-node publish.
 	if pub != nil {
 		pub.PublishToChannel(channelID, messageType, payload)
 	}

@@ -28,8 +28,15 @@ type Client struct {
 	hub  *Hub
 	conn *websocket.Conn
 
+	// sendMu protects send and closed together so that close(send) and
+	// send<-msg never execute concurrently.  RLock for sends, Lock for close.
+	sendMu sync.RWMutex
+
 	// Buffered channel of outbound messages
 	send chan []byte
+
+	// closed tracks whether send has been closed. Checked under sendMu.RLock.
+	closed bool
 
 	// closeOnce ensures client.send is only closed once, regardless of which
 	// code path triggers the teardown (buffer-full eviction vs normal unregister).
@@ -55,8 +62,16 @@ func NewClient(hub *Hub, conn *websocket.Conn, userID string, displayName string
 }
 
 // closeSend closes the send channel exactly once.
+// It acquires a write lock on sendMu so that no concurrent safeSend is
+// mid-send on the channel when we close it, eliminating the close-vs-send
+// data race detected by -race.
 func (c *Client) closeSend() {
-	c.closeOnce.Do(func() { close(c.send) })
+	c.closeOnce.Do(func() {
+		c.sendMu.Lock()
+		c.closed = true
+		close(c.send)
+		c.sendMu.Unlock()
+	})
 }
 
 // ReadPump reads messages from the WebSocket connection
