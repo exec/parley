@@ -21,6 +21,7 @@ import (
 	"parley/internal/auth"
 	"parley/internal/bin"
 	"parley/internal/bots"
+	"parley/internal/cache"
 	"parley/internal/channel"
 	"parley/internal/db"
 	"parley/internal/email"
@@ -160,6 +161,10 @@ func main() {
 	// Initialize WebSocket hub first
 	hub := websocket.NewHub()
 
+	// Short-lived membership cache to absorb the wave of CHANNEL_SUBSCRIBE DB
+	// queries when many users connect simultaneously (e.g., server restart).
+	memberCache := cache.NewMembershipCache(30 * time.Second)
+
 	// Enforce channel access: only server members may subscribe to a channel's events.
 	hub.SetChannelAccessChecker(func(userID, channelID string) bool {
 		uID, err := strconv.ParseInt(userID, 10, 64)
@@ -169,17 +174,22 @@ func main() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 
-		// "server:{serverID}" virtual channels: allow if user is a member of that server.
+		// "server:{serverID}" virtual channels
 		if serverIDStr, ok := strings.CutPrefix(channelID, "server:"); ok {
 			sID, err := strconv.ParseInt(serverIDStr, 10, 64)
 			if err != nil {
 				return false
 			}
+			if isMember, ok := memberCache.GetMember(sID, uID); ok {
+				return isMember
+			}
 			member, err := repo.GetMember(ctx, sID, uID)
-			return err == nil && member != nil
+			result := err == nil && member != nil
+			memberCache.SetMember(sID, uID, result)
+			return result
 		}
 
-		// "dm:{dmChannelID}" virtual channels: allow if user is a participant.
+		// "dm:{dmChannelID}" virtual channels
 		if dmIDStr, ok := strings.CutPrefix(channelID, "dm:"); ok {
 			dmID, err := strconv.ParseInt(dmIDStr, 10, 64)
 			if err != nil {
@@ -189,17 +199,31 @@ func main() {
 			return err == nil && (ch.User1ID == uID || ch.User2ID == uID)
 		}
 
-		// Regular channel: check the user is a member of the channel's server.
+		// Regular channels: check channel→server mapping (cached) then membership (cached)
 		chID, err := strconv.ParseInt(channelID, 10, 64)
 		if err != nil {
 			return false
 		}
-		ch, err := repo.GetChannelByID(ctx, chID)
-		if err != nil {
-			return false
+
+		var serverID int64
+		if sID, ok := memberCache.GetChannelServer(chID); ok {
+			serverID = sID
+		} else {
+			ch, err := repo.GetChannelByID(ctx, chID)
+			if err != nil {
+				return false
+			}
+			memberCache.SetChannelServer(chID, ch.ServerID)
+			serverID = ch.ServerID
 		}
-		member, err := repo.GetMember(ctx, ch.ServerID, uID)
-		return err == nil && member != nil
+
+		if isMember, ok := memberCache.GetMember(serverID, uID); ok {
+			return isMember
+		}
+		member, err := repo.GetMember(ctx, serverID, uID)
+		result := err == nil && member != nil
+		memberCache.SetMember(serverID, uID, result)
+		return result
 	})
 
 	// Set up Redis pub/sub for cross-node broadcasting (graceful fallback if unavailable)
