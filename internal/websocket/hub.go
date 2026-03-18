@@ -18,6 +18,22 @@ type Publisher interface {
 	GetOnlineUserIDs() []string
 }
 
+// safeSend attempts a non-blocking send to ch. Returns false if the channel is
+// full or has been closed (closed-channel send would panic without the recover).
+func safeSend(ch chan []byte, msg []byte) (sent bool) {
+	defer func() {
+		if recover() != nil {
+			sent = false
+		}
+	}()
+	select {
+	case ch <- msg:
+		return true
+	default:
+		return false
+	}
+}
+
 // Hub maintains the set of active clients and broadcasts messages
 type Hub struct {
 	mu sync.RWMutex
@@ -30,6 +46,10 @@ type Hub struct {
 
 	// Channel subscribers
 	channelSubs map[string]map[*Client]bool
+
+	// clientChannels is the inverse index of channelSubs: for O(k) unregister cleanup
+	// where k = number of channels this client is subscribed to.
+	clientChannels map[*Client]map[string]bool
 
 	// Register requests from clients
 	register chan *Client
@@ -51,12 +71,13 @@ type Hub struct {
 // NewHub creates a new Hub
 func NewHub() *Hub {
 	return &Hub{
-		clients:      make(map[*Client]bool),
-		userToClient: make(map[string]map[*Client]bool),
-		channelSubs:  make(map[string]map[*Client]bool),
-		register:     make(chan *Client, 64),
-		unregister:   make(chan *Client, 64),
-		broadcast:    make(chan *Message, 1024),
+		clients:        make(map[*Client]bool),
+		userToClient:   make(map[string]map[*Client]bool),
+		channelSubs:    make(map[string]map[*Client]bool),
+		clientChannels: make(map[*Client]map[string]bool),
+		register:       make(chan *Client, 64),
+		unregister:     make(chan *Client, 64),
+		broadcast:      make(chan *Message, 1024),
 	}
 }
 
@@ -187,14 +208,18 @@ func (h *Hub) UnregisterClient(client *Client) {
 			}
 		}
 
-		// Remove from all channel subscriptions
-		for channelID, clients := range h.channelSubs {
-			if _, ok := clients[client]; ok {
-				delete(h.channelSubs[channelID], client)
-				if len(h.channelSubs[channelID]) == 0 {
-					delete(h.channelSubs, channelID)
+		// Remove from all channel subscriptions using O(k) inverse index
+		// where k = channels this client is subscribed to.
+		if channels := h.clientChannels[client]; channels != nil {
+			for channelID := range channels {
+				if h.channelSubs[channelID] != nil {
+					delete(h.channelSubs[channelID], client)
+					if len(h.channelSubs[channelID]) == 0 {
+						delete(h.channelSubs, channelID)
+					}
 				}
 			}
+			delete(h.clientChannels, client)
 		}
 
 		log.Printf("Client unregistered for user: %s", client.userID)
@@ -230,6 +255,12 @@ func (h *Hub) SubscribeToChannel(channelID string, client *Client) {
 	}
 	h.channelSubs[channelID][client] = true
 
+	// Maintain inverse index
+	if h.clientChannels[client] == nil {
+		h.clientChannels[client] = make(map[string]bool)
+	}
+	h.clientChannels[client][channelID] = true
+
 	h.mu.Unlock()
 
 	log.Printf("Client %s subscribed to channel: %s", client.userID, channelID)
@@ -245,6 +276,11 @@ func (h *Hub) UnsubscribeFromChannel(channelID string, client *Client) {
 		if len(h.channelSubs[channelID]) == 0 {
 			delete(h.channelSubs, channelID)
 		}
+	}
+
+	// Maintain inverse index
+	if h.clientChannels[client] != nil {
+		delete(h.clientChannels[client], channelID)
 	}
 
 	h.mu.Unlock()
