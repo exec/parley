@@ -26,6 +26,9 @@ func slugify(s string, maxLen int) string {
 
 // CreateBinPost inserts a new bin post, creates its thread channel and initial version.
 func (r *Repository) CreateBinPost(ctx context.Context, channelID, authorID int64, title, description string, tags []string) (*BinPost, error) {
+	if tags == nil {
+		tags = []string{}
+	}
 	post := &BinPost{
 		ChannelID:   channelID,
 		AuthorID:    authorID,
@@ -192,6 +195,9 @@ func (r *Repository) GetBinPostsByChannel(ctx context.Context, channelID int64, 
 
 // UpdateBinPost updates the title, description, and tags of a bin post.
 func (r *Repository) UpdateBinPost(ctx context.Context, postID int64, title, description string, tags []string) (*BinPost, error) {
+	if tags == nil {
+		tags = []string{}
+	}
 	var post BinPost
 	err := r.db.QueryRowContext(ctx,
 		`UPDATE bin_posts
