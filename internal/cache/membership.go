@@ -46,7 +46,7 @@ func NewMembershipCache(ttl time.Duration) *MembershipCache {
 func (c *MembershipCache) GetMember(serverID, userID int64) (isMember bool, ok bool) {
 	key := fmt.Sprintf("m:%d:%d", serverID, userID)
 	c.mu.RLock()
-	e, exists := c.members[key]
+	e, exists := c.members[key] // copied by value; expiry check is safe outside the lock
 	c.mu.RUnlock()
 	if !exists || time.Now().After(e.expiresAt) {
 		return false, false
@@ -75,7 +75,7 @@ func (c *MembershipCache) InvalidateMember(serverID, userID int64) {
 func (c *MembershipCache) GetChannelServer(channelID int64) (serverID int64, ok bool) {
 	key := fmt.Sprintf("c:%d", channelID)
 	c.mu.RLock()
-	e, exists := c.chSrv[key]
+	e, exists := c.chSrv[key] // copied by value; expiry check is safe outside the lock
 	c.mu.RUnlock()
 	if !exists || time.Now().After(e.expiresAt) {
 		return 0, false
