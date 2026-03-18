@@ -179,30 +179,9 @@ output "admin_droplet_ip" {
   value = digitalocean_droplet.parley_admin.ipv4_address
 }
 
-# Voice (LiveKit) droplet
-resource "digitalocean_droplet" "parley_vc" {
-  image    = "ubuntu-24-04-x64"
-  name     = "parley-vc"
-  size     = "s-2vcpu-4gb"
-  region   = var.region
-  vpc_uuid = digitalocean_vpc.parley_vpc.id
-  ssh_keys = [digitalocean_ssh_key.parley_key.fingerprint]
-
-  user_data = templatefile("${path.module}/userdata-vc.sh", {
-    LIVEKIT_API_KEY    = var.livekit_api_key
-    LIVEKIT_API_SECRET = var.livekit_api_secret
-  })
-
-  tags = ["parley", "voice"]
-}
-
-output "vc_droplet_ip" {
-  value = digitalocean_droplet.parley_vc.ipv4_address
-}
-
 # Note: DNS records not managed by Terraform - configure manually at your registrar
 # Point your domain to the load balancer IP after creation
-# Add an A record: vc.parley.x86-64.com → parley_vc.ipv4_address
+# LiveKit is handled via LiveKit Cloud — no self-hosted vc droplet needed
 
 # Spaces bucket (parley-prod) is managed manually in the DO console
 # with CDN already configured — not managed by Terraform.
