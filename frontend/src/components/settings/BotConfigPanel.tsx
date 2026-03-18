@@ -65,7 +65,10 @@ export const BotConfigPanel: React.FC<Props> = ({ bot, serverId, isAdmin, onRemo
     if (models?.length) setModel(models[0].value);
   };
 
+  const needsApiKey = provider !== 'parley' && !config?.api_key_set && !apiKey.trim();
+
   const handleSave = async () => {
+    if (needsApiKey) return;
     setSaving(true);
     setSaveMsg('');
     try {
@@ -182,11 +185,14 @@ export const BotConfigPanel: React.FC<Props> = ({ bot, serverId, isAdmin, onRemo
           {provider !== 'parley' && (
             <>
               <label style={label}>
-                API Key {config?.api_key_set && <span style={{ color: 'var(--parley-success,#43b581)' }}>● Set</span>}
+                API Key{' '}
+                {config?.api_key_set
+                  ? <span style={{ color: 'var(--parley-success,#43b581)' }}>● Set</span>
+                  : <span style={{ color: 'var(--parley-danger,#f04747)' }}>(Required)</span>}
               </label>
               <input
                 type="password"
-                style={inputStyle}
+                style={{ ...inputStyle, borderColor: needsApiKey ? 'var(--parley-danger,#f04747)' : undefined }}
                 placeholder={config?.api_key_set ? '••••••••••••••••' : 'Enter API key…'}
                 value={apiKey}
                 onChange={e => setApiKey(e.target.value)}
@@ -208,7 +214,7 @@ export const BotConfigPanel: React.FC<Props> = ({ bot, serverId, isAdmin, onRemo
 
           <button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || needsApiKey}
             style={{
               background: 'var(--parley-accent,#32CD32)', border: 'none', color: '#fff',
               borderRadius: 4, padding: '7px 18px', fontWeight: 600, fontSize: 13, cursor: 'pointer',
