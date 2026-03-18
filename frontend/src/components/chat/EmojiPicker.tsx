@@ -51,7 +51,7 @@ interface EmojiPickerProps {
   onClose: () => void;
 }
 
-export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelect }) => {
+export const EmojiPicker = React.forwardRef<HTMLDivElement, EmojiPickerProps>(({ onSelect }, ref) => {
   const [activeCategory, setActiveCategory] = useState(0);
   const [search, setSearch] = useState('');
   const [searchResults, setSearchResults] = useState<string[]>([]);
@@ -69,7 +69,7 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelect }) => {
   const displayEmojis: string[] = search.trim() ? searchResults : EMOJI_CATEGORIES[activeCategory].emojis;
 
   return (
-    <div className="emoji-picker-full" onClick={e => e.stopPropagation()}>
+    <div ref={ref} className="emoji-picker-full" onClick={e => e.stopPropagation()}>
       <div className="emoji-picker-search">
         <input
           autoFocus
@@ -103,4 +103,4 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelect }) => {
       </div>
     </div>
   );
-};
+});

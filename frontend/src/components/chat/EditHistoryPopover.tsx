@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { getMessageVersions, MessageVersion } from '../../api/messages';
+import { useViewportAdjust } from '../../hooks/useViewportAdjust';
 import './EditHistoryPopover.css';
 
 interface EditHistoryPopoverProps {
@@ -11,6 +12,8 @@ export const EditHistoryPopover: React.FC<EditHistoryPopoverProps> = ({ messageI
   const [versions, setVersions] = useState<MessageVersion[]>([]);
   const [loading, setLoading] = useState(true);
   const popoverRef = useRef<HTMLDivElement>(null);
+
+  useViewportAdjust(popoverRef, [versions, loading]);
 
   useEffect(() => {
     let cancelled = false;

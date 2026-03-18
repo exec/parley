@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useViewportAdjust } from '../../hooks/useViewportAdjust';
 import './GifPicker.css';
 
 const GIPHY_KEY = import.meta.env.VITE_GIPHY_API_KEY as string;
@@ -25,6 +26,8 @@ export const GifPicker: React.FC<GifPickerProps> = ({ onSelect, onClose }) => {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useViewportAdjust(containerRef, []);
 
   const fetchGifs = useCallback(async (q: string) => {
     setLoading(true);

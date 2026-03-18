@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { EmojiSuggestion } from '../../hooks/useEmojiAutocomplete';
+import { useViewportAdjust } from '../../hooks/useViewportAdjust';
 import './EmojiDropdown.css';
 
 interface Props {
@@ -9,10 +10,13 @@ interface Props {
 }
 
 export const EmojiDropdown: React.FC<Props> = ({ suggestions, selectedIdx, onSelect }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  useViewportAdjust(ref, []);
+
   if (suggestions.length === 0) return null;
 
   return (
-    <div className="emoji-dropdown">
+    <div ref={ref} className="emoji-dropdown">
       <div className="emoji-dropdown-header">Emoji</div>
       {suggestions.map((s, i) => (
         <div

@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { MentionSuggestion } from '../../hooks/useMentionAutocomplete';
+import { useViewportAdjust } from '../../hooks/useViewportAdjust';
 import './MentionDropdown.css';
 
 interface Props {
@@ -9,10 +10,13 @@ interface Props {
 }
 
 export const MentionDropdown: React.FC<Props> = ({ suggestions, selectedIdx, onSelect }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  useViewportAdjust(ref, []);
+
   if (suggestions.length === 0) return null;
 
   return (
-    <div className="mention-dropdown">
+    <div ref={ref} className="mention-dropdown">
       <div className="mention-dropdown-header">Mentions</div>
       {suggestions.map((s, i) => {
         if (s.kind === 'special') {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useViewportAdjust } from '../../hooks/useViewportAdjust';
 import { Reply, SmilePlus, Pencil, Trash2, X, Bot } from 'lucide-react';
 import { Message as MessageType } from '../../api/types';
 import { Avatar } from '../ui/Avatar';
@@ -167,6 +168,8 @@ export const Message: React.FC<MessageProps> = ({
   const [showEditHistory, setShowEditHistory] = useState(false);
   const editRef = useRef<HTMLTextAreaElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+  const userContextMenuRef = useRef<HTMLDivElement>(null);
   const editedSpanRef = useRef<HTMLSpanElement>(null);
 
   const isOwnMessage = currentUserId && message.author_id === currentUserId;
@@ -286,6 +289,10 @@ export const Message: React.FC<MessageProps> = ({
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, [showEmojiPicker]);
+
+  useViewportAdjust(contextMenuRef, [contextMenu]);
+  useViewportAdjust(userContextMenuRef, [userContextMenu]);
+  useViewportAdjust(emojiPickerRef, [showEmojiPicker]);
 
   const wasEdited = message.updated_at !== message.created_at;
 
@@ -488,13 +495,12 @@ export const Message: React.FC<MessageProps> = ({
       )}
 
       {showEmojiPicker && (
-        <div ref={emojiPickerRef}>
-          <EmojiPicker onSelect={handleReact} onClose={() => setShowEmojiPicker(false)} />
-        </div>
+        <EmojiPicker ref={emojiPickerRef} onSelect={handleReact} onClose={() => setShowEmojiPicker(false)} />
       )}
 
       {contextMenu && (
         <div
+          ref={contextMenuRef}
           className="message-context-menu"
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={e => e.stopPropagation()}
@@ -526,6 +532,7 @@ export const Message: React.FC<MessageProps> = ({
 
       {userContextMenu && (
         <div
+          ref={userContextMenuRef}
           className="message-context-menu user-context-menu-popup"
           style={{ top: userContextMenu.y, left: userContextMenu.x }}
           onClick={e => e.stopPropagation()}
