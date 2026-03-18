@@ -63,3 +63,22 @@ func TestTokenBucketRefills(t *testing.T) {
 		t.Error("should be allowed after 1 second refill")
 	}
 }
+
+func TestUserRateLimiterIsolation(t *testing.T) {
+	rl := newRateLimiter(3, time.Minute) // 3/min per user
+
+	// User A exhausts their bucket
+	for i := 0; i < 3; i++ {
+		if !rl.Allow("user:user_a") {
+			t.Fatalf("request %d should be allowed", i+1)
+		}
+	}
+	if rl.Allow("user:user_a") {
+		t.Error("4th request for user_a should be denied")
+	}
+
+	// User B's bucket is independent
+	if !rl.Allow("user:user_b") {
+		t.Error("user_b should not be affected by user_a exhaustion")
+	}
+}

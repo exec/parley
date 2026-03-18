@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"parley/internal/auth"
 )
 
 // ----- Token bucket rate limiter -----
@@ -92,6 +94,30 @@ func rateLimitMiddleware(rl *rateLimiter) func(http.Handler) http.Handler {
 			}
 			if !rl.Allow(ip) {
 				http.Error(w, "rate limit exceeded, please slow down", http.StatusTooManyRequests)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// userRateLimitMiddleware applies per-authenticated-user rate limiting.
+// It uses the user ID from the JWT context as the bucket key so the limit
+// applies per account regardless of IP (defeats multi-IP bypass attempts).
+func userRateLimitMiddleware(rl *rateLimiter) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Use authenticated user ID as the rate limit key so the limit applies
+			// per account regardless of IP (defeats multi-IP bypass attempts).
+			key := auth.GetUserIDFromContext(r)
+			if key == "" {
+				// Fallback to IP (should not occur on authenticated routes)
+				key, _, _ = net.SplitHostPort(r.RemoteAddr)
+			} else {
+				key = "u:" + key // namespace to avoid collision with IP keys
+			}
+			if !rl.Allow(key) {
+				http.Error(w, "rate limit exceeded, slow down", http.StatusTooManyRequests)
 				return
 			}
 			next.ServeHTTP(w, r)
