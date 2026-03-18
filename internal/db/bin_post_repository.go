@@ -103,7 +103,7 @@ func (r *Repository) GetBinPost(ctx context.Context, postID int64) (*BinPost, er
 	var post BinPost
 	err := r.db.QueryRowContext(ctx, query, postID).Scan(
 		&post.ID, &post.ChannelID, &post.ThreadChannelID, &post.AuthorID,
-		&post.Title, &post.Description, pq.Array(&post.Tags),
+		&post.Title, &post.Description, &post.Tags,
 		&post.CreatedAt, &post.UpdatedAt,
 		&post.AuthorUsername, &post.AuthorAvatarURL,
 		&post.VersionCount, &post.CommentCount, &post.LineCommentCount,
@@ -177,7 +177,7 @@ func (r *Repository) GetBinPostsByChannel(ctx context.Context, channelID int64, 
 		var post BinPost
 		err := rows.Scan(
 			&post.ID, &post.ChannelID, &post.ThreadChannelID, &post.AuthorID,
-			&post.Title, &post.Description, pq.Array(&post.Tags),
+			&post.Title, &post.Description, &post.Tags,
 			&post.CreatedAt, &post.UpdatedAt,
 			&post.AuthorUsername, &post.AuthorAvatarURL,
 			&post.VersionCount, &post.CommentCount, &post.LineCommentCount,
@@ -201,7 +201,7 @@ func (r *Repository) UpdateBinPost(ctx context.Context, postID int64, title, des
 		title, description, pq.Array(tags), postID,
 	).Scan(
 		&post.ID, &post.ChannelID, &post.ThreadChannelID, &post.AuthorID,
-		&post.Title, &post.Description, pq.Array(&post.Tags),
+		&post.Title, &post.Description, &post.Tags,
 		&post.CreatedAt, &post.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
