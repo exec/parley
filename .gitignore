@@ -40,3 +40,13 @@ frontend/.env
 **/.env
 **/.env.local
 .worktrees/
+
+# Local deployment docs (contain IPs / setup notes)
+DEPLOYMENT.md
+
+# Proxmox terraform state and secrets
+terraform/proxmox/*.tfvars
+terraform/proxmox/.terraform/
+terraform/proxmox/terraform.tfstate
+terraform/proxmox/terraform.tfstate.backup
+bench/parley-bench
