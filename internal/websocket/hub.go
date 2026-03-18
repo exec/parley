@@ -6,6 +6,10 @@ import (
 	"sync"
 )
 
+// Lock ordering: h.mu must always be acquired before sendMu (Client.sendMu).
+// Never acquire h.mu while holding sendMu — this would invert the ordering
+// and risk deadlock.
+
 // Publisher is implemented by RedisHub to cross-publish events to other nodes.
 // Hub holds an optional reference to it.
 type Publisher interface {
@@ -333,6 +337,9 @@ func (h *Hub) SendToUser(userID string, messageType string, payload []byte) erro
 	if len(toEvict) > 0 {
 		h.mu.Lock()
 		for _, client := range toEvict {
+			// Minimal eviction: close the send channel only. userToClient cleanup
+			// is deferred to UnregisterClient — unlike channel evictions, there is no
+			// stale subscriber list to prune here since we already skipped dead clients.
 			client.closeSend()
 		}
 		h.mu.Unlock()
@@ -474,6 +481,9 @@ func (h *Hub) SendLocalToUser(userID string, messageType string, payload []byte)
 	if len(toEvict) > 0 {
 		h.mu.Lock()
 		for _, client := range toEvict {
+			// Minimal eviction: close the send channel only. userToClient cleanup
+			// is deferred to UnregisterClient — unlike channel evictions, there is no
+			// stale subscriber list to prune here since we already skipped dead clients.
 			client.closeSend()
 		}
 		h.mu.Unlock()

@@ -217,7 +217,9 @@ func (c *Client) WritePump() {
 	}
 }
 
-// Send sends a message to the client
+// Send sends a message to the client.
+// It routes through safeSend so that the sendMu read-lock is held during the
+// channel send, preventing a close-vs-send data race with closeSend.
 func (c *Client) Send(messageType string, payload []byte) error {
 	wsMsg := WSMessage{
 		Type:    messageType,
@@ -229,12 +231,8 @@ func (c *Client) Send(messageType string, payload []byte) error {
 		return err
 	}
 
-	select {
-	case c.send <- msgBytes:
-		return nil
-	default:
-		return nil // Message dropped
-	}
+	safeSend(c, msgBytes)
+	return nil
 }
 
 // GetUserID returns the user ID associated with this client
