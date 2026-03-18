@@ -6,6 +6,12 @@
   overflow: hidden;
 }
 
+/* Desktop: left-drawer is just a normal flex row */
+.left-drawer {
+  display: flex;
+  flex-shrink: 0;
+}
+
 .main-content {
   flex: 1;
   display: flex;
@@ -123,45 +129,27 @@
     z-index: 90;
   }
 
-  /* Sidebar (server icons) — hide on mobile, show via drawer or bottom nav */
-  .sidebar {
-    display: none;
-  }
-
-  /* Channel list: fixed overlay, full width, slides from left */
-  .channel-list {
+  /* Left drawer (server icons + channel list) slides in as one unit */
+  .left-drawer {
     position: fixed;
     left: 0;
     top: 0;
     bottom: 0;
-    width: 280px;
-    min-width: 280px;
     height: 100dvh;
     z-index: 100;
     transform: translateX(-110%);
     transition: transform 0.22s ease;
   }
-  .channel-list.channel-list--open {
+  .left-drawer--open {
     transform: translateX(0);
   }
 
-  /* Members sidebar: fixed overlay, slides from right */
-  .user-sidebar {
-    position: fixed;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    width: 260px !important;
-    min-width: 260px !important;
+  /* Channel list: normal in-flow inside the drawer */
+  .channel-list {
+    position: static;
     height: 100dvh;
-    z-index: 100;
-    overflow-y: auto !important;
-    border-left-width: 1px !important;
-    transform: translateX(110%);
-    transition: transform 0.22s ease;
-  }
-  .user-sidebar.user-sidebar--open {
-    transform: translateX(0);
+    min-width: 240px;
+    width: 240px;
   }
 
   /* Chat takes full width on mobile */

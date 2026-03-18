@@ -1046,6 +1046,7 @@ function MainApp() {
         onCreateServer={() => setShowCreateServer(true)}
         onHomepage={handleGoHome}
         leftPanel={leftPanel}
+        leftPanelOpen={showChannelList}
         rightPanel={rightPanel}
         serverUnreadCounts={serverUnreadCounts}
         onMarkServerRead={(serverId) => {

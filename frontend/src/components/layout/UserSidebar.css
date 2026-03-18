@@ -18,6 +18,34 @@
   border-left-width: 0;
 }
 
+/* Mobile: fixed overlay that slides in from the right */
+@media (max-width: 768px) {
+  .user-sidebar {
+    position: fixed;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 260px;
+    min-width: 260px;
+    height: 100dvh;
+    z-index: 100;
+    overflow-y: auto;
+    border-left-width: 1px;
+    transform: translateX(110%);
+    transition: transform 0.22s ease;
+  }
+  /* Reset the desktop collapse — on mobile, hidden = off-screen, not width:0 */
+  .user-sidebar:not(.user-sidebar--open) {
+    width: 260px;
+    min-width: 260px;
+    overflow-y: auto;
+    border-left-width: 1px;
+  }
+  .user-sidebar.user-sidebar--open {
+    transform: translateX(0);
+  }
+}
+
 .user-sidebar::-webkit-scrollbar {
   width: 8px;
 }

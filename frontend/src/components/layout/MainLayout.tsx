@@ -13,6 +13,7 @@ interface MainLayoutProps {
   children: React.ReactNode;
   leftPanel: React.ReactNode;
   rightPanel?: React.ReactNode;
+  leftPanelOpen?: boolean;
   servers: Server[];
   activeServerId: string | null;
   currentUserId?: string;
@@ -30,6 +31,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
   children,
   leftPanel,
   rightPanel,
+  leftPanelOpen = false,
   servers,
   activeServerId,
   currentUserId,
@@ -44,20 +46,22 @@ const MainLayout: React.FC<MainLayoutProps> = ({
 }) => {
   return (
     <div className="main-layout">
-      <Sidebar
-        servers={servers}
-        activeServerId={activeServerId}
-        currentUserId={currentUserId}
-        onServerSelect={onServerSelect}
-        onCreateServer={onCreateServer}
-        onHomepage={onHomepage}
-        serverUnreadCounts={serverUnreadCounts}
-        onMarkServerRead={onMarkServerRead}
-        onNotificationSettings={onNotificationSettings}
-        onServerSettings={onServerSettings}
-        onLeaveServer={onLeaveServer}
-      />
-      {leftPanel}
+      <div className={`left-drawer${leftPanelOpen ? ' left-drawer--open' : ''}`}>
+        <Sidebar
+          servers={servers}
+          activeServerId={activeServerId}
+          currentUserId={currentUserId}
+          onServerSelect={onServerSelect}
+          onCreateServer={onCreateServer}
+          onHomepage={onHomepage}
+          serverUnreadCounts={serverUnreadCounts}
+          onMarkServerRead={onMarkServerRead}
+          onNotificationSettings={onNotificationSettings}
+          onServerSettings={onServerSettings}
+          onLeaveServer={onLeaveServer}
+        />
+        {leftPanel}
+      </div>
       <div className="main-content">
         {children}
       </div>
