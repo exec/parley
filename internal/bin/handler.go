@@ -265,8 +265,8 @@ func (h *Handler) GetVersion(w http.ResponseWriter, r *http.Request) {
 // ---- Line Comments ----
 
 type createLineCommentRequest struct {
-	VersionID  string `json:"version_id"`
-	FileID     string `json:"file_id"`
+	VersionID  int64  `json:"version_id"`
+	FileID     int64  `json:"file_id"`
 	LineNumber int    `json:"line_number"`
 	Content    string `json:"content"`
 	ParentID   string `json:"parent_id"`
@@ -295,16 +295,18 @@ func (h *Handler) CreateLineComment(w http.ResponseWriter, r *http.Request) {
 		httputil.JSONError(w, "content is required", http.StatusBadRequest)
 		return
 	}
-	if req.VersionID == "" {
+	if req.VersionID == 0 {
 		httputil.JSONError(w, "version_id is required", http.StatusBadRequest)
 		return
 	}
-	if req.FileID == "" {
+	if req.FileID == 0 {
 		httputil.JSONError(w, "file_id is required", http.StatusBadRequest)
 		return
 	}
 
-	comment, err := h.service.CreateLineComment(r.Context(), postID, userID, req.VersionID, req.FileID, req.LineNumber, req.Content, req.ParentID)
+	comment, err := h.service.CreateLineComment(r.Context(), postID, userID,
+		strconv.FormatInt(req.VersionID, 10), strconv.FormatInt(req.FileID, 10),
+		req.LineNumber, req.Content, req.ParentID)
 	if err != nil {
 		switch err.Error() {
 		case "post not found":

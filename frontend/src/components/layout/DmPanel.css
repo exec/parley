@@ -8,12 +8,6 @@
   border-right: 1px solid var(--border);
 }
 
-.dm-panel-nav {
-  padding: 8px 8px 6px;
-  flex-shrink: 0;
-  border-bottom: 1px solid var(--border);
-}
-
 .dm-section-label {
   padding: 12px 12px 4px;
   font-size: 11px;
@@ -291,42 +285,3 @@
   margin: 4px 0;
 }
 
-.dm-friends-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 9px 10px;
-  background: none;
-  border: none;
-  border-radius: 6px;
-  color: var(--parley-text-muted, #8ba3bf);
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  text-align: left;
-  font-family: inherit;
-  transition: background 0.12s, color 0.12s;
-}
-
-.dm-friends-btn:hover {
-  background: var(--parley-bg-hover, #152c52);
-  color: var(--parley-text-normal, #cad5e2);
-}
-
-.dm-friends-btn.active {
-  background: rgba(0, 180, 216, 0.12);
-  color: var(--parley-accent, #00b4d8);
-}
-
-.dm-friends-badge {
-  background: var(--status-danger, #ed4245);
-  color: #fff;
-  border-radius: 10px;
-  padding: 0 5px;
-  font-size: 11px;
-  font-weight: 700;
-  min-width: 16px;
-  text-align: center;
-  margin-left: auto;
-}
