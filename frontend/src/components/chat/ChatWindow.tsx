@@ -187,7 +187,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               )}
               {/* Members toggle */}
               {onToggleMembers && (
-                <button className="chat-header-btn" onClick={onToggleMembers} title={showMembers ? 'Hide members' : 'Show members'} style={{ color: showMembers ? '#32CD32' : '#555' }}>
+                <button className="chat-header-btn" onClick={onToggleMembers} title={showMembers ? 'Hide members' : 'Show members'} style={{ color: showMembers ? 'var(--parley-accent)' : 'var(--parley-text-muted)' }}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
                     <circle cx="9" cy="7" r="4" />
@@ -197,7 +197,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 </button>
               )}
               {/* Search */}
-              <button className="chat-header-btn" onClick={() => setShowSearch(s => !s)} title="Search messages" style={{ color: showSearch ? '#32CD32' : '#555' }}>
+              <button className="chat-header-btn" onClick={() => setShowSearch(s => !s)} title="Search messages" style={{ color: showSearch ? 'var(--parley-accent)' : 'var(--parley-text-muted)' }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="11" cy="11" r="8" />
                   <line x1="21" y1="21" x2="16.65" y2="16.65" />

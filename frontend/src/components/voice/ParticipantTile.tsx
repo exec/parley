@@ -94,7 +94,7 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
         {!hasVideo && (
           <div className="participant-tile-avatar">
             {isScreenShare ? (
-              <Monitor size={40} color="#32CD32" />
+              <Monitor size={40} color="var(--parley-accent)" />
             ) : avatarUrl ? (
               <img src={avatarUrl} alt={name} />
             ) : (
@@ -111,7 +111,7 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
         </span>
         {isMuted && !isScreenShare && (
           <span className="participant-tile-muted">
-            <MicOff size={12} color="#cc4444" />
+            <MicOff size={12} color="var(--parley-danger)" />
           </span>
         )}
       </div>

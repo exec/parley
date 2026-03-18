@@ -119,7 +119,7 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
       {/* Header */}
       <div className="vc-header">
         <div className="vc-header-left">
-          <Volume2 size={16} color="#32CD32" />
+          <Volume2 size={16} color="var(--parley-accent)" />
           <span className="vc-channel-name">{channel.name}</span>
           <span className={`vc-status ${connected ? 'connected' : connecting ? 'connecting' : 'error'}`}>
             {statusLabel}
@@ -200,7 +200,7 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
                     title="Force mute"
                     onClick={() => onMuteParticipant(participant.identity)}
                   >
-                    <MicOff size={14} color="#cc4444" />
+                    <MicOff size={14} color="var(--parley-danger)" />
                   </button>
                 )}
               </div>
@@ -261,7 +261,7 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
                         title="Force mute"
                         onClick={(e) => { e.stopPropagation(); onMuteParticipant(participant.identity); }}
                       >
-                        <MicOff size={14} color="#cc4444" />
+                        <MicOff size={14} color="var(--parley-danger)" />
                       </button>
                     )}
                   </div>
@@ -291,19 +291,19 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
       {/* In-channel controls (secondary; main controls are in VoiceControls widget) */}
       <div className="vc-controls">
         <button className={`vc-ctrl ${muted ? 'vc-ctrl--off' : ''}`} onClick={onToggleMute} title={muted ? 'Unmute' : 'Mute'}>
-          {muted ? <MicOff size={18} color="#cc4444" /> : <Mic size={18} color="#32CD32" />}
+          {muted ? <MicOff size={18} color="var(--parley-danger)" /> : <Mic size={18} color="var(--parley-accent)" />}
         </button>
         <button className={`vc-ctrl ${deafened ? 'vc-ctrl--off' : ''}`} onClick={onToggleDeafen} title={deafened ? 'Undeafen' : 'Deafen'}>
-          {deafened ? <HeadphoneOff size={18} color="#cc4444" /> : <Headphones size={18} color="#32CD32" />}
+          {deafened ? <HeadphoneOff size={18} color="var(--parley-danger)" /> : <Headphones size={18} color="var(--parley-accent)" />}
         </button>
         <button className={`vc-ctrl ${videoEnabled ? '' : 'vc-ctrl--off'}`} onClick={() => onToggleVideo().catch(console.error)} title={videoEnabled ? 'Turn off camera' : 'Turn on camera'}>
-          {videoEnabled ? <Video size={18} color="#32CD32" /> : <VideoOff size={18} color="#555" />}
+          {videoEnabled ? <Video size={18} color="var(--parley-accent)" /> : <VideoOff size={18} color="var(--parley-text-muted)" />}
         </button>
         <button className={`vc-ctrl ${screenSharing ? '' : 'vc-ctrl--off'}`} onClick={() => onToggleScreenShare().catch(console.error)} title={screenSharing ? 'Stop sharing' : 'Share screen'}>
-          {screenSharing ? <Monitor size={18} color="#32CD32" /> : <MonitorOff size={18} color="#555" />}
+          {screenSharing ? <Monitor size={18} color="var(--parley-accent)" /> : <MonitorOff size={18} color="var(--parley-text-muted)" />}
         </button>
         <button className="vc-ctrl vc-ctrl--leave" onClick={onLeave} title="Leave channel">
-          <PhoneOff size={18} color="#cc4444" />
+          <PhoneOff size={18} color="var(--parley-danger)" />
         </button>
       </div>
     </div>

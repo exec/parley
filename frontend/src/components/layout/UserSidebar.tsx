@@ -240,8 +240,8 @@ const UserSidebar: React.FC<UserSidebarProps> = ({
             {isOwner && (
               <span className="owner-hat" title="Server Owner" aria-label="Server Owner">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'inline-block', verticalAlign: 'middle', marginLeft: '4px' }}>
-                  <ellipse cx="8" cy="12" rx="7" ry="2" fill="#32CD32"/>
-                  <path d="M3 12 L3 7 Q3 5 5 5 L5 4 Q5 2 8 2 Q11 2 11 4 L11 5 Q13 5 13 7 L13 12 Z" fill="#32CD32"/>
+                  <ellipse cx="8" cy="12" rx="7" ry="2" fill="var(--parley-accent)"/>
+                  <path d="M3 12 L3 7 Q3 5 5 5 L5 4 Q5 2 8 2 Q11 2 11 4 L11 5 Q13 5 13 7 L13 12 Z" fill="var(--parley-accent)"/>
                   <rect x="3" y="9" width="10" height="1.5" fill="#1a7a1a"/>
                   <path d="M11 6 Q13 4 14 3 Q13 5 12 7" stroke="#22a322" strokeWidth="0.8" fill="none"/>
                 </svg>

@@ -74,7 +74,7 @@ export const AssignRolesModal: React.FC<AssignRolesModalProps> = ({
               return (
                 <label
                   key={role.id}
-                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: '#0d0f12', border: '1px solid #1e2228', borderRadius: 4, cursor: 'pointer' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'var(--parley-bg-primary)', border: '1px solid var(--parley-border)', borderRadius: 4, cursor: 'pointer' }}
                 >
                   <button
                     type="button"

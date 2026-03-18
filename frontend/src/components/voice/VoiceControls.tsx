@@ -50,31 +50,31 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
           onClick={onToggleMute}
           title={muted ? 'Unmute' : 'Mute'}
         >
-          {muted ? <MicOff size={16} color="#cc4444" /> : <Mic size={16} color="#32CD32" />}
+          {muted ? <MicOff size={16} color="var(--parley-danger)" /> : <Mic size={16} color="var(--parley-accent)" />}
         </button>
         <button
           className={`vw-btn ${deafened ? 'vw-btn--off' : ''}`}
           onClick={onToggleDeafen}
           title={deafened ? 'Undeafen' : 'Deafen'}
         >
-          {deafened ? <HeadphoneOff size={16} color="#cc4444" /> : <Headphones size={16} color="#32CD32" />}
+          {deafened ? <HeadphoneOff size={16} color="var(--parley-danger)" /> : <Headphones size={16} color="var(--parley-accent)" />}
         </button>
         <button
           className={`vw-btn ${!videoEnabled ? 'vw-btn--off' : ''}`}
           onClick={onToggleVideo}
           title={videoEnabled ? 'Camera off' : 'Camera on'}
         >
-          {videoEnabled ? <Video size={16} color="#32CD32" /> : <VideoOff size={16} color="#555" />}
+          {videoEnabled ? <Video size={16} color="var(--parley-accent)" /> : <VideoOff size={16} color="var(--parley-text-muted)" />}
         </button>
         <button
           className={`vw-btn ${!screenSharing ? 'vw-btn--off' : ''}`}
           onClick={onToggleScreenShare}
           title={screenSharing ? 'Stop sharing' : 'Share screen'}
         >
-          {screenSharing ? <Monitor size={16} color="#32CD32" /> : <MonitorOff size={16} color="#555" />}
+          {screenSharing ? <Monitor size={16} color="var(--parley-accent)" /> : <MonitorOff size={16} color="var(--parley-text-muted)" />}
         </button>
         <button className="vw-btn vw-btn--leave" onClick={onDisconnect} title="Disconnect">
-          <PhoneOff size={16} color="#cc4444" />
+          <PhoneOff size={16} color="var(--parley-danger)" />
         </button>
       </div>
       {vadMode === 'ptt' && (

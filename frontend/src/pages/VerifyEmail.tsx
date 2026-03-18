@@ -48,7 +48,7 @@ export const VerifyEmail: React.FC = () => {
       gap: 24,
       padding: 24,
     }}>
-      <h1 style={{ color: '#32CD32', fontSize: 28, margin: 0 }}>Parley</h1>
+      <h1 style={{ color: 'var(--parley-accent)', fontSize: 28, margin: 0 }}>Parley</h1>
 
       {status === 'loading' && (
         <p style={{ color: '#aaa' }}>Verifying your email...</p>
@@ -56,10 +56,10 @@ export const VerifyEmail: React.FC = () => {
 
       {status === 'success' && (
         <>
-          <p style={{ color: '#32CD32', fontSize: 18 }}>{message}</p>
+          <p style={{ color: 'var(--parley-accent)', fontSize: 18 }}>{message}</p>
           <Link
             to="/"
-            style={{ color: '#32CD32', textDecoration: 'underline' }}
+            style={{ color: 'var(--parley-accent)', textDecoration: 'underline' }}
           >
             Go to Parley
           </Link>
@@ -71,7 +71,7 @@ export const VerifyEmail: React.FC = () => {
           <p style={{ color: '#ff4444', fontSize: 18 }}>{message}</p>
           <Link
             to="/login"
-            style={{ color: '#32CD32', textDecoration: 'underline' }}
+            style={{ color: 'var(--parley-accent)', textDecoration: 'underline' }}
           >
             Back to Login
           </Link>

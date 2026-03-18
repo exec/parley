@@ -88,12 +88,13 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ url, isVoiceMessage, f
     const step = BAR_W + BAR_GAP;
     const count = Math.floor(w / step);
     const progressX = w * progress;
+    const accent = getComputedStyle(document.documentElement).getPropertyValue('--parley-accent').trim() || '#32CD32';
 
     for (let i = 0; i < count; i++) {
       const x = i * step;
       const barH = Math.max(3, bars[i % bars.length] * WAVE_H * 0.88);
       const y = (WAVE_H - barH) / 2;
-      ctx.fillStyle = x < progressX ? '#32CD32' : 'rgba(50,205,50,0.22)';
+      ctx.fillStyle = x < progressX ? accent : `${accent}38`;
       ctx.beginPath();
       ctx.roundRect(x, y, BAR_W, barH, 1.5);
       ctx.fill();

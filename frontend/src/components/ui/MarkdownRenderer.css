@@ -24,7 +24,7 @@
 }
 
 .md code {
-  background: #0d0f12;
+  background: var(--parley-bg-primary);
   border: 1px solid #2a2d32;
   border-radius: 3px;
   padding: 1px 5px;
@@ -43,7 +43,7 @@
 }
 
 .md pre {
-  background: #0d0f12;
+  background: var(--parley-bg-primary);
   border: 1px solid #2a2d32;
   border-radius: 6px;
   padding: 12px 14px;

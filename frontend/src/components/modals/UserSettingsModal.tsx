@@ -189,7 +189,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                 {avatarUrl ? (
                   <img src={avatarUrl} alt="Avatar" />
                 ) : (
-                  <span style={{ fontSize: 28, color: '#32CD32', fontWeight: 'bold' }}>
+                  <span style={{ fontSize: 28, color: 'var(--parley-accent)', fontWeight: 'bold' }}>
                     {(currentUser?.username || '?').charAt(0).toUpperCase()}
                   </span>
                 )}
@@ -296,12 +296,12 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                   {resendLoading ? 'Sending...' : 'Resend'}
                 </button>
                 {resendMessage && (
-                  <span style={{ fontSize: 12, color: resendMessage.includes('sent') ? '#32CD32' : '#ff4444' }}>{resendMessage}</span>
+                  <span style={{ fontSize: 12, color: resendMessage.includes('sent') ? 'var(--parley-accent)' : 'var(--parley-danger)' }}>{resendMessage}</span>
                 )}
               </div>
             )}
             {currentUser?.email_verified && (
-              <div style={{ marginTop: 6, fontSize: 12, color: '#32CD32' }}>✓ Email verified</div>
+              <div style={{ marginTop: 6, fontSize: 12, color: 'var(--parley-accent)' }}>✓ Email verified</div>
             )}
 
             {/* Change email form */}
@@ -330,7 +330,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                   />
                 </div>
                 {emailChangeMessage && (
-                  <span style={{ fontSize: 12, color: emailChangeMessage.ok ? '#32CD32' : '#ff4444' }}>{emailChangeMessage.text}</span>
+                  <span style={{ fontSize: 12, color: emailChangeMessage.ok ? 'var(--parley-accent)' : 'var(--parley-danger)' }}>{emailChangeMessage.text}</span>
                 )}
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                   <button
@@ -357,7 +357,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                         setEmailChangeLoading(false);
                       }
                     }}
-                    style={{ background: '#32CD32', border: 'none', color: '#000', borderRadius: 4, padding: '6px 16px', cursor: 'pointer', fontSize: 13, fontWeight: 600, opacity: emailChangeLoading || !newEmail.trim() || !emailPassword ? 0.5 : 1 }}
+                    style={{ background: 'var(--parley-accent)', border: 'none', color: '#000', borderRadius: 4, padding: '6px 16px', cursor: 'pointer', fontSize: 13, fontWeight: 600, opacity: emailChangeLoading || !newEmail.trim() || !emailPassword ? 0.5 : 1 }}
                   >
                     {emailChangeLoading ? 'Saving...' : 'Save Email'}
                   </button>
@@ -368,7 +368,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
 
             {/* Show success from email change after form closes */}
             {!showChangeEmail && emailChangeMessage?.ok && (
-              <div style={{ marginTop: 8, fontSize: 12, color: '#32CD32' }}>{emailChangeMessage.text}</div>
+              <div style={{ marginTop: 8, fontSize: 12, color: 'var(--parley-accent)' }}>{emailChangeMessage.text}</div>
             )}
           </div>
 
@@ -416,7 +416,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                   >
                     {phoneResendLoading ? 'Sending...' : 'Resend code'}
                   </button>
-                  {phoneResendMessage && <span style={{ fontSize: 12, color: phoneResendMessage.includes('sent') || phoneResendMessage.includes('Code') ? '#32CD32' : '#ff4444' }}>{phoneResendMessage}</span>}
+                  {phoneResendMessage && <span style={{ fontSize: 12, color: phoneResendMessage.includes('sent') || phoneResendMessage.includes('Code') ? 'var(--parley-accent)' : 'var(--parley-danger)' }}>{phoneResendMessage}</span>}
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <input
@@ -446,7 +446,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                         setPhoneVerifyLoading(false);
                       }
                     }}
-                    style={{ background: '#32CD32', border: 'none', color: '#000', borderRadius: 4, padding: '6px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600, opacity: phoneVerifyLoading || phoneVerifyCode.length !== 6 ? 0.5 : 1 }}
+                    style={{ background: 'var(--parley-accent)', border: 'none', color: '#000', borderRadius: 4, padding: '6px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600, opacity: phoneVerifyLoading || phoneVerifyCode.length !== 6 ? 0.5 : 1 }}
                   >
                     {phoneVerifyLoading ? 'Verifying...' : 'Verify'}
                   </button>
@@ -454,7 +454,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
               </div>
             )}
             {currentUser?.phone_number && currentUser.phone_verified && (
-              <div style={{ marginTop: 6, fontSize: 12, color: '#32CD32' }}>✓ Phone verified</div>
+              <div style={{ marginTop: 6, fontSize: 12, color: 'var(--parley-accent)' }}>✓ Phone verified</div>
             )}
 
             {/* Change/add phone form */}
@@ -487,15 +487,15 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                     type="checkbox"
                     checked={smsConsent}
                     onChange={e => setSmsConsent(e.target.checked)}
-                    style={{ marginTop: 2, flexShrink: 0, accentColor: '#32CD32' }}
+                    style={{ marginTop: 2, flexShrink: 0, accentColor: 'var(--parley-accent)' }}
                   />
                   <span style={{ fontSize: 11, color: '#666', lineHeight: 1.5 }}>
                     I agree to receive automated transactional SMS messages from Parley (up to 5 msgs/mo). Msg &amp; data rates may apply. Frequency may vary. Reply <strong style={{ color: '#888' }}>STOP</strong> to opt out or <strong style={{ color: '#888' }}>HELP</strong> for assistance. Your mobile number will not be sold or shared for marketing.{' '}
-                    <a href="https://parley.x86-64.com/privacy/" target="_blank" rel="noopener noreferrer" style={{ color: '#32CD32' }}>Terms &amp; Privacy Policy</a>.
+                    <a href="https://parley.x86-64.com/privacy/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--parley-accent)' }}>Terms &amp; Privacy Policy</a>.
                   </span>
                 </label>
                 {phoneChangeMessage && (
-                  <span style={{ fontSize: 12, color: phoneChangeMessage.ok ? '#32CD32' : '#ff4444' }}>{phoneChangeMessage.text}</span>
+                  <span style={{ fontSize: 12, color: phoneChangeMessage.ok ? 'var(--parley-accent)' : 'var(--parley-danger)' }}>{phoneChangeMessage.text}</span>
                 )}
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                   <button
@@ -519,7 +519,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                         setPhoneChangeLoading(false);
                       }
                     }}
-                    style={{ background: '#32CD32', border: 'none', color: '#000', borderRadius: 4, padding: '6px 16px', cursor: 'pointer', fontSize: 13, fontWeight: 600, opacity: phoneChangeLoading || !newPhone.trim() || !phonePassword || !smsConsent ? 0.5 : 1 }}
+                    style={{ background: 'var(--parley-accent)', border: 'none', color: '#000', borderRadius: 4, padding: '6px 16px', cursor: 'pointer', fontSize: 13, fontWeight: 600, opacity: phoneChangeLoading || !newPhone.trim() || !phonePassword || !smsConsent ? 0.5 : 1 }}
                   >
                     {phoneChangeLoading ? 'Saving...' : 'Save Phone'}
                   </button>
@@ -528,7 +528,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
             )}
 
             {!showChangePhone && phoneChangeMessage?.ok && (
-              <div style={{ marginTop: 8, fontSize: 12, color: '#32CD32' }}>{phoneChangeMessage.text}</div>
+              <div style={{ marginTop: 8, fontSize: 12, color: 'var(--parley-accent)' }}>{phoneChangeMessage.text}</div>
             )}
           </div>
         </div>

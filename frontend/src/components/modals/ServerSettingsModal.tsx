@@ -137,7 +137,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
             {iconUrl ? (
               <img src={iconUrl} alt="Server icon" />
             ) : (
-              <span style={{ fontSize: 32, color: '#32CD32', fontWeight: 'bold' }}>
+              <span style={{ fontSize: 32, color: 'var(--parley-accent)', fontWeight: 'bold' }}>
                 {server.name.charAt(0).toUpperCase()}
               </span>
             )}
