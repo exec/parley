@@ -150,9 +150,9 @@ variable "livekit_api_secret" {
 }
 
 variable "livekit_url" {
-  description = "Public WSS URL clients connect to for voice (e.g. wss://vc.parley.x86-64.com)"
+  description = "LiveKit Cloud WSS URL (e.g. wss://<project>.livekit.cloud)"
   type        = string
-  default     = "wss://vc.parley.x86-64.com"
+  default     = ""
 }
 
 variable "ollama_api_url" {
