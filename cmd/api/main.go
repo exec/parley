@@ -110,6 +110,14 @@ func main() {
 	}
 	defer dbConn.Close()
 
+	// Configure the connection pool.
+	// 25 open connections per API node × 3 nodes = 75 total, within Postgres
+	// default max_connections=100 and leaving headroom for admin/migration.
+	dbConn.SetMaxOpenConns(25)
+	dbConn.SetMaxIdleConns(5)
+	dbConn.SetConnMaxLifetime(5 * time.Minute)
+	dbConn.SetConnMaxIdleTime(2 * time.Minute)
+
 	// Test the connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -158,7 +166,8 @@ func main() {
 		if err != nil {
 			return false
 		}
-		ctx := context.Background()
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
 
 		// "server:{serverID}" virtual channels: allow if user is a member of that server.
 		if serverIDStr, ok := strings.CutPrefix(channelID, "server:"); ok {
