@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	goredis "github.com/redis/go-redis/v9"
 
 	"parley/internal/ai"
 	"parley/internal/auth"
@@ -74,18 +75,25 @@ func registerRoutes(
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
 
+	// Resolve the optional Redis client for shared cross-node rate limiting.
+	var rdb *goredis.Client
+	if redisHub != nil {
+		rdb = redisHub.Client()
+	}
+
 	// Rate limiter for auth endpoints: 10 attempts per IP per minute.
-	authLimiter := newRateLimiter(10, time.Minute)
+	// Uses Redis in production so the limit is enforced across all API nodes.
+	authLimiter := newRateLimiterFor(rdb, 10, time.Minute)
 	// Rate limiter for invite code lookups: 30 per IP per minute.
-	inviteLimiter := newRateLimiter(30, time.Minute)
+	inviteLimiter := newRateLimiterFor(rdb, 30, time.Minute)
 	// Rate limiter for message history reads: 120 per IP per minute.
-	msgReadLimiter := newRateLimiter(120, time.Minute)
+	msgReadLimiter := newRateLimiterFor(rdb, 120, time.Minute)
 	// Rate limiter for message writes: 5 messages/second per authenticated user (burst 10).
 	// Keyed on user ID, not IP, to prevent cross-IP bypasses by the same account.
-	msgWriteLimiter := newRateLimiter(10, 2*time.Second) // burst=10, rate=5/s
+	msgWriteLimiter := newRateLimiterFor(rdb, 10, 2*time.Second)
 	// Rate limiter for message search: 20 per authenticated user per minute.
 	// Search uses ILIKE sequential scans — expensive without a full-text index.
-	msgSearchLimiter := newRateLimiter(20, time.Minute)
+	msgSearchLimiter := newRateLimiterFor(rdb, 20, time.Minute)
 
 	router.Route("/api", func(r chi.Router) {
 		// Auth routes

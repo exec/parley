@@ -1,15 +1,67 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"sync"
 	"time"
 
+	goredis "github.com/redis/go-redis/v9"
+
 	"parley/internal/auth"
 )
 
-// ----- Token bucket rate limiter -----
+// ----- Rate limiter interface -----
+
+// rateLimiterI is implemented by both the in-memory token bucket (dev/fallback)
+// and the Redis fixed-window limiter (production, shared across all API nodes).
+type rateLimiterI interface {
+	Allow(key string) bool
+}
+
+// ----- Redis fixed-window rate limiter (production) -----
+//
+// Uses INCR + EXPIRE in a pipeline for atomic, cross-node limiting.
+// Fixed window: counts requests in [now - window, now]. On Redis error,
+// fails open so Redis unavailability does not block legitimate traffic.
+
+type redisRateLimiter struct {
+	rdb    *goredis.Client
+	limit  int
+	window time.Duration
+}
+
+func newRedisRateLimiter(rdb *goredis.Client, limit int, window time.Duration) *redisRateLimiter {
+	return &redisRateLimiter{rdb: rdb, limit: limit, window: window}
+}
+
+func (r *redisRateLimiter) Allow(key string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	defer cancel()
+
+	// Fixed-window bucket: one counter per IP per window slot.
+	// Window slot = unix seconds / window_seconds (integer division = floor).
+	windowSec := int64(r.window.Seconds())
+	if windowSec < 1 {
+		windowSec = 1
+	}
+	bucket := fmt.Sprintf("parley:rl:%s:%d", key, time.Now().Unix()/windowSec)
+
+	pipe := r.rdb.TxPipeline()
+	incr := pipe.Incr(ctx, bucket)
+	// TTL is 2× window so the key expires well after the window closes.
+	pipe.Expire(ctx, bucket, r.window*2)
+	if _, err := pipe.Exec(ctx); err != nil {
+		// Fail open: if Redis is down, don't block users.
+		return true
+	}
+
+	return incr.Val() <= int64(r.limit)
+}
+
+// ----- In-memory token bucket rate limiter (dev / Redis unavailable fallback) -----
 //
 // Token bucket: allows burst up to `burst` requests, then refills at
 // `rate` requests per second. O(1) per Allow call, O(1) memory per key.
@@ -106,11 +158,13 @@ func (rl *rateLimiter) cleanup() {
 	}
 }
 
+// ----- Middleware helpers -----
+
 // rateLimitMiddleware rejects requests that exceed the limiter's threshold.
 // It uses r.RemoteAddr exclusively to avoid trusting client-supplied headers.
 // When nginx sits in front, it overwrites X-Real-IP before forwarding, and
 // Chi's RealIP middleware has already copied that trusted value into RemoteAddr.
-func rateLimitMiddleware(rl *rateLimiter) func(http.Handler) http.Handler {
+func rateLimitMiddleware(rl rateLimiterI) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ip, _, _ := net.SplitHostPort(r.RemoteAddr)
@@ -129,7 +183,7 @@ func rateLimitMiddleware(rl *rateLimiter) func(http.Handler) http.Handler {
 // userRateLimitMiddleware applies per-authenticated-user rate limiting.
 // It uses the user ID from the JWT context as the bucket key so the limit
 // applies per account regardless of IP (defeats multi-IP bypass attempts).
-func userRateLimitMiddleware(rl *rateLimiter) func(http.Handler) http.Handler {
+func userRateLimitMiddleware(rl rateLimiterI) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Use authenticated user ID as the rate limit key so the limit applies
@@ -161,4 +215,14 @@ func maxBodyMiddleware(maxBytes int64) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// newRateLimiterFor returns a Redis-backed rate limiter if rdb is non-nil,
+// otherwise an in-memory token bucket. Used so production gets cross-node
+// consistency while dev/single-node gets the cheaper in-memory implementation.
+func newRateLimiterFor(rdb *goredis.Client, limit int, window time.Duration) rateLimiterI {
+	if rdb != nil {
+		return newRedisRateLimiter(rdb, limit, window)
+	}
+	return newRateLimiter(limit, window)
 }
