@@ -73,6 +73,7 @@ type UserBot struct {
 	AvatarURL   string `json:"avatar_url,omitempty"`
 	IsVerified  bool   `json:"is_verified"`
 	InviteToken string `json:"invite_token"`
+	Permissions int64  `json:"permissions"`
 }
 
 // BotInviteInfo is returned by GET /api/bots/invite/{token}.
@@ -82,6 +83,7 @@ type BotInviteInfo struct {
 	DisplayName string `json:"display_name"`
 	AvatarURL   string `json:"avatar_url,omitempty"`
 	IsVerified  bool   `json:"is_verified"`
+	Permissions int64  `json:"permissions"`
 }
 
 // ParleyMonthlyBudget is the total compute-credit budget per server per month.
