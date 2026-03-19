@@ -93,6 +93,9 @@ func (h *Handler) ListPosts(w http.ResponseWriter, r *http.Request) {
 	offset := 0
 	if l := q.Get("limit"); l != "" {
 		if v, err := strconv.Atoi(l); err == nil && v > 0 {
+			if v > 100 {
+				v = 100
+			}
 			limit = v
 		}
 	}
@@ -230,9 +233,17 @@ func (h *Handler) GetVersions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	versions, err := h.service.GetVersions(r.Context(), postID)
+	userID := auth.GetUserIDFromContext(r)
+	versions, err := h.service.GetVersions(r.Context(), postID, userID)
 	if err != nil {
-		httputil.InternalError(w, err)
+		switch err.Error() {
+		case "post not found":
+			httputil.JSONError(w, err.Error(), http.StatusNotFound)
+		case "forbidden":
+			httputil.JSONError(w, "you do not have permission to view this channel", http.StatusForbidden)
+		default:
+			httputil.InternalError(w, err)
+		}
 		return
 	}
 
@@ -248,13 +259,17 @@ func (h *Handler) GetVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	version, err := h.service.GetVersion(r.Context(), versionID)
+	userID := auth.GetUserIDFromContext(r)
+	version, err := h.service.GetVersion(r.Context(), versionID, userID)
 	if err != nil {
-		if err.Error() == "version not found" {
+		switch err.Error() {
+		case "version not found":
 			httputil.JSONError(w, err.Error(), http.StatusNotFound)
-			return
+		case "forbidden":
+			httputil.JSONError(w, "you do not have permission to view this channel", http.StatusForbidden)
+		default:
+			httputil.InternalError(w, err)
 		}
-		httputil.InternalError(w, err)
 		return
 	}
 
@@ -314,7 +329,7 @@ func (h *Handler) CreateLineComment(w http.ResponseWriter, r *http.Request) {
 		case "forbidden":
 			httputil.JSONError(w, err.Error(), http.StatusForbidden)
 		default:
-			httputil.JSONError(w, err.Error(), http.StatusBadRequest)
+			httputil.InternalError(w, err)
 		}
 		return
 	}
@@ -343,7 +358,7 @@ func (h *Handler) GetLineComments(w http.ResponseWriter, r *http.Request) {
 	commentUserID := auth.GetUserIDFromContext(r)
 	comments, err := h.service.GetLineComments(r.Context(), postID, commentUserID, versionID, fileID)
 	if err != nil {
-		httputil.JSONError(w, err.Error(), http.StatusBadRequest)
+		httputil.InternalError(w, err)
 		return
 	}
 

@@ -394,11 +394,38 @@ func (s *Service) DeletePost(ctx context.Context, postID, userID string) error {
 }
 
 // GetVersions retrieves all versions for a bin post.
-func (s *Service) GetVersions(ctx context.Context, postID string) ([]db.BinPostVersion, error) {
+// userID is used for ViewChannel check; pass "" to skip.
+func (s *Service) GetVersions(ctx context.Context, postID, userID string) ([]db.BinPostVersion, error) {
 	id, err := strconv.ParseInt(postID, 10, 64)
 	if err != nil {
 		return nil, errors.New("invalid post ID")
 	}
+
+	// ViewChannel check: look up the post to get its channel, then verify permission.
+	if userID != "" {
+		post, err := s.repo.GetBinPost(ctx, id)
+		if err != nil {
+			if err == db.ErrNotFound {
+				return nil, errors.New("post not found")
+			}
+			return nil, err
+		}
+		uID, err := strconv.ParseInt(userID, 10, 64)
+		if err != nil {
+			return nil, errors.New("invalid user ID")
+		}
+		serverID, ownerID, err := s.getServerForChannel(ctx, post.ChannelID)
+		if err == nil {
+			canView, err := permissions.HasChannelPermission(ctx, s.repo, serverID, uID, ownerID, post.ChannelID, permissions.PermViewChannel)
+			if err != nil {
+				return nil, err
+			}
+			if !canView {
+				return nil, errors.New("forbidden")
+			}
+		}
+	}
+
 	versions, err := s.repo.GetBinPostVersions(ctx, id)
 	if err != nil {
 		return nil, err
@@ -410,7 +437,8 @@ func (s *Service) GetVersions(ctx context.Context, postID string) ([]db.BinPostV
 }
 
 // GetVersion retrieves a single version by ID including its files.
-func (s *Service) GetVersion(ctx context.Context, versionID string) (*db.BinPostVersion, error) {
+// userID is used for ViewChannel check; pass "" to skip.
+func (s *Service) GetVersion(ctx context.Context, versionID, userID string) (*db.BinPostVersion, error) {
 	id, err := strconv.ParseInt(versionID, 10, 64)
 	if err != nil {
 		return nil, errors.New("invalid version ID")
@@ -422,5 +450,31 @@ func (s *Service) GetVersion(ctx context.Context, versionID string) (*db.BinPost
 		}
 		return nil, err
 	}
+
+	// ViewChannel check: use the version's post_id to resolve the channel.
+	if userID != "" {
+		post, err := s.repo.GetBinPost(ctx, version.PostID)
+		if err != nil {
+			if err == db.ErrNotFound {
+				return nil, errors.New("version not found")
+			}
+			return nil, err
+		}
+		uID, err := strconv.ParseInt(userID, 10, 64)
+		if err != nil {
+			return nil, errors.New("invalid user ID")
+		}
+		serverID, ownerID, err := s.getServerForChannel(ctx, post.ChannelID)
+		if err == nil {
+			canView, err := permissions.HasChannelPermission(ctx, s.repo, serverID, uID, ownerID, post.ChannelID, permissions.PermViewChannel)
+			if err != nil {
+				return nil, err
+			}
+			if !canView {
+				return nil, errors.New("forbidden")
+			}
+		}
+	}
+
 	return version, nil
 }
