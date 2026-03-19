@@ -988,6 +988,7 @@ function MainApp() {
         isOnline={onlineUsers.has(activeDmChannel.other_user_id)}
         onlineUserIds={onlineUsers}
         hideRoles={true}
+        onToggleChannelList={() => setShowChannelList(c => !c)}
       />
     );
   } else if (activeChannel) {
