@@ -715,6 +715,9 @@ ALTER TABLE passkeys
 ALTER TABLE users
   ADD COLUMN IF NOT EXISTS status_type VARCHAR(16) NOT NULL DEFAULT 'online',
   ADD COLUMN IF NOT EXISTS status_text VARCHAR(128) NOT NULL DEFAULT '';`,
+
+	`ALTER TABLE bot_invite_tokens
+  ADD COLUMN IF NOT EXISTS permissions BIGINT NOT NULL DEFAULT 0;`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string
