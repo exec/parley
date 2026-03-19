@@ -16,7 +16,7 @@ export function themePreviewStyle(css: string): CSSProperties {
 }
 
 // Key CSS variables for each built-in base theme, used to make previews accurate.
-const BASE_VARS: Record<string, string> = {
+export const BASE_VARS: Record<string, string> = {
   rory:          `--parley-sidebar:#050505;--parley-bg-secondary:#0a0a0a;--parley-bg-hover:#0d1a0d;--parley-text-muted:#228B22;--parley-text-normal:#32CD32;--parley-accent:#32CD32;--parley-channel-bg:#000000;--parley-input:#0a0a0a`,
   'citron-dark': `--parley-sidebar:#2f3136;--parley-bg-secondary:#2f3136;--parley-bg-hover:#32353b;--parley-text-muted:#72767d;--parley-text-normal:#dcddde;--parley-accent:#5865f2;--parley-channel-bg:#36393f;--parley-input:#40444b`,
   'citron-light':`--parley-sidebar:#e3e5e8;--parley-bg-secondary:#f2f3f5;--parley-bg-hover:#ebedef;--parley-text-muted:#747f8d;--parley-text-normal:#2e3338;--parley-accent:#5865f2;--parley-channel-bg:#f2f3f5;--parley-input:#ebedef`,
