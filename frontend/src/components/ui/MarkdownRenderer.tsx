@@ -1,8 +1,12 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 import type { Components } from 'react-markdown';
+import type { PluggableList } from 'unified';
 import ShikiCodeBlock from './ShikiCodeBlock';
+import 'katex/dist/katex.min.css';
 import './MarkdownRenderer.css';
 
 type Mode = 'chat' | 'bio';
@@ -82,7 +86,10 @@ const INLINE_COMPONENTS: Partial<Components> = {
   p: ({ children }) => <>{children}</>,
 };
 
-const REMARK_PLUGINS = [remarkGfm];
+// singleDollarTextMath: false — prevents "$5 or $10" from being parsed as math.
+// Users use $$...$$ for inline and fenced $$ blocks for display math.
+const REMARK_PLUGINS: PluggableList = [remarkGfm, [remarkMath, { singleDollarTextMath: false }]];
+const REHYPE_PLUGINS: PluggableList = [rehypeKatex];
 
 const MENTION_RE = /(<@[^>]+>|<#[^>]+>|@everyone|@here)/;
 
@@ -140,6 +147,7 @@ function renderWithMentions(
           <ReactMarkdown
             key={i}
             remarkPlugins={REMARK_PLUGINS}
+            rehypePlugins={REHYPE_PLUGINS}
             components={INLINE_COMPONENTS}
             disallowedElements={['html']}
             unwrapDisallowed
@@ -166,6 +174,7 @@ const MarkdownRenderer: React.FC<Props> = ({ content, mode, className, memberMap
     <div className={wrapClass}>
       <ReactMarkdown
         remarkPlugins={REMARK_PLUGINS}
+        rehypePlugins={REHYPE_PLUGINS}
         components={components}
         disallowedElements={['html']}
         unwrapDisallowed
