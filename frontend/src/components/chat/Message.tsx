@@ -8,7 +8,7 @@ import MarkdownRenderer from '../ui/MarkdownRenderer';
 import { AudioPlayer } from './AudioPlayer';
 import { CodeBlock } from '../ui/CodeBlock';
 import { isCodeFile, languageFromFilename } from '../../lib/shiki';
-import { getParentAuthor } from './NestedReplies';
+import { getParentAuthor, getParentPreview } from './NestedReplies';
 import { EditHistoryPopover } from './EditHistoryPopover';
 import { ThemeLinkEmbed } from '../theme/ThemeLinkEmbed';
 import { useTheme } from '../../context/ThemeContext';
@@ -301,6 +301,9 @@ export const Message: React.FC<MessageProps> = ({
   const parentAuthor = message.parent_id && messages
     ? getParentAuthor(message, messages)
     : null;
+  const parentPreview = message.parent_id && messages
+    ? getParentPreview(message, messages)
+    : null;
 
   return (
     <>
@@ -311,9 +314,10 @@ export const Message: React.FC<MessageProps> = ({
         onClick={() => onScrollToMessage?.(message.parent_id!)}
       >
         <span><Reply size={12} color="currentColor" /> replying to</span>
-        <span className="reply-indicator-name">
-          @{parentAuthor ?? 'unknown'}
-        </span>
+        <span className="reply-indicator-name">@{parentAuthor ?? 'unknown'}</span>
+        {parentPreview && (
+          <span className="reply-indicator-preview">{parentPreview}</span>
+        )}
       </div>
     )}
     <div

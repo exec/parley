@@ -42,3 +42,10 @@ export function getParentAuthor(msg: Message, messages: Message[]): string | nul
   if (!parent) return null;
   return parent.author_display_name || parent.author_username;
 }
+
+/** Returns a single-line preview of the parent message content, stripped of newlines. */
+export function getParentPreview(msg: Message, messages: Message[]): string | null {
+  const parent = messages.find((m) => m.id === msg.parent_id);
+  if (!parent?.content) return null;
+  return parent.content.replace(/\s*\n\s*/g, ' ').trim();
+}

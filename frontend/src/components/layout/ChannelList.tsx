@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Volume2, Mic, MicOff, PhoneOff, Hash, Code2, X, Plus, Settings, Video, VideoOff, Monitor, MonitorOff, Headphones, HeadphoneOff } from 'lucide-react';
+import { Volume2, Mic, MicOff, PhoneOff, Hash, Code2, X, Plus, Video, VideoOff, Monitor, MonitorOff, Headphones, HeadphoneOff } from 'lucide-react';
 import { VoiceContextMenu } from '../voice/VoiceContextMenu';
 import { muteVoiceParticipant, kickVoiceParticipant } from '../../api/voice';
 import {
@@ -321,7 +321,7 @@ interface ChannelListProps {
   onChannelSelect: (channelId: string) => void;
   onCreateChannel: () => void;
   onDeleteChannel: (channelId: string) => void;
-  onManageRoles: () => void;
+  onManageRoles?: () => void;
   onServerSettings?: () => void;
   onLeaveServer?: () => void;
   owner_id?: string;
@@ -358,8 +358,8 @@ interface ChannelListProps {
 
 const ChannelList: React.FC<ChannelListProps> = ({
   serverName, channels, activeChannelId, onChannelSelect, onCreateChannel,
-  onDeleteChannel, onManageRoles, onServerSettings, onLeaveServer,
-  owner_id, currentUser, onLogout, onOpenSettings, onVoiceChannelClick,
+  onDeleteChannel, onServerSettings, onLeaveServer,
+  currentUser, onLogout, onOpenSettings, onVoiceChannelClick,
   voiceParticipants = {}, activeVoiceChannelId = null, channelUnreadCounts = {},
   canManageChannels = false, onRenameChannel, onMarkChannelRead, onReorderChannels, onChannelSettings,
   canMuteMembers, canKickFromVoice, onVcParticipantClick,
@@ -586,12 +586,6 @@ const ChannelList: React.FC<ChannelListProps> = ({
           </div>
         )}
 
-        {owner_id === currentUser?.id && (
-          <div className="channel-item manage-roles-item" onClick={onManageRoles}>
-            <span className="channel-icon"><Settings size={13} color="currentColor" /></span>
-            <span className="channel-name">Manage Roles</span>
-          </div>
-        )}
       </div>
 
       {activeVoiceChannelId && (

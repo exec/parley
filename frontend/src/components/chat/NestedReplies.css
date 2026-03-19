@@ -4,9 +4,11 @@
   gap: 4px;
   font-size: 12px;
   color: var(--parley-text-dim);
-  margin-bottom: 2px;
+  margin-top: 8px;
+  margin-bottom: 1px;
   padding-left: 56px;
   cursor: pointer;
+  min-width: 0;
 }
 
 .reply-indicator:hover {
@@ -20,4 +22,14 @@
 
 .reply-indicator-name:hover {
   text-decoration: underline;
+}
+
+.reply-indicator-preview {
+  color: var(--parley-text-dim);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  max-width: 400px;
+  flex-shrink: 1;
+  min-width: 0;
 }
