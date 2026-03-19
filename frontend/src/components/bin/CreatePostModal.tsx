@@ -63,6 +63,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
           return next;
         });
       };
+      // readAsText is intentional — bin is a code-sharing feature.
+      // Binary files are excluded upstream by the isCodeFile extension filter.
       reader.readAsText(file);
     });
   }, []);

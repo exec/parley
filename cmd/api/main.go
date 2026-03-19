@@ -358,6 +358,9 @@ func main() {
 		Addr:         ":" + config.Port,
 		Handler:      router,
 		ReadTimeout:  15 * time.Second,
+		// WriteTimeout covers header-to-body write time. WebSocket connections are
+		// hijacked before this fires so they are unaffected. Increase to 30s if
+		// slow clients serving large paginated histories become an issue.
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
