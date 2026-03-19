@@ -63,6 +63,9 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H $API_HOSTS $ADMIN_HOST >> ~/.ssh/known_hosts
 
+      - name: Run tests
+        run: JWT_SECRET=test-secret go test ./...
+
       - name: Deploy API servers
         run: |
           for IP in $API_HOSTS; do
@@ -72,6 +75,7 @@ jobs:
               go build -mod=mod -o /usr/local/bin/parley-api ./cmd/api
               cd frontend && npm ci && npm run build && cp -r dist/* /var/www/parley/
               systemctl restart parley-api
+              for i in $(seq 10); do curl -sf http://localhost:8080/health && break; sleep 2; done || { echo "Health check failed"; exit 1; }
               echo OK
             ' &
           done
