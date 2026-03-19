@@ -58,7 +58,11 @@ export const ThemeLinkEmbed: React.FC<Props> = ({ token }) => {
   const avatarUrl = currentUser?.avatar_url || null;
   const previewSrc = buildEmbedPreviewHTML(theme.base_theme, theme.css, displayName, avatarUrl);
 
-  const bgUrl = theme.background_url;
+  // Prefer the stored background_url; fall back to extracting it from the CSS
+  // (handles older themes that embedded the bg directly in their CSS).
+  const bgUrl = theme.background_url
+    ?? theme.css.match(/background-image\s*:\s*url\(\s*["']?([^"')]+)["']?\s*\)/)?.[1]
+    ?? null;
   const panelBg = theme.css.match(/--parley-panel-bg\s*:\s*([^;}\n]+)/)?.[1]?.trim() ?? 'rgba(0,0,0,0.55)';
   const panelBlur = theme.css.match(/--parley-panel-blur\s*:\s*([^;}\n]+)/)?.[1]?.trim() ?? '0px';
 
