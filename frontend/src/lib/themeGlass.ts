@@ -18,7 +18,7 @@ export function hexToRgb(hex: string): string {
 
 function parseBaseVarHex(varsString: string, varName: string): string {
   const escaped = varName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const re = new RegExp(escaped + '\\s*:\\s*(#[0-9a-fA-F]{3,8})');
+  const re = new RegExp(escaped + '\\s*:\\s*(#[0-9a-fA-F]{3,6})');
   const m = varsString.match(re);
   return m ? m[1] : '#000000';
 }
@@ -66,7 +66,7 @@ export function injectGlassVars(css: string, glassVars: string | null): string {
   const block = `${GLASS_START}\n${glassVars}\n${GLASS_END}`;
 
   // Find [data-theme] { and insert block right after the {
-  const dataThemePat = /(\[data-theme\]\s*\{)/;
+  const dataThemePat = /^(\[data-theme\]\s*\{)/m;
   if (dataThemePat.test(cleaned)) {
     return cleaned.replace(dataThemePat, `$1\n${block}`);
   }
