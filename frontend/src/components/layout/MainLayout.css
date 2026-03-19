@@ -5,7 +5,7 @@
      Fallback: --app-height set by theme-init.js for login→app transitions. */
   height: 100%;
   min-height: 0;
-  background-color: var(--bg-primary);
+  background-color: var(--parley-app-bg, var(--bg-primary));
   overflow: hidden;
 }
 
@@ -20,7 +20,7 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background-color: var(--bg-primary);
+  background-color: var(--parley-app-bg, var(--bg-primary));
   overflow: hidden;
 }
 
@@ -37,7 +37,9 @@
   display: flex;
   flex-direction: column;
   border-left: 1px solid var(--border);
-  background: var(--bg-primary);
+  background: var(--parley-panel-bg, var(--bg-primary));
+  backdrop-filter: blur(var(--parley-panel-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
   overflow: hidden;
 }
 
