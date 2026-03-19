@@ -58,7 +58,11 @@ export const ThemeLinkEmbed: React.FC<Props> = ({ token }) => {
   const avatarUrl = currentUser?.avatar_url || null;
   const previewSrc = buildEmbedPreviewHTML(theme.base_theme, theme.css, displayName, avatarUrl);
 
-  return (
+  const bgUrl = theme.background_url;
+  const panelBg = theme.css.match(/--parley-panel-bg\s*:\s*([^;}\n]+)/)?.[1]?.trim() ?? 'rgba(0,0,0,0.55)';
+  const panelBlur = theme.css.match(/--parley-panel-blur\s*:\s*([^;}\n]+)/)?.[1]?.trim() ?? '0px';
+
+  const card = (
     <EmbedCard
       title={theme.name}
       subtitle={theme.author_username ? `by ${theme.author_username}` : undefined}
@@ -77,6 +81,14 @@ export const ThemeLinkEmbed: React.FC<Props> = ({ token }) => {
               {installing ? 'Applying…' : 'Apply'}
             </button>
       }
+      frostedBg={bgUrl ? { color: panelBg, blur: panelBlur } : undefined}
     />
+  );
+
+  if (!bgUrl) return card;
+  return (
+    <div className="theme-embed-bg-wrap" style={{ backgroundImage: `url(${bgUrl})` }}>
+      {card}
+    </div>
   );
 };
