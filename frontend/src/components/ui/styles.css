@@ -148,7 +148,9 @@
 }
 
 .input {
-  background-color: var(--parley-bg-tertiary);
+  background-color: var(--parley-input-bg, var(--parley-bg-tertiary));
+  backdrop-filter: blur(var(--parley-panel-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
   border: 1px solid var(--parley-border);
   border-radius: 4px;
   padding: 10px 12px;

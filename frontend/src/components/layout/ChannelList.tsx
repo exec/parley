@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Volume2, Mic, MicOff, PhoneOff, Hash, Code2, X, Plus, Video, VideoOff, Monitor, MonitorOff, Headphones, HeadphoneOff } from 'lucide-react';
 import { VoiceContextMenu } from '../voice/VoiceContextMenu';
 import { muteVoiceParticipant, kickVoiceParticipant } from '../../api/voice';
@@ -774,7 +775,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
         );
       })()}
 
-      {userContextMenu && (
+      {userContextMenu && createPortal(
         <UserContextMenu
           position={userContextMenu}
           currentUser={currentUser}
@@ -784,7 +785,8 @@ const ChannelList: React.FC<ChannelListProps> = ({
           onSettings={() => onOpenSettings?.()}
           onLogout={() => onLogout?.()}
           onStatusChange={onStatusChange}
-        />
+        />,
+        document.body
       )}
       {serverContextMenu && (
         <ServerContextMenu position={serverContextMenu} onClose={() => setServerContextMenu(null)} onSettings={onServerSettings} onLeave={onLeaveServer} />

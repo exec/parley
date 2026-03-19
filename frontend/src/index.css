@@ -242,7 +242,9 @@ input {
 .form-group input {
   width: 100%;
   padding: 10px 12px;
-  background-color: var(--parley-bg-primary);
+  background-color: var(--parley-input-bg, var(--parley-bg-primary));
+  backdrop-filter: blur(var(--parley-panel-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
   border: none;
   border-radius: 4px;
   color: var(--parley-text-normal);

@@ -629,7 +629,9 @@
 .message-edit-input {
   width: 100%;
   padding: 8px 10px;
-  background-color: var(--parley-input);
+  background-color: var(--parley-input-bg, var(--parley-input));
+  backdrop-filter: blur(var(--parley-panel-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
   border: 1px solid var(--parley-accent);
   border-radius: 4px;
   color: var(--parley-accent);
@@ -759,7 +761,9 @@
 
 .emoji-search-input {
   width: 100%;
-  background: var(--parley-hover);
+  background: var(--parley-input-bg, var(--parley-hover));
+  backdrop-filter: blur(var(--parley-panel-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
   border: 1px solid var(--parley-border);
   border-radius: 4px;
   color: var(--parley-text-normal);
