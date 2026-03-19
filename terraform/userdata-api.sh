@@ -156,6 +156,7 @@ echo "=== Building Parley frontend ==="
 cd /parley/frontend
 cat > .env << 'EOF'
 VITE_GIPHY_API_KEY=${GIPHY_API_KEY}
+VITE_CDN_HOST=$(python3 -c "from urllib.parse import urlparse; print(urlparse('${SPACES_CDN_URL}').hostname or '')")
 EOF
 run_with_retry "npm ci"
 run_with_retry "npm run build"

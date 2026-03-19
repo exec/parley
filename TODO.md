@@ -61,6 +61,7 @@ This is a living task list for Parley - a Discord clone.
 ## Medium Priority
 
 ### Features
+- [ ] **LaTeX math rendering not working in production** — `remark-math` + `rehype-katex` are installed and the pipeline works in Node/SSR tests, but `$$x^2$$` shows as raw text in the live app. Plugins are in the bundle. Likely a runtime issue with how Vite bundles the unified ecosystem in production. Use `$$...$$` syntax (single dollar disabled to avoid false positives on `$5`).
 - [x] Typing indicators
 - [x] Unread message badges on servers and DM channels
 - [x] Real-time online status indicators
