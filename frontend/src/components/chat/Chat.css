@@ -268,18 +268,17 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background-color: var(--parley-input-bg, var(--parley-input));
+  background-color: var(--parley-input-bg, transparent);
   backdrop-filter: blur(var(--parley-panel-blur, 0px));
   -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
-  border: 1px solid rgba(var(--accent-rgb), 0.25);
+  border: none;
   border-radius: 8px;
   padding: 8px 12px;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .message-input-wrapper:focus-within {
-  border-color: rgba(var(--accent-rgb), 0.6);
-  box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.12);
+  box-shadow: none;
 }
 
 .message-textarea {
