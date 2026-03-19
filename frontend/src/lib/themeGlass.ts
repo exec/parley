@@ -34,7 +34,6 @@ export function buildGlassPreset(baseTheme: string, preset: GlassPreset): string
   //   footer bg   → --parley-channel-bg    (closest to bg-primary in BASE_VARS)
   //   chat bg     → --parley-channel-bg
   const panelHex  = parseBaseVarHex(vars, '--parley-bg-secondary');
-  const headerHex = parseBaseVarHex(vars, '--parley-bg-hover');
   const footerHex = parseBaseVarHex(vars, '--parley-channel-bg');
   const chatHex   = parseBaseVarHex(vars, '--parley-channel-bg');
 

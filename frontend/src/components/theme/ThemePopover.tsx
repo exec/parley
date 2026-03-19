@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Palette } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import './ThemePopover.css';
@@ -19,12 +20,15 @@ const NAMES: Record<string,string> = {
 export const ThemePopover: React.FC<{ onOpenSettings(): void }> = ({ onOpenSettings }) => {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ bottom: number; left: number } | null>(null);
-  const ref = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const theme = useTheme();
 
   useEffect(() => {
-    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const h = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (!btnRef.current?.contains(t) && !popoverRef.current?.contains(t)) setOpen(false);
+    };
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
   }, []);
@@ -38,12 +42,12 @@ export const ThemePopover: React.FC<{ onOpenSettings(): void }> = ({ onOpenSetti
   };
 
   return (
-    <div className="theme-popover-wrap" ref={ref}>
+    <div className="theme-popover-wrap">
       <button ref={btnRef} className="theme-popover-btn" title="Switch theme" onClick={handleOpen}>
         <Palette size={16} />
       </button>
-      {open && pos && (
-        <div className="theme-popover" style={{ position: 'fixed', bottom: pos.bottom, left: pos.left, top: 'unset' }}>
+      {open && pos && createPortal(
+        <div ref={popoverRef} className="theme-popover" style={{ bottom: pos.bottom, left: pos.left }}>
           <div className="theme-popover-section">Built-in</div>
           {theme.builtinIds.map(id => (
             <button key={id} className={`theme-popover-item${theme.activeTheme===id?' active':''}`}
@@ -69,7 +73,8 @@ export const ThemePopover: React.FC<{ onOpenSettings(): void }> = ({ onOpenSetti
           <button className="theme-popover-manage" onClick={() => { onOpenSettings(); setOpen(false); }}>
             Manage themes →
           </button>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
