@@ -3,7 +3,7 @@
    ========================================================= */
 
 .post-list-item {
-  background: var(--bg-secondary);
+  background: var(--parley-panel-bg, var(--bg-secondary));
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 14px 16px;
