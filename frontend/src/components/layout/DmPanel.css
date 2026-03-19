@@ -1,7 +1,7 @@
 .dm-panel {
   width: 240px;
   min-width: 240px;
-  height: 100vh;
+  height: 100dvh;
   background-color: var(--bg-secondary);
   display: flex;
   flex-direction: column;

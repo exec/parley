@@ -2,7 +2,7 @@
   width: 72px;
   min-width: 72px;
   flex-shrink: 0;
-  height: 100vh;
+  height: 100dvh;
   background-color: var(--bg-primary);
   display: flex;
   flex-direction: column;
