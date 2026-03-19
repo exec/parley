@@ -96,8 +96,7 @@ func (r *Repository) RunMigrations(ctx context.Context) error {
 			continue
 		}
 		if _, err := r.db.ExecContext(ctx, sql); err != nil {
-			log.Printf("migration %d failed: %v", i, err)
-			continue
+			return fmt.Errorf("migration %d failed: %w", i, err)
 		}
 		if _, err := r.db.ExecContext(ctx, `INSERT INTO schema_migrations (id) VALUES ($1) ON CONFLICT DO NOTHING`, i); err != nil {
 			log.Printf("migration %d: failed to record: %v", i, err)

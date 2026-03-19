@@ -734,6 +734,8 @@ FROM users u
 WHERE u.is_bot = TRUE
   AND u.bot_owner_id IS NOT NULL
   AND NOT EXISTS (SELECT 1 FROM bot_invite_tokens bit WHERE bit.bot_user_id = u.id);`,
+
+	`ALTER TABLE bot_invite_tokens ADD CONSTRAINT bot_invite_tokens_bot_user_id_key UNIQUE (bot_user_id);`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string
