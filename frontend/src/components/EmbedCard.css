@@ -1,7 +1,7 @@
 /* frontend/src/components/EmbedCard.css */
 .embed-card {
   max-width: 440px;
-  margin: 40px auto;
+  margin: 4px 0;
   background: var(--parley-bg-secondary, #1e1e1e);
   border: 1px solid var(--parley-border, #333);
   border-radius: 8px;
