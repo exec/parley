@@ -4,7 +4,7 @@
    ========================================================= */
 
 .code-block {
-  background: var(--parley-bg-secondary);
+  background: var(--parley-panel-bg, var(--parley-bg-secondary));
   border: 1px solid var(--parley-border);
   border-radius: 6px;
   font-family: 'Fira Mono', 'Consolas', 'Menlo', 'Monaco', monospace;
@@ -21,7 +21,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 6px 12px;
-  background: var(--parley-bg-secondary);
+  background: transparent;
   border-bottom: 1px solid var(--parley-border);
   gap: 8px;
   min-height: 32px;
@@ -81,7 +81,7 @@
 .code-block-body .shiki {
   margin: 0;
   padding: 12px 14px;
-  background: var(--parley-bg-secondary) !important;
+  background: var(--parley-panel-bg, var(--parley-bg-secondary)) !important;
   overflow-x: auto;
 }
 
