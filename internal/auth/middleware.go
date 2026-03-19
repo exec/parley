@@ -10,15 +10,17 @@ import (
 	"strings"
 )
 
+type contextKey string
+
 const (
 	// UserIDKey is the context key for storing user ID
-	UserIDKey = "userID"
+	UserIDKey contextKey = "userID"
+	// IsAPIKeyAuthKey is the context key for marking API key authenticated requests
+	IsAPIKeyAuthKey contextKey = "isAPIKeyAuth"
 	// AuthorizationHeader is the HTTP header name for authorization
 	AuthorizationHeader = "Authorization"
 	// BearerPrefix is the prefix for Bearer token
 	BearerPrefix = "Bearer "
-	// IsAPIKeyAuthKey is the context key for marking API key authenticated requests
-	IsAPIKeyAuthKey = "isAPIKeyAuth"
 )
 
 // SHA256Hex returns the hex-encoded SHA-256 digest of s.
@@ -31,30 +33,6 @@ func SHA256Hex(s string) string {
 func IsAPIKeyAuth(r *http.Request) bool {
 	v, _ := r.Context().Value(IsAPIKeyAuthKey).(bool)
 	return v
-}
-
-// AuthMiddleware creates HTTP middleware for authentication
-func AuthMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Extract token from Authorization header
-		tokenString := extractToken(r)
-		if tokenString == "" {
-			http.Error(w, "Authorization header required", http.StatusUnauthorized)
-			return
-		}
-
-		// Validate token (doesn't need repo, pass nil)
-		authService := NewAuthService(nil)
-		userID, err := authService.ValidateToken(tokenString)
-		if err != nil {
-			http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
-			return
-		}
-
-		// Add userID to request context
-		ctx := context.WithValue(r.Context(), UserIDKey, userID)
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
 }
 
 // extractToken extracts the JWT token from the Authorization header

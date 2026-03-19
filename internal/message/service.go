@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"parley/internal/auth"
 	"parley/internal/cache"
 	"parley/internal/db"
 	"parley/internal/permissions"
@@ -157,7 +158,7 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 		return nil, errors.New("forbidden")
 	}
 
-	viaAPI, _ := ctx.Value("isAPIKeyAuth").(bool)
+	viaAPI, _ := ctx.Value(auth.IsAPIKeyAuthKey).(bool)
 
 	var parentIDPtr *int64
 	if parentID != "" {
