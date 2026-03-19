@@ -39,7 +39,7 @@ jobs:
               set -e
               cd /parley && git pull origin main
               go build -mod=mod -o /usr/local/bin/parley-api ./cmd/api
-              cd frontend && npm run build && cp -r dist/* /var/www/parley/
+              cd frontend && npm ci && npm run build && cp -r dist/* /var/www/parley/
               systemctl restart parley-api
               echo OK
             ' &
