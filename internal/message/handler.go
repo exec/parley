@@ -129,7 +129,7 @@ func (h *Handler) GetChannelMessages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get user ID from context for ViewChannel check.
-	userID, _ := r.Context().Value("userID").(string)
+	userID := auth.GetUserIDFromContext(r)
 
 	// Parse query parameters
 	limit := 50
@@ -272,7 +272,7 @@ func (h *Handler) SearchMessages(w http.ResponseWriter, r *http.Request) {
 		httputil.JSONError(w, "server ID is required", http.StatusBadRequest)
 		return
 	}
-	userID, _ := r.Context().Value("userID").(string)
+	userID := auth.GetUserIDFromContext(r)
 
 	q := r.URL.Query().Get("q")
 	fromUserID := r.URL.Query().Get("from")

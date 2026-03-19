@@ -57,10 +57,9 @@ echo "Database private IP: $DB_PRIVATE_IP"
 # Update pg_hba.conf to allow connections from the VPC
 PG_HBA=$(find /etc/postgresql -name pg_hba.conf | head -1)
 if [ -n "$PG_HBA" ]; then
-    # Add entries for API droplets (we'll use 10.0.0.0/16 as a common VPC range)
-    # DigitalOcean VPC typically uses 10.x.x.x ranges
-    echo "# Parley API connections - allow all in VPC" >> "$PG_HBA"
-    echo "host    all             all             10.0.0.0/8           md5" >> "$PG_HBA"
+    # Add entries for API droplets using the DigitalOcean VPC range (typically /16 or /20)
+    echo "# Parley API connections - allow VPC range only" >> "$PG_HBA"
+    echo "host    all             all             10.0.0.0/16          md5" >> "$PG_HBA"
 fi
 
 # Update postgresql.conf to listen on all interfaces

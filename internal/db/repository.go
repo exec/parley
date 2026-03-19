@@ -71,12 +71,14 @@ func (r *Repository) RunMigrations(ctx context.Context) error {
 	}
 	if tracked == 0 {
 		var initialized bool
-		r.db.QueryRowContext(ctx, `
+		if err := r.db.QueryRowContext(ctx, `
 			SELECT EXISTS(
 				SELECT 1 FROM information_schema.tables
 				WHERE table_schema = 'public' AND table_name = 'users'
 			)
-		`).Scan(&initialized)
+		`).Scan(&initialized); err != nil {
+			return fmt.Errorf("check db initialized state: %w", err)
+		}
 		if initialized {
 			// DB already has tables — seed the tracker with all migrations that
 			// have been applied (the entire current list for existing installs).
