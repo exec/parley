@@ -193,7 +193,7 @@ func registerRoutes(
 			r.Get("/channels/{id}/my-permissions", channelHandler.GetMyChannelPermissions)
 
 			// Message routes
-			messageHandler := message.NewHandler(messageService)
+			messageHandler := message.NewHandler(messageService, cdnHost)
 			r.With(userRateLimitMiddleware(msgSearchLimiter)).Get("/servers/{id}/messages/search", messageHandler.SearchMessages)
 			r.With(rateLimitMiddleware(msgReadLimiter)).Get("/channels/{channelID}/messages", messageHandler.GetChannelMessages)
 			r.With(userRateLimitMiddleware(msgWriteLimiter)).Post("/channels/{channelID}/messages", messageHandler.SendMessage)

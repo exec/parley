@@ -2,8 +2,11 @@ package message
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -15,11 +18,31 @@ import (
 // Handler handles HTTP requests for messages
 type Handler struct {
 	service *MessageService
+	cdnHost string
 }
 
 // NewHandler creates a new message handler
-func NewHandler(service *MessageService) *Handler {
-	return &Handler{service: service}
+func NewHandler(service *MessageService, cdnHost string) *Handler {
+	return &Handler{service: service, cdnHost: cdnHost}
+}
+
+// validateAttachmentURL ensures an attachment URL is either empty or points to
+// the configured CDN host over HTTPS, preventing SSRF via arbitrary URLs.
+func (h *Handler) validateAttachmentURL(rawURL string) error {
+	if rawURL == "" {
+		return nil
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return errors.New("invalid attachment URL")
+	}
+	if u.Scheme != "https" {
+		return errors.New("invalid attachment URL")
+	}
+	if h.cdnHost != "" && !strings.EqualFold(u.Host, h.cdnHost) {
+		return errors.New("invalid attachment URL")
+	}
+	return nil
 }
 
 // Routes returns the chi router with message routes
@@ -74,6 +97,11 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 
 	if req.Content == "" && req.AttachmentURL == "" {
 		httputil.JSONError(w, "content or attachment is required", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.validateAttachmentURL(req.AttachmentURL); err != nil {
+		httputil.JSONError(w, "invalid attachment URL", http.StatusBadRequest)
 		return
 	}
 
