@@ -16,24 +16,4 @@
     document.body.dataset.theme=t;
     setThemeColor(t);
   }
-
-  // ── Stable viewport height ───────────────────────────────────────────────
-  // 100dvh resizes whenever the iOS URL bar slides in/out (on scroll),
-  // causing layout shifts between views. Instead we capture the height once
-  // and only update on orientation change so the layout stays rock-solid.
-  function setAppHeight(){
-    var h=window.visualViewport?window.visualViewport.height:window.innerHeight;
-    document.documentElement.style.setProperty('--app-height',h+'px');
-  }
-  setAppHeight();
-  window.addEventListener('orientationchange',function(){setTimeout(setAppHeight,100);});
-  // Also update on visualViewport resize but only for large changes (keyboard),
-  // not small scroll-triggered URL bar slides (< 100px).
-  if(window.visualViewport){
-    var _lastH=window.visualViewport.height;
-    window.visualViewport.addEventListener('resize',function(){
-      var h=window.visualViewport.height;
-      if(Math.abs(h-_lastH)>80){_lastH=h;setAppHeight();}
-    });
-  }
 })();

@@ -1,7 +1,7 @@
 .channel-list {
   width: 240px;
   min-width: 240px;
-  height: var(--app-height, 100dvh);
+  height: 100%;
   background-color: var(--bg-secondary);
   display: flex;
   flex-direction: column;

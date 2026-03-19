@@ -150,12 +150,6 @@ function MainApp() {
   // Request notification permission once on mount (Chromium allows this without a gesture)
   useEffect(() => { requestPermission(); }, [requestPermission]);
 
-  // Recapture viewport height on app mount — after login the keyboard may have
-  // changed window.innerHeight so we reset --app-height to current actual value.
-  useEffect(() => {
-    const h = window.visualViewport?.height ?? window.innerHeight;
-    document.documentElement.style.setProperty('--app-height', `${h}px`);
-  }, []);
 
   // Voice state: channelId → list of participants
   const [voiceParticipants, setVoiceParticipants] = useState<Record<string, { user_id: string; username: string; avatar_url?: string }[]>>({});

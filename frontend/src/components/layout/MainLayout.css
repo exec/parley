@@ -1,13 +1,9 @@
 .main-layout {
   display: flex;
   width: 100%;
-  height: var(--app-height, 100dvh);
+  height: 100%; /* fills html > body > #root, which is 100svh with safe-area padding */
   background-color: var(--bg-primary);
   overflow: hidden;
-  /* Push content away from Dynamic Island (top) and home indicator (bottom).
-     On desktop these values are 0. Background fills the safe area zones. */
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 /* Desktop: left-drawer is just a normal flex row */
@@ -133,13 +129,14 @@
     z-index: 90;
   }
 
-  /* Left drawer (server icons + channel list) slides in as one unit */
+  /* Left drawer (server icons + channel list) slides in as one unit.
+     position:fixed means it ignores html's safe-area padding, so apply directly. */
   .left-drawer {
     position: fixed;
     left: 0;
     top: 0;
     bottom: 0;
-    height: var(--app-height, 100dvh);
+    height: 100svh;
     z-index: 100;
     transform: translateX(-110%);
     transition: transform 0.22s ease;
@@ -153,7 +150,7 @@
   /* Channel list: normal in-flow inside the drawer */
   .channel-list {
     position: static;
-    height: var(--app-height, 100dvh);
+    height: 100%;
     min-width: 240px;
     width: 240px;
   }
