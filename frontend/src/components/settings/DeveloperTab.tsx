@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { listAPIKeys, createAPIKey, revokeAPIKey, renameBotUser, APIKeyInfo, CreateKeyResponse } from '../../api/developer';
+import { getMyBots, updateBotInvitePermissions, UserBot } from '../../api/bots';
+import { PERMISSION_CATEGORIES, permFromNumber } from '../../lib/permissions';
 
 export const DeveloperTab: React.FC = () => {
   const [keys, setKeys] = useState<APIKeyInfo[]>([]);
@@ -15,6 +17,11 @@ export const DeveloperTab: React.FC = () => {
   const [createError, setCreateError] = useState('');
   const [createdKey, setCreatedKey] = useState<CreateKeyResponse | null>(null);
   const [copied, setCopied] = useState(false);
+
+  const [myBots, setMyBots] = useState<UserBot[]>([]);
+  const [botPerms, setBotPerms] = useState<Record<number, bigint>>({});
+  const [botPermsError, setBotPermsError] = useState<Record<number, string>>({});
+  const saveTimers = React.useRef<Record<number, ReturnType<typeof setTimeout>>>({});
 
   // Rename
   const [renamingBotId, setRenamingBotId] = useState<number | null>(null);
@@ -35,6 +42,17 @@ export const DeveloperTab: React.FC = () => {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    getMyBots()
+      .then(bots => {
+        setMyBots(bots);
+        const initial: Record<number, bigint> = {};
+        for (const b of bots) initial[b.id] = permFromNumber(b.permissions);
+        setBotPerms(initial);
+      })
+      .catch(() => {});
+  }, []);
 
   const handleCreate = async () => {
     if (!createName.trim() && createType === 'user') {
@@ -84,6 +102,20 @@ export const DeveloperTab: React.FC = () => {
     } finally {
       setRenamingLoading(false);
     }
+  };
+
+  const handleTogglePerm = (botId: number, bit: bigint) => {
+    setBotPerms(prev => {
+      const cur = prev[botId] ?? 0n;
+      const next = { ...prev, [botId]: (cur & bit) !== 0n ? cur & ~bit : cur | bit };
+      clearTimeout(saveTimers.current[botId]);
+      saveTimers.current[botId] = setTimeout(() => {
+        updateBotInvitePermissions(botId, next[botId])
+          .then(() => setBotPermsError(e => ({ ...e, [botId]: '' })))
+          .catch(() => setBotPermsError(e => ({ ...e, [botId]: 'Failed to save — try again' })));
+      }, 500);
+      return next;
+    });
   };
 
   const handleCopy = async (text: string) => {
@@ -258,6 +290,56 @@ export const DeveloperTab: React.FC = () => {
           </div>
         )}
       </div>
+
+      {myBots.length > 0 && (
+        <div className="settings-section">
+          <div className="settings-section-title">My Bots</div>
+          {myBots.map(bot => {
+            const inviteURL = `${window.location.origin}/invite/bot/${bot.invite_token}`;
+            return (
+              <div key={bot.id} style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                  {bot.display_name} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>@{bot.username}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <code style={{ fontSize: 12, background: 'var(--input)', padding: '3px 6px', borderRadius: 4, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {inviteURL}
+                  </code>
+                  <button
+                    className="settings-btn settings-btn-ghost"
+                    style={{ padding: '3px 10px', fontSize: 12, flexShrink: 0 }}
+                    onClick={() => navigator.clipboard.writeText(inviteURL)}
+                  >
+                    Copy
+                  </button>
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Requested Permissions
+                </div>
+                {PERMISSION_CATEGORIES.map(cat => (
+                  <div key={cat.label} style={{ marginBottom: 8 }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{cat.label}</div>
+                    {cat.permissions.map(p => (
+                      <label key={p.name} title={p.description} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', marginBottom: 2 }}>
+                        <input
+                          type="checkbox"
+                          checked={((botPerms[bot.id] ?? 0n) & p.bit) !== 0n}
+                          onChange={() => handleTogglePerm(bot.id, p.bit)}
+                          style={{ cursor: 'pointer' }}
+                        />
+                        {p.name}
+                      </label>
+                    ))}
+                  </div>
+                ))}
+                {botPermsError[bot.id] && (
+                  <div style={{ fontSize: 12, color: 'var(--danger)', marginTop: 4 }}>{botPermsError[bot.id]}</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </>
   );
 };
