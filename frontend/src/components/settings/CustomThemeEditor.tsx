@@ -3,6 +3,7 @@ import { UserTheme, NewTheme, publishTheme } from '../../api/themes';
 import { BUILTIN_IDS } from '../../context/ThemeContext';
 import { validateCSS } from '../../lib/cssValidator';
 import { themeVarsCSS } from '../../lib/themePreview';
+import { buildGlassPreset, injectGlassVars, type GlassPreset } from '../../lib/themeGlass';
 import './CustomThemeEditor.css';
 
 const BUILTIN_LABELS: Record<string, string> = {
@@ -63,6 +64,14 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
   const [css, setCSS] = useState(existing?.css || '');
   const [baseTheme, setBaseTheme] = useState(existing?.base_theme || 'abyss');
   const [bgUrl, setBgUrl] = useState<string | null>(existing?.background_url || null);
+  const [glassPreset, setGlassPreset] = useState<GlassPreset | 'solid'>(
+    () => {
+      if ((existing?.css ?? '').includes('/* bg-glass-start */')) {
+        return (existing?.css ?? '').includes('--parley-panel-blur: 0px') ? 'clear' : 'frosted';
+      }
+      return 'solid';
+    }
+  );
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [publishedState, setPublishedState] = useState<boolean>(existing?.is_published ?? false);
@@ -166,15 +175,36 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
     }
   };
 
+  const applyGlassPreset = (preset: GlassPreset | 'solid') => {
+    setGlassPreset(preset);
+    if (preset === 'solid') {
+      setCSS(prev => injectGlassVars(prev, null));
+    } else {
+      const vars = buildGlassPreset(baseTheme, preset);
+      setCSS(prev => injectGlassVars(prev, vars));
+    }
+  };
+
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
     try {
       const url = await uploadFile(file);
       setBgUrl(url);
-      const rule = `body { background-image: url("${url}"); background-size: cover; background-repeat: no-repeat; background-attachment: fixed; }\n`;
-      setCSS(prev => rule + prev.replace(/body\s*\{[^}]*background-image[^}]*\}\n?/g, ''));
+      const bgRule = `body { background-image: url("${url}"); background-size: cover; background-repeat: no-repeat; background-attachment: fixed; }\n`;
+      const vars = buildGlassPreset(baseTheme, 'frosted');
+      setCSS(prev => {
+        const withBg = bgRule + prev.replace(/body\s*\{[^}]*background-image[^}]*\}\n?/g, '');
+        return injectGlassVars(withBg, vars);
+      });
+      setGlassPreset('frosted');
     } catch { setError('Upload failed'); }
   };
+
+  useEffect(() => {
+    if (glassPreset === 'solid') return;
+    const vars = buildGlassPreset(baseTheme, glassPreset);
+    setCSS(prev => injectGlassVars(prev, vars));
+  }, [baseTheme]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSave = async () => {
     setError(null);
@@ -240,9 +270,28 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
           </label>
           {bgUrl && <button className="theme-editor-remove-bg" onClick={() => {
             setBgUrl(null);
-            setCSS(prev => prev.replace(/body\s*\{[^}]*background-image[^}]*\}\n?/g, ''));
+            setCSS(prev => {
+              const withoutBg = prev.replace(/body\s*\{[^}]*background-image[^}]*\}\n?/g, '');
+              return injectGlassVars(withoutBg, null);
+            });
+            setGlassPreset('solid');
           }}>Remove</button>}
         </div>
+        {bgUrl && (
+          <div className="theme-editor-glass-row">
+            <span className="theme-editor-glass-label">Style</span>
+            {(['solid', 'frosted', 'clear'] as const).map(p => (
+              <button
+                key={p}
+                className={`theme-editor-glass-btn${glassPreset === p ? ' theme-editor-glass-btn--active' : ''}`}
+                onClick={() => applyGlassPreset(p)}
+                type="button"
+              >
+                {p === 'solid' ? 'Solid' : p === 'frosted' ? 'Frosted' : 'Clear'}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="theme-editor-field">

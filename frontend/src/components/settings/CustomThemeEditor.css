@@ -57,3 +57,41 @@
 .theme-editor-publish-row { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
 .theme-editor-publish-toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--parley-text-normal); cursor: pointer; }
 .theme-editor-publish-toggle input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--parley-accent); }
+
+/* Glass preset buttons */
+.theme-editor-glass-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.theme-editor-glass-label {
+  font-size: 11px;
+  color: var(--parley-text-muted);
+  margin-right: 2px;
+  white-space: nowrap;
+}
+
+.theme-editor-glass-btn {
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--parley-border);
+  background: var(--parley-bg-tertiary);
+  color: var(--parley-text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.theme-editor-glass-btn:hover {
+  background: var(--parley-bg-hover);
+  color: var(--parley-text-normal);
+}
+
+.theme-editor-glass-btn--active {
+  background: var(--parley-accent);
+  color: #fff;
+  border-color: var(--parley-accent);
+}
