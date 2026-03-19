@@ -18,7 +18,9 @@ const NAMES: Record<string,string> = {
 
 export const ThemePopover: React.FC<{ onOpenSettings(): void }> = ({ onOpenSettings }) => {
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ bottom: number; left: number } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
   const theme = useTheme();
 
   useEffect(() => {
@@ -27,13 +29,21 @@ export const ThemePopover: React.FC<{ onOpenSettings(): void }> = ({ onOpenSetti
     return () => document.removeEventListener('mousedown', h);
   }, []);
 
+  const handleOpen = () => {
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setPos({ bottom: window.innerHeight - r.top + 8, left: r.left });
+    }
+    setOpen(o => !o);
+  };
+
   return (
     <div className="theme-popover-wrap" ref={ref}>
-      <button className="theme-popover-btn" title="Switch theme" onClick={() => setOpen(o => !o)}>
+      <button ref={btnRef} className="theme-popover-btn" title="Switch theme" onClick={handleOpen}>
         <Palette size={16} />
       </button>
-      {open && (
-        <div className="theme-popover">
+      {open && pos && (
+        <div className="theme-popover" style={{ position: 'fixed', bottom: pos.bottom, left: pos.left, top: 'unset' }}>
           <div className="theme-popover-section">Built-in</div>
           {theme.builtinIds.map(id => (
             <button key={id} className={`theme-popover-item${theme.activeTheme===id?' active':''}`}
