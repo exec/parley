@@ -90,9 +90,21 @@ func handleUpload(spacesClient *spaces.Client, db *sql.DB) http.HandlerFunc {
 		}
 
 		// Record the upload for future eviction ordering.
-		db.ExecContext(r.Context(),
+		// If this fails, clean up the Spaces object and refund the quota so the
+		// reserved bytes are not permanently lost.
+		if _, err := db.ExecContext(r.Context(),
 			`INSERT INTO user_uploads (user_id, spaces_key, file_size) VALUES ($1, $2, $3)`,
-			userID, key, fileSize)
+			userID, key, fileSize); err != nil {
+			if delErr := spacesClient.Delete(r.Context(), key); delErr != nil {
+				log.Printf("cleanup: delete %s after DB failure: %v", key, delErr)
+			}
+			db.ExecContext(r.Context(),
+				`UPDATE users SET upload_bytes_used = GREATEST(0, upload_bytes_used - $1) WHERE id = $2`,
+				fileSize, userID)
+			log.Printf("upload record error for user %d: %v", userID, err)
+			http.Error(w, "upload failed", http.StatusInternalServerError)
+			return
+		}
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"url": url})
