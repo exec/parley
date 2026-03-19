@@ -12,12 +12,13 @@ export function useNotifications() {
     audioRef.current = audio;
 
     // Browsers block audio playback until a user gesture has occurred.
-    // Playing + immediately pausing on the first interaction "unlocks" the
-    // element so that later play() calls (triggered by WS events) succeed.
+    // Playing muted + immediately pausing on the first interaction "unlocks"
+    // the element so that later play() calls (triggered by WS events) succeed.
     const unlock = () => {
+      audio.muted = true;
       audio.play()
-        .then(() => { audio.pause(); audio.currentTime = 0; })
-        .catch(() => {});
+        .then(() => { audio.pause(); audio.currentTime = 0; audio.muted = false; })
+        .catch(() => { audio.muted = false; });
     };
 
     document.addEventListener('click', unlock, { once: true });
