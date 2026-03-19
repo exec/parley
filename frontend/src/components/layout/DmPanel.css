@@ -250,8 +250,10 @@
 /* User context menu */
 .user-context-menu {
   position: fixed;
-  background-color: var(--bg-tertiary);
-  border: 1px solid var(--border);
+  background-color: var(--parley-panel-bg, var(--bg-tertiary));
+  backdrop-filter: blur(var(--parley-panel-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
+  border: 1px solid var(--parley-border, var(--border));
   border-radius: 4px;
   padding: 4px;
   min-width: 180px;

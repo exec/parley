@@ -499,7 +499,9 @@
 /* Message Context Menu */
 .message-context-menu {
   position: fixed;
-  background-color: var(--parley-channel-bg);
+  background-color: var(--parley-panel-bg, var(--parley-channel-bg));
+  backdrop-filter: blur(var(--parley-panel-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
   border: 1px solid var(--parley-accent);
   border-radius: 4px;
   padding: 4px 0;
@@ -542,7 +544,9 @@
 /* Message Context Menu (second block — kept for specificity) */
 .message-context-menu {
   position: fixed;
-  background-color: var(--parley-channel-bg);
+  background-color: var(--parley-panel-bg, var(--parley-channel-bg));
+  backdrop-filter: blur(var(--parley-panel-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
   border: 1px solid var(--parley-accent);
   border-radius: 8px;
   padding: 4px 0;

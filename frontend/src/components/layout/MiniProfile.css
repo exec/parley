@@ -3,7 +3,9 @@
 .mini-profile {
   position: fixed;
   width: 280px;
-  background: var(--parley-bg-secondary);
+  background: var(--parley-panel-bg, var(--parley-bg-secondary));
+  backdrop-filter: blur(var(--parley-panel-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
   border: 1px solid var(--parley-border);
   border-radius: 8px;
   overflow: hidden;

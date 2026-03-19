@@ -1,6 +1,8 @@
 /* frontend/src/components/voice/VoiceContextMenu.css */
 .vc-context-menu {
-  background: var(--parley-bg-tertiary);
+  background: var(--parley-panel-bg, var(--parley-bg-tertiary));
+  backdrop-filter: blur(var(--parley-panel-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
   border: 1px solid var(--parley-border);
   border-radius: 6px;
   padding: 4px;
