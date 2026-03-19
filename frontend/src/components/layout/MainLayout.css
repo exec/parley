@@ -195,7 +195,9 @@
   align-items: center;
   padding: 0 16px;
   gap: 4px;
-  background: var(--parley-channel-bg, #0a1628);
+  background: var(--parley-chat-bg, var(--parley-channel-bg, #0a1628));
+  backdrop-filter: blur(var(--parley-panel-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
   border-bottom: 1px solid rgba(var(--accent-rgb, 0, 180, 216), 0.15);
   flex-shrink: 0;
 }

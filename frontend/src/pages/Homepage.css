@@ -7,7 +7,9 @@
   padding: 40px 24px;
   position: relative;
   overflow: hidden;
-  background: var(--parley-channel-bg);
+  background: var(--parley-chat-bg, var(--parley-channel-bg));
+  backdrop-filter: blur(var(--parley-panel-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
 }
 
 /* Ambient depth glow */
