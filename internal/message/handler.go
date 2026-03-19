@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"parley/internal/auth"
 	"parley/internal/db"
 	"parley/internal/httputil"
 )
@@ -59,8 +60,8 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get author ID from context (set by auth middleware)
-	authorID := r.Context().Value("userID")
-	if authorID == nil {
+	authorID := auth.GetUserIDFromContext(r)
+	if authorID == "" {
 		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
 		return
 	}
@@ -76,7 +77,7 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg, err := h.service.SendMessage(r.Context(), channelID, authorID.(string), req.Content, req.Nonce, req.AttachmentURL, req.AttachmentName, req.AttachmentType, req.ParentID)
+	msg, err := h.service.SendMessage(r.Context(), channelID, authorID, req.Content, req.Nonce, req.AttachmentURL, req.AttachmentName, req.AttachmentType, req.ParentID)
 	if err != nil {
 		if err.Error() == "forbidden" {
 			httputil.JSONError(w, "you do not have permission to send messages in this channel", http.StatusForbidden)
@@ -127,7 +128,7 @@ func (h *Handler) GetChannelMessages(w http.ResponseWriter, r *http.Request) {
 			httputil.JSONError(w, err.Error(), http.StatusNotFound)
 			return
 		}
-		httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 
@@ -149,8 +150,8 @@ func (h *Handler) EditMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get author ID from context (set by auth middleware)
-	authorID := r.Context().Value("userID")
-	if authorID == nil {
+	authorID := auth.GetUserIDFromContext(r)
+	if authorID == "" {
 		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
 		return
 	}
@@ -168,7 +169,7 @@ func (h *Handler) EditMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if msg.AuthorID != authorID.(string) {
+	if msg.AuthorID != authorID {
 		httputil.JSONError(w, "you can only edit your own messages", http.StatusForbidden)
 		return
 	}
@@ -192,19 +193,19 @@ func (h *Handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get author ID from context (set by auth middleware)
-	authorID := r.Context().Value("userID")
-	if authorID == nil {
+	authorID := auth.GetUserIDFromContext(r)
+	if authorID == "" {
 		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
 		return
 	}
 
 	// Check if the user has permission to delete the message (author or MANAGE_MESSAGES)
-	canManage, err := h.service.CanManageMessage(r.Context(), id, authorID.(string))
+	canManage, err := h.service.CanManageMessage(r.Context(), id, authorID)
 	if err != nil {
 		if err.Error() == "message not found" {
 			httputil.JSONError(w, err.Error(), http.StatusNotFound)
 		} else {
-			httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
+			httputil.InternalError(w, err)
 		}
 		return
 	}
@@ -214,7 +215,7 @@ func (h *Handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.DeleteMessage(r.Context(), id); err != nil {
-		httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 
@@ -226,7 +227,7 @@ func (h *Handler) GetMessageVersions(w http.ResponseWriter, r *http.Request) {
 	messageID := chi.URLParam(r, "id")
 	versions, err := h.service.GetMessageVersions(r.Context(), messageID)
 	if err != nil {
-		httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 	if versions == nil {
@@ -268,7 +269,7 @@ func (h *Handler) SearchMessages(w http.ResponseWriter, r *http.Request) {
 			httputil.JSONError(w, "forbidden", http.StatusForbidden)
 			return
 		}
-		httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 	if messages == nil {
@@ -292,8 +293,8 @@ func (h *Handler) ToggleReaction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := r.Context().Value("userID")
-	if userID == nil {
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
 		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
 		return
 	}
@@ -304,7 +305,7 @@ func (h *Handler) ToggleReaction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.service.ToggleReaction(r.Context(), messageID, userID.(string), req.Emoji); err != nil {
+	if err := h.service.ToggleReaction(r.Context(), messageID, userID, req.Emoji); err != nil {
 		if err.Error() == "message not found" {
 			httputil.JSONError(w, err.Error(), http.StatusNotFound)
 			return

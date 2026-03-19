@@ -12,7 +12,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	"parley/internal/server"
+	"parley/internal/auth"
+	"parley/internal/httputil"
 	ws "parley/internal/websocket"
 )
 
@@ -38,11 +39,9 @@ func (h *Handler) SetHub(hub hub) {
 }
 
 // callerID extracts the authenticated user ID from the request context.
-// The auth middleware stores a string user ID under server.UserIDKey, placed
-// there by bridgeUserIDMiddleware in cmd/api/routes.go.
 func callerID(r *http.Request) (int64, bool) {
-	s, ok := r.Context().Value(server.UserIDKey).(string)
-	if !ok || s == "" {
+	s := auth.GetUserIDFromContext(r)
+	if s == "" {
 		return 0, false
 	}
 	id, err := strconv.ParseInt(s, 10, 64)
@@ -58,24 +57,17 @@ func serverIDParam(r *http.Request) (int64, bool) {
 	return n, err == nil
 }
 
-// writeErr writes a JSON error response.
-func writeErr(w http.ResponseWriter, r *http.Request, status int, msg string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(map[string]string{"error": msg})
-}
-
 // handleSvcErr maps service errors to HTTP status codes.
 func handleSvcErr(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, ErrNotFound):
-		writeErr(w, r, 404, "not found")
+		httputil.JSONError(w, "not found", http.StatusNotFound)
 	case errors.Is(err, ErrForbidden):
-		writeErr(w, r, 403, "forbidden")
+		httputil.JSONError(w, "forbidden", http.StatusForbidden)
 	case errors.Is(err, ErrAlreadyExists):
-		writeErr(w, r, 409, "already exists")
+		httputil.JSONError(w, "already exists", http.StatusConflict)
 	default:
-		writeErr(w, r, 500, "internal server error")
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 	}
 }
 
@@ -83,7 +75,7 @@ func handleSvcErr(w http.ResponseWriter, r *http.Request, err error) {
 func (h *Handler) ListBots(w http.ResponseWriter, r *http.Request) {
 	sid, ok := serverIDParam(r)
 	if !ok {
-		writeErr(w, r, 400, "invalid server id")
+		httputil.JSONError(w, "invalid server id", http.StatusBadRequest)
 		return
 	}
 	bots, err := h.svc.ListBots(r.Context(), sid)
@@ -98,19 +90,19 @@ func (h *Handler) ListBots(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) AddBot(w http.ResponseWriter, r *http.Request) {
 	uid, ok := callerID(r)
 	if !ok {
-		writeErr(w, r, 401, "unauthorized")
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	sid, ok := serverIDParam(r)
 	if !ok {
-		writeErr(w, r, 400, "invalid server id")
+		httputil.JSONError(w, "invalid server id", http.StatusBadRequest)
 		return
 	}
 	var req struct {
 		InviteToken string `json:"invite_token"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.InviteToken == "" {
-		writeErr(w, r, 400, "invite_token required")
+		httputil.JSONError(w, "invite_token required", http.StatusBadRequest)
 		return
 	}
 	botUserID, err := h.svc.AddBot(r.Context(), sid, uid, req.InviteToken)
@@ -125,24 +117,24 @@ func (h *Handler) AddBot(w http.ResponseWriter, r *http.Request) {
 		})
 		h.hub.BroadcastToChannel(fmt.Sprintf("server:%d", sid), ws.EventMemberJoin, payload)
 	}
-	w.WriteHeader(204)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // RemoveBot handles DELETE /api/servers/{id}/bots/{botId}
 func (h *Handler) RemoveBot(w http.ResponseWriter, r *http.Request) {
 	uid, ok := callerID(r)
 	if !ok {
-		writeErr(w, r, 401, "unauthorized")
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	sid, ok := serverIDParam(r)
 	if !ok {
-		writeErr(w, r, 400, "invalid server id")
+		httputil.JSONError(w, "invalid server id", http.StatusBadRequest)
 		return
 	}
 	botID, err := strconv.ParseInt(chi.URLParam(r, "botId"), 10, 64)
 	if err != nil {
-		writeErr(w, r, 400, "invalid bot id")
+		httputil.JSONError(w, "invalid bot id", http.StatusBadRequest)
 		return
 	}
 	if err := h.svc.RemoveBot(r.Context(), sid, botID, uid); err != nil {
@@ -156,19 +148,19 @@ func (h *Handler) RemoveBot(w http.ResponseWriter, r *http.Request) {
 		})
 		h.hub.BroadcastToChannel(fmt.Sprintf("server:%d", sid), ws.EventMemberLeave, payload)
 	}
-	w.WriteHeader(204)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // GetAIConfig handles GET /api/servers/{id}/ai-config
 func (h *Handler) GetAIConfig(w http.ResponseWriter, r *http.Request) {
 	uid, ok := callerID(r)
 	if !ok {
-		writeErr(w, r, 401, "unauthorized")
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	sid, ok := serverIDParam(r)
 	if !ok {
-		writeErr(w, r, 400, "invalid server id")
+		httputil.JSONError(w, "invalid server id", http.StatusBadRequest)
 		return
 	}
 	cfg, err := h.svc.GetAIConfig(r.Context(), sid, uid)
@@ -183,28 +175,28 @@ func (h *Handler) GetAIConfig(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) SetAIConfig(w http.ResponseWriter, r *http.Request) {
 	uid, ok := callerID(r)
 	if !ok {
-		writeErr(w, r, 401, "unauthorized")
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	sid, ok := serverIDParam(r)
 	if !ok {
-		writeErr(w, r, 400, "invalid server id")
+		httputil.JSONError(w, "invalid server id", http.StatusBadRequest)
 		return
 	}
 	var req struct {
-		Provider         string `json:"provider"`
-		Model            string `json:"model"`
-		APIKey           string `json:"api_key"`
-		PresetVerbosity  string `json:"preset_verbosity"`
+		Provider          string `json:"provider"`
+		Model             string `json:"model"`
+		APIKey            string `json:"api_key"`
+		PresetVerbosity   string `json:"preset_verbosity"`
 		PresetPersonality string `json:"preset_personality"`
-		PresetRole       string `json:"preset_role"`
+		PresetRole        string `json:"preset_role"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeErr(w, r, 400, "invalid body")
+		httputil.JSONError(w, "invalid body", http.StatusBadRequest)
 		return
 	}
 	if req.Provider == "" || req.Model == "" {
-		writeErr(w, r, 400, "provider and model required")
+		httputil.JSONError(w, "provider and model required", http.StatusBadRequest)
 		return
 	}
 	if req.PresetVerbosity == "" {
@@ -220,19 +212,19 @@ func (h *Handler) SetAIConfig(w http.ResponseWriter, r *http.Request) {
 		handleSvcErr(w, r, err)
 		return
 	}
-	w.WriteHeader(204)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // GetAIUsage handles GET /api/servers/{id}/ai-usage
 func (h *Handler) GetAIUsage(w http.ResponseWriter, r *http.Request) {
 	uid, ok := callerID(r)
 	if !ok {
-		writeErr(w, r, 401, "unauthorized")
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	sid, ok := serverIDParam(r)
 	if !ok {
-		writeErr(w, r, 400, "invalid server id")
+		httputil.JSONError(w, "invalid server id", http.StatusBadRequest)
 		return
 	}
 	usage, err := h.svc.GetAIUsage(r.Context(), sid, uid)
@@ -247,7 +239,7 @@ func (h *Handler) GetAIUsage(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetMyBots(w http.ResponseWriter, r *http.Request) {
 	uid, ok := callerID(r)
 	if !ok {
-		writeErr(w, r, 401, "unauthorized")
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	bots, err := h.svc.GetMyBots(r.Context(), uid)
@@ -273,7 +265,7 @@ func (h *Handler) ResolveInvite(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) AcceptInvite(w http.ResponseWriter, r *http.Request) {
 	uid, ok := callerID(r)
 	if !ok {
-		writeErr(w, r, 401, "unauthorized")
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	token := chi.URLParam(r, "token")
@@ -281,12 +273,12 @@ func (h *Handler) AcceptInvite(w http.ResponseWriter, r *http.Request) {
 		ServerID int64 `json:"server_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ServerID == 0 {
-		writeErr(w, r, 400, "server_id required")
+		httputil.JSONError(w, "server_id required", http.StatusBadRequest)
 		return
 	}
 	if err := h.svc.AcceptInvite(r.Context(), token, req.ServerID, uid); err != nil {
 		handleSvcErr(w, r, err)
 		return
 	}
-	w.WriteHeader(204)
+	w.WriteHeader(http.StatusNoContent)
 }

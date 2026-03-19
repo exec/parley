@@ -115,7 +115,6 @@ func registerRoutes(
 			// Authenticated auth routes
 			r.Group(func(r chi.Router) {
 				r.Use(auth.AuthMiddlewareWith(authService))
-				r.Use(bridgeUserIDMiddleware)
 				r.Get("/me", handleGetMe(repo))
 				r.Get("/me/phone", handleGetMePhone(repo))
 				r.Post("/ws-ticket", handleWsTicket(authService, tickets))
@@ -154,7 +153,6 @@ func registerRoutes(
 		// Protected routes — require authentication
 		r.Group(func(r chi.Router) {
 			r.Use(auth.AuthMiddlewareWith(authService))
-			r.Use(bridgeUserIDMiddleware)
 
 			// Server routes
 			serverHandler := server.NewHandler(serverService)
@@ -315,15 +313,3 @@ func registerRoutes(
 	registerBenchRoutes(router, repo, authService)
 }
 
-// bridgeUserIDMiddleware copies the userID from auth.UserIDKey to server.UserIDKey
-// so server handlers can read it with their own context key type.
-func bridgeUserIDMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userID := auth.GetUserIDFromContext(r)
-		if userID != "" {
-			ctx := context.WithValue(r.Context(), server.UserIDKey, userID)
-			r = r.WithContext(ctx)
-		}
-		next.ServeHTTP(w, r)
-	})
-}

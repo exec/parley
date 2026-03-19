@@ -9,7 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"parley/internal/server"
+	"parley/internal/auth"
 )
 
 type Handler struct{ svc *Service }
@@ -29,7 +29,7 @@ type themeReq struct {
 }
 
 type errResp struct {
-	Error         string   `json:"error"`
+	Message       string   `json:"message"`
 	OffendingURLs []string `json:"offending_urls,omitempty"`
 }
 
@@ -44,7 +44,7 @@ type featureReq struct {
 func writeErr(w http.ResponseWriter, r *http.Request, code int, msg string) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(code)
-	render.JSON(w, r, errResp{Error: msg})
+	render.JSON(w, r, errResp{Message: msg})
 }
 
 // internalErr logs the real error server-side and returns a generic 500 to the client,
@@ -55,8 +55,8 @@ func internalErr(w http.ResponseWriter, r *http.Request, err error) {
 }
 
 func userID(r *http.Request) (int64, bool) {
-	s, ok := r.Context().Value(server.UserIDKey).(string)
-	if !ok || s == "" {
+	s := auth.GetUserIDFromContext(r)
+	if s == "" {
 		return 0, false
 	}
 	id, err := strconv.ParseInt(s, 10, 64)
@@ -356,9 +356,9 @@ func (h *Handler) handleThemeErr(w http.ResponseWriter, r *http.Request, err err
 	if errors.As(err, &ve) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(400)
-		render.JSON(w, r, map[string]interface{}{
-			"error":          "theme contains disallowed external URLs",
-			"offending_urls": ve.OffendingURLs,
+		render.JSON(w, r, errResp{
+			Message:       "theme contains disallowed external URLs",
+			OffendingURLs: ve.OffendingURLs,
 		})
 		return
 	}

@@ -48,7 +48,7 @@ func (h *Handler) GetDmChannels(w http.ResponseWriter, r *http.Request) {
 
 	channels, err := h.repo.GetUserDmChannels(r.Context(), userID)
 	if err != nil {
-		httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 
@@ -98,7 +98,7 @@ func (h *Handler) OpenDmChannel(w http.ResponseWriter, r *http.Request) {
 
 	channel, err := h.repo.GetOrCreateDmChannel(r.Context(), currentUserID, otherUserID)
 	if err != nil {
-		httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 
@@ -166,7 +166,7 @@ func (h *Handler) GetDmMessages(w http.ResponseWriter, r *http.Request) {
 
 	messages, err := h.repo.GetDmMessages(r.Context(), dmChannelID, limit, beforeID)
 	if err != nil {
-		httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 
@@ -254,7 +254,7 @@ func (h *Handler) SendDmMessage(w http.ResponseWriter, r *http.Request) {
 
 	msg, err := h.repo.CreateDmMessage(r.Context(), dmChannelID, currentUserID, req.Content, req.AttachmentURL, req.AttachmentName, req.AttachmentType, parentID)
 	if err != nil {
-		httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 

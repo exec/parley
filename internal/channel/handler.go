@@ -2,10 +2,12 @@ package channel
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"parley/internal/auth"
+	"parley/internal/httputil"
 )
 
 // Handler handles HTTP requests for channels
@@ -52,29 +54,29 @@ type CreateChannelRequest struct {
 func (h *Handler) CreateChannel(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "serverID")
 	if serverID == "" {
-		http.Error(w, "server ID is required", http.StatusBadRequest)
+		httputil.JSONError(w, "server ID is required", http.StatusBadRequest)
 		return
 	}
 
 	userID := auth.GetUserIDFromContext(r)
 	if userID == "" {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	var req CreateChannelRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	ch, err := h.service.CreateChannel(r.Context(), serverID, req.Name, req.Type, req.ParentID, req.Topic, userID)
 	if err != nil {
 		if err.Error() == "forbidden" {
-			http.Error(w, "you do not have permission to create channels", http.StatusForbidden)
+			httputil.JSONError(w, "you do not have permission to create channels", http.StatusForbidden)
 			return
 		}
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		httputil.JSONError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -87,13 +89,13 @@ func (h *Handler) CreateChannel(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetChannel(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		http.Error(w, "channel ID is required", http.StatusBadRequest)
+		httputil.JSONError(w, "channel ID is required", http.StatusBadRequest)
 		return
 	}
 
 	ch, err := h.service.GetChannel(r.Context(), id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		httputil.JSONError(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
@@ -105,7 +107,7 @@ func (h *Handler) GetChannel(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetServerChannels(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "serverID")
 	if serverID == "" {
-		http.Error(w, "server ID is required", http.StatusBadRequest)
+		httputil.JSONError(w, "server ID is required", http.StatusBadRequest)
 		return
 	}
 
@@ -114,17 +116,18 @@ func (h *Handler) GetServerChannels(w http.ResponseWriter, r *http.Request) {
 	// To do the filtering we need the ownerID here — fetch it from the service.
 	ownerID := h.service.GetServerOwnerID(r.Context(), serverID)
 	if ownerID == "" {
-		http.Error(w, `{"message":"server not found"}`, http.StatusNotFound)
+		httputil.JSONError(w, "server not found", http.StatusNotFound)
 		return
 	}
 
 	channels, err := h.service.GetServerChannels(r.Context(), serverID, userID, ownerID)
 	if err != nil {
 		if err.Error() == "server not found" {
-			http.Error(w, `{"message":"server not found"}`, http.StatusNotFound)
+			httputil.JSONError(w, "server not found", http.StatusNotFound)
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Printf("channel handler error: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -142,29 +145,29 @@ type UpdateChannelRequest struct {
 func (h *Handler) UpdateChannel(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		http.Error(w, "channel ID is required", http.StatusBadRequest)
+		httputil.JSONError(w, "channel ID is required", http.StatusBadRequest)
 		return
 	}
 
 	userID := auth.GetUserIDFromContext(r)
 	if userID == "" {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	var req UpdateChannelRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	ch, err := h.service.UpdateChannel(r.Context(), id, req.Name, req.Topic, userID)
 	if err != nil {
 		if err.Error() == "forbidden" {
-			http.Error(w, "you do not have permission to update channels", http.StatusForbidden)
+			httputil.JSONError(w, "you do not have permission to update channels", http.StatusForbidden)
 			return
 		}
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		httputil.JSONError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -176,24 +179,25 @@ func (h *Handler) UpdateChannel(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) DeleteChannel(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		http.Error(w, "channel ID is required", http.StatusBadRequest)
+		httputil.JSONError(w, "channel ID is required", http.StatusBadRequest)
 		return
 	}
 
 	userID := auth.GetUserIDFromContext(r)
 	if userID == "" {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	if err := h.service.DeleteChannel(r.Context(), id, userID); err != nil {
 		switch err.Error() {
 		case "channel not found":
-			http.Error(w, err.Error(), http.StatusNotFound)
+			httputil.JSONError(w, err.Error(), http.StatusNotFound)
 		case "forbidden":
-			http.Error(w, "only the server owner can delete channels", http.StatusForbidden)
+			httputil.JSONError(w, "only the server owner can delete channels", http.StatusForbidden)
 		default:
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			log.Printf("channel handler error: %v", err)
+			httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		}
 		return
 	}
@@ -201,29 +205,28 @@ func (h *Handler) DeleteChannel(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-
 // ReorderChannels handles PATCH /servers/:serverID/channels/reorder
 func (h *Handler) ReorderChannels(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "serverID")
 	userID := auth.GetUserIDFromContext(r)
 	if userID == "" {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	var orders []ChannelOrder
 	if err := json.NewDecoder(r.Body).Decode(&orders); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	channels, err := h.service.ReorderChannels(r.Context(), serverID, orders, userID)
 	if err != nil {
 		if err.Error() == "forbidden" {
-			http.Error(w, "forbidden", http.StatusForbidden)
+			httputil.JSONError(w, "forbidden", http.StatusForbidden)
 			return
 		}
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		httputil.JSONError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 

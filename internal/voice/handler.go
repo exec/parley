@@ -2,11 +2,13 @@ package voice
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 
 	"parley/internal/auth"
 	"parley/internal/db"
+	"parley/internal/httputil"
 	"parley/internal/permissions"
 	ws "parley/internal/websocket"
 )
@@ -22,51 +24,46 @@ func NewHandler(svc *Service, repo *db.Repository, hub *ws.Hub) *Handler {
 	return &Handler{svc: svc, repo: repo, hub: hub}
 }
 
-func jsonErr(w http.ResponseWriter, msg string, code int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(map[string]string{"error": msg})
-}
-
 // Token issues a LiveKit token for the requesting user to join a voice channel.
 // GET /api/channels/{channelId}/voice/token
 func (h *Handler) Token(w http.ResponseWriter, r *http.Request) {
 	if !h.svc.Configured() {
-		jsonErr(w, "voice not configured", http.StatusServiceUnavailable)
+		httputil.JSONError(w, "voice not configured", http.StatusServiceUnavailable)
 		return
 	}
 
 	userIDStr := auth.GetUserIDFromContext(r)
 	userID, err := strconv.ParseInt(userIDStr, 10, 64)
 	if err != nil {
-		jsonErr(w, "unauthorized", http.StatusUnauthorized)
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	channelIDStr := r.PathValue("channelId")
 	channelID, err := strconv.ParseInt(channelIDStr, 10, 64)
 	if err != nil {
-		jsonErr(w, "invalid channel id", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid channel id", http.StatusBadRequest)
 		return
 	}
 
 	ctx := r.Context()
 	ch, err := h.repo.GetChannelByID(ctx, channelID)
 	if err != nil {
-		jsonErr(w, "channel not found", http.StatusNotFound)
+		httputil.JSONError(w, "channel not found", http.StatusNotFound)
 		return
 	}
 
 	// Verify user is a member of the server
 	member, err := h.repo.GetMember(ctx, ch.ServerID, userID)
 	if err != nil || member == nil {
-		jsonErr(w, "forbidden", http.StatusForbidden)
+		httputil.JSONError(w, "forbidden", http.StatusForbidden)
 		return
 	}
 
 	user, err := h.repo.GetUserByID(ctx, userID)
 	if err != nil {
-		jsonErr(w, "user not found", http.StatusInternalServerError)
+		log.Printf("voice handler: failed to get user: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	tokenName := user.DisplayName
@@ -75,7 +72,8 @@ func (h *Handler) Token(w http.ResponseWriter, r *http.Request) {
 	}
 	token, err := h.svc.IssueToken(userIDStr, tokenName, channelIDStr)
 	if err != nil {
-		jsonErr(w, "failed to generate token", http.StatusInternalServerError)
+		log.Printf("voice handler: failed to generate token: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -95,7 +93,8 @@ func (h *Handler) Join(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.svc.Join(r.Context(), channelIDStr, userIDStr, username, avatarURL); err != nil {
-		jsonErr(w, "failed to join", http.StatusInternalServerError)
+		log.Printf("voice handler: failed to join: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -112,7 +111,8 @@ func (h *Handler) Leave(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.svc.Leave(r.Context(), channelIDStr, userIDStr); err != nil {
-		jsonErr(w, "failed to leave", http.StatusInternalServerError)
+		log.Printf("voice handler: failed to leave: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -127,7 +127,8 @@ func (h *Handler) Participants(w http.ResponseWriter, r *http.Request) {
 
 	participants, err := h.svc.Participants(r.Context(), channelIDStr)
 	if err != nil {
-		jsonErr(w, "failed to fetch participants", http.StatusInternalServerError)
+		log.Printf("voice handler: failed to fetch participants: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -140,33 +141,34 @@ func (h *Handler) parseVoiceRequest(w http.ResponseWriter, r *http.Request) (use
 	userIDStr = auth.GetUserIDFromContext(r)
 	userID, err := strconv.ParseInt(userIDStr, 10, 64)
 	if err != nil {
-		jsonErr(w, "unauthorized", http.StatusUnauthorized)
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	channelIDStr = r.PathValue("channelId")
 	channelID, err := strconv.ParseInt(channelIDStr, 10, 64)
 	if err != nil {
-		jsonErr(w, "invalid channel id", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid channel id", http.StatusBadRequest)
 		return
 	}
 
 	ctx := r.Context()
 	ch, err := h.repo.GetChannelByID(ctx, channelID)
 	if err != nil {
-		jsonErr(w, "channel not found", http.StatusNotFound)
+		httputil.JSONError(w, "channel not found", http.StatusNotFound)
 		return
 	}
 
 	member, err := h.repo.GetMember(ctx, ch.ServerID, userID)
 	if err != nil || member == nil {
-		jsonErr(w, "forbidden", http.StatusForbidden)
+		httputil.JSONError(w, "forbidden", http.StatusForbidden)
 		return
 	}
 
 	user, err := h.repo.GetUserByID(ctx, userID)
 	if err != nil {
-		jsonErr(w, "user not found", http.StatusInternalServerError)
+		log.Printf("voice handler: failed to get user: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	displayName := user.DisplayName
@@ -183,39 +185,39 @@ func (h *Handler) MuteParticipant(w http.ResponseWriter, r *http.Request) {
 	requesterIDStr := auth.GetUserIDFromContext(r)
 	requesterID, err := strconv.ParseInt(requesterIDStr, 10, 64)
 	if err != nil {
-		jsonErr(w, "unauthorized", http.StatusUnauthorized)
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	channelIDStr := r.PathValue("channelId")
 	channelID, err := strconv.ParseInt(channelIDStr, 10, 64)
 	if err != nil {
-		jsonErr(w, "invalid channel id", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid channel id", http.StatusBadRequest)
 		return
 	}
 
 	targetUserIDStr := r.PathValue("targetUserId")
 	if _, err := strconv.ParseInt(targetUserIDStr, 10, 64); err != nil {
-		jsonErr(w, "invalid target user id", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid target user id", http.StatusBadRequest)
 		return
 	}
 
 	ctx := r.Context()
 	ch, err := h.repo.GetChannelByID(ctx, channelID)
 	if err != nil {
-		jsonErr(w, "channel not found", http.StatusNotFound)
+		httputil.JSONError(w, "channel not found", http.StatusNotFound)
 		return
 	}
 
 	srv, err := h.repo.GetServerByID(ctx, ch.ServerID)
 	if err != nil {
-		jsonErr(w, "server not found", http.StatusNotFound)
+		httputil.JSONError(w, "server not found", http.StatusNotFound)
 		return
 	}
 
 	ok, err := permissions.HasChannelPermission(ctx, h.repo, ch.ServerID, requesterID, srv.OwnerID, channelID, permissions.PermMuteMembers)
 	if err != nil || !ok {
-		jsonErr(w, "forbidden", http.StatusForbidden)
+		httputil.JSONError(w, "forbidden", http.StatusForbidden)
 		return
 	}
 
@@ -224,7 +226,8 @@ func (h *Handler) MuteParticipant(w http.ResponseWriter, r *http.Request) {
 		"muted":      true,
 	})
 	if err := h.hub.SendToUser(targetUserIDStr, ws.EventVoiceForceMute, payload); err != nil {
-		jsonErr(w, "failed to send mute event", http.StatusInternalServerError)
+		log.Printf("voice handler: failed to send mute event: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -237,47 +240,47 @@ func (h *Handler) KickParticipant(w http.ResponseWriter, r *http.Request) {
 	requesterIDStr := auth.GetUserIDFromContext(r)
 	requesterID, err := strconv.ParseInt(requesterIDStr, 10, 64)
 	if err != nil {
-		jsonErr(w, "unauthorized", http.StatusUnauthorized)
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	channelIDStr := r.PathValue("channelId")
 	channelID, err := strconv.ParseInt(channelIDStr, 10, 64)
 	if err != nil {
-		jsonErr(w, "invalid channel id", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid channel id", http.StatusBadRequest)
 		return
 	}
 
 	targetUserIDStr := r.PathValue("targetUserId")
 	targetUserID, err := strconv.ParseInt(targetUserIDStr, 10, 64)
 	if err != nil {
-		jsonErr(w, "invalid target user id", http.StatusBadRequest)
+		httputil.JSONError(w, "invalid target user id", http.StatusBadRequest)
 		return
 	}
 
 	ctx := r.Context()
 	ch, err := h.repo.GetChannelByID(ctx, channelID)
 	if err != nil {
-		jsonErr(w, "channel not found", http.StatusNotFound)
+		httputil.JSONError(w, "channel not found", http.StatusNotFound)
 		return
 	}
 
 	srv, err := h.repo.GetServerByID(ctx, ch.ServerID)
 	if err != nil {
-		jsonErr(w, "server not found", http.StatusNotFound)
+		httputil.JSONError(w, "server not found", http.StatusNotFound)
 		return
 	}
 
 	ok, err := permissions.HasChannelPermission(ctx, h.repo, ch.ServerID, requesterID, srv.OwnerID, channelID, permissions.PermMoveMembers)
 	if err != nil || !ok {
-		jsonErr(w, "forbidden", http.StatusForbidden)
+		httputil.JSONError(w, "forbidden", http.StatusForbidden)
 		return
 	}
 
 	// Look up target member for the broadcast payload
 	targetMember, err := h.repo.GetMember(ctx, ch.ServerID, targetUserID)
 	if err != nil || targetMember == nil {
-		jsonErr(w, "target member not found", http.StatusNotFound)
+		httputil.JSONError(w, "target member not found", http.StatusNotFound)
 		return
 	}
 
@@ -285,7 +288,8 @@ func (h *Handler) KickParticipant(w http.ResponseWriter, r *http.Request) {
 
 	// Remove from DB and broadcast leave state
 	if err := h.svc.Leave(ctx, channelIDStr, targetUserIDStr); err != nil {
-		jsonErr(w, "failed to remove participant", http.StatusInternalServerError)
+		log.Printf("voice handler: failed to remove participant: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	targetDisplayName := targetMember.DisplayName

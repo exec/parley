@@ -65,7 +65,7 @@ func (h *Handler) CreatePost(w http.ResponseWriter, r *http.Request) {
 		case "forbidden":
 			httputil.JSONError(w, "you do not have permission to create posts in this channel", http.StatusForbidden)
 		default:
-			httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
+			httputil.InternalError(w, err)
 		}
 		return
 	}
@@ -111,7 +111,7 @@ func (h *Handler) ListPosts(w http.ResponseWriter, r *http.Request) {
 		case "channel is not a bin channel":
 			httputil.JSONError(w, err.Error(), http.StatusBadRequest)
 		default:
-			httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
+			httputil.InternalError(w, err)
 		}
 		return
 	}
@@ -135,7 +135,7 @@ func (h *Handler) GetPost(w http.ResponseWriter, r *http.Request) {
 			httputil.JSONError(w, err.Error(), http.StatusNotFound)
 			return
 		}
-		httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 
@@ -182,7 +182,7 @@ func (h *Handler) EditPost(w http.ResponseWriter, r *http.Request) {
 		case "forbidden":
 			httputil.JSONError(w, err.Error(), http.StatusForbidden)
 		default:
-			httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
+			httputil.InternalError(w, err)
 		}
 		return
 	}
@@ -212,7 +212,7 @@ func (h *Handler) DeletePost(w http.ResponseWriter, r *http.Request) {
 		case "forbidden":
 			httputil.JSONError(w, err.Error(), http.StatusForbidden)
 		default:
-			httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
+			httputil.InternalError(w, err)
 		}
 		return
 	}
@@ -232,7 +232,7 @@ func (h *Handler) GetVersions(w http.ResponseWriter, r *http.Request) {
 
 	versions, err := h.service.GetVersions(r.Context(), postID)
 	if err != nil {
-		httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 
@@ -254,7 +254,7 @@ func (h *Handler) GetVersion(w http.ResponseWriter, r *http.Request) {
 			httputil.JSONError(w, err.Error(), http.StatusNotFound)
 			return
 		}
-		httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 
@@ -387,7 +387,7 @@ func (h *Handler) UpdateLineComment(w http.ResponseWriter, r *http.Request) {
 		case "forbidden":
 			httputil.JSONError(w, err.Error(), http.StatusForbidden)
 		default:
-			httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
+			httputil.InternalError(w, err)
 		}
 		return
 	}
@@ -417,7 +417,7 @@ func (h *Handler) DeleteLineComment(w http.ResponseWriter, r *http.Request) {
 		case "forbidden":
 			httputil.JSONError(w, err.Error(), http.StatusForbidden)
 		default:
-			httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
+			httputil.InternalError(w, err)
 		}
 		return
 	}
@@ -462,7 +462,7 @@ func (h *Handler) CreateTag(w http.ResponseWriter, r *http.Request) {
 			httputil.JSONError(w, err.Error(), http.StatusForbidden)
 			return
 		}
-		httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 
@@ -481,7 +481,7 @@ func (h *Handler) GetTags(w http.ResponseWriter, r *http.Request) {
 
 	tags, err := h.service.GetTags(r.Context(), channelID)
 	if err != nil {
-		httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 
@@ -510,7 +510,7 @@ func (h *Handler) DeleteTag(w http.ResponseWriter, r *http.Request) {
 		case "forbidden":
 			httputil.JSONError(w, err.Error(), http.StatusForbidden)
 		default:
-			httputil.JSONError(w, err.Error(), http.StatusInternalServerError)
+			httputil.InternalError(w, err)
 		}
 		return
 	}

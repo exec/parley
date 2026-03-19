@@ -3,13 +3,16 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
+	"parley/internal/auth"
 	"parley/internal/db"
+	"parley/internal/httputil"
 	"parley/internal/permissions"
 )
 
@@ -40,40 +43,32 @@ type AddMemberRequest struct {
 	Nickname string `json:"nickname"`
 }
 
-type ErrorResponse struct {
-	Error   string `json:"error"`
-	Message string `json:"message,omitempty"`
-}
-
 // HTTP Handlers
 
 // CreateServer handles POST /servers
 func (h *Handler) CreateServer(w http.ResponseWriter, r *http.Request) {
 	var req CreateServerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse{Error: "invalid request body"})
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	if req.Name == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse{Error: "server name is required"})
+		httputil.JSONError(w, "server name is required", http.StatusBadRequest)
 		return
 	}
 
 	// Get owner ID from auth context
-	ownerID, ok := r.Context().Value(UserIDKey).(string)
-	if !ok || ownerID == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+	ownerID := auth.GetUserIDFromContext(r)
+	if ownerID == "" {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	server, err := h.service.CreateServer(r.Context(), req.Name, req.IconURL, ownerID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		log.Printf("handler error: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -85,20 +80,18 @@ func (h *Handler) CreateServer(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetServer(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse{Error: "server ID is required"})
+		httputil.JSONError(w, "server ID is required", http.StatusBadRequest)
 		return
 	}
 
 	server, err := h.service.GetServer(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, errors.New("server not found")) {
-			w.WriteHeader(http.StatusNotFound)
-			render.JSON(w, r, ErrorResponse{Error: "server not found"})
+			httputil.JSONError(w, "server not found", http.StatusNotFound)
 			return
 		}
-		w.WriteHeader(http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		log.Printf("handler error: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -108,17 +101,16 @@ func (h *Handler) GetServer(w http.ResponseWriter, r *http.Request) {
 // GetUserServers handles GET /servers
 func (h *Handler) GetUserServers(w http.ResponseWriter, r *http.Request) {
 	// Get user ID from auth context
-	userID, ok := r.Context().Value(UserIDKey).(string)
-	if !ok || userID == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	servers, err := h.service.GetUserServers(r.Context(), userID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		log.Printf("handler error: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -133,43 +125,38 @@ func (h *Handler) GetUserServers(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) UpdateServer(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse{Error: "server ID is required"})
+		httputil.JSONError(w, "server ID is required", http.StatusBadRequest)
 		return
 	}
 
 	var req UpdateServerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse{Error: "invalid request body"})
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	if req.Name == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse{Error: "server name is required"})
+		httputil.JSONError(w, "server name is required", http.StatusBadRequest)
 		return
 	}
 
 	// Verify the user is the owner
 	server, err := h.service.GetServer(r.Context(), id)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		render.JSON(w, r, ErrorResponse{Error: "server not found"})
+		httputil.JSONError(w, "server not found", http.StatusNotFound)
 		return
 	}
 
-	userID, ok := r.Context().Value(UserIDKey).(string)
-	if !ok || userID == "" || server.OwnerID != userID {
-		w.WriteHeader(http.StatusForbidden)
-		render.JSON(w, r, ErrorResponse{Error: "only the server owner can update the server"})
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" || server.OwnerID != userID {
+		httputil.JSONError(w, "only the server owner can update the server", http.StatusForbidden)
 		return
 	}
 
 	updatedServer, err := h.service.UpdateServer(r.Context(), id, req.Name, req.IconURL)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		log.Printf("handler error: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -180,30 +167,27 @@ func (h *Handler) UpdateServer(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) DeleteServer(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse{Error: "server ID is required"})
+		httputil.JSONError(w, "server ID is required", http.StatusBadRequest)
 		return
 	}
 
 	// Verify the user is the owner
 	server, err := h.service.GetServer(r.Context(), id)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		render.JSON(w, r, ErrorResponse{Error: "server not found"})
+		httputil.JSONError(w, "server not found", http.StatusNotFound)
 		return
 	}
 
-	userID, ok := r.Context().Value(UserIDKey).(string)
-	if !ok || userID == "" || server.OwnerID != userID {
-		w.WriteHeader(http.StatusForbidden)
-		render.JSON(w, r, ErrorResponse{Error: "only the server owner can delete the server"})
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" || server.OwnerID != userID {
+		httputil.JSONError(w, "only the server owner can delete the server", http.StatusForbidden)
 		return
 	}
 
 	err = h.service.DeleteServer(r.Context(), id)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		log.Printf("handler error: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -214,36 +198,31 @@ func (h *Handler) DeleteServer(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) AddMember(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "id")
 	if serverID == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse{Error: "server ID is required"})
+		httputil.JSONError(w, "server ID is required", http.StatusBadRequest)
 		return
 	}
 
 	var req AddMemberRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse{Error: "invalid request body"})
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	if req.UserID == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse{Error: "user ID is required"})
+		httputil.JSONError(w, "user ID is required", http.StatusBadRequest)
 		return
 	}
 
 	// Verify the user is the owner or a member
 	server, err := h.service.GetServer(r.Context(), serverID)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		render.JSON(w, r, ErrorResponse{Error: "server not found"})
+		httputil.JSONError(w, "server not found", http.StatusNotFound)
 		return
 	}
 
-	userID, ok := r.Context().Value(UserIDKey).(string)
-	if !ok || userID == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -254,16 +233,15 @@ func (h *Handler) AddMember(w http.ResponseWriter, r *http.Request) {
 		sID, _ := permissions.ParseInt64(serverID)
 		isAdmin, _ := permissions.HasPermission(r.Context(), h.service.Repo(), sID, actorID, ownerID, permissions.PermAdministrator)
 		if !isAdmin {
-			w.WriteHeader(http.StatusForbidden)
-			render.JSON(w, r, ErrorResponse{Error: "Administrator permission required to add bots"})
+			httputil.JSONError(w, "Administrator permission required to add bots", http.StatusForbidden)
 			return
 		}
 	}
 
 	err = h.service.AddMember(r.Context(), serverID, req.UserID, req.Nickname)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		log.Printf("handler error: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -281,55 +259,48 @@ func (h *Handler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 	userID := chi.URLParam(r, "userID")
 
 	if serverID == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse{Error: "server ID is required"})
+		httputil.JSONError(w, "server ID is required", http.StatusBadRequest)
 		return
 	}
 
 	if userID == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse{Error: "user ID is required"})
+		httputil.JSONError(w, "user ID is required", http.StatusBadRequest)
 		return
 	}
 
 	// Verify the user is the owner
 	server, err := h.service.GetServer(r.Context(), serverID)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		render.JSON(w, r, ErrorResponse{Error: "server not found"})
+		httputil.JSONError(w, "server not found", http.StatusNotFound)
 		return
 	}
 
-	currentUserID, ok := r.Context().Value(UserIDKey).(string)
-	if !ok || currentUserID == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+	currentUserID := auth.GetUserIDFromContext(r)
+	if currentUserID == "" {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	// Only owner can remove members (or the member themselves)
 	if server.OwnerID != currentUserID && userID != currentUserID {
-		w.WriteHeader(http.StatusForbidden)
-		render.JSON(w, r, ErrorResponse{Error: "only the server owner or the member themselves can remove members"})
+		httputil.JSONError(w, "only the server owner or the member themselves can remove members", http.StatusForbidden)
 		return
 	}
 
 	// Cannot remove the owner
 	if userID == server.OwnerID {
-		w.WriteHeader(http.StatusForbidden)
-		render.JSON(w, r, ErrorResponse{Error: "cannot remove the server owner"})
+		httputil.JSONError(w, "cannot remove the server owner", http.StatusForbidden)
 		return
 	}
 
 	err = h.service.RemoveMember(r.Context(), serverID, userID)
 	if err != nil {
 		if errors.Is(err, errors.New("member not found")) {
-			w.WriteHeader(http.StatusNotFound)
-			render.JSON(w, r, ErrorResponse{Error: "member not found"})
+			httputil.JSONError(w, "member not found", http.StatusNotFound)
 			return
 		}
-		w.WriteHeader(http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		log.Printf("handler error: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -340,23 +311,20 @@ func (h *Handler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetMembers(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "id")
 	if serverID == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse{Error: "server ID is required"})
+		httputil.JSONError(w, "server ID is required", http.StatusBadRequest)
 		return
 	}
 
-	userID, ok := r.Context().Value(UserIDKey).(string)
-	if !ok || userID == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	// Verify the server exists
 	_, err := h.service.GetServer(r.Context(), serverID)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		render.JSON(w, r, ErrorResponse{Error: "server not found"})
+		httputil.JSONError(w, "server not found", http.StatusNotFound)
 		return
 	}
 
@@ -365,15 +333,14 @@ func (h *Handler) GetMembers(w http.ResponseWriter, r *http.Request) {
 	uIDInt, _ := idToInt64(userID)
 	_, err = h.service.Repo().GetMember(r.Context(), sIDInt, uIDInt)
 	if err != nil {
-		w.WriteHeader(http.StatusForbidden)
-		render.JSON(w, r, ErrorResponse{Error: "you are not a member of this server"})
+		httputil.JSONError(w, "you are not a member of this server", http.StatusForbidden)
 		return
 	}
 
 	members, err := h.service.GetMembersWithRoles(r.Context(), serverID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		log.Printf("handler error: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -388,24 +355,21 @@ func (h *Handler) GetMembers(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) CreateInvite(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "id")
 	if serverID == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse{Error: "server ID is required"})
+		httputil.JSONError(w, "server ID is required", http.StatusBadRequest)
 		return
 	}
 
 	// Verify the user is authenticated
-	userID, ok := r.Context().Value(UserIDKey).(string)
-	if !ok || userID == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	// Verify the server exists
 	_, err := h.service.GetServer(r.Context(), serverID)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		render.JSON(w, r, ErrorResponse{Error: "server not found"})
+		httputil.JSONError(w, "server not found", http.StatusNotFound)
 		return
 	}
 
@@ -414,8 +378,7 @@ func (h *Handler) CreateInvite(w http.ResponseWriter, r *http.Request) {
 	uIDInt, _ := idToInt64(userID)
 	_, err = h.service.Repo().GetMember(r.Context(), sIDInt, uIDInt)
 	if err != nil {
-		w.WriteHeader(http.StatusForbidden)
-		render.JSON(w, r, ErrorResponse{Error: "you are not a member of this server"})
+		httputil.JSONError(w, "you are not a member of this server", http.StatusForbidden)
 		return
 	}
 
@@ -437,8 +400,8 @@ func (h *Handler) CreateInvite(w http.ResponseWriter, r *http.Request) {
 
 	invite, err := h.service.CreateInvite(r.Context(), serverID, userID, body.MaxUses, expiresAt)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		log.Printf("handler error: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -451,8 +414,7 @@ func (h *Handler) CreateInvite(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) PreviewInvite(w http.ResponseWriter, r *http.Request) {
 	code := chi.URLParam(r, "code")
 	if code == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse{Error: "invite code is required"})
+		httputil.JSONError(w, "invite code is required", http.StatusBadRequest)
 		return
 	}
 
@@ -461,8 +423,7 @@ func (h *Handler) PreviewInvite(w http.ResponseWriter, r *http.Request) {
 		// Try as vanity URL
 		server, err = h.service.GetServerByVanityURL(r.Context(), code)
 		if err != nil {
-			w.WriteHeader(http.StatusNotFound)
-			render.JSON(w, r, ErrorResponse{Error: "invite not found or invalid"})
+			httputil.JSONError(w, "invite not found or invalid", http.StatusNotFound)
 			return
 		}
 	}
@@ -475,15 +436,13 @@ func (h *Handler) PreviewInvite(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) JoinInvite(w http.ResponseWriter, r *http.Request) {
 	code := chi.URLParam(r, "code")
 	if code == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse{Error: "invite code is required"})
+		httputil.JSONError(w, "invite code is required", http.StatusBadRequest)
 		return
 	}
 
-	userID, ok := r.Context().Value(UserIDKey).(string)
-	if !ok || userID == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -493,8 +452,7 @@ func (h *Handler) JoinInvite(w http.ResponseWriter, r *http.Request) {
 		// Try as vanity URL
 		server, err = h.service.JoinServerByVanityURL(r.Context(), code, userID)
 		if err != nil {
-			w.WriteHeader(http.StatusNotFound)
-			render.JSON(w, r, ErrorResponse{Error: "invite not found or invalid"})
+			httputil.JSONError(w, "invite not found or invalid", http.StatusNotFound)
 			return
 		}
 	}
@@ -509,23 +467,20 @@ func (h *Handler) JoinInvite(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetServerRoles(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "id")
 	if serverID == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse{Error: "server ID is required"})
+		httputil.JSONError(w, "server ID is required", http.StatusBadRequest)
 		return
 	}
 
-	userID, ok := r.Context().Value(UserIDKey).(string)
-	if !ok || userID == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	// Verify the server exists
 	_, err := h.service.GetServer(r.Context(), serverID)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		render.JSON(w, r, ErrorResponse{Error: "server not found"})
+		httputil.JSONError(w, "server not found", http.StatusNotFound)
 		return
 	}
 
@@ -534,15 +489,14 @@ func (h *Handler) GetServerRoles(w http.ResponseWriter, r *http.Request) {
 	uIDInt, _ := idToInt64(userID)
 	_, err = h.service.Repo().GetMember(r.Context(), sIDInt, uIDInt)
 	if err != nil {
-		w.WriteHeader(http.StatusForbidden)
-		render.JSON(w, r, ErrorResponse{Error: "you are not a member of this server"})
+		httputil.JSONError(w, "you are not a member of this server", http.StatusForbidden)
 		return
 	}
 
 	roles, err := h.service.GetServerRoles(r.Context(), serverID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		log.Printf("handler error: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	if roles == nil {
@@ -555,17 +509,15 @@ func (h *Handler) GetServerRoles(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) CreateServerRole(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "id")
 
-	userID, ok := r.Context().Value(UserIDKey).(string)
-	if !ok || userID == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	server, err := h.service.GetServer(r.Context(), serverID)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		render.JSON(w, r, ErrorResponse{Error: "server not found"})
+		httputil.JSONError(w, "server not found", http.StatusNotFound)
 		return
 	}
 
@@ -576,8 +528,7 @@ func (h *Handler) CreateServerRole(w http.ResponseWriter, r *http.Request) {
 		ownerID, _ := permissions.ParseInt64(server.OwnerID)
 		hasPerm, err := permissions.HasPermission(r.Context(), h.service.Repo(), sID, aID, ownerID, permissions.PermManageRoles)
 		if err != nil || !hasPerm {
-			w.WriteHeader(http.StatusForbidden)
-			render.JSON(w, r, ErrorResponse{Error: "manage roles permission required"})
+			httputil.JSONError(w, "manage roles permission required", http.StatusForbidden)
 			return
 		}
 	}
@@ -588,8 +539,7 @@ func (h *Handler) CreateServerRole(w http.ResponseWriter, r *http.Request) {
 		Permissions int64  `json:"permissions"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse{Error: "invalid request body"})
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -612,8 +562,7 @@ func (h *Handler) CreateServerRole(w http.ResponseWriter, r *http.Request) {
 
 	role, err := h.service.CreateServerRole(r.Context(), serverID, req.Name, req.Color, req.Permissions)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		httputil.JSONError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -626,17 +575,15 @@ func (h *Handler) DeleteServerRole(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "id")
 	roleID := chi.URLParam(r, "roleId")
 
-	userID, ok := r.Context().Value(UserIDKey).(string)
-	if !ok || userID == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	server, err := h.service.GetServer(r.Context(), serverID)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		render.JSON(w, r, ErrorResponse{Error: "server not found"})
+		httputil.JSONError(w, "server not found", http.StatusNotFound)
 		return
 	}
 
@@ -647,8 +594,7 @@ func (h *Handler) DeleteServerRole(w http.ResponseWriter, r *http.Request) {
 		ownerID, _ := permissions.ParseInt64(server.OwnerID)
 		hasPerm, err := permissions.HasPermission(r.Context(), h.service.Repo(), sID, aID, ownerID, permissions.PermManageRoles)
 		if err != nil || !hasPerm {
-			w.WriteHeader(http.StatusForbidden)
-			render.JSON(w, r, ErrorResponse{Error: "manage roles permission required"})
+			httputil.JSONError(w, "manage roles permission required", http.StatusForbidden)
 			return
 		}
 	}
@@ -660,8 +606,7 @@ func (h *Handler) DeleteServerRole(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		for _, role := range roles {
 			if role.ID == rID && role.IsEveryone {
-				w.WriteHeader(http.StatusForbidden)
-				render.JSON(w, r, ErrorResponse{Error: "cannot delete the @everyone role"})
+				httputil.JSONError(w, "cannot delete the @everyone role", http.StatusForbidden)
 				return
 			}
 		}
@@ -673,16 +618,15 @@ func (h *Handler) DeleteServerRole(w http.ResponseWriter, r *http.Request) {
 		actorHighest, _ := h.service.Repo().GetHighestRolePosition(r.Context(), sID, aID)
 		for _, role := range roles {
 			if role.ID == rID && role.Position >= actorHighest {
-				w.WriteHeader(http.StatusForbidden)
-				render.JSON(w, r, ErrorResponse{Error: "cannot delete a role at or above your highest role"})
+				httputil.JSONError(w, "cannot delete a role at or above your highest role", http.StatusForbidden)
 				return
 			}
 		}
 	}
 
 	if err := h.service.DeleteServerRole(r.Context(), serverID, roleID); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		log.Printf("handler error: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -694,17 +638,15 @@ func (h *Handler) UpdateServerRole(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "id")
 	roleID := chi.URLParam(r, "roleId")
 
-	userID, ok := r.Context().Value(UserIDKey).(string)
-	if !ok || userID == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	server, err := h.service.GetServer(r.Context(), serverID)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		render.JSON(w, r, ErrorResponse{Error: "server not found"})
+		httputil.JSONError(w, "server not found", http.StatusNotFound)
 		return
 	}
 
@@ -732,11 +674,10 @@ func (h *Handler) UpdateServerRole(w http.ResponseWriter, r *http.Request) {
 		}
 		hasPerm, err := permissions.HasPermission(r.Context(), h.service.Repo(), sID, aID, ownerID, requiredPerm)
 		if err != nil || !hasPerm {
-			w.WriteHeader(http.StatusForbidden)
 			if isEveryoneRole {
-				render.JSON(w, r, ErrorResponse{Error: "manage server permission required to edit @everyone"})
+				httputil.JSONError(w, "manage server permission required to edit @everyone", http.StatusForbidden)
 			} else {
-				render.JSON(w, r, ErrorResponse{Error: "manage roles permission required"})
+				httputil.JSONError(w, "manage roles permission required", http.StatusForbidden)
 			}
 			return
 		}
@@ -745,8 +686,7 @@ func (h *Handler) UpdateServerRole(w http.ResponseWriter, r *http.Request) {
 		actorHighest, _ := h.service.Repo().GetHighestRolePosition(r.Context(), sID, aID)
 		for _, role := range roles {
 			if role.ID == rID && role.Position >= actorHighest {
-				w.WriteHeader(http.StatusForbidden)
-				render.JSON(w, r, ErrorResponse{Error: "cannot edit a role at or above your highest role"})
+				httputil.JSONError(w, "cannot edit a role at or above your highest role", http.StatusForbidden)
 				return
 			}
 		}
@@ -760,8 +700,7 @@ func (h *Handler) UpdateServerRole(w http.ResponseWriter, r *http.Request) {
 		Position    int    `json:"position"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse{Error: "name is required"})
+		httputil.JSONError(w, "name is required", http.StatusBadRequest)
 		return
 	}
 
@@ -778,8 +717,8 @@ func (h *Handler) UpdateServerRole(w http.ResponseWriter, r *http.Request) {
 
 	role, err := h.service.UpdateServerRole(r.Context(), serverID, roleID, req.Name, req.Color, req.Permissions, req.Hoist, req.Position)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		log.Printf("handler error: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -793,8 +732,8 @@ func (h *Handler) GetMemberRoles(w http.ResponseWriter, r *http.Request) {
 
 	roles, err := h.service.GetMemberRoles(r.Context(), serverID, targetUserID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		log.Printf("handler error: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	if roles == nil {
@@ -808,17 +747,15 @@ func (h *Handler) AssignRoleToMember(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "id")
 	targetUserID := chi.URLParam(r, "userID")
 
-	userID, ok := r.Context().Value(UserIDKey).(string)
-	if !ok || userID == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	server, err := h.service.GetServer(r.Context(), serverID)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		render.JSON(w, r, ErrorResponse{Error: "server not found"})
+		httputil.JSONError(w, "server not found", http.StatusNotFound)
 		return
 	}
 
@@ -829,8 +766,7 @@ func (h *Handler) AssignRoleToMember(w http.ResponseWriter, r *http.Request) {
 		ownerID, _ := permissions.ParseInt64(server.OwnerID)
 		hasPerm, err := permissions.HasPermission(r.Context(), h.service.Repo(), sID, aID, ownerID, permissions.PermManageRoles)
 		if err != nil || !hasPerm {
-			w.WriteHeader(http.StatusForbidden)
-			render.JSON(w, r, ErrorResponse{Error: "manage roles permission required"})
+			httputil.JSONError(w, "manage roles permission required", http.StatusForbidden)
 			return
 		}
 	}
@@ -839,8 +775,7 @@ func (h *Handler) AssignRoleToMember(w http.ResponseWriter, r *http.Request) {
 		RoleID string `json:"role_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.RoleID == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse{Error: "role_id is required"})
+		httputil.JSONError(w, "role_id is required", http.StatusBadRequest)
 		return
 	}
 
@@ -853,16 +788,15 @@ func (h *Handler) AssignRoleToMember(w http.ResponseWriter, r *http.Request) {
 		roles, _ := h.service.Repo().GetServerRoles(r.Context(), sID)
 		for _, role := range roles {
 			if role.ID == rID && role.Position >= actorHighest {
-				w.WriteHeader(http.StatusForbidden)
-				render.JSON(w, r, ErrorResponse{Error: "cannot assign a role at or above your highest role"})
+				httputil.JSONError(w, "cannot assign a role at or above your highest role", http.StatusForbidden)
 				return
 			}
 		}
 	}
 
 	if err := h.service.AssignRoleToMember(r.Context(), serverID, targetUserID, req.RoleID); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		log.Printf("handler error: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -875,17 +809,15 @@ func (h *Handler) RemoveRoleFromMember(w http.ResponseWriter, r *http.Request) {
 	targetUserID := chi.URLParam(r, "userID")
 	roleID := chi.URLParam(r, "roleId")
 
-	userID, ok := r.Context().Value(UserIDKey).(string)
-	if !ok || userID == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	server, err := h.service.GetServer(r.Context(), serverID)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		render.JSON(w, r, ErrorResponse{Error: "server not found"})
+		httputil.JSONError(w, "server not found", http.StatusNotFound)
 		return
 	}
 
@@ -896,8 +828,7 @@ func (h *Handler) RemoveRoleFromMember(w http.ResponseWriter, r *http.Request) {
 		ownerID, _ := permissions.ParseInt64(server.OwnerID)
 		hasPerm, err := permissions.HasPermission(r.Context(), h.service.Repo(), sID, aID, ownerID, permissions.PermManageRoles)
 		if err != nil || !hasPerm {
-			w.WriteHeader(http.StatusForbidden)
-			render.JSON(w, r, ErrorResponse{Error: "manage roles permission required"})
+			httputil.JSONError(w, "manage roles permission required", http.StatusForbidden)
 			return
 		}
 	}
@@ -911,16 +842,15 @@ func (h *Handler) RemoveRoleFromMember(w http.ResponseWriter, r *http.Request) {
 		roles, _ := h.service.Repo().GetServerRoles(r.Context(), sID)
 		for _, role := range roles {
 			if role.ID == rID && role.Position >= actorHighest {
-				w.WriteHeader(http.StatusForbidden)
-				render.JSON(w, r, ErrorResponse{Error: "cannot remove a role at or above your highest role"})
+				httputil.JSONError(w, "cannot remove a role at or above your highest role", http.StatusForbidden)
 				return
 			}
 		}
 	}
 
 	if err := h.service.RemoveRoleFromMember(r.Context(), serverID, targetUserID, roleID); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		log.Printf("handler error: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -933,15 +863,14 @@ func (h *Handler) GetMembersWithRoles(w http.ResponseWriter, r *http.Request) {
 
 	_, err := h.service.GetServer(r.Context(), serverID)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		render.JSON(w, r, ErrorResponse{Error: "server not found"})
+		httputil.JSONError(w, "server not found", http.StatusNotFound)
 		return
 	}
 
 	members, err := h.service.GetMembersWithRoles(r.Context(), serverID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		log.Printf("handler error: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	if members == nil {
@@ -954,33 +883,29 @@ func (h *Handler) GetMembersWithRoles(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) LeaveServer(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "id")
 	if serverID == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse{Error: "server ID is required"})
+		httputil.JSONError(w, "server ID is required", http.StatusBadRequest)
 		return
 	}
 
-	currentUserID, ok := r.Context().Value(UserIDKey).(string)
-	if !ok || currentUserID == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+	currentUserID := auth.GetUserIDFromContext(r)
+	if currentUserID == "" {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	server, err := h.service.GetServer(r.Context(), serverID)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		render.JSON(w, r, ErrorResponse{Error: "server not found"})
+		httputil.JSONError(w, "server not found", http.StatusNotFound)
 		return
 	}
 	if server.OwnerID == currentUserID {
-		w.WriteHeader(http.StatusForbidden)
-		render.JSON(w, r, ErrorResponse{Error: "server owner cannot leave; delete the server instead"})
+		httputil.JSONError(w, "server owner cannot leave; delete the server instead", http.StatusForbidden)
 		return
 	}
 
 	if err := h.service.RemoveMember(r.Context(), serverID, currentUserID); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		log.Printf("handler error: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -991,52 +916,47 @@ func (h *Handler) KickMember(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "id")
 	targetUserID := chi.URLParam(r, "userID")
 
-	currentUserID, ok := r.Context().Value(UserIDKey).(string)
-	if !ok || currentUserID == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+	currentUserID := auth.GetUserIDFromContext(r)
+	if currentUserID == "" {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	server, err := h.service.GetServer(r.Context(), serverID)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		render.JSON(w, r, ErrorResponse{Error: "server not found"})
+		httputil.JSONError(w, "server not found", http.StatusNotFound)
 		return
 	}
 	if targetUserID == server.OwnerID {
-		w.WriteHeader(http.StatusForbidden)
-		render.JSON(w, r, ErrorResponse{Error: "cannot kick the server owner"})
+		httputil.JSONError(w, "cannot kick the server owner", http.StatusForbidden)
 		return
 	}
 	_, allowed, err := h.service.CanKick(r.Context(), serverID, currentUserID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		log.Printf("handler error: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	if !allowed {
-		w.WriteHeader(http.StatusForbidden)
-		render.JSON(w, r, ErrorResponse{Error: "you do not have permission to kick members"})
+		httputil.JSONError(w, "you do not have permission to kick members", http.StatusForbidden)
 		return
 	}
 
 	// Role hierarchy check: actor must outrank target.
 	_, hierarchyOK, err := h.service.RoleHierarchyCheck(r.Context(), serverID, currentUserID, targetUserID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		log.Printf("handler error: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	if !hierarchyOK {
-		w.WriteHeader(http.StatusForbidden)
-		render.JSON(w, r, ErrorResponse{Error: "your role is not high enough to kick this member"})
+		httputil.JSONError(w, "your role is not high enough to kick this member", http.StatusForbidden)
 		return
 	}
 
 	if err := h.service.KickMember(r.Context(), serverID, targetUserID); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		log.Printf("handler error: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -1047,46 +967,41 @@ func (h *Handler) BanMember(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "id")
 	targetUserID := chi.URLParam(r, "userID")
 
-	currentUserID, ok := r.Context().Value(UserIDKey).(string)
-	if !ok || currentUserID == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+	currentUserID := auth.GetUserIDFromContext(r)
+	if currentUserID == "" {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	server, err := h.service.GetServer(r.Context(), serverID)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		render.JSON(w, r, ErrorResponse{Error: "server not found"})
+		httputil.JSONError(w, "server not found", http.StatusNotFound)
 		return
 	}
 	if targetUserID == server.OwnerID {
-		w.WriteHeader(http.StatusForbidden)
-		render.JSON(w, r, ErrorResponse{Error: "cannot ban the server owner"})
+		httputil.JSONError(w, "cannot ban the server owner", http.StatusForbidden)
 		return
 	}
 	_, allowed, err := h.service.CanBan(r.Context(), serverID, currentUserID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		log.Printf("handler error: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	if !allowed {
-		w.WriteHeader(http.StatusForbidden)
-		render.JSON(w, r, ErrorResponse{Error: "you do not have permission to ban members"})
+		httputil.JSONError(w, "you do not have permission to ban members", http.StatusForbidden)
 		return
 	}
 
 	// Role hierarchy check: actor must outrank target.
 	_, hierarchyOK, err := h.service.RoleHierarchyCheck(r.Context(), serverID, currentUserID, targetUserID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		log.Printf("handler error: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	if !hierarchyOK {
-		w.WriteHeader(http.StatusForbidden)
-		render.JSON(w, r, ErrorResponse{Error: "your role is not high enough to ban this member"})
+		httputil.JSONError(w, "your role is not high enough to ban this member", http.StatusForbidden)
 		return
 	}
 
@@ -1096,8 +1011,8 @@ func (h *Handler) BanMember(w http.ResponseWriter, r *http.Request) {
 	json.NewDecoder(r.Body).Decode(&req)
 
 	if err := h.service.BanMember(r.Context(), serverID, targetUserID, currentUserID, req.Reason); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		log.Printf("handler error: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -1107,20 +1022,18 @@ func (h *Handler) BanMember(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetMyPermissions(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "id")
 	if serverID == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse{Error: "server ID is required"})
+		httputil.JSONError(w, "server ID is required", http.StatusBadRequest)
 		return
 	}
-	userID, ok := r.Context().Value(UserIDKey).(string)
-	if !ok || userID == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	perms, isOwner, err := h.service.GetMyPermissions(r.Context(), serverID, userID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		log.Printf("handler error: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	render.JSON(w, r, map[string]interface{}{
@@ -1132,10 +1045,9 @@ func (h *Handler) GetMyPermissions(w http.ResponseWriter, r *http.Request) {
 // ListServerInvites handles GET /servers/:id/invites
 func (h *Handler) ListServerInvites(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "id")
-	userID, ok := r.Context().Value(UserIDKey).(string)
-	if !ok || userID == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	// Check membership
@@ -1143,14 +1055,13 @@ func (h *Handler) ListServerInvites(w http.ResponseWriter, r *http.Request) {
 	uIDInt, _ := idToInt64(userID)
 	_, err := h.service.Repo().GetMember(r.Context(), sIDInt, uIDInt)
 	if err != nil {
-		w.WriteHeader(http.StatusForbidden)
-		render.JSON(w, r, ErrorResponse{Error: "not a member"})
+		httputil.JSONError(w, "not a member", http.StatusForbidden)
 		return
 	}
 	invites, err := h.service.GetServerInvites(r.Context(), serverID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		log.Printf("handler error: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	if invites == nil {
@@ -1163,26 +1074,23 @@ func (h *Handler) ListServerInvites(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) RevokeInvite(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "id")
 	code := chi.URLParam(r, "code")
-	userID, ok := r.Context().Value(UserIDKey).(string)
-	if !ok || userID == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	err := h.service.RevokeInvite(r.Context(), serverID, code, userID)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) || err.Error() == "invite not found" {
-			w.WriteHeader(http.StatusNotFound)
-			render.JSON(w, r, ErrorResponse{Error: "invite not found"})
+			httputil.JSONError(w, "invite not found", http.StatusNotFound)
 			return
 		}
 		if err.Error() == "not a member of this server" {
-			w.WriteHeader(http.StatusForbidden)
-			render.JSON(w, r, ErrorResponse{Error: err.Error()})
+			httputil.JSONError(w, err.Error(), http.StatusForbidden)
 			return
 		}
-		w.WriteHeader(http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		log.Printf("handler error: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -1192,21 +1100,19 @@ func (h *Handler) RevokeInvite(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetInviteMembers(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "id")
 	code := chi.URLParam(r, "code")
-	userID, ok := r.Context().Value(UserIDKey).(string)
-	if !ok || userID == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	members, err := h.service.GetInviteMembers(r.Context(), serverID, code, userID)
 	if err != nil {
 		if err.Error() == "not a member of this server" {
-			w.WriteHeader(http.StatusForbidden)
-			render.JSON(w, r, ErrorResponse{Error: err.Error()})
+			httputil.JSONError(w, err.Error(), http.StatusForbidden)
 			return
 		}
-		w.WriteHeader(http.StatusInternalServerError)
-		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		log.Printf("handler error: %v", err)
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	if members == nil {
@@ -1240,15 +1146,13 @@ func parseDuration(s string) (time.Duration, error) {
 func (h *Handler) SetVanityURL(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "id")
 	if serverID == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse{Error: "server ID is required"})
+		httputil.JSONError(w, "server ID is required", http.StatusBadRequest)
 		return
 	}
 
-	userID, ok := r.Context().Value(UserIDKey).(string)
-	if !ok || userID == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		render.JSON(w, r, ErrorResponse{Error: "unauthorized"})
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -1256,8 +1160,7 @@ func (h *Handler) SetVanityURL(w http.ResponseWriter, r *http.Request) {
 		VanityURL string `json:"vanity_url"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		render.JSON(w, r, ErrorResponse{Error: "invalid request body"})
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -1269,8 +1172,12 @@ func (h *Handler) SetVanityURL(w http.ResponseWriter, r *http.Request) {
 		} else if err.Error() == "server not found" {
 			status = http.StatusNotFound
 		}
-		w.WriteHeader(status)
-		render.JSON(w, r, ErrorResponse{Error: err.Error()})
+		if status == http.StatusInternalServerError {
+			log.Printf("handler error: %v", err)
+			httputil.JSONError(w, "internal server error", status)
+		} else {
+			httputil.JSONError(w, err.Error(), status)
+		}
 		return
 	}
 
