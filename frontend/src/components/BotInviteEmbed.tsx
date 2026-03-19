@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BotInviteInfo, resolveBotInvite, acceptBotInvite } from '../api/bots';
 import { EmbedCard } from './EmbedCard';
+import { PERMISSION_CATEGORIES, permFromNumber } from '../lib/permissions';
 
 interface ServerOption {
   id: number;
@@ -22,12 +23,16 @@ export const BotInviteEmbed: React.FC<Props> = ({ token }) => {
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
   const [error, setError] = useState('');
+  const [grantedPerms, setGrantedPerms] = useState<bigint>(0n);
 
   const isLoggedIn = !!localStorage.getItem('token');
 
   useEffect(() => {
     resolveBotInvite(token)
-      .then(setBot)
+      .then(b => {
+        setBot(b);
+        setGrantedPerms(permFromNumber(b.permissions));
+      })
       .catch(() => setInvalid(true));
   }, [token]);
 
@@ -56,6 +61,10 @@ export const BotInviteEmbed: React.FC<Props> = ({ token }) => {
     return <div style={{ textAlign: 'center', padding: 40, color: 'var(--parley-text-muted,#888)' }}>Loading…</div>;
   }
 
+  const togglePerm = (bit: bigint) => {
+    setGrantedPerms(prev => (prev & bit) !== 0n ? prev & ~bit : prev | bit);
+  };
+
   const initial = bot.display_name.charAt(0).toUpperCase();
 
   const icon = bot.avatar_url
@@ -68,7 +77,7 @@ export const BotInviteEmbed: React.FC<Props> = ({ token }) => {
     setAdding(true);
     setError('');
     try {
-      await acceptBotInvite(token, selectedServer);
+      await acceptBotInvite(token, selectedServer, grantedPerms);
       setAdded(true);
     } catch (e: unknown) {
       const code = (e as { code?: string })?.code;
@@ -115,14 +124,48 @@ export const BotInviteEmbed: React.FC<Props> = ({ token }) => {
     </>
   );
 
+  const permissionsSection = bot.permissions === 0 ? (
+    <p style={{ fontSize: 12, color: 'var(--parley-text-muted,#888)', margin: '0 0 8px' }}>
+      No permissions requested
+    </p>
+  ) : (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--parley-text-muted,#888)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        Requested Permissions
+      </div>
+      {PERMISSION_CATEGORIES.map(cat => {
+        const relevant = cat.permissions.filter(p => (permFromNumber(bot.permissions) & p.bit) !== 0n);
+        if (relevant.length === 0) return null;
+        return (
+          <div key={cat.label} style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 11, color: 'var(--parley-text-muted,#888)', marginBottom: 4 }}>{cat.label}</div>
+            {relevant.map(p => (
+              <label key={p.name} title={p.description} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', marginBottom: 2 }}>
+                <input
+                  type="checkbox"
+                  checked={(grantedPerms & p.bit) !== 0n}
+                  onChange={() => togglePerm(p.bit)}
+                  style={{ cursor: 'pointer' }}
+                />
+                {p.name}
+              </label>
+            ))}
+          </div>
+        );
+      })}
+    </div>
+  );
+
   return (
     <EmbedCard
       icon={icon}
       title={bot.display_name}
       subtitle={`@${bot.username} · AI Chatbot`}
       badge={bot.is_verified}
-      children={serverSelector}
       actions={actions}
-    />
+    >
+      {permissionsSection}
+      {serverSelector}
+    </EmbedCard>
   );
 };
