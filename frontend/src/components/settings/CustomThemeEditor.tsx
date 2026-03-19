@@ -160,7 +160,19 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
             } else if (event.status === 'generating') {
               setAiStatus({ type: 'generating' });
             } else if (event.status === 'done') {
-              setCSS(event.css);
+              let generated: string = event.css;
+              if (bgUrl) {
+                // Re-inject the background image (LLM may omit it on fresh generation)
+                generated = generated.replace(/body\s*\{[^}]*background-image[^}]*\}\n?/g, '');
+                const bgRule = `body { background-image: url("${bgUrl}"); background-size: cover; background-repeat: no-repeat; background-attachment: fixed; }\n`;
+                generated = bgRule + generated;
+                // Re-apply glass preset so duplicates are cleaned and block is last
+                if (glassPreset !== 'solid') {
+                  const vars = buildGlassPreset(baseTheme, glassPreset as GlassPreset);
+                  generated = injectGlassVars(generated, vars);
+                }
+              }
+              setCSS(generated);
               setAiStatus(null);
               return;
             } else if (event.status === 'error') {
