@@ -61,7 +61,6 @@ if [ -n "$PG_HBA" ]; then
     # DigitalOcean VPC typically uses 10.x.x.x ranges
     echo "# Parley API connections - allow all in VPC" >> "$PG_HBA"
     echo "host    all             all             10.0.0.0/8           md5" >> "$PG_HBA"
-    echo "host    all             all             172.16.0.0/12        md5" >> "$PG_HBA"
 fi
 
 # Update postgresql.conf to listen on all interfaces

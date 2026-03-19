@@ -143,8 +143,8 @@ fi
 # Build the Go application
 echo "=== Building Parley API ==="
 cd /parley
-run_with_retry "GONOSUMDB=* go mod download"
-run_with_retry "GONOSUMDB=* go build -mod=mod -o /usr/local/bin/parley-api ./cmd/api"
+run_with_retry "go mod download"
+run_with_retry "go build -mod=readonly -o /usr/local/bin/parley-api ./cmd/api"
 
 # Verify binary was created
 if [ ! -f "/usr/local/bin/parley-api" ]; then
