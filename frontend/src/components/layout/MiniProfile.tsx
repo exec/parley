@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useLayoutEffect, useState } from 'react';
 import MarkdownRenderer from '../ui/MarkdownRenderer';
 import BadgeList from '../ui/BadgeList';
 import './MiniProfile.css';
@@ -64,20 +64,29 @@ const MiniProfile: React.FC<MiniProfileProps> = ({
     return () => document.removeEventListener('keydown', handler);
   }, [onClose]);
 
-  // Clamp position so the popup stays within the viewport
-  const vpW = window.innerWidth;
-  const vpH = window.innerHeight;
-  const popupW = 280;
-  const popupH = 320;
-  const left = Math.max(8, Math.min(position.left, vpW - popupW - 8));
-  const top  = Math.max(8, Math.min(position.top,  vpH - popupH - 8));
+  // Measure actual rendered size before first paint so clamping is exact
+  const [style, setStyle] = useState<React.CSSProperties>({
+    top: position.top,
+    left: position.left,
+    visibility: 'hidden',
+  });
+
+  useLayoutEffect(() => {
+    if (!ref.current) return;
+    const { width, height } = ref.current.getBoundingClientRect();
+    const vpW = window.innerWidth;
+    const vpH = window.innerHeight;
+    const clampedLeft = Math.max(8, Math.min(position.left, vpW - width - 8));
+    const clampedTop  = Math.max(8, Math.min(position.top,  vpH - height - 8));
+    setStyle({ top: clampedTop, left: clampedLeft, visibility: 'visible' });
+  }, [position.left, position.top]);
 
   const displayName = member.display_name || member.nickname || member.username;
   const subName = (member.display_name || member.nickname) ? member.username : null;
   const showAddRole = canManageRoles && !isCurrentUser;
 
   return (
-    <div ref={ref} className="mini-profile" style={{ top, left }}>
+    <div ref={ref} className="mini-profile" style={style}>
       {/* Banner */}
       <div
         className="mini-profile-banner"

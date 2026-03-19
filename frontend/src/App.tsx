@@ -189,8 +189,11 @@ function MainApp() {
   // Reply-to state for nested replies
   const [replyTo, setReplyTo] = useState<Message | null>(null);
 
-  // Sidebar visibility — open by default on desktop, closed on mobile
-  const [showMembers, setShowMembers] = useState(false);
+  // Sidebar visibility — persisted to localStorage
+  const [showMembers, setShowMembers] = useState(() => {
+    const stored = localStorage.getItem('parley:showMembers');
+    return stored !== null ? stored === 'true' : false;
+  });
   const [showChannelList, setShowChannelList] = useState(false); // mobile drawer, starts closed
 
   // Bin channel state
@@ -1021,7 +1024,11 @@ function MainApp() {
           selectChannel(channelId);
         }}
         showMembers={showMembers}
-        onToggleMembers={() => setShowMembers(m => !m)}
+        onToggleMembers={() => setShowMembers(m => {
+          const next = !m;
+          localStorage.setItem('parley:showMembers', String(next));
+          return next;
+        })}
         onToggleChannelList={() => setShowChannelList(c => !c)}
         onUpdateTopic={async (channelId, topic) => {
           const updated = await channelsApi.updateChannel(channelId, activeChannel.name, topic);
