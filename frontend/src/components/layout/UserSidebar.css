@@ -408,6 +408,15 @@
   color: var(--parley-text-muted);
 }
 
+.member-status-text {
+  font-size: 11px;
+  color: var(--parley-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
 .member-item {
   cursor: pointer;
 }

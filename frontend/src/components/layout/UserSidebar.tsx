@@ -261,6 +261,10 @@ const UserSidebar: React.FC<UserSidebarProps> = ({
             )}
           </div>
           {member.nickname && !member.display_name && <div className="member-nickname-text">{member.username}</div>}
+          {(() => {
+            const st = userStatuses?.[member.user_id]?.status_text || member.status_text;
+            return st ? <div className="member-status-text">{st}</div> : null;
+          })()}
         </div>
       </div>
     );
