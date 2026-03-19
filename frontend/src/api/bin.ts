@@ -23,6 +23,7 @@ export interface ListPostsParams {
   offset?: number;
   tag?: string;
   search?: string;
+  sort?: string;
 }
 
 export async function createPost(channelId: string, data: CreatePostData): Promise<BinPost> {
@@ -35,6 +36,7 @@ export async function listPosts(channelId: string, params?: ListPostsParams): Pr
   if (params?.offset) queryParams.append('offset', params.offset.toString());
   if (params?.tag) queryParams.append('tag', params.tag);
   if (params?.search) queryParams.append('search', params.search);
+  if (params?.sort) queryParams.append('sort', params.sort);
   const queryString = queryParams.toString();
   const endpoint = `/channels/${channelId}/posts${queryString ? `?${queryString}` : ''}`;
   return apiClient.get<BinPost[]>(endpoint);

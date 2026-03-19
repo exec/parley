@@ -31,7 +31,7 @@ export const BinChannel: React.FC<BinChannelProps> = ({ channelId, serverId, onO
     setError(null);
     try {
       const [postsResult, tagsResult] = await Promise.allSettled([
-        listPosts(channelId),
+        listPosts(channelId, { sort }),
         getTags(channelId),
       ]);
       if (postsResult.status === 'rejected') {
@@ -44,7 +44,7 @@ export const BinChannel: React.FC<BinChannelProps> = ({ channelId, serverId, onO
     } finally {
       setLoading(false);
     }
-  }, [channelId]);
+  }, [channelId, sort]);
 
   useEffect(() => {
     fetchData();
@@ -63,27 +63,11 @@ export const BinChannel: React.FC<BinChannelProps> = ({ channelId, serverId, onO
   };
 
   const filteredPosts = React.useMemo(() => {
-    let result = posts;
-
-    if (selectedTags.size > 0) {
-      result = result.filter(p =>
-        p.tags && p.tags.some(t => selectedTags.has(t))
-      );
-    }
-
-    result = [...result].sort((a, b) => {
-      if (sort === 'newest') {
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      } else if (sort === 'oldest') {
-        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-      } else {
-        // recently_active: sort by updated_at
-        return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-      }
-    });
-
-    return result;
-  }, [posts, selectedTags, sort]);
+    if (selectedTags.size === 0) return posts;
+    return posts.filter(p =>
+      p.tags && p.tags.some(t => selectedTags.has(t))
+    );
+  }, [posts, selectedTags]);
 
   return (
     <div className="bin-channel">
