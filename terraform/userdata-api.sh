@@ -232,6 +232,18 @@ systemctl enable parley-api.service
 
 # Configure Nginx as reverse proxy
 echo "=== Configuring Nginx ==="
+
+# Write a map to extract the real client IP from Cloudflare's CF-Connecting-IP header.
+# All production traffic arrives through Cloudflare (enforced by DO cloud firewall), so
+# CF-Connecting-IP is always the genuine client IP. Fall back to $remote_addr for
+# direct/health-check traffic that bypasses Cloudflare (e.g. LB probes).
+cat > /etc/nginx/conf.d/cloudflare-real-ip.conf << 'NGXEOF'
+map $http_cf_connecting_ip $real_client_ip {
+    default     $remote_addr;
+    ~.+         $http_cf_connecting_ip;
+}
+NGXEOF
+
 cat > /etc/nginx/sites-available/parley-api <<EOF
 server {
     listen 80;
@@ -240,12 +252,16 @@ server {
     root /var/www/parley;
     index index.html;
 
+    # HSTS — tell browsers to always use HTTPS for this domain for 1 year.
+    # Cloudflare handles TLS termination; this header is forwarded to clients.
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
     # Health check endpoint
     location /health {
         proxy_pass http://127.0.0.1:${PORT};
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Real-IP \$real_client_ip;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
@@ -257,7 +273,7 @@ server {
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection 'upgrade';
         proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Real-IP \$real_client_ip;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_read_timeout 3600s;
@@ -269,7 +285,7 @@ server {
         proxy_pass http://127.0.0.1:${PORT};
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Real-IP \$real_client_ip;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_connect_timeout 60s;
@@ -283,7 +299,7 @@ server {
         proxy_pass http://127.0.0.1:${PORT};
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Real-IP \$real_client_ip;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_connect_timeout 60s;

@@ -446,9 +446,33 @@ func (h *Handler) CreateInvite(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, invite)
 }
 
-// GetInvite handles GET /api/invites/:code
+// PreviewInvite handles GET /api/invites/:code — returns server info without joining.
 // Works for both regular invite codes and server vanity URLs.
-func (h *Handler) GetInvite(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) PreviewInvite(w http.ResponseWriter, r *http.Request) {
+	code := chi.URLParam(r, "code")
+	if code == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		render.JSON(w, r, ErrorResponse{Error: "invite code is required"})
+		return
+	}
+
+	server, err := h.service.GetServerByInviteCode(r.Context(), code)
+	if err != nil {
+		// Try as vanity URL
+		server, err = h.service.GetServerByVanityURL(r.Context(), code)
+		if err != nil {
+			w.WriteHeader(http.StatusNotFound)
+			render.JSON(w, r, ErrorResponse{Error: "invite not found or invalid"})
+			return
+		}
+	}
+
+	render.JSON(w, r, map[string]interface{}{"server": server})
+}
+
+// JoinInvite handles POST /api/invites/:code — joins the server for the authenticated user.
+// Works for both regular invite codes and server vanity URLs.
+func (h *Handler) JoinInvite(w http.ResponseWriter, r *http.Request) {
 	code := chi.URLParam(r, "code")
 	if code == "" {
 		w.WriteHeader(http.StatusBadRequest)

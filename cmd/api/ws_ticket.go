@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -8,12 +9,62 @@ import (
 	"sync"
 	"time"
 
+	goredis "github.com/redis/go-redis/v9"
+
 	"parley/internal/auth"
 )
+
+// ticketIssuer is the interface for issuing and consuming short-lived single-use
+// WebSocket upgrade tickets. Two implementations exist: redisTicketStore (shared
+// across all API nodes — used in production) and ticketStore (in-memory fallback).
+type ticketIssuer interface {
+	Issue(userID string) (string, error)
+	Consume(ticket string) (string, bool)
+}
+
+// ----- Redis implementation (production) -----
+
+// redisTicketStore stores WS tickets in Redis so they survive round-robin routing.
+// Tickets are single-use: Consume atomically reads and deletes the key (GETDEL).
+type redisTicketStore struct {
+	rdb *goredis.Client
+}
+
+func newRedisTicketStore(rdb *goredis.Client) *redisTicketStore {
+	return &redisTicketStore{rdb: rdb}
+}
+
+func (s *redisTicketStore) Issue(userID string) (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	ticket := hex.EncodeToString(b)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := s.rdb.Set(ctx, "parley:ticket:"+ticket, userID, 60*time.Second).Err(); err != nil {
+		return "", err
+	}
+	return ticket, nil
+}
+
+func (s *redisTicketStore) Consume(ticket string) (string, bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	userID, err := s.rdb.GetDel(ctx, "parley:ticket:"+ticket).Result()
+	if err != nil {
+		return "", false
+	}
+	return userID, true
+}
+
+// ----- In-memory implementation (dev / Redis unavailable fallback) -----
 
 // ticketStore is an in-memory store of short-lived single-use WebSocket tickets.
 // A ticket is issued via POST /api/ws-ticket (authenticated) and consumed once
 // during the WebSocket upgrade. This keeps the JWT out of nginx access logs.
+//
+// WARNING: Not safe for multi-node deployments — use redisTicketStore in production.
 type ticketStore struct {
 	mu      sync.Mutex
 	tickets map[string]ticketEntry
@@ -30,7 +81,6 @@ func newTicketStore() *ticketStore {
 	return ts
 }
 
-// Issue generates a random 32-byte (64-char hex) single-use ticket for the given user.
 func (ts *ticketStore) Issue(userID string) (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
@@ -43,8 +93,6 @@ func (ts *ticketStore) Issue(userID string) (string, error) {
 	return ticket, nil
 }
 
-// Consume validates and removes a ticket, returning the associated userID.
-// Returns ("", false) if the ticket is unknown or expired.
 func (ts *ticketStore) Consume(ticket string) (string, bool) {
 	ts.mu.Lock()
 	defer ts.mu.Unlock()
@@ -73,7 +121,7 @@ func (ts *ticketStore) cleanup() {
 
 // handleWsTicket handles POST /api/ws-ticket.
 // Validates the caller's JWT and issues a short-lived single-use ticket for the WS upgrade.
-func handleWsTicket(authService *auth.AuthService, store *ticketStore) http.HandlerFunc {
+func handleWsTicket(authService *auth.AuthService, store ticketIssuer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// The endpoint is registered inside the JWT middleware group, so userID is already validated.
 		userID := auth.GetUserIDFromContext(r)

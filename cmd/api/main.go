@@ -416,8 +416,14 @@ func setupRouter(
 	// CORS middleware
 	router.Use(corsMiddleware())
 
-	// Mount routes
-	tickets := newTicketStore()
+	// Mount routes — use Redis-backed ticket store in production (shared across nodes).
+	// Fall back to in-memory only when Redis is unavailable (dev/single-node).
+	var tickets ticketIssuer
+	if redisHub != nil {
+		tickets = newRedisTicketStore(redisHub.Client())
+	} else {
+		tickets = newTicketStore()
+	}
 	registerRoutes(router, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, tickets, passkeySvc, redisHub, config.OllamaAPIURL, config.OllamaAPIKey, config.OllamaModel, cdnHost, siteURL, botsHandler)
 
 	return router

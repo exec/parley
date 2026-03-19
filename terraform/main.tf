@@ -220,10 +220,13 @@ resource "digitalocean_firewall" "parley_api" {
   tags = ["api"]
 
   # HTTP — Cloudflare IPs and the DO load balancer health-checker
+  # Using load_balancer_uids ensures health-check probes are allowed regardless of
+  # which internal IP the LB uses for probes (not necessarily the public IP).
   inbound_rule {
-    protocol         = "tcp"
-    port_range       = "80"
-    source_addresses = concat(local.cloudflare_ipv4, [digitalocean_loadbalancer.parley_lb.ip])
+    protocol                  = "tcp"
+    port_range                = "80"
+    source_addresses          = local.cloudflare_ipv4
+    source_load_balancer_uids = [digitalocean_loadbalancer.parley_lb.id]
   }
 
   # SSH — admin IP only

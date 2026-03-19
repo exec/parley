@@ -100,17 +100,17 @@ sysctl -w vm.nr_hugepages=512 || true
 echo "=== Installing Redis ==="
 apt-get install -y redis-server
 
-# Configure Redis — bind to loopback + VPC private IP only, require password
+# Configure Redis — bind to loopback + all private IPs, require password
 echo "=== Configuring Redis (VPC-only, authenticated) ==="
-# Detect private VPC IP (second address is the VPC interface on DigitalOcean)
-PRIVATE_IP=$(ip addr show | grep 'inet 10\.' | awk '{print $2}' | cut -d/ -f1 | head -1)
-if [ -z "$PRIVATE_IP" ]; then
-    PRIVATE_IP=$(hostname -I | tr ' ' '\n' | grep '^10\.' | head -1)
+# Collect all private IPs (DigitalOcean droplets have eth0=mgmt 10.x and eth1=VPC 10.x)
+ALL_PRIVATE_IPS=$(ip addr show | grep 'inet 10\.' | awk '{print $2}' | cut -d/ -f1 | tr '\n' ' ' | xargs)
+if [ -z "$ALL_PRIVATE_IPS" ]; then
+    ALL_PRIVATE_IPS=$(hostname -I | tr ' ' '\n' | grep '^10\.' | tr '\n' ' ' | xargs)
 fi
-echo "Detected VPC private IP: $PRIVATE_IP"
+echo "Detected private IPs: $ALL_PRIVATE_IPS"
 
-# Bind to loopback and private VPC IP only (never 0.0.0.0)
-sed -i "s/^bind .*/bind 127.0.0.1 $PRIVATE_IP/" /etc/redis/redis.conf 2>/dev/null || true
+# Bind to loopback and all private IPs (never 0.0.0.0)
+sed -i "s/^bind .*/bind 127.0.0.1 $ALL_PRIVATE_IPS/" /etc/redis/redis.conf 2>/dev/null || true
 # Require password authentication
 sed -i "s/^# requirepass .*/requirepass ${redis_password}/" /etc/redis/redis.conf 2>/dev/null || true
 grep -q "^requirepass" /etc/redis/redis.conf || echo "requirepass ${redis_password}" >> /etc/redis/redis.conf
@@ -159,7 +159,7 @@ cat > /etc/pgbouncer/pgbouncer.ini << 'EOF'
 parley = host=localhost port=5432 dbname=parley
 
 [pgbouncer]
-listen_addr = *
+listen_addr = 0.0.0.0
 listen_port = 6432
 # auth_type = md5 requires PostgreSQL pg_hba.conf to also use md5.
 # Ubuntu 22.04+ PostgreSQL defaults to scram-sha-256. We use scram-sha-256
@@ -196,7 +196,7 @@ chmod 640 /etc/pgbouncer/userlist.txt
 chown postgres:postgres /etc/pgbouncer/userlist.txt
 
 systemctl enable pgbouncer
-systemctl start pgbouncer
+systemctl restart pgbouncer
 echo "PgBouncer listening on port 6432"
 
 echo "=== Database setup complete ==="

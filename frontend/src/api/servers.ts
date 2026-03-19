@@ -101,12 +101,12 @@ export async function getInviteMembers(serverId: string, code: string): Promise<
   return apiClient.get<InviteMember[]>(`/servers/${serverId}/invites/${code}/members`);
 }
 
-export async function getInvite(code: string): Promise<{ invite: Invite; server: Server }> {
-  return apiClient.get<{ invite: Invite; server: Server }>(`/invites/${code}`);
+export async function getInvite(code: string): Promise<{ server: Server }> {
+  return apiClient.get<{ server: Server }>(`/invites/${code}`);
 }
 
 export async function joinServerByInvite(code: string): Promise<Server> {
-  const response = await apiClient.get<{ server: Server; message?: string }>(`/invites/${code}`);
+  const response = await apiClient.post<{ server: Server; message?: string }>(`/invites/${code}`, {});
   return response.server;
 }
 

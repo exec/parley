@@ -101,3 +101,14 @@
 .invite-btn:hover {
   opacity: 0.85;
 }
+
+.invite-btn--secondary {
+  background-color: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+.invite-btn--secondary:hover {
+  opacity: 1;
+  background-color: var(--bg-tertiary);
+}

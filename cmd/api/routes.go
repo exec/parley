@@ -47,7 +47,7 @@ func registerRoutes(
 	spacesClient *spaces.Client,
 	voiceSvc *voice.Service,
 	binService *bin.Service,
-	tickets *ticketStore,
+	tickets ticketIssuer,
 	passkeySvc *passkey.Service,
 	redisHub     *ws.RedisHub,
 	ollamaAPIURL string,
@@ -246,7 +246,9 @@ func registerRoutes(
 			r.Get("/servers/{id}/invites", serverHandler.ListServerInvites)
 			r.Delete("/servers/{id}/invites/{code}", serverHandler.RevokeInvite)
 			r.Get("/servers/{id}/invites/{code}/members", serverHandler.GetInviteMembers)
-			r.With(rateLimitMiddleware(inviteLimiter)).Get("/invites/{code}", serverHandler.GetInvite)
+			// GET previews invite info without joining; POST actually joins.
+			r.With(rateLimitMiddleware(inviteLimiter)).Get("/invites/{code}", serverHandler.PreviewInvite)
+			r.With(rateLimitMiddleware(inviteLimiter)).Post("/invites/{code}", serverHandler.JoinInvite)
 			r.Put("/servers/{id}/vanity", serverHandler.SetVanityURL)
 
 			// Bot routes

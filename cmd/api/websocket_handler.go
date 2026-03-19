@@ -13,7 +13,7 @@ import (
 	ws "parley/internal/websocket"
 )
 
-func handleWebSocket(hub *ws.Hub, authService *auth.AuthService, repo *db.Repository, tickets *ticketStore) http.HandlerFunc {
+func handleWebSocket(hub *ws.Hub, authService *auth.AuthService, repo *db.Repository, tickets ticketIssuer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var userID string
 

@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { joinServerByInvite } from '../api/servers';
+import { getInvite, joinServerByInvite } from '../api/servers';
 import { Server } from '../api/types';
 import './InvitePage.css';
 
 export function InvitePage() {
   const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
+  const [status, setStatus] = useState<'loading' | 'preview' | 'joining' | 'success' | 'error'>('loading');
   const [server, setServer] = useState<Server | null>(null);
   const [error, setError] = useState('');
 
@@ -20,15 +20,15 @@ export function InvitePage() {
 
     const token = localStorage.getItem('token');
     if (!token) {
-      // Not logged in — redirect to login, come back after
       navigate(`/login?redirect=/invite/${code}`);
       return;
     }
 
-    joinServerByInvite(code)
-      .then(srv => {
+    // Preview only — do not join yet
+    getInvite(code)
+      .then(({ server: srv }) => {
         setServer(srv);
-        setStatus('success');
+        setStatus('preview');
       })
       .catch(err => {
         setError(err?.message || 'This invite is invalid or has expired.');
@@ -36,10 +36,47 @@ export function InvitePage() {
       });
   }, [code, navigate]);
 
+  const handleJoin = () => {
+    if (!code) return;
+    setStatus('joining');
+    joinServerByInvite(code)
+      .then(srv => {
+        setServer(srv);
+        setStatus('success');
+      })
+      .catch(err => {
+        setError(err?.message || 'Failed to join server.');
+        setStatus('error');
+      });
+  };
+
   return (
     <div className="invite-page">
       <div className="invite-card">
         {status === 'loading' && (
+          <>
+            <div className="invite-spinner" />
+            <p className="invite-text">Loading invite...</p>
+          </>
+        )}
+
+        {status === 'preview' && server && (
+          <>
+            <div className="invite-server-icon">
+              {server.name.charAt(0).toUpperCase()}
+            </div>
+            <h1 className="invite-title">You've been invited to join</h1>
+            <p className="invite-server-name">{server.name}</p>
+            <button className="invite-btn" onClick={handleJoin}>
+              Accept Invite
+            </button>
+            <button className="invite-btn invite-btn--secondary" onClick={() => navigate('/')}>
+              Decline
+            </button>
+          </>
+        )}
+
+        {status === 'joining' && (
           <>
             <div className="invite-spinner" />
             <p className="invite-text">Joining server...</p>

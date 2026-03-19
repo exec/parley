@@ -3,6 +3,7 @@ package theme
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -46,6 +47,13 @@ func writeErr(w http.ResponseWriter, r *http.Request, code int, msg string) {
 	render.JSON(w, r, errResp{Error: msg})
 }
 
+// internalErr logs the real error server-side and returns a generic 500 to the client,
+// preventing internal details (driver names, SQL syntax) from leaking to attackers.
+func internalErr(w http.ResponseWriter, r *http.Request, err error) {
+	log.Printf("theme handler internal error: %v", err)
+	writeErr(w, r, 500, "internal server error")
+}
+
 func userID(r *http.Request) (int64, bool) {
 	s, ok := r.Context().Value(server.UserIDKey).(string)
 	if !ok || s == "" {
@@ -78,7 +86,7 @@ func (h *Handler) GetPreferences(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		writeErr(w, r, 500, err.Error())
+		internalErr(w, r, err)
 		return
 	}
 	render.JSON(w, r, p)
@@ -108,7 +116,7 @@ func (h *Handler) SetActiveTheme(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, r, 404, "theme not found")
 			return
 		}
-		writeErr(w, r, 500, err.Error())
+		internalErr(w, r, err)
 		return
 	}
 	w.WriteHeader(204)
@@ -195,7 +203,7 @@ func (h *Handler) DeleteTheme(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, r, 404, "theme not found")
 			return
 		}
-		writeErr(w, r, 500, err.Error())
+		internalErr(w, r, err)
 		return
 	}
 	w.WriteHeader(204)
@@ -217,7 +225,7 @@ func (h *Handler) ShareTheme(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, r, 404, "theme not found")
 			return
 		}
-		writeErr(w, r, 500, err.Error())
+		internalErr(w, r, err)
 		return
 	}
 	render.JSON(w, r, map[string]string{"share_url": shareURL})
@@ -230,7 +238,7 @@ func (h *Handler) GetPublicTheme(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, r, 404, "theme not found")
 			return
 		}
-		writeErr(w, r, 500, err.Error())
+		internalErr(w, r, err)
 		return
 	}
 	// Public shared theme — safe to cache briefly (token is immutable content).
@@ -270,7 +278,7 @@ func (h *Handler) GetThemeRepo(w http.ResponseWriter, r *http.Request) {
 	offset := (page - 1) * limit
 	themes, total, err := h.svc.GetPublishedThemes(r.Context(), limit, offset)
 	if err != nil {
-		writeErr(w, r, 500, err.Error())
+		internalErr(w, r, err)
 		return
 	}
 	// Public repo listing — cache briefly so rapid page loads don't hammer the DB.
@@ -300,7 +308,7 @@ func (h *Handler) TogglePublish(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, r, 404, "theme not found")
 			return
 		}
-		writeErr(w, r, 500, err.Error())
+		internalErr(w, r, err)
 		return
 	}
 	w.WriteHeader(204)
@@ -315,7 +323,7 @@ func (h *Handler) ToggleFeature(w http.ResponseWriter, r *http.Request) {
 	}
 	isAdmin, err := h.svc.IsParleyAdmin(r.Context(), uid)
 	if err != nil {
-		writeErr(w, r, 500, err.Error())
+		internalErr(w, r, err)
 		return
 	}
 	if !isAdmin {
@@ -337,7 +345,7 @@ func (h *Handler) ToggleFeature(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, r, 404, "theme not found")
 			return
 		}
-		writeErr(w, r, 500, err.Error())
+		internalErr(w, r, err)
 		return
 	}
 	w.WriteHeader(204)
@@ -366,5 +374,5 @@ func (h *Handler) handleThemeErr(w http.ResponseWriter, r *http.Request, err err
 		writeErr(w, r, 409, "theme already installed")
 		return
 	}
-	writeErr(w, r, 500, err.Error())
+	internalErr(w, r, err)
 }
