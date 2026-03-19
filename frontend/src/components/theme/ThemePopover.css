@@ -3,7 +3,9 @@
 .theme-popover-btn:hover { color: var(--parley-text-normal); }
 .theme-popover {
   position: fixed;
-  background: var(--parley-bg-tertiary); border: 1px solid var(--parley-border);
+  background: var(--parley-panel-bg, var(--parley-bg-tertiary)); border: 1px solid var(--parley-border);
+  backdrop-filter: blur(var(--parley-panel-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
   border-radius: 8px; padding: 8px; min-width: 200px; max-height: 320px;
   overflow-y: auto; z-index: 9999; box-shadow: 0 4px 16px rgba(0,0,0,.4);
 }
