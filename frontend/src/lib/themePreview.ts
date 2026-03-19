@@ -52,17 +52,21 @@ export function buildEmbedPreviewHTML(
     ? `<img src="${esc(avatarUrl)}" class="av">`
     : `<div class="av av-letter">${initial}</div>`;
 
+  // Extract background-image URL from custom CSS so the embed iframe can show it.
+  const bgMatch = customCSS.match(/background-image\s*:\s*url\(\s*["']?([^"')]+)["']?\s*\)/);
+  const bgStyle = bgMatch ? ` style="background-image:url('${esc(bgMatch[1])}');background-size:cover;background-position:center"` : '';
+
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 *{margin:0;padding:0;box-sizing:border-box}
 ${themeVarsCSS(base)}
 html,body{height:100%}
-body{font-family:sans-serif;background:var(--parley-channel-bg,#000);color:var(--parley-text-normal,#fff);display:flex;overflow:hidden}
-.sb{width:32px;background:var(--parley-sidebar,#111);flex-shrink:0}
-.ch{width:84px;background:var(--parley-bg-secondary,#0a0a0a);padding:5px;flex-shrink:0}
+body{font-family:sans-serif;background:var(--parley-app-bg,var(--parley-channel-bg,#000));background-size:cover;background-position:center;color:var(--parley-text-normal,#fff);display:flex;overflow:hidden}
+.sb{width:32px;background:var(--parley-panel-bg,var(--parley-sidebar,#111));backdrop-filter:blur(var(--parley-panel-blur,0px));-webkit-backdrop-filter:blur(var(--parley-panel-blur,0px));flex-shrink:0}
+.ch{width:84px;background:var(--parley-panel-bg,var(--parley-bg-secondary,#0a0a0a));backdrop-filter:blur(var(--parley-panel-blur,0px));-webkit-backdrop-filter:blur(var(--parley-panel-blur,0px));padding:5px;flex-shrink:0}
 .ch h4{font-size:8px;color:var(--parley-text-muted,#666);margin-bottom:4px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
 .c{font-size:9px;color:var(--parley-text-muted,#666);padding:2px 3px;border-radius:2px}
 .c.a{background:var(--parley-bg-hover,#1a1a1a);color:var(--parley-text-normal,#fff)}
-.chat{flex:1;background:var(--parley-channel-bg,#000);padding:7px;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden}
+.chat{flex:1;background:var(--parley-chat-bg,var(--parley-channel-bg,#000));padding:7px;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden}
 .m{margin-bottom:4px;display:flex;align-items:flex-start;gap:5px}
 .av{width:18px;height:18px;border-radius:50%;object-fit:cover;flex-shrink:0}
 .av-letter{background:var(--parley-accent,#888);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff}
@@ -71,7 +75,7 @@ body{font-family:sans-serif;background:var(--parley-channel-bg,#000);color:var(-
 .t{font-size:9px;color:var(--parley-text-normal,#eee)}
 .inp{background:var(--parley-input,#111);border-radius:3px;padding:3px 6px;font-size:9px;color:var(--parley-text-muted,#666)}
 </style><style>${safeCss}</style></head>
-<body data-theme="${esc(base)}">
+<body data-theme="${esc(base)}"${bgStyle}>
 <div class="sb"></div>
 <div class="ch"><h4>channels</h4><div class="c a"># general</div><div class="c"># random</div><div class="c"># memes</div></div>
 <div class="chat">
