@@ -84,6 +84,29 @@ jobs:
             export PATH=$PATH:/usr/local/go/bin
             cd /parley && git pull origin main
             go build -mod=mod -o /usr/local/bin/parley-admin ./cmd/admin
+            if [ ! -f /etc/systemd/system/parley-admin.service ]; then
+              cat > /etc/systemd/system/parley-admin.service <<EOF
+[Unit]
+Description=Parley Admin Panel
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/parley
+EnvironmentFile=/etc/parley/admin-env
+ExecStart=/usr/local/bin/parley-admin serve
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+              systemctl daemon-reload
+              systemctl enable parley-admin
+            fi
             systemctl restart parley-admin
             echo OK
           '
