@@ -70,8 +70,25 @@
   border: 3px solid var(--parley-bg-secondary);
 }
 
-.mini-profile-status-dot.online  { background: var(--parley-green); }
-.mini-profile-status-dot.offline { background: var(--parley-text-muted); }
+.mini-profile-status-dot.online   { background: var(--parley-green); }
+.mini-profile-status-dot.offline  { background: var(--parley-text-muted); }
+.mini-profile-status-dot.dnd      { background-color: var(--parley-danger, #f04747) !important; }
+.mini-profile-status-dot.afk      { background-color: var(--parley-yellow, #faa61a) !important; }
+.mini-profile-status-dot.invisible {
+  background-color: transparent !important;
+  border: 3px solid var(--parley-gray, #747f8d) !important;
+}
+
+.mini-profile-status-text {
+  font-size: 12px;
+  color: var(--parley-text-muted);
+  margin-top: 2px;
+  font-style: italic;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .mini-profile-name-row {
   display: flex;

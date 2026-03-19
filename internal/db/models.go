@@ -37,6 +37,8 @@ type User struct {
 	Badges                  int        `json:"badges" db:"badges"`
 	RegistrationIP          string     `json:"registration_ip,omitempty" db:"registration_ip"`
 	LastSeenIP              string     `json:"last_seen_ip,omitempty" db:"last_seen_ip"`
+	StatusType              string     `json:"status_type" db:"status_type"`
+	StatusText              string     `json:"status_text" db:"status_text"`
 	CreatedAt               time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt               time.Time  `json:"updated_at" db:"updated_at"`
 }

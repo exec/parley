@@ -266,6 +266,7 @@ func registerRoutes(
 			// User routes
 			r.Get("/users/search", handleUserSearch(repo))
 			r.Get("/users/{id}", handleGetUser(repo))
+			r.Patch("/users/@me/status", handleUpdateStatus(authService, hub))
 
 			// Developer API key routes
 			r.Get("/developer/keys", handleListAPIKeys(repo))

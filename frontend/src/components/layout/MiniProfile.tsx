@@ -21,6 +21,8 @@ interface MiniProfileMember {
   bio?: string;
   badges?: number;
   roles?: Role[];
+  status_type?: string;
+  status_text?: string;
 }
 
 interface MiniProfileProps {
@@ -102,7 +104,7 @@ const MiniProfile: React.FC<MiniProfileProps> = ({
               : <span>{member.username.charAt(0).toUpperCase()}</span>
             }
           </div>
-          <span className={`mini-profile-status-dot ${isOnline ? 'online' : 'offline'}`} />
+          <span className={`mini-profile-status-dot ${member.status_type || (isOnline ? 'online' : 'offline')}`} />
         </div>
       </div>
 
@@ -119,6 +121,9 @@ const MiniProfile: React.FC<MiniProfileProps> = ({
             </div>
           )}
         </div>
+        {member.status_text && (
+          <div className="mini-profile-status-text">{member.status_text}</div>
+        )}
         {member.bio && <div className="mini-profile-bio"><MarkdownRenderer content={member.bio} mode="bio" /></div>}
 
         {!hideRoles && (

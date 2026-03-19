@@ -22,6 +22,7 @@ import { CSS } from '@dnd-kit/utilities';
 import './ChannelList.css';
 import { ChannelOrder } from '../../api/channels';
 import { ThemePopover } from '../theme/ThemePopover';
+import { updateStatus, StatusType } from '../../api/status';
 
 // ---- local types ----
 interface Channel {
@@ -39,27 +40,158 @@ interface User {
   display_name?: string;
   avatar?: string;
   avatar_url?: string;
+  status_type?: string;
+  status_text?: string;
 }
 
 // ---- context menus ----
 
+const STATUS_OPTIONS: { type: StatusType; label: string; color: string }[] = [
+  { type: 'online',    label: 'Online',          color: 'var(--parley-green, #43b581)' },
+  { type: 'afk',      label: 'Away',             color: 'var(--parley-yellow, #faa61a)' },
+  { type: 'dnd',      label: 'Do Not Disturb',   color: 'var(--parley-danger, #f04747)' },
+  { type: 'invisible',label: 'Invisible',         color: 'var(--parley-gray, #747f8d)' },
+];
+
 const UserContextMenu: React.FC<{
   position: { top: number; left: number };
+  currentUser?: { id: string; username: string; display_name?: string; avatar_url?: string };
+  currentStatusType?: string;
+  currentStatusText?: string;
   onClose: () => void;
   onSettings: () => void;
   onLogout: () => void;
-}> = ({ position, onClose, onSettings, onLogout }) => {
+  onStatusChange?: (statusType: StatusType, statusText: string) => void;
+}> = ({ position, currentUser, currentStatusType, currentStatusText, onClose, onSettings, onLogout, onStatusChange }) => {
   const ref = useRef<HTMLDivElement>(null);
+  const [statusText, setStatusText] = useState(currentStatusText || '');
+  const [activeStatus, setActiveStatus] = useState<StatusType>((currentStatusType as StatusType) || 'online');
+  const [saving, setSaving] = useState(false);
+
   useEffect(() => {
-    const handle = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose(); };
+    setStatusText(currentStatusText || '');
+    setActiveStatus((currentStatusType as StatusType) || 'online');
+  }, [currentStatusType, currentStatusText]);
+
+  useEffect(() => {
+    const handle = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
     document.addEventListener('mousedown', handle);
     return () => document.removeEventListener('mousedown', handle);
   }, [onClose]);
+
+  const handleStatusTypeClick = async (type: StatusType) => {
+    setActiveStatus(type);
+    setSaving(true);
+    try {
+      await updateStatus(type, statusText);
+      onStatusChange?.(type, statusText);
+    } catch (e) {
+      console.error('Failed to update status', e);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleStatusTextBlur = async () => {
+    setSaving(true);
+    try {
+      await updateStatus(activeStatus, statusText);
+      onStatusChange?.(activeStatus, statusText);
+    } catch (e) {
+      console.error('Failed to update status text', e);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleStatusTextKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      (e.target as HTMLInputElement).blur();
+    }
+    if (e.key === 'Escape') {
+      onClose();
+    }
+  };
+
   return (
-    <div ref={ref} className="cl-user-context-menu" style={{ bottom: `calc(100vh - ${position.top}px)`, left: position.left }}>
-      <button className="cl-user-context-item" onClick={() => { onSettings(); onClose(); }}>User Settings</button>
-      <div className="cl-user-context-divider" />
-      <button className="cl-user-context-item danger" onClick={() => { onLogout(); onClose(); }}>Log Out</button>
+    <div
+      ref={ref}
+      className="cl-user-context-menu"
+      style={{ bottom: `calc(100vh - ${position.top}px)`, left: position.left }}
+      onClick={e => e.stopPropagation()}
+    >
+      {/* User identity header */}
+      <div className="cl-ucm-header">
+        <div className="cl-ucm-avatar">
+          {currentUser?.avatar_url
+            ? <img src={currentUser.avatar_url} alt={currentUser.username} />
+            : <span>{(currentUser?.display_name || currentUser?.username || 'U').charAt(0).toUpperCase()}</span>
+          }
+          <span className={`cl-ucm-status-badge status-${activeStatus}`} />
+        </div>
+        <div className="cl-ucm-identity">
+          <div className="cl-ucm-displayname">{currentUser?.display_name || currentUser?.username || 'User'}</div>
+          <div className="cl-ucm-username">@{currentUser?.username}</div>
+        </div>
+      </div>
+
+      <div className="cl-ucm-divider" />
+
+      {/* Status type selector */}
+      <div className="cl-ucm-section-label">Set Status</div>
+      <div className="cl-ucm-status-grid">
+        {STATUS_OPTIONS.map(opt => (
+          <button
+            key={opt.type}
+            className={`cl-ucm-status-opt${activeStatus === opt.type ? ' active' : ''}`}
+            onClick={() => handleStatusTypeClick(opt.type)}
+            title={opt.label}
+          >
+            <span
+              className={`cl-ucm-status-dot ${opt.type === 'invisible' ? 'invisible' : ''}`}
+              style={opt.type !== 'invisible' ? { backgroundColor: opt.color } : { borderColor: opt.color }}
+            />
+            <span className="cl-ucm-status-label">{opt.label}</span>
+            {activeStatus === opt.type && (
+              <span className="cl-ucm-status-check">✓</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Custom status text */}
+      <div className="cl-ucm-status-input-wrap">
+        <span className="cl-ucm-status-input-icon">💬</span>
+        <input
+          className="cl-ucm-status-input"
+          type="text"
+          placeholder="What's on your mind?"
+          value={statusText}
+          onChange={e => setStatusText(e.target.value.slice(0, 128))}
+          onBlur={handleStatusTextBlur}
+          onKeyDown={handleStatusTextKeyDown}
+          maxLength={128}
+        />
+        {saving && <span className="cl-ucm-saving">···</span>}
+      </div>
+
+      <div className="cl-ucm-divider" />
+
+      {/* Actions */}
+      <button className="cl-user-context-item" onClick={() => { onSettings(); onClose(); }}>
+        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+          <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+        </svg>
+        User Settings
+      </button>
+      <button className="cl-user-context-item danger" onClick={() => { onLogout(); onClose(); }}>
+        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+          <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
+        </svg>
+        Log Out
+      </button>
     </div>
   );
 };
@@ -352,6 +484,8 @@ interface ChannelListProps {
   onVcScreenShareToggle?: () => void;
   onVcLeave?: () => void;
   onVcNavigate?: () => void;
+  userStatuses?: Record<string, { status_type: string; status_text: string }>;
+  onStatusChange?: (statusType: StatusType, statusText: string) => void;
 }
 
 // ---- main component ----
@@ -366,6 +500,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
   isOpen = true,
   vcConnected, vcMuted, vcDeafened, vcVideoEnabled, vcScreenSharing,
   onVcMuteToggle, onVcDeafenToggle, onVcVideoToggle, onVcScreenShareToggle, onVcLeave, onVcNavigate,
+  userStatuses, onStatusChange,
 }) => {
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [hoveredChannel, setHoveredChannel] = useState<string | null>(null);
@@ -608,32 +743,48 @@ const ChannelList: React.FC<ChannelListProps> = ({
         </div>
       )}
 
-      <div className="user-area clickable" onClick={e => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setUserContextMenu({ top: r.top, left: r.left }); }} title="Click for user settings">
-        <div className="user-info">
-          <div className="user-avatar-wrap">
-            <div className="user-avatar">
-              {currentUser?.avatar_url
-                ? <img src={currentUser.avatar_url} alt={currentUser.username} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-                : <span className="user-avatar-placeholder">{currentUser?.username?.charAt(0).toUpperCase() || 'U'}</span>
-              }
+      {(() => {
+        const myStatus = userStatuses?.[currentUser?.id || '']?.status_type || currentUser?.status_type || 'online';
+        const myStatusText = userStatuses?.[currentUser?.id || '']?.status_text || currentUser?.status_text || '';
+        const statusLabel = myStatus === 'dnd' ? 'Do Not Disturb' : myStatus === 'afk' ? 'Away' : myStatus === 'invisible' ? 'Invisible' : 'Online';
+        return (
+          <div className="user-area clickable" onClick={e => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setUserContextMenu({ top: r.top, left: r.left }); }} title="Click for user settings">
+            <div className="user-info">
+              <div className="user-avatar-wrap">
+                <div className="user-avatar">
+                  {currentUser?.avatar_url
+                    ? <img src={currentUser.avatar_url} alt={currentUser.username} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                    : <span className="user-avatar-placeholder">{currentUser?.username?.charAt(0).toUpperCase() || 'U'}</span>
+                  }
+                </div>
+                <span className={`user-status-dot ${myStatus}`} />
+              </div>
+              <div className="user-details">
+                <div className="username">{currentUser?.display_name || currentUser?.username || 'User'}</div>
+                <div className="user-status">{myStatusText || statusLabel}</div>
+              </div>
+              <span onClick={e => e.stopPropagation()}><ThemePopover onOpenSettings={() => onOpenSettings?.()} /></span>
+              <div className="cl-settings-icon" title="User settings">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+                  <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+                </svg>
+              </div>
             </div>
-            <span className="user-status-dot online" />
           </div>
-          <div className="user-details">
-            <div className="username">{currentUser?.display_name || currentUser?.username || 'User'}</div>
-            <div className="user-status">Online</div>
-          </div>
-          <span onClick={e => e.stopPropagation()}><ThemePopover onOpenSettings={() => onOpenSettings?.()} /></span>
-          <div className="cl-settings-icon" title="User settings">
-            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
-              <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
-            </svg>
-          </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {userContextMenu && (
-        <UserContextMenu position={userContextMenu} onClose={() => setUserContextMenu(null)} onSettings={() => onOpenSettings?.()} onLogout={() => onLogout?.()} />
+        <UserContextMenu
+          position={userContextMenu}
+          currentUser={currentUser}
+          currentStatusType={userStatuses?.[currentUser?.id || '']?.status_type || currentUser?.status_type || 'online'}
+          currentStatusText={userStatuses?.[currentUser?.id || '']?.status_text || currentUser?.status_text || ''}
+          onClose={() => setUserContextMenu(null)}
+          onSettings={() => onOpenSettings?.()}
+          onLogout={() => onLogout?.()}
+          onStatusChange={onStatusChange}
+        />
       )}
       {serverContextMenu && (
         <ServerContextMenu position={serverContextMenu} onClose={() => setServerContextMenu(null)} onSettings={onServerSettings} onLeave={onLeaveServer} />

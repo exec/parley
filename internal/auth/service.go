@@ -34,6 +34,8 @@ type User struct {
 	PhoneNumber   string `json:"phone_number,omitempty"`
 	PhoneVerified bool   `json:"phone_verified"`
 	HasPassword   bool   `json:"has_password"`
+	StatusType    string `json:"status_type,omitempty"`
+	StatusText    string `json:"status_text,omitempty"`
 }
 
 // AuthService handles authentication operations
@@ -207,6 +209,8 @@ func dbUserToUser(dbUser *db.User, id string) User {
 		PhoneNumber:   dbUser.PhoneNumber,
 		PhoneVerified: dbUser.PhoneVerified,
 		HasPassword:   dbUser.PasswordHash != "!",
+		StatusType:    dbUser.StatusType,
+		StatusText:    dbUser.StatusText,
 	}
 }
 
@@ -218,6 +222,22 @@ func (s *AuthService) RemovePassword(ctx context.Context, userIDStr string) erro
 		return errors.New("invalid user ID")
 	}
 	return s.repo.UpdatePasswordHash(ctx, userID, "!")
+}
+
+// UpdateStatus updates a user's status type and status text.
+func (s *AuthService) UpdateStatus(ctx context.Context, userIDStr, statusType, statusText string) error {
+	userID, err := strconv.ParseInt(userIDStr, 10, 64)
+	if err != nil {
+		return errors.New("invalid user ID")
+	}
+	// Validate status_type
+	switch statusType {
+	case "online", "dnd", "afk", "invisible":
+		// valid
+	default:
+		return errors.New("invalid status type")
+	}
+	return s.repo.UpdateUserStatus(ctx, userID, statusType, statusText)
 }
 
 // Login authenticates a user and returns a token

@@ -212,6 +212,9 @@ function MainApp() {
   // Online presence: set of user IDs currently connected via WebSocket
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
 
+  // User statuses: userId → { status_type, status_text }
+  const [userStatuses, setUserStatuses] = useState<Record<string, { status_type: string; status_text: string }>>({});
+
   // Friends view toggle
   const [activeFriendsView, setActiveFriendsView] = useState(false);
 
@@ -574,6 +577,20 @@ function MainApp() {
     setOnlineUsers(new Set(userIds));
   }, []);
 
+  const handleUserStatusUpdate = useCallback((userId: string, statusType: string, statusText: string) => {
+    setUserStatuses(prev => ({ ...prev, [userId]: { status_type: statusType, status_text: statusText } }));
+  }, []);
+
+  // Seed current user's status from their profile on load
+  useEffect(() => {
+    if (currentUser?.id && currentUser.status_type) {
+      setUserStatuses(prev => ({
+        ...prev,
+        [currentUser.id]: { status_type: currentUser.status_type!, status_text: currentUser.status_text || '' },
+      }));
+    }
+  }, [currentUser?.id, currentUser?.status_type]);
+
   const { sendTyping } = useWebSocket({
     onMessage: handleReceiveMessage,
     onDmMessage: handleReceiveDmMessage,
@@ -585,6 +602,7 @@ function MainApp() {
     onUserOnline: handleUserOnline,
     onUserOffline: handleUserOffline,
     onPresenceSnapshot: handlePresenceSnapshot,
+    onUserStatusUpdate: handleUserStatusUpdate,
     onMessageUpdate: receiveMessageUpdate,
     onMessageDelete: receiveMessageDelete,
     onReactionUpdate: applyReactionUpdate,
@@ -729,6 +747,12 @@ function MainApp() {
       onVcNavigate={() => { if (activeVoiceChannel) selectChannel(activeVoiceChannel); }}
       onReorderChannels={reorderChannels}
       onVcParticipantClick={handleVcParticipantClick}
+      userStatuses={userStatuses}
+      onStatusChange={(type, text) => {
+        if (currentUser?.id) {
+          setUserStatuses(prev => ({ ...prev, [currentUser.id]: { status_type: type, status_text: text } }));
+        }
+      }}
     />
   ) : (
     <DmPanel
@@ -808,6 +832,7 @@ function MainApp() {
             serversApi.banMember(activeServer.id, userId).catch(console.error);
           } : undefined}
           isOpen={showMembers}
+          userStatuses={userStatuses}
         />
       );
     }

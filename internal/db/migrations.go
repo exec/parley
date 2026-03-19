@@ -710,6 +710,11 @@ CREATE INDEX IF NOT EXISTS idx_server_members_invite_code ON server_members(invi
 ALTER TABLE passkeys
     ADD COLUMN IF NOT EXISTS backup_eligible BOOLEAN NOT NULL DEFAULT false,
     ADD COLUMN IF NOT EXISTS backup_state    BOOLEAN NOT NULL DEFAULT false;`,
+
+	`-- Add user status columns
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS status_type VARCHAR(16) NOT NULL DEFAULT 'online',
+  ADD COLUMN IF NOT EXISTS status_text VARCHAR(128) NOT NULL DEFAULT '';`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

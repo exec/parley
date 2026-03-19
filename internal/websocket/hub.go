@@ -423,6 +423,25 @@ func (h *Hub) broadcastToAllLocal(messageType string, payload []byte) {
 	}
 }
 
+// BroadcastStatusUpdate broadcasts a USER_STATUS_UPDATE event to all clients.
+func (h *Hub) BroadcastStatusUpdate(userID, statusType, statusText string) {
+	payload, err := json.Marshal(map[string]string{
+		"user_id":     userID,
+		"status_type": statusType,
+		"status_text": statusText,
+	})
+	if err != nil {
+		return
+	}
+	h.broadcastToAllLocal(EventUserStatusUpdate, payload)
+	h.mu.RLock()
+	pub := h.publisher
+	h.mu.RUnlock()
+	if pub != nil {
+		pub.PublishGlobal(EventUserStatusUpdate, payload)
+	}
+}
+
 // BroadcastLocalToChannel sends to local clients subscribed to a channel ONLY.
 // No Redis publish — use this when delivering events received from Redis to avoid
 // the infinite re-broadcast loop that would occur if we published back to Redis.

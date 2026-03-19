@@ -48,6 +48,9 @@ const (
 	// Bot events
 	EventBotStatusUpdate = "BOT_STATUS_UPDATE"
 
+	// Status events
+	EventUserStatusUpdate = "USER_STATUS_UPDATE"
+
 	// Friend events
 	EventFriendRequest = "FRIEND_REQUEST"
 	EventFriendAccept  = "FRIEND_ACCEPT"

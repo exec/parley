@@ -11,6 +11,8 @@ export interface User {
   phone_number?: string;
   phone_verified?: boolean;
   has_password?: boolean;
+  status_type?: 'online' | 'dnd' | 'afk' | 'invisible';
+  status_text?: string;
 }
 
 export interface Role {
@@ -51,6 +53,8 @@ export interface ServerMember {
   is_bot?: boolean;
   bot_degraded?: boolean;
   invite_code?: string;
+  status_type?: 'online' | 'dnd' | 'afk' | 'invisible';
+  status_text?: string;
 }
 
 export interface Channel {
@@ -143,6 +147,8 @@ export interface PublicUser {
   banner_url?: string;
   bio?: string;
   badges?: number;
+  status_type?: 'online' | 'dnd' | 'afk' | 'invisible';
+  status_text?: string;
 }
 
 export interface BinPost {

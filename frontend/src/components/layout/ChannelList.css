@@ -463,53 +463,251 @@
   color: var(--text-primary);
 }
 
-/* User context menu (ChannelList) */
+/* ─── Redesigned User Context Menu ─────────────────────────────────────────── */
+
 .cl-user-context-menu {
   position: fixed;
-  background-color: var(--parley-panel-bg, var(--bg-tertiary));
-  backdrop-filter: blur(var(--parley-panel-blur, 0px));
-  -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
-  border: 1px solid var(--parley-border, var(--border));
-  border-radius: 4px;
-  padding: 4px;
-  min-width: 180px;
+  min-width: 260px;
+  max-width: 300px;
+  background: var(--parley-bg-primary, #12121f);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
   z-index: 1000;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  animation: cl-ucm-in 0.15s ease-out;
+}
+
+@keyframes cl-ucm-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.cl-ucm-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px 12px;
+}
+
+.cl-ucm-avatar {
+  position: relative;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+}
+
+.cl-ucm-avatar img,
+.cl-ucm-avatar span {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--parley-bg-secondary, #1a1a2e);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--parley-text-primary, #e0e0e0);
+}
+
+.cl-ucm-status-badge {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--parley-bg-primary, #12121f);
+}
+
+.cl-ucm-status-badge.status-online    { background: var(--parley-green, #43b581); }
+.cl-ucm-status-badge.status-dnd       { background: var(--parley-danger, #f04747); }
+.cl-ucm-status-badge.status-afk       { background: var(--parley-yellow, #faa61a); }
+.cl-ucm-status-badge.status-offline   { background: var(--parley-gray, #747f8d); }
+.cl-ucm-status-badge.status-invisible {
+  background: transparent;
+  border-color: var(--parley-gray, #747f8d);
+}
+
+.cl-ucm-identity {
+  min-width: 0;
+}
+
+.cl-ucm-displayname {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--parley-text-primary, #e0e0e0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cl-ucm-username {
+  font-size: 12px;
+  color: var(--parley-text-muted, #72767d);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cl-ucm-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+  margin: 0;
+}
+
+.cl-ucm-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--parley-text-muted, #72767d);
+  padding: 10px 16px 6px;
+}
+
+.cl-ucm-status-grid {
+  display: flex;
+  flex-direction: column;
+  padding: 0 8px 6px;
+  gap: 2px;
+}
+
+.cl-ucm-status-opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease;
+  width: 100%;
+}
+
+.cl-ucm-status-opt:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.cl-ucm-status-opt.active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.cl-ucm-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.cl-ucm-status-dot.invisible {
+  background: transparent !important;
+  border: 2px solid var(--parley-gray, #747f8d);
+}
+
+.cl-ucm-status-label {
+  flex: 1;
+  font-size: 13px;
+  color: var(--parley-text-primary, #e0e0e0);
+}
+
+.cl-ucm-status-check {
+  font-size: 12px;
+  color: var(--parley-accent, #7289da);
+  font-weight: 700;
+}
+
+.cl-ucm-status-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 8px 8px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  transition: border-color 0.15s;
+}
+
+.cl-ucm-status-input-wrap:focus-within {
+  border-color: var(--parley-accent, #7289da);
+}
+
+.cl-ucm-status-input-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.cl-ucm-status-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 13px;
+  color: var(--parley-text-primary, #e0e0e0);
+  min-width: 0;
+}
+
+.cl-ucm-status-input::placeholder {
+  color: var(--parley-text-muted, #72767d);
+}
+
+.cl-ucm-saving {
+  font-size: 14px;
+  color: var(--parley-text-muted, #72767d);
+  animation: cl-ucm-pulse 1s infinite;
+}
+
+@keyframes cl-ucm-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
 }
 
 .cl-user-context-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   width: 100%;
-  background: none;
+  padding: 10px 16px;
   border: none;
-  padding: 8px 12px;
-  text-align: left;
+  background: transparent;
+  color: var(--parley-text-secondary, #b9bbbe);
   font-size: 13px;
-  color: var(--text-secondary);
   cursor: pointer;
-  border-radius: 3px;
+  text-align: left;
+  transition: background 0.12s ease, color 0.12s ease;
   font-family: inherit;
-  transition: all 0.1s ease;
 }
 
 .cl-user-context-item:hover {
-  background-color: var(--accent);
-  color: var(--parley-text-normal);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--parley-text-primary, #e0e0e0);
 }
 
 .cl-user-context-item.danger {
-  color: var(--parley-danger);
+  color: var(--parley-danger, #f04747);
 }
 
 .cl-user-context-item.danger:hover {
-  background-color: var(--parley-danger);
-  color: #fff;
+  background: rgba(240, 71, 71, 0.1);
+  color: var(--parley-danger, #f04747);
 }
 
 .cl-user-context-divider {
   height: 1px;
-  background-color: var(--border);
-  margin: 4px 0;
+  background: rgba(255, 255, 255, 0.06);
+  margin: 0;
+}
+
+/* Update status dot colors in the user area */
+.user-status-dot.dnd        { background-color: var(--parley-danger, #f04747); }
+.user-status-dot.afk        { background-color: var(--parley-yellow, #faa61a); }
+.user-status-dot.invisible  {
+  background-color: transparent;
+  border-color: var(--parley-gray, #747f8d);
 }
 
 /* Server context menu (ChannelList) */

@@ -44,6 +44,7 @@ func (r *Repository) GetUserByID(ctx context.Context, id int64) (*User, error) {
 		       COALESCE(phone_number, ''), phone_verified,
 		       banned_at, COALESCE(ban_reason, ''), force_logout_at, is_system, badges,
 		       COALESCE(registration_ip, ''), COALESCE(last_seen_ip, ''),
+		       status_type, status_text,
 		       created_at, updated_at
 		FROM users
 		WHERE id = $1
@@ -71,6 +72,8 @@ func (r *Repository) GetUserByID(ctx context.Context, id int64) (*User, error) {
 		&user.Badges,
 		&user.RegistrationIP,
 		&user.LastSeenIP,
+		&user.StatusType,
+		&user.StatusText,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -98,6 +101,7 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*User, e
 		       email_verified, COALESCE(email_verification_token, ''),
 		       COALESCE(phone_number, ''), phone_verified,
 		       banned_at, COALESCE(ban_reason, ''), force_logout_at, is_system,
+		       status_type, status_text,
 		       created_at, updated_at
 		FROM users
 		WHERE email = $1
@@ -121,6 +125,8 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*User, e
 		&user.BanReason,
 		&forceLogoutAt,
 		&user.IsSystem,
+		&user.StatusType,
+		&user.StatusText,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -148,6 +154,7 @@ func (r *Repository) GetUserByUsername(ctx context.Context, username string) (*U
 		       email_verified, COALESCE(email_verification_token, ''),
 		       COALESCE(phone_number, ''), phone_verified,
 		       banned_at, COALESCE(ban_reason, ''), force_logout_at, is_system,
+		       status_type, status_text,
 		       created_at, updated_at
 		FROM users
 		WHERE username = $1
@@ -171,6 +178,8 @@ func (r *Repository) GetUserByUsername(ctx context.Context, username string) (*U
 		&user.BanReason,
 		&forceLogoutAt,
 		&user.IsSystem,
+		&user.StatusType,
+		&user.StatusText,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -243,6 +252,7 @@ func (r *Repository) GetUserByVerificationToken(ctx context.Context, token strin
 		       email_verified, COALESCE(email_verification_token, ''),
 		       COALESCE(phone_number, ''), phone_verified,
 		       banned_at, COALESCE(ban_reason, ''), force_logout_at, is_system,
+		       status_type, status_text,
 		       created_at, updated_at
 		FROM users
 		WHERE email_verification_token = $1
@@ -266,6 +276,8 @@ func (r *Repository) GetUserByVerificationToken(ctx context.Context, token strin
 		&user.BanReason,
 		&forceLogoutAt,
 		&user.IsSystem,
+		&user.StatusType,
+		&user.StatusText,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -361,6 +373,7 @@ func (r *Repository) GetUserByPhone(ctx context.Context, phone string) (*User, e
 		       email_verified, COALESCE(email_verification_token, ''),
 		       COALESCE(phone_number, ''), phone_verified,
 		       banned_at, COALESCE(ban_reason, ''), force_logout_at, is_system,
+		       status_type, status_text,
 		       created_at, updated_at
 		FROM users
 		WHERE phone_number = $1
@@ -373,6 +386,7 @@ func (r *Repository) GetUserByPhone(ctx context.Context, phone string) (*User, e
 		&user.EmailVerified, &user.EmailVerificationToken,
 		&user.PhoneNumber, &user.PhoneVerified,
 		&bannedAt, &user.BanReason, &forceLogoutAt, &user.IsSystem,
+		&user.StatusType, &user.StatusText,
 		&user.CreatedAt, &user.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
@@ -596,6 +610,23 @@ func escapeLike(s string) string {
 	s = strings.ReplaceAll(s, `%`, `\%`)
 	s = strings.ReplaceAll(s, `_`, `\_`)
 	return s
+}
+
+func (r *Repository) UpdateUserStatus(ctx context.Context, userID int64, statusType, statusText string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE users SET status_type = $2, status_text = $3, updated_at = NOW() WHERE id = $1`,
+		userID, statusType, statusText,
+	)
+	return err
+}
+
+func (r *Repository) GetUserStatusType(ctx context.Context, userID int64) (string, error) {
+	var statusType string
+	err := r.db.QueryRowContext(ctx, `SELECT status_type FROM users WHERE id = $1`, userID).Scan(&statusType)
+	if err != nil {
+		return "online", err
+	}
+	return statusType, nil
 }
 
 func (r *Repository) SearchUsers(ctx context.Context, query string, excludeUserID int64) ([]PublicUser, error) {

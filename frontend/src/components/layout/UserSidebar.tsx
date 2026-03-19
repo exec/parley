@@ -22,6 +22,8 @@ interface ServerMember {
   roles?: Role[];
   is_bot?: boolean;
   bot_degraded?: boolean;
+  status_type?: string;
+  status_text?: string;
 }
 
 /* ---- Right-click context menu ---- */
@@ -182,12 +184,13 @@ interface UserSidebarProps {
   onKick?: (userId: string) => void;
   onBan?: (userId: string) => void;
   isOpen?: boolean;
+  userStatuses?: Record<string, { status_type: string; status_text: string }>;
 }
 
 const UserSidebar: React.FC<UserSidebarProps> = ({
   members, ownerId, currentUserId, onViewProfile, onSendMessage,
   onlineUserIds, currentUserIsOwner, canKickMembers, canBanMembers, onManageRoles, onKick, onBan,
-  isOpen = true,
+  isOpen = true, userStatuses,
 }) => {
   const [miniProfile, setMiniProfile] = useState<{ member: ServerMember; position: { top: number; left: number } } | null>(null);
   const [contextMenu, setContextMenu] = useState<{ member: ServerMember; position: { top: number; left: number } } | null>(null);
@@ -209,9 +212,12 @@ const UserSidebar: React.FC<UserSidebarProps> = ({
   const renderMember = (member: ServerMember) => {
     // Bots are always "online"; degraded bots use a red indicator instead of green
     const isOnline = member.is_bot ? true : (onlineUserIds ? onlineUserIds.has(member.user_id) : false);
+    const memberStatus = isOnline
+      ? (userStatuses?.[member.user_id]?.status_type || member.status_type || 'online')
+      : 'offline';
     const statusClass = member.is_bot
       ? (member.bot_degraded ? 'status-degraded' : 'status-online')
-      : (isOnline ? 'status-online' : 'status-offline');
+      : `status-${memberStatus}`;
     const isOwner = member.user_id === ownerId;
     const top = topRole(member);
 
@@ -283,7 +289,11 @@ const UserSidebar: React.FC<UserSidebarProps> = ({
 
       {miniProfile && createPortal(
         <MiniProfile
-          member={miniProfile.member}
+          member={{
+            ...miniProfile.member,
+            status_type: userStatuses?.[miniProfile.member.user_id]?.status_type || miniProfile.member.status_type,
+            status_text: userStatuses?.[miniProfile.member.user_id]?.status_text || miniProfile.member.status_text,
+          }}
           isCurrentUser={miniProfile.member.user_id === currentUserId}
           isOnline={onlineUserIds ? onlineUserIds.has(miniProfile.member.user_id) : false}
           position={miniProfile.position}

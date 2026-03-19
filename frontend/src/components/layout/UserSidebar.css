@@ -187,8 +187,18 @@
   background-color: var(--parley-yellow);
 }
 
-.member-status.dnd {
-  background-color: var(--parley-red);
+.member-status.dnd,
+.member-status.status-dnd {
+  background-color: var(--parley-danger, #f04747);
+}
+
+.member-status.status-afk {
+  background-color: var(--parley-yellow, #faa61a);
+}
+
+.member-status.status-invisible {
+  background-color: transparent;
+  border: 3px solid var(--parley-gray, #747f8d);
 }
 
 .member-info {

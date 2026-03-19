@@ -1,0 +1,24 @@
+.status-indicator {
+  display: inline-block;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Sizes */
+.status-size-sm { width: 8px; height: 8px; border-width: 1.5px; }
+.status-size-md { width: 10px; height: 10px; border-width: 2px; }
+.status-size-lg { width: 14px; height: 14px; border-width: 3px; }
+
+.status-indicator { border-style: solid; border-color: var(--parley-bg-secondary, #1a1a2e); }
+
+/* States */
+.status-online  { background-color: var(--parley-green, #43b581); }
+.status-dnd     { background-color: var(--parley-danger, #f04747); }
+.status-afk     { background-color: var(--parley-yellow, #faa61a); }
+.status-offline { background-color: var(--parley-gray, #747f8d); }
+
+/* Invisible: hollow ring */
+.status-invisible {
+  background-color: transparent;
+  border-color: var(--parley-gray, #747f8d);
+}
