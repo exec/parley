@@ -446,7 +446,7 @@
 }
 
 .user-area.clickable:hover .user-info {
-  background-color: var(--bg-tertiary);
+  background-color: var(--parley-hover, var(--bg-hover));
 }
 
 .cl-settings-icon {

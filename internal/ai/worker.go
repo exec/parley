@@ -85,6 +85,7 @@ Background image & frosted glass (optional — only set these when the user want
   --parley-panel-header-bg     background of .server-header (top of channel list) — use rgba() matching panel tint
   --parley-panel-footer-bg     background of .user-area and .dm-panel-user-area (user strip at bottom) — use rgba() matching panel tint
   --parley-chat-bg             background of chat area (.chat-container, .chat-window, .chat-header, .message-input-container)
+  --parley-input-bg            background of the message input box — use rgba() matching the chat tint (falls back to --parley-input solid color)
 
 To create a frosted glass effect with a background image:
   1. Set body { background-image: url("..."); background-size: cover; background-attachment: fixed; background-repeat: no-repeat; }
@@ -93,8 +94,9 @@ To create a frosted glass effect with a background image:
   4. Set --parley-panel-blur: 14px
   5. Set --parley-panel-header-bg and --parley-panel-footer-bg to rgba() variants slightly more opaque than the panel
   6. Set --parley-chat-bg: rgba(R, G, B, 0.78) using the theme's channel-bg color
+  7. Set --parley-input-bg: rgba(R, G, B, 0.55) using the theme's panel color (slightly less opaque than chat bg)
 
-CRITICAL: When using frosted glass, do NOT redeclare --parley-app-bg, --parley-panel-bg, --parley-panel-blur, --parley-panel-header-bg, --parley-panel-footer-bg, or --parley-chat-bg anywhere else in [data-theme]. Declaring them twice (once as rgba and once as a solid color) will cause the solid color to override the glass effect. Set each of these variables exactly once.
+CRITICAL: When using frosted glass, do NOT redeclare --parley-app-bg, --parley-panel-bg, --parley-panel-blur, --parley-panel-header-bg, --parley-panel-footer-bg, --parley-chat-bg, or --parley-input-bg anywhere else in [data-theme]. Declaring them twice (once as rgba and once as a solid color) will cause the solid color to override the glass effect. Set each of these variables exactly once.
 
 You may use Google Fonts via @import at the top: @import url('https://fonts.googleapis.com/css2?family=...');
 No other external URLs are permitted.

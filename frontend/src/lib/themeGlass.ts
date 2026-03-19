@@ -38,8 +38,8 @@ export function buildGlassPreset(baseTheme: string, preset: GlassPreset): string
   const chatHex   = parseBaseVarHex(vars, '--parley-channel-bg');
 
   const opacity = preset === 'frosted'
-    ? { panel: 0.60, header: 0.70, footer: 0.70, chat: 0.78 }
-    : { panel: 0.28, header: 0.32, footer: 0.32, chat: 0.40 };
+    ? { panel: 0.60, footer: 0.70, chat: 0.78, input: 0.55 }
+    : { panel: 0.28, footer: 0.32, chat: 0.40, input: 0.35 };
   const blur = preset === 'frosted' ? '14px' : '0px';
 
   return [
@@ -49,6 +49,7 @@ export function buildGlassPreset(baseTheme: string, preset: GlassPreset): string
     `  --parley-panel-header-bg: transparent;`,
     `  --parley-panel-footer-bg: rgba(${hexToRgb(footerHex)}, ${opacity.footer});`,
     `  --parley-chat-bg: rgba(${hexToRgb(chatHex)}, ${opacity.chat});`,
+    `  --parley-input-bg: rgba(${hexToRgb(panelHex)}, ${opacity.input});`,
   ].join('\n');
 }
 
