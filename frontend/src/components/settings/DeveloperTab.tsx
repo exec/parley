@@ -54,6 +54,13 @@ export const DeveloperTab: React.FC = () => {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    const timers = saveTimers.current;
+    return () => {
+      Object.values(timers).forEach(clearTimeout);
+    };
+  }, []);
+
   const handleCreate = async () => {
     if (!createName.trim() && createType === 'user') {
       setCreateError('Key name is required');
