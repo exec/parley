@@ -323,22 +323,24 @@ export const DeveloperTab: React.FC = () => {
                 <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   Requested Permissions
                 </div>
-                {PERMISSION_CATEGORIES.map(cat => (
-                  <div key={cat.label} style={{ marginBottom: 8 }}>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{cat.label}</div>
-                    {cat.permissions.map(p => (
-                      <label key={p.name} title={p.description} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', marginBottom: 2 }}>
-                        <input
-                          type="checkbox"
-                          checked={((botPerms[bot.id] ?? 0n) & p.bit) !== 0n}
-                          onChange={() => handleTogglePerm(bot.id, p.bit)}
-                          style={{ cursor: 'pointer' }}
-                        />
-                        {p.name}
-                      </label>
-                    ))}
-                  </div>
-                ))}
+                <div style={{ columns: '160px 3', columnGap: 16 }}>
+                  {PERMISSION_CATEGORIES.map(cat => (
+                    <div key={cat.label} style={{ marginBottom: 8, breakInside: 'avoid' }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{cat.label}</div>
+                      {cat.permissions.map(p => (
+                        <label key={p.name} title={p.description} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', marginBottom: 2 }}>
+                          <input
+                            type="checkbox"
+                            checked={((botPerms[bot.id] ?? 0n) & p.bit) !== 0n}
+                            onChange={() => handleTogglePerm(bot.id, p.bit)}
+                            style={{ cursor: 'pointer' }}
+                          />
+                          {p.name}
+                        </label>
+                      ))}
+                    </div>
+                  ))}
+                </div>
                 {botPermsError[bot.id] && (
                   <div style={{ fontSize: 12, color: 'var(--danger)', marginTop: 4 }}>{botPermsError[bot.id]}</div>
                 )}

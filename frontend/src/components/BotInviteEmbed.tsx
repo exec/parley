@@ -133,26 +133,28 @@ export const BotInviteEmbed: React.FC<Props> = ({ token }) => {
       <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--parley-text-muted,#888)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
         Requested Permissions
       </div>
-      {PERMISSION_CATEGORIES.map(cat => {
-        const relevant = cat.permissions.filter(p => (permFromNumber(bot.permissions) & p.bit) !== 0n);
-        if (relevant.length === 0) return null;
-        return (
-          <div key={cat.label} style={{ marginBottom: 8 }}>
-            <div style={{ fontSize: 11, color: 'var(--parley-text-muted,#888)', marginBottom: 4 }}>{cat.label}</div>
-            {relevant.map(p => (
-              <label key={p.name} title={p.description} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', marginBottom: 2 }}>
-                <input
-                  type="checkbox"
-                  checked={(grantedPerms & p.bit) !== 0n}
-                  onChange={() => togglePerm(p.bit)}
-                  style={{ cursor: 'pointer' }}
-                />
-                {p.name}
-              </label>
-            ))}
-          </div>
-        );
-      })}
+      <div style={{ columns: '140px 2', columnGap: 12 }}>
+        {PERMISSION_CATEGORIES.map(cat => {
+          const relevant = cat.permissions.filter(p => (permFromNumber(bot.permissions) & p.bit) !== 0n);
+          if (relevant.length === 0) return null;
+          return (
+            <div key={cat.label} style={{ marginBottom: 8, breakInside: 'avoid' }}>
+              <div style={{ fontSize: 11, color: 'var(--parley-text-muted,#888)', marginBottom: 4 }}>{cat.label}</div>
+              {relevant.map(p => (
+                <label key={p.name} title={p.description} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', marginBottom: 2 }}>
+                  <input
+                    type="checkbox"
+                    checked={(grantedPerms & p.bit) !== 0n}
+                    onChange={() => togglePerm(p.bit)}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  {p.name}
+                </label>
+              ))}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 
