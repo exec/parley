@@ -2,7 +2,9 @@
   width: 240px;
   min-width: 240px;
   height: 100%;
-  background-color: var(--bg-secondary);
+  background-color: var(--parley-panel-bg, var(--bg-secondary));
+  backdrop-filter: blur(var(--parley-panel-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--border);
@@ -15,7 +17,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background-color: var(--bg-tertiary);
+  background-color: var(--parley-panel-header-bg, var(--bg-tertiary));
   border-bottom: 1px solid var(--border);
   cursor: pointer;
   transition: background-color 0.2s ease;
@@ -261,7 +263,7 @@
   padding: 0 8px;
   display: flex;
   align-items: center;
-  background-color: var(--bg-primary);
+  background-color: var(--parley-panel-footer-bg, var(--bg-primary));
   border-top: 1px solid var(--border);
 }
 
