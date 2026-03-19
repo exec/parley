@@ -33,6 +33,7 @@ export interface BotInviteInfo {
   display_name: string;
   avatar_url?: string;
   is_verified: boolean;
+  permissions: number;
 }
 
 export const listBots = (serverId: number) =>
@@ -62,6 +63,7 @@ export interface UserBot {
   avatar_url?: string;
   is_verified: boolean;
   invite_token: string;
+  permissions: number;
 }
 
 export const getMyBots = () =>
@@ -70,8 +72,16 @@ export const getMyBots = () =>
 export const resolveBotInvite = (token: string) =>
   apiClient.get<BotInviteInfo>(`/bots/invite/${token}`);
 
-export const acceptBotInvite = (token: string, serverId: number) =>
-  apiClient.post<void>(`/bots/invite/${token}/accept`, { server_id: serverId });
+export const acceptBotInvite = (token: string, serverId: number, grantedPermissions: bigint) =>
+  apiClient.post<void>(`/bots/invite/${token}/accept`, {
+    server_id: serverId,
+    granted_permissions: Number(grantedPermissions),
+  });
+
+export const updateBotInvitePermissions = (botId: number, permissions: bigint) =>
+  apiClient.patch<void>(`/developer/bots/${botId}/invite`, {
+    permissions: Number(permissions),
+  });
 
 export const PROVIDER_MODELS: Record<string, { label: string; value: string }[]> = {
   parley: [
