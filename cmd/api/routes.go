@@ -281,6 +281,7 @@ func registerRoutes(
 			r.Post("/developer/keys", handleCreateAPIKey(repo))
 			r.Delete("/developer/keys/{id}", handleRevokeAPIKey(repo))
 			r.Patch("/developer/bots/{botId}", handleRenameBotUser(repo))
+			r.Patch("/developer/bots/{botId}/invite", botsHandler.UpdateInvitePermissions)
 
 			// File upload — 50 MB limit
 			r.With(maxBodyMiddleware(50 * 1024 * 1024)).Post("/upload", handleUpload(spacesClient, repo.DB()))
