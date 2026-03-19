@@ -718,6 +718,22 @@ ALTER TABLE users
 
 	`ALTER TABLE bot_invite_tokens
   ADD COLUMN IF NOT EXISTS permissions BIGINT NOT NULL DEFAULT 0;`,
+
+	`-- Backfill created_by on bot_invite_tokens from bot_owner_id on users,
+-- and create missing invite token rows for bots that never had one.
+UPDATE bot_invite_tokens bit
+SET created_by = u.bot_owner_id
+FROM users u
+WHERE u.id = bit.bot_user_id
+  AND u.bot_owner_id IS NOT NULL
+  AND bit.created_by IS NULL;
+
+INSERT INTO bot_invite_tokens (bot_user_id, token, created_by)
+SELECT u.id, gen_random_uuid(), u.bot_owner_id
+FROM users u
+WHERE u.is_bot = TRUE
+  AND u.bot_owner_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM bot_invite_tokens bit WHERE bit.bot_user_id = u.id);`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

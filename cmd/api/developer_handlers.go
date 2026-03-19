@@ -86,6 +86,10 @@ func handleCreateAPIKey(repo *db.Repository) http.HandlerFunc {
 				jsonError(w, "failed to create bot user", http.StatusInternalServerError)
 				return
 			}
+			if _, err = repo.CreateBotInviteToken(r.Context(), botUserID, ownerID); err != nil {
+				jsonError(w, "failed to create invite token", http.StatusInternalServerError)
+				return
+			}
 			targetUserID = botUserID
 		} else {
 			targetUserID = ownerID

@@ -102,6 +102,20 @@ func (r *Repository) GetAPIKeysByOwner(ctx context.Context, ownerID int64) ([]AP
 	return keys, rows.Err()
 }
 
+// CreateBotInviteToken inserts a bot_invite_tokens row for a newly created bot,
+// recording the ownerID as created_by so the bot appears in the developer portal.
+func (r *Repository) CreateBotInviteToken(ctx context.Context, botUserID, ownerID int64) (string, error) {
+	var token string
+	err := r.db.QueryRowContext(ctx,
+		`INSERT INTO bot_invite_tokens (bot_user_id, token, created_by)
+		 VALUES ($1, gen_random_uuid(), $2)
+		 ON CONFLICT (bot_user_id) DO UPDATE SET created_by = EXCLUDED.created_by
+		 RETURNING token::text`,
+		botUserID, ownerID,
+	).Scan(&token)
+	return token, err
+}
+
 // RevokeAPIKey deletes an API key by ID, verifying ownership.
 func (r *Repository) RevokeAPIKey(ctx context.Context, keyID, ownerID int64) error {
 	res, err := r.db.ExecContext(ctx,
