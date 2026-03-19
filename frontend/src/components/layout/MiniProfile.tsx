@@ -104,17 +104,21 @@ const MiniProfile: React.FC<MiniProfileProps> = ({
           </div>
           <span className={`mini-profile-status-dot ${isOnline ? 'online' : 'offline'}`} />
         </div>
-        {(member.badges ?? 0) > 0 && (
-          <div className="mini-profile-badge-row">
-            <BadgeList badges={member.badges!} />
-          </div>
-        )}
       </div>
 
       {/* Body */}
       <div className="mini-profile-body">
-        <div className="mini-profile-username">{displayName}</div>
-        {subName && <div className="mini-profile-nickname">{subName}</div>}
+        <div className="mini-profile-name-row">
+          <div>
+            <div className="mini-profile-username">{displayName}</div>
+            {subName && <div className="mini-profile-nickname">{subName}</div>}
+          </div>
+          {(member.badges ?? 0) > 0 && (
+            <div className="mini-profile-badge-row">
+              <BadgeList badges={member.badges!} />
+            </div>
+          )}
+        </div>
         {member.bio && <div className="mini-profile-bio"><MarkdownRenderer content={member.bio} mode="bio" /></div>}
 
         {!hideRoles && (

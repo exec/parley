@@ -73,10 +73,17 @@
 .mini-profile-status-dot.online  { background: var(--parley-green); }
 .mini-profile-status-dot.offline { background: var(--parley-text-muted); }
 
+.mini-profile-name-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
 .mini-profile-badge-row {
-  position: absolute;
-  top: 35px;
-  left: 75px;
+  flex-shrink: 0;
+  padding-top: 2px;
 }
 
 .mini-profile-body {

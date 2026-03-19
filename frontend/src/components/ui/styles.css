@@ -1461,9 +1461,9 @@
 }
 
 .user-profile-badge-row {
-  position: absolute;
-  top: 147px;
-  left: 121px;
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: 8px;
 }
 
 .user-profile-body {
@@ -1482,7 +1482,8 @@
 
 .user-profile-name-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 8px;
 }
 

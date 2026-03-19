@@ -67,17 +67,19 @@ export function UserProfileModal({ isOpen, onClose, userId, currentUserId, onSta
                 : user.username.charAt(0).toUpperCase()
               }
             </div>
-            {(user.badges ?? 0) > 0 && (
-              <div className="user-profile-badge-row">
-                <BadgeList badges={user.badges!} />
-              </div>
-            )}
 
             <div className="user-profile-body">
               <div className="user-profile-name-row">
-                <h2 className="user-profile-username">{user.display_name || user.username}</h2>
-                {isOnline !== undefined && (
-                  <span className={`profile-status-dot ${isOnline ? 'online' : 'offline'}`} title={isOnline ? 'Online' : 'Offline'} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, flexWrap: 'wrap' }}>
+                  <h2 className="user-profile-username">{user.display_name || user.username}</h2>
+                  {isOnline !== undefined && (
+                    <span className={`profile-status-dot ${isOnline ? 'online' : 'offline'}`} title={isOnline ? 'Online' : 'Offline'} />
+                  )}
+                </div>
+                {(user.badges ?? 0) > 0 && (
+                  <div className="user-profile-badge-row">
+                    <BadgeList badges={user.badges!} />
+                  </div>
                 )}
               </div>
               <p className="user-profile-tag">@{user.username.toLowerCase()}</p>

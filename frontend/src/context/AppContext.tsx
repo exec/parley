@@ -39,6 +39,7 @@ import * as channelsApi from '../api/channels';
 import * as messagesApi from '../api/messages';
 import * as dmsApi from '../api/dms';
 import * as friendsApi from '../api/friends';
+import { getCurrentUser } from '../api/auth';
 import { ReactionUpdate, MemberRoleUpdate, UserUpdate, BotStatusUpdate } from '../hooks/useWebSocket';
 import { resetThemeOnLogout } from './ThemeContext';
 
@@ -170,6 +171,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       apiClient.setToken(token);
     }
   }, []);
+
+  // Refresh currentUser from the server on startup so stale localStorage data
+  // (e.g. missing display_name from an old session) is always corrected.
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    getCurrentUser()
+      .then(fresh => {
+        setCurrentUser(fresh);
+        const { phone_number: _p, phone_verified: _pv, ...safe } = fresh as User & { phone_number?: string; phone_verified?: boolean };
+        localStorage.setItem('user', JSON.stringify(safe));
+      })
+      .catch(() => { /* silently ignore — stale data is better than crashing */ });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!currentUser) return;
@@ -630,7 +645,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     ));
     setCurrentUser(prev => {
       if (!prev || prev.id !== update.user_id) return prev;
-      return { ...prev, username: update.username, avatar_url: update.avatar_url ?? prev.avatar_url, banner_url: update.banner_url ?? prev.banner_url, display_name: update.display_name !== undefined ? update.display_name : prev.display_name, bio: update.bio ?? prev.bio };
+      const next = { ...prev, username: update.username, avatar_url: update.avatar_url ?? prev.avatar_url, banner_url: update.banner_url ?? prev.banner_url, display_name: update.display_name !== undefined ? update.display_name : prev.display_name, bio: update.bio ?? prev.bio };
+      // Keep localStorage in sync so page reloads reflect WS-driven updates.
+      const { phone_number: _p, phone_verified: _pv, ...safe } = next as typeof next & { phone_number?: string; phone_verified?: boolean };
+      localStorage.setItem('user', JSON.stringify(safe));
+      return next;
     });
     setMessages(prev => prev.map(m =>
       m.author_id === update.user_id
