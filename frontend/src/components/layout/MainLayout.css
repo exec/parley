@@ -4,6 +4,10 @@
   height: var(--app-height, 100dvh);
   background-color: var(--bg-primary);
   overflow: hidden;
+  /* Push content away from Dynamic Island (top) and home indicator (bottom).
+     On desktop these values are 0. Background fills the safe area zones. */
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 /* Desktop: left-drawer is just a normal flex row */
@@ -139,6 +143,8 @@
     z-index: 100;
     transform: translateX(-110%);
     transition: transform 0.22s ease;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   .left-drawer--open {
     transform: translateX(0);

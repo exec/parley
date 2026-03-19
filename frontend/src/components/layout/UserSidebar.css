@@ -33,6 +33,8 @@
     border-left-width: 1px;
     transform: translateX(110%);
     transition: transform 0.22s ease;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   /* Reset the desktop collapse — on mobile, hidden = off-screen, not width:0 */
   .user-sidebar:not(.user-sidebar--open) {
