@@ -76,7 +76,7 @@ func generateID() string {
 }
 
 // allowedFileExt inspects the magic bytes of data and returns the file extension
-// for allowed upload types (PNG, GIF, JPEG, WebM, OGG, MP3). Returns ("", false) for anything else.
+// for allowed upload types (PNG, GIF, JPEG, WebM, OGG, MP3, WAV). Returns ("", false) for anything else.
 func allowedFileExt(data []byte) (string, bool) {
 	if len(data) < 12 {
 		return "", false
@@ -102,6 +102,10 @@ func allowedFileExt(data []byte) (string, bool) {
 	// MP3: raw MPEG frame sync (no ID3 tag)
 	case data[0] == 0xFF && (data[1]&0xE0 == 0xE0) && (data[1]&0x18 != 0x08) && (data[1]&0x06 != 0x00):
 		return ".mp3", true
+	// WAV: RIFF....WAVE
+	case data[0] == 0x52 && data[1] == 0x49 && data[2] == 0x46 && data[3] == 0x46 &&
+		data[8] == 0x57 && data[9] == 0x41 && data[10] == 0x56 && data[11] == 0x45:
+		return ".wav", true
 	}
 	return "", false
 }

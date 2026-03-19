@@ -275,6 +275,20 @@ server {
         proxy_read_timeout 60s;
     }
 
+    # File upload — allow up to 50 MB
+    location /api/upload {
+        client_max_body_size 50m;
+        proxy_pass http://127.0.0.1:${PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 120s;
+        proxy_read_timeout 120s;
+    }
+
     # Docs site (VitePress) — served at both /docs/ and /docs/developer/
     location /docs/developer/ {
         alias /parley/docs/.vitepress/dist/;

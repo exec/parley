@@ -60,7 +60,7 @@ func handleUpload(spacesClient *spaces.Client, db *sql.DB) http.HandlerFunc {
 
 		ext, ok := allowedFileExt(data)
 		if !ok {
-			http.Error(w, "only PNG, GIF, JPEG, WebM, OGG, and MP3 files are allowed", http.StatusBadRequest)
+			http.Error(w, "only PNG, GIF, JPEG, WebM, OGG, MP3, and WAV files are allowed", http.StatusBadRequest)
 			return
 		}
 
