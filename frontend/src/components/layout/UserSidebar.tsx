@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import './UserSidebar.css';
 import MiniProfile from './MiniProfile';
 
@@ -280,7 +281,7 @@ const UserSidebar: React.FC<UserSidebarProps> = ({
         )}
       </div>
 
-      {miniProfile && (
+      {miniProfile && createPortal(
         <MiniProfile
           member={miniProfile.member}
           isCurrentUser={miniProfile.member.user_id === currentUserId}
@@ -291,7 +292,8 @@ const UserSidebar: React.FC<UserSidebarProps> = ({
           onViewProfile={onViewProfile}
           canManageRoles={(currentUserIsOwner === true || canKickMembers === true) && miniProfile.member.user_id !== currentUserId}
           onManageRoles={() => { onManageRoles?.(miniProfile.member.user_id); setMiniProfile(null); }}
-        />
+        />,
+        document.body
       )}
 
       {contextMenu && (
