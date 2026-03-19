@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import './NotificationSettingsModal.css';
 
-export type NotifPref = 'all' | 'tags' | 'direct' | 'never';
+export const NOTIF_PREFS = {
+  ALL: 'all',
+  TAGS: 'tags',
+  DIRECT: 'direct',
+  NEVER: 'never',
+} as const;
+export type NotifPref = typeof NOTIF_PREFS[keyof typeof NOTIF_PREFS];
 
 const STORAGE_KEY = 'parley_notification_prefs';
 

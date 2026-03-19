@@ -67,7 +67,7 @@ func handleSvcErr(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, ErrAlreadyExists):
 		httputil.JSONError(w, "already exists", http.StatusConflict)
 	default:
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 	}
 }
 

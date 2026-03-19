@@ -311,7 +311,7 @@ func (h *Handler) DeleteDmMessage(w http.ResponseWriter, r *http.Request) {
 			httputil.JSONError(w, "message not found or not your message", http.StatusNotFound)
 			return
 		}
-		httputil.JSONError(w, "failed to delete message", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 	// Broadcast to both participants via dm virtual channel
@@ -366,7 +366,7 @@ func (h *Handler) ToggleDmReaction(w http.ResponseWriter, r *http.Request) {
 	}
 	added, err := h.repo.ToggleDmReaction(r.Context(), messageID, currentUserID, req.Emoji)
 	if err != nil {
-		httputil.JSONError(w, "failed to toggle reaction", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 	// Broadcast to both participants via dm virtual channel

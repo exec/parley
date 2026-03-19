@@ -2,7 +2,6 @@ package channel
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -126,8 +125,7 @@ func (h *Handler) GetServerChannels(w http.ResponseWriter, r *http.Request) {
 			httputil.JSONError(w, "server not found", http.StatusNotFound)
 			return
 		}
-		log.Printf("channel handler error: %v", err)
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 
@@ -167,7 +165,7 @@ func (h *Handler) UpdateChannel(w http.ResponseWriter, r *http.Request) {
 			httputil.JSONError(w, "you do not have permission to update channels", http.StatusForbidden)
 			return
 		}
-		httputil.JSONError(w, err.Error(), http.StatusBadRequest)
+		httputil.JSONError(w, "invalid request", http.StatusBadRequest)
 		return
 	}
 
@@ -196,8 +194,7 @@ func (h *Handler) DeleteChannel(w http.ResponseWriter, r *http.Request) {
 		case "forbidden":
 			httputil.JSONError(w, "only the server owner can delete channels", http.StatusForbidden)
 		default:
-			log.Printf("channel handler error: %v", err)
-			httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+			httputil.InternalError(w, err)
 		}
 		return
 	}

@@ -3,7 +3,6 @@ package server
 import (
 	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
 	"time"
 
@@ -67,8 +66,7 @@ func (h *Handler) CreateServer(w http.ResponseWriter, r *http.Request) {
 
 	server, err := h.service.CreateServer(r.Context(), req.Name, req.IconURL, ownerID)
 	if err != nil {
-		log.Printf("handler error: %v", err)
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 
@@ -86,12 +84,11 @@ func (h *Handler) GetServer(w http.ResponseWriter, r *http.Request) {
 
 	server, err := h.service.GetServer(r.Context(), id)
 	if err != nil {
-		if errors.Is(err, errors.New("server not found")) {
+		if err.Error() == "server not found" {
 			httputil.JSONError(w, "server not found", http.StatusNotFound)
 			return
 		}
-		log.Printf("handler error: %v", err)
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 
@@ -109,8 +106,7 @@ func (h *Handler) GetUserServers(w http.ResponseWriter, r *http.Request) {
 
 	servers, err := h.service.GetUserServers(r.Context(), userID)
 	if err != nil {
-		log.Printf("handler error: %v", err)
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 
@@ -155,8 +151,7 @@ func (h *Handler) UpdateServer(w http.ResponseWriter, r *http.Request) {
 
 	updatedServer, err := h.service.UpdateServer(r.Context(), id, req.Name, req.IconURL)
 	if err != nil {
-		log.Printf("handler error: %v", err)
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 
@@ -186,8 +181,7 @@ func (h *Handler) DeleteServer(w http.ResponseWriter, r *http.Request) {
 
 	err = h.service.DeleteServer(r.Context(), id)
 	if err != nil {
-		log.Printf("handler error: %v", err)
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 
@@ -240,8 +234,7 @@ func (h *Handler) AddMember(w http.ResponseWriter, r *http.Request) {
 
 	err = h.service.AddMember(r.Context(), serverID, req.UserID, req.Nickname)
 	if err != nil {
-		log.Printf("handler error: %v", err)
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 
@@ -295,12 +288,11 @@ func (h *Handler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 
 	err = h.service.RemoveMember(r.Context(), serverID, userID)
 	if err != nil {
-		if errors.Is(err, errors.New("member not found")) {
+		if err.Error() == "member not found" {
 			httputil.JSONError(w, "member not found", http.StatusNotFound)
 			return
 		}
-		log.Printf("handler error: %v", err)
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 
@@ -339,8 +331,7 @@ func (h *Handler) GetMembers(w http.ResponseWriter, r *http.Request) {
 
 	members, err := h.service.GetMembersWithRoles(r.Context(), serverID)
 	if err != nil {
-		log.Printf("handler error: %v", err)
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 
@@ -400,8 +391,7 @@ func (h *Handler) CreateInvite(w http.ResponseWriter, r *http.Request) {
 
 	invite, err := h.service.CreateInvite(r.Context(), serverID, userID, body.MaxUses, expiresAt)
 	if err != nil {
-		log.Printf("handler error: %v", err)
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 
@@ -495,8 +485,7 @@ func (h *Handler) GetServerRoles(w http.ResponseWriter, r *http.Request) {
 
 	roles, err := h.service.GetServerRoles(r.Context(), serverID)
 	if err != nil {
-		log.Printf("handler error: %v", err)
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 	if roles == nil {
@@ -625,8 +614,7 @@ func (h *Handler) DeleteServerRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.DeleteServerRole(r.Context(), serverID, roleID); err != nil {
-		log.Printf("handler error: %v", err)
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 
@@ -717,8 +705,7 @@ func (h *Handler) UpdateServerRole(w http.ResponseWriter, r *http.Request) {
 
 	role, err := h.service.UpdateServerRole(r.Context(), serverID, roleID, req.Name, req.Color, req.Permissions, req.Hoist, req.Position)
 	if err != nil {
-		log.Printf("handler error: %v", err)
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 
@@ -732,8 +719,7 @@ func (h *Handler) GetMemberRoles(w http.ResponseWriter, r *http.Request) {
 
 	roles, err := h.service.GetMemberRoles(r.Context(), serverID, targetUserID)
 	if err != nil {
-		log.Printf("handler error: %v", err)
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 	if roles == nil {
@@ -795,8 +781,7 @@ func (h *Handler) AssignRoleToMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.AssignRoleToMember(r.Context(), serverID, targetUserID, req.RoleID); err != nil {
-		log.Printf("handler error: %v", err)
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 
@@ -849,8 +834,7 @@ func (h *Handler) RemoveRoleFromMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.RemoveRoleFromMember(r.Context(), serverID, targetUserID, roleID); err != nil {
-		log.Printf("handler error: %v", err)
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 
@@ -869,8 +853,7 @@ func (h *Handler) GetMembersWithRoles(w http.ResponseWriter, r *http.Request) {
 
 	members, err := h.service.GetMembersWithRoles(r.Context(), serverID)
 	if err != nil {
-		log.Printf("handler error: %v", err)
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 	if members == nil {
@@ -904,8 +887,7 @@ func (h *Handler) LeaveServer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.RemoveMember(r.Context(), serverID, currentUserID); err != nil {
-		log.Printf("handler error: %v", err)
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -933,8 +915,7 @@ func (h *Handler) KickMember(w http.ResponseWriter, r *http.Request) {
 	}
 	_, allowed, err := h.service.CanKick(r.Context(), serverID, currentUserID)
 	if err != nil {
-		log.Printf("handler error: %v", err)
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 	if !allowed {
@@ -945,8 +926,7 @@ func (h *Handler) KickMember(w http.ResponseWriter, r *http.Request) {
 	// Role hierarchy check: actor must outrank target.
 	_, hierarchyOK, err := h.service.RoleHierarchyCheck(r.Context(), serverID, currentUserID, targetUserID)
 	if err != nil {
-		log.Printf("handler error: %v", err)
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 	if !hierarchyOK {
@@ -955,8 +935,7 @@ func (h *Handler) KickMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.KickMember(r.Context(), serverID, targetUserID); err != nil {
-		log.Printf("handler error: %v", err)
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -984,8 +963,7 @@ func (h *Handler) BanMember(w http.ResponseWriter, r *http.Request) {
 	}
 	_, allowed, err := h.service.CanBan(r.Context(), serverID, currentUserID)
 	if err != nil {
-		log.Printf("handler error: %v", err)
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 	if !allowed {
@@ -996,8 +974,7 @@ func (h *Handler) BanMember(w http.ResponseWriter, r *http.Request) {
 	// Role hierarchy check: actor must outrank target.
 	_, hierarchyOK, err := h.service.RoleHierarchyCheck(r.Context(), serverID, currentUserID, targetUserID)
 	if err != nil {
-		log.Printf("handler error: %v", err)
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 	if !hierarchyOK {
@@ -1011,8 +988,7 @@ func (h *Handler) BanMember(w http.ResponseWriter, r *http.Request) {
 	json.NewDecoder(r.Body).Decode(&req)
 
 	if err := h.service.BanMember(r.Context(), serverID, targetUserID, currentUserID, req.Reason); err != nil {
-		log.Printf("handler error: %v", err)
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -1032,8 +1008,7 @@ func (h *Handler) GetMyPermissions(w http.ResponseWriter, r *http.Request) {
 	}
 	perms, isOwner, err := h.service.GetMyPermissions(r.Context(), serverID, userID)
 	if err != nil {
-		log.Printf("handler error: %v", err)
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 	render.JSON(w, r, map[string]interface{}{
@@ -1060,8 +1035,7 @@ func (h *Handler) ListServerInvites(w http.ResponseWriter, r *http.Request) {
 	}
 	invites, err := h.service.GetServerInvites(r.Context(), serverID)
 	if err != nil {
-		log.Printf("handler error: %v", err)
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 	if invites == nil {
@@ -1089,8 +1063,7 @@ func (h *Handler) RevokeInvite(w http.ResponseWriter, r *http.Request) {
 			httputil.JSONError(w, err.Error(), http.StatusForbidden)
 			return
 		}
-		log.Printf("handler error: %v", err)
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -1111,8 +1084,7 @@ func (h *Handler) GetInviteMembers(w http.ResponseWriter, r *http.Request) {
 			httputil.JSONError(w, err.Error(), http.StatusForbidden)
 			return
 		}
-		log.Printf("handler error: %v", err)
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+		httputil.InternalError(w, err)
 		return
 	}
 	if members == nil {
@@ -1173,8 +1145,7 @@ func (h *Handler) SetVanityURL(w http.ResponseWriter, r *http.Request) {
 			status = http.StatusNotFound
 		}
 		if status == http.StatusInternalServerError {
-			log.Printf("handler error: %v", err)
-			httputil.JSONError(w, "internal server error", status)
+			httputil.InternalError(w, err)
 		} else {
 			httputil.JSONError(w, err.Error(), status)
 		}

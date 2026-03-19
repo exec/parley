@@ -3,13 +3,13 @@ package theme
 import (
 	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"parley/internal/auth"
+	"parley/internal/httputil"
 )
 
 type Handler struct{ svc *Service }
@@ -41,19 +41,6 @@ type featureReq struct {
 	Featured bool `json:"featured"`
 }
 
-func writeErr(w http.ResponseWriter, r *http.Request, code int, msg string) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(code)
-	render.JSON(w, r, errResp{Message: msg})
-}
-
-// internalErr logs the real error server-side and returns a generic 500 to the client,
-// preventing internal details (driver names, SQL syntax) from leaking to attackers.
-func internalErr(w http.ResponseWriter, r *http.Request, err error) {
-	log.Printf("theme handler internal error: %v", err)
-	writeErr(w, r, 500, "internal server error")
-}
-
 func userID(r *http.Request) (int64, bool) {
 	s := auth.GetUserIDFromContext(r)
 	if s == "" {
@@ -71,7 +58,7 @@ var validBuiltin = map[string]bool{
 func (h *Handler) GetPreferences(w http.ResponseWriter, r *http.Request) {
 	uid, ok := userID(r)
 	if !ok {
-		writeErr(w, r, 401, "unauthorized")
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	w.Header().Set("Cache-Control", "private, no-store")
@@ -86,7 +73,7 @@ func (h *Handler) GetPreferences(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		internalErr(w, r, err)
+		httputil.InternalError(w, err)
 		return
 	}
 	render.JSON(w, r, p)
@@ -95,28 +82,28 @@ func (h *Handler) GetPreferences(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) SetActiveTheme(w http.ResponseWriter, r *http.Request) {
 	uid, ok := userID(r)
 	if !ok {
-		writeErr(w, r, 401, "unauthorized")
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	var req setThemeReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeErr(w, r, 400, "invalid request body")
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 	if req.Theme != "custom" && !validBuiltin[req.Theme] {
-		writeErr(w, r, 400, "unknown theme ID")
+		httputil.JSONError(w, "unknown theme ID", http.StatusBadRequest)
 		return
 	}
 	if req.Theme == "custom" && req.CustomThemeID == nil {
-		writeErr(w, r, 400, "custom_theme_id required when theme is 'custom'")
+		httputil.JSONError(w, "custom_theme_id required when theme is 'custom'", http.StatusBadRequest)
 		return
 	}
 	if err := h.svc.SetActiveTheme(r.Context(), uid, req.Theme, req.CustomThemeID); err != nil {
 		if errors.Is(err, ErrNotFound) {
-			writeErr(w, r, 404, "theme not found")
+			httputil.JSONError(w, "theme not found", http.StatusNotFound)
 			return
 		}
-		internalErr(w, r, err)
+		httputil.InternalError(w, err)
 		return
 	}
 	w.WriteHeader(204)
@@ -125,23 +112,23 @@ func (h *Handler) SetActiveTheme(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) CreateTheme(w http.ResponseWriter, r *http.Request) {
 	uid, ok := userID(r)
 	if !ok {
-		writeErr(w, r, 401, "unauthorized")
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	var req themeReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeErr(w, r, 400, "invalid request body")
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 	if len(req.Name) == 0 || len(req.Name) > 64 {
-		writeErr(w, r, 400, "name must be 1-64 characters")
+		httputil.JSONError(w, "name must be 1-64 characters", http.StatusBadRequest)
 		return
 	}
 	if req.BaseTheme == "" {
 		req.BaseTheme = "rory"
 	}
 	if !validBuiltin[req.BaseTheme] {
-		writeErr(w, r, 400, "base_theme must be a built-in theme")
+		httputil.JSONError(w, "base_theme must be a built-in theme", http.StatusBadRequest)
 		return
 	}
 	t, err := h.svc.CreateTheme(r.Context(), uid, req.Name, req.CSS, req.BaseTheme, req.BackgroundURL)
@@ -156,28 +143,28 @@ func (h *Handler) CreateTheme(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) UpdateTheme(w http.ResponseWriter, r *http.Request) {
 	uid, ok := userID(r)
 	if !ok {
-		writeErr(w, r, 401, "unauthorized")
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeErr(w, r, 400, "invalid theme id")
+		httputil.JSONError(w, "invalid theme id", http.StatusBadRequest)
 		return
 	}
 	var req themeReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeErr(w, r, 400, "invalid request body")
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 	if len(req.Name) == 0 || len(req.Name) > 64 {
-		writeErr(w, r, 400, "name must be 1-64 characters")
+		httputil.JSONError(w, "name must be 1-64 characters", http.StatusBadRequest)
 		return
 	}
 	if req.BaseTheme == "" {
 		req.BaseTheme = "rory"
 	}
 	if !validBuiltin[req.BaseTheme] {
-		writeErr(w, r, 400, "base_theme must be a built-in theme")
+		httputil.JSONError(w, "base_theme must be a built-in theme", http.StatusBadRequest)
 		return
 	}
 	t, err := h.svc.UpdateTheme(r.Context(), id, uid, req.Name, req.CSS, req.BaseTheme, req.BackgroundURL)
@@ -191,19 +178,20 @@ func (h *Handler) UpdateTheme(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) DeleteTheme(w http.ResponseWriter, r *http.Request) {
 	uid, ok := userID(r)
 	if !ok {
-		writeErr(w, r, 401, "unauthorized")
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeErr(w, r, 400, "invalid theme id"); return
+		httputil.JSONError(w, "invalid theme id", http.StatusBadRequest)
+		return
 	}
 	if err := h.svc.DeleteTheme(r.Context(), id, uid); err != nil {
 		if errors.Is(err, ErrNotFound) {
-			writeErr(w, r, 404, "theme not found")
+			httputil.JSONError(w, "theme not found", http.StatusNotFound)
 			return
 		}
-		internalErr(w, r, err)
+		httputil.InternalError(w, err)
 		return
 	}
 	w.WriteHeader(204)
@@ -212,20 +200,21 @@ func (h *Handler) DeleteTheme(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ShareTheme(w http.ResponseWriter, r *http.Request) {
 	uid, ok := userID(r)
 	if !ok {
-		writeErr(w, r, 401, "unauthorized")
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeErr(w, r, 400, "invalid theme id"); return
+		httputil.JSONError(w, "invalid theme id", http.StatusBadRequest)
+		return
 	}
 	shareURL, err := h.svc.ShareTheme(r.Context(), id, uid)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			writeErr(w, r, 404, "theme not found")
+			httputil.JSONError(w, "theme not found", http.StatusNotFound)
 			return
 		}
-		internalErr(w, r, err)
+		httputil.InternalError(w, err)
 		return
 	}
 	render.JSON(w, r, map[string]string{"share_url": shareURL})
@@ -235,10 +224,10 @@ func (h *Handler) GetPublicTheme(w http.ResponseWriter, r *http.Request) {
 	t, err := h.svc.GetPublicTheme(r.Context(), chi.URLParam(r, "token"))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			writeErr(w, r, 404, "theme not found")
+			httputil.JSONError(w, "theme not found", http.StatusNotFound)
 			return
 		}
-		internalErr(w, r, err)
+		httputil.InternalError(w, err)
 		return
 	}
 	// Public shared theme — safe to cache briefly (token is immutable content).
@@ -249,7 +238,7 @@ func (h *Handler) GetPublicTheme(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) InstallTheme(w http.ResponseWriter, r *http.Request) {
 	uid, ok := userID(r)
 	if !ok {
-		writeErr(w, r, 401, "unauthorized")
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	t, err := h.svc.InstallTheme(r.Context(), chi.URLParam(r, "token"), uid)
@@ -278,7 +267,7 @@ func (h *Handler) GetThemeRepo(w http.ResponseWriter, r *http.Request) {
 	offset := (page - 1) * limit
 	themes, total, err := h.svc.GetPublishedThemes(r.Context(), limit, offset)
 	if err != nil {
-		internalErr(w, r, err)
+		httputil.InternalError(w, err)
 		return
 	}
 	// Public repo listing — cache briefly so rapid page loads don't hammer the DB.
@@ -290,25 +279,25 @@ func (h *Handler) GetThemeRepo(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) TogglePublish(w http.ResponseWriter, r *http.Request) {
 	uid, ok := userID(r)
 	if !ok {
-		writeErr(w, r, 401, "unauthorized")
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeErr(w, r, 400, "invalid theme id")
+		httputil.JSONError(w, "invalid theme id", http.StatusBadRequest)
 		return
 	}
 	var req publishReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeErr(w, r, 400, "invalid request body")
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 	if err := h.svc.SetPublished(r.Context(), id, uid, req.Published); err != nil {
 		if errors.Is(err, ErrNotFound) {
-			writeErr(w, r, 404, "theme not found")
+			httputil.JSONError(w, "theme not found", http.StatusNotFound)
 			return
 		}
-		internalErr(w, r, err)
+		httputil.InternalError(w, err)
 		return
 	}
 	w.WriteHeader(204)
@@ -318,34 +307,34 @@ func (h *Handler) TogglePublish(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ToggleFeature(w http.ResponseWriter, r *http.Request) {
 	uid, ok := userID(r)
 	if !ok {
-		writeErr(w, r, 401, "unauthorized")
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	isAdmin, err := h.svc.IsParleyAdmin(r.Context(), uid)
 	if err != nil {
-		internalErr(w, r, err)
+		httputil.InternalError(w, err)
 		return
 	}
 	if !isAdmin {
-		writeErr(w, r, 403, "requires Parley Admin badge")
+		httputil.JSONError(w, "requires Parley Admin badge", http.StatusForbidden)
 		return
 	}
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeErr(w, r, 400, "invalid theme id")
+		httputil.JSONError(w, "invalid theme id", http.StatusBadRequest)
 		return
 	}
 	var req featureReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeErr(w, r, 400, "invalid request body")
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 	if err := h.svc.SetFeatured(r.Context(), id, req.Featured); err != nil {
 		if errors.Is(err, ErrNotFound) {
-			writeErr(w, r, 404, "theme not found")
+			httputil.JSONError(w, "theme not found", http.StatusNotFound)
 			return
 		}
-		internalErr(w, r, err)
+		httputil.InternalError(w, err)
 		return
 	}
 	w.WriteHeader(204)
@@ -363,16 +352,16 @@ func (h *Handler) handleThemeErr(w http.ResponseWriter, r *http.Request, err err
 		return
 	}
 	if errors.Is(err, ErrNotFound) {
-		writeErr(w, r, 404, "theme not found")
+		httputil.JSONError(w, "theme not found", http.StatusNotFound)
 		return
 	}
 	if errors.Is(err, ErrThemeLimit) {
-		writeErr(w, r, 400, err.Error())
+		httputil.JSONError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	if errors.Is(err, ErrAlreadyInstalled) {
-		writeErr(w, r, 409, "theme already installed")
+		httputil.JSONError(w, "theme already installed", http.StatusConflict)
 		return
 	}
-	internalErr(w, r, err)
+	httputil.InternalError(w, err)
 }

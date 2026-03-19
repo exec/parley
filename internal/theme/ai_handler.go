@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"parley/internal/ai"
+	"parley/internal/httputil"
 )
 
 // AIHandler handles AI-assisted theme generation via Server-Sent Events.
@@ -42,24 +43,24 @@ func (h *AIHandler) Generate(w http.ResponseWriter, r *http.Request) {
 
 	uid, ok := userID(r)
 	if !ok {
-		writeErr(w, r, http.StatusUnauthorized, "unauthorized")
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	_ = uid // authenticated; used for future per-user rate limiting
 
 	// Disable the server-level 15s write deadline so SSE can stream indefinitely.
 	if err := http.NewResponseController(w).SetWriteDeadline(time.Time{}); err != nil {
-		writeErr(w, r, http.StatusInternalServerError, "could not set write deadline")
+		httputil.InternalError(w, err)
 		return
 	}
 
 	var req generateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeErr(w, r, http.StatusBadRequest, "invalid request body")
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 	if len(req.Prompt) == 0 {
-		writeErr(w, r, http.StatusBadRequest, "prompt is required")
+		httputil.JSONError(w, "prompt is required", http.StatusBadRequest)
 		return
 	}
 	if len(req.Prompt) > 500 {
@@ -83,7 +84,7 @@ func (h *AIHandler) Generate(w http.ResponseWriter, r *http.Request) {
 	// Enqueue the job.
 	position, err := h.queue.Enqueue(r.Context(), job)
 	if err != nil {
-		writeErr(w, r, http.StatusInternalServerError, "failed to enqueue job")
+		httputil.InternalError(w, err)
 		return
 	}
 

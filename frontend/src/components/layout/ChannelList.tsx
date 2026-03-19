@@ -466,7 +466,7 @@ interface ChannelListProps {
   voiceParticipants?: Record<string, { user_id: string; username: string; avatar_url?: string }[]>;
   activeVoiceChannelId?: string | null;
   channelUnreadCounts?: Record<string, number>;
-  channelMentionCounts?: Record<string, number>;
+  channelMentionCounts?: Set<string>;
   canManageChannels?: boolean;
   onRenameChannel?: (channelId: string, newName: string) => void;
   onMarkChannelRead?: (channelId: string) => void;
@@ -497,7 +497,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
   serverName, channels, activeChannelId, onChannelSelect, onCreateChannel,
   onDeleteChannel, onServerSettings, onLeaveServer,
   currentUser, onLogout, onOpenSettings, onVoiceChannelClick,
-  voiceParticipants = {}, activeVoiceChannelId = null, channelUnreadCounts = {}, channelMentionCounts = {},
+  voiceParticipants = {}, activeVoiceChannelId = null, channelUnreadCounts = {}, channelMentionCounts = new Set<string>(),
   canManageChannels = false, onRenameChannel, onMarkChannelRead, onReorderChannels, onChannelSettings,
   canMuteMembers, canKickFromVoice, onVcParticipantClick,
   isOpen = true,
@@ -601,7 +601,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
       channel={ch}
       isActive={ch.id === activeChannelId}
       unread={channelUnreadCounts[ch.id] ?? 0}
-      hasMention={(channelMentionCounts[ch.id] ?? 0) > 0}
+      hasMention={channelMentionCounts.has(ch.id)}
       isRenaming={renamingChannelId === ch.id}
       renameValue={renameValue}
       renameInputRef={renameInputRef}
