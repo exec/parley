@@ -19,13 +19,13 @@ const BUILTIN_LABELS: Record<string, string> = {
 // data-theme set on body, all done dynamically so the iframe doesn't reload on every keystroke.
 const PREVIEW_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 *{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:sans-serif;background:var(--parley-channel-bg,#000);color:var(--parley-text-normal,#fff);display:flex;height:100vh;overflow:hidden;}
-.sb{width:44px;background:var(--parley-sidebar,#111);flex-shrink:0;}
-.ch{width:110px;background:var(--parley-bg-secondary,#0a0a0a);padding:7px;flex-shrink:0;}
+body{font-family:sans-serif;background:var(--parley-app-bg,var(--parley-channel-bg,#000));background-size:cover;background-position:center;background-attachment:fixed;color:var(--parley-text-normal,#fff);display:flex;height:100vh;overflow:hidden;}
+.sb{width:44px;background:var(--parley-panel-bg,var(--parley-sidebar,#111));backdrop-filter:blur(var(--parley-panel-blur,0px));-webkit-backdrop-filter:blur(var(--parley-panel-blur,0px));flex-shrink:0;}
+.ch{width:110px;background:var(--parley-panel-bg,var(--parley-bg-secondary,#0a0a0a));backdrop-filter:blur(var(--parley-panel-blur,0px));-webkit-backdrop-filter:blur(var(--parley-panel-blur,0px));padding:7px;flex-shrink:0;}
 .ch h4{font-size:10px;color:var(--parley-text-muted,#666);margin-bottom:5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;}
 .c{font-size:11px;color:var(--parley-text-muted,#666);padding:2px 4px;border-radius:3px;}
 .c.a{background:var(--parley-bg-hover,#1a1a1a);color:var(--parley-text-normal,#fff);}
-.chat{flex:1;background:var(--parley-channel-bg,#000);padding:10px;display:flex;flex-direction:column;justify-content:flex-end;}
+.chat{flex:1;background:var(--parley-chat-bg,var(--parley-channel-bg,#000));padding:10px;display:flex;flex-direction:column;justify-content:flex-end;}
 .m{margin-bottom:7px;display:flex;align-items:flex-start;gap:8px;}
 .av{width:24px;height:24px;border-radius:50%;flex-shrink:0;background:var(--parley-accent,#888);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;}
 .mc{flex:1;min-width:0;}
@@ -86,7 +86,7 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
   const debRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMounted = useRef(false);
 
-  const updatePreview = useCallback((c: string, base: string) => {
+  const updatePreview = useCallback((c: string, base: string, bg: string | null) => {
     const doc = iframeRef.current?.contentDocument;
     if (!doc) return;
     const baseEl = doc.getElementById('base');
@@ -94,20 +94,21 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
     if (baseEl) baseEl.textContent = themeVarsCSS(base);
     if (customEl) customEl.textContent = c;
     doc.body.dataset.theme = base;
+    doc.body.style.backgroundImage = bg ? `url(${bg})` : '';
   }, []);
 
   useEffect(() => {
     const f = iframeRef.current;
     if (!f) return;
     f.srcdoc = PREVIEW_HTML;
-    f.onload = () => updatePreview(css, baseTheme);
+    f.onload = () => updatePreview(css, baseTheme, bgUrl);
   }, []); // eslint-disable-line
 
   useEffect(() => {
     if (debRef.current) clearTimeout(debRef.current);
-    debRef.current = setTimeout(() => updatePreview(css, baseTheme), 300);
+    debRef.current = setTimeout(() => updatePreview(css, baseTheme, bgUrl), 300);
     return () => { if (debRef.current) clearTimeout(debRef.current); };
-  }, [css, baseTheme, updatePreview]);
+  }, [css, baseTheme, bgUrl, updatePreview]);
 
   // Abort any in-flight AI generation when the component unmounts.
   useEffect(() => {
