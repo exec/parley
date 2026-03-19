@@ -25,6 +25,37 @@ jobs:
           echo "API_HOSTS=$API_HOSTS" >> "$GITHUB_ENV"
           echo "ADMIN_HOST=$ADMIN_HOST" >> "$GITHUB_ENV"
 
+      - name: Allowlist runner IP in DO firewalls
+        run: |
+          RUNNER_IP=$(curl -sf https://ifconfig.me)/32
+          echo "RUNNER_IP=$RUNNER_IP" >> "$GITHUB_ENV"
+
+          FW_LIST=$(curl -sf -H "Authorization: Bearer $DO_TOKEN" \
+            "https://api.digitalocean.com/v2/firewalls?per_page=50")
+          FW_API_ID=$(echo "$FW_LIST" | jq -r '.firewalls[] | select(.name == "parley-api-fw") | .id')
+          FW_ADMIN_ID=$(echo "$FW_LIST" | jq -r '.firewalls[] | select(.name == "parley-admin-fw") | .id')
+          echo "FW_API_ID=$FW_API_ID" >> "$GITHUB_ENV"
+          echo "FW_ADMIN_ID=$FW_ADMIN_ID" >> "$GITHUB_ENV"
+
+          RULE=$(jq -n --arg ip "$RUNNER_IP" '{
+            "inbound_rules": [{"protocol": "tcp", "ports": "22", "sources": {"addresses": [$ip]}}]
+          }')
+
+          curl -sf -X POST \
+            -H "Authorization: Bearer $DO_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$RULE" \
+            "https://api.digitalocean.com/v2/firewalls/$FW_API_ID/rules"
+
+          curl -sf -X POST \
+            -H "Authorization: Bearer $DO_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$RULE" \
+            "https://api.digitalocean.com/v2/firewalls/$FW_ADMIN_ID/rules"
+
+          # Wait for firewall rules to propagate
+          sleep 5
+
       - name: Set up SSH
         run: |
           mkdir -p ~/.ssh
@@ -56,6 +87,25 @@ jobs:
             systemctl restart parley-admin
             echo OK
           '
+
+      - name: Remove runner IP from DO firewalls
+        if: always()
+        run: |
+          RULE=$(jq -n --arg ip "$RUNNER_IP" '{
+            "inbound_rules": [{"protocol": "tcp", "ports": "22", "sources": {"addresses": [$ip]}}]
+          }')
+
+          curl -sf -X DELETE \
+            -H "Authorization: Bearer $DO_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$RULE" \
+            "https://api.digitalocean.com/v2/firewalls/$FW_API_ID/rules" || true
+
+          curl -sf -X DELETE \
+            -H "Authorization: Bearer $DO_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$RULE" \
+            "https://api.digitalocean.com/v2/firewalls/$FW_ADMIN_ID/rules" || true
 
       - name: Clean up SSH key
         if: always()
