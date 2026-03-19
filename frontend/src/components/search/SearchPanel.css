@@ -3,8 +3,10 @@
   flex-direction: column;
   width: 360px;
   height: 100%;
-  background: var(--parley-bg-secondary);
-  border-left: 1px solid var(--parley-bg-tertiary);
+  background: var(--parley-panel-bg, var(--parley-bg-secondary));
+  backdrop-filter: blur(var(--parley-panel-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
+  border-left: 1px solid var(--parley-border, var(--parley-bg-tertiary));
   overflow: hidden;
 }
 
