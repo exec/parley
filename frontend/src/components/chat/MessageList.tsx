@@ -56,6 +56,10 @@ export const MessageList: React.FC<MessageListProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true);
+  const prevChannelIdRef = useRef<string | undefined>(undefined);
+  // Timestamp of last channel switch — used to suppress the scroll handler
+  // from cancelling auto-scroll while the new channel's messages are loading.
+  const channelSwitchTimeRef = useRef(0);
 
   const handleScrollToMessage = useCallback((messageId: string) => {
     const el = document.getElementById(`message-${messageId}`);
@@ -108,26 +112,31 @@ export const MessageList: React.FC<MessageListProps> = ({
     });
   };
 
-  // Force scroll to bottom when switching channels
+  // Scroll to bottom on new messages, and always on channel switch.
+  // Combining both deps here ensures the channel-switch reset runs in the
+  // same effect pass as the message render, so the scroll handler can't
+  // race in between and cancel shouldAutoScrollRef.
   useEffect(() => {
-    shouldAutoScrollRef.current = true;
-    if (containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
-    }
-  }, [channelId]);
-
-  // Auto-scroll to bottom on new messages (deferred so DOM is painted)
-  useEffect(() => {
-    if (!shouldAutoScrollRef.current || !containerRef.current) return;
+    if (!containerRef.current) return;
     const container = containerRef.current;
+    const changedChannel = prevChannelIdRef.current !== channelId;
+    prevChannelIdRef.current = channelId;
+    if (changedChannel) {
+      shouldAutoScrollRef.current = true;
+      channelSwitchTimeRef.current = Date.now();
+    }
+    if (!shouldAutoScrollRef.current) return;
     requestAnimationFrame(() => {
       container.scrollTop = container.scrollHeight;
     });
-  }, [messages]);
+  }, [messages, channelId]);
 
   // Handle scroll - both for infinite loading and auto-scroll reset
   const handleScroll = useCallback(() => {
     if (!containerRef.current) return;
+    // Ignore scroll events fired immediately after a channel switch — the
+    // container briefly sits at scrollTop=0 which would cancel auto-scroll.
+    if (Date.now() - channelSwitchTimeRef.current < 400) return;
 
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
 
