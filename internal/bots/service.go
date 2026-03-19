@@ -16,6 +16,7 @@ import (
 )
 
 var ErrForbidden = errors.New("forbidden")
+var ErrBadRequest = errors.New("bad request")
 
 type Service struct {
 	repo      *Repository
@@ -131,7 +132,7 @@ func (s *Service) GetMyBots(ctx context.Context, callerID int64) ([]UserBot, err
 
 // ResolveInvite resolves a bot invite token to bot info. Public (no auth required).
 func (s *Service) ResolveInvite(ctx context.Context, token string) (*BotInviteInfo, error) {
-	botUserID, _, err := s.repo.ResolveInviteToken(ctx, token)
+	botUserID, permissions, err := s.repo.ResolveInviteToken(ctx, token)
 	if err != nil {
 		return nil, ErrNotFound
 	}
@@ -139,31 +140,57 @@ func (s *Service) ResolveInvite(ctx context.Context, token string) (*BotInviteIn
 	if err != nil {
 		return nil, ErrNotFound
 	}
+	info.Permissions = permissions
 	return info, nil
 }
 
 // AcceptInvite adds a bot to a server via invite token. Caller must be server admin or owner,
 // and must be a member of the target server.
-func (s *Service) AcceptInvite(ctx context.Context, token string, serverID, callerID int64) error {
-	// Check caller is a member of this server
+// Returns the bot's user ID so the caller can broadcast a member_join event.
+func (s *Service) AcceptInvite(ctx context.Context, token string, serverID, callerID int64, grantedPermissions int64) (int64, error) {
+	const maxPerms = (int64(1) << 42) - 1
+	if grantedPermissions < 0 || grantedPermissions > maxPerms {
+		return 0, ErrBadRequest
+	}
 	isMember, err := s.repo.IsServerMember(ctx, serverID, callerID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if !isMember {
-		return ErrNotFound // return 404 so caller can't probe membership
+		return 0, ErrNotFound
 	}
 	if err := s.requireAdmin(ctx, serverID, callerID); err != nil {
-		return err
+		return 0, err
 	}
 	botUserID, _, err := s.repo.ResolveInviteToken(ctx, token)
 	if errors.Is(err, ErrNotFound) {
-		return ErrNotFound
+		return 0, ErrNotFound
 	}
 	if err != nil {
-		return err
+		return 0, err
 	}
-	return s.repo.AddBotToServer(ctx, serverID, botUserID)
+	info, err := s.repo.GetBotInfo(ctx, botUserID)
+	if err != nil {
+		return 0, err
+	}
+	if err := s.repo.AddBotToServerWithRole(ctx, serverID, botUserID, info.Username, grantedPermissions); err != nil {
+		return 0, err
+	}
+	return botUserID, nil
+}
+
+// UpdateInvitePermissions sets the requested permissions on the bot's invite token.
+// callerID must own the bot. Returns ErrForbidden if they don't.
+func (s *Service) UpdateInvitePermissions(ctx context.Context, botUserID, callerID, permissions int64) error {
+	const maxPerms = (int64(1) << 42) - 1
+	if permissions < 0 || permissions > maxPerms {
+		return ErrBadRequest
+	}
+	err := s.repo.UpdateBotInvitePermissions(ctx, botUserID, callerID, permissions)
+	if errors.Is(err, ErrNotFound) {
+		return ErrForbidden
+	}
+	return err
 }
 
 // DecryptAPIKey decrypts an AES-256-GCM encrypted API key for use in LLM dispatch.

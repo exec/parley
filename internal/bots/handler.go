@@ -276,7 +276,7 @@ func (h *Handler) AcceptInvite(w http.ResponseWriter, r *http.Request) {
 		httputil.JSONError(w, "server_id required", http.StatusBadRequest)
 		return
 	}
-	if err := h.svc.AcceptInvite(r.Context(), token, req.ServerID, uid); err != nil {
+	if _, err := h.svc.AcceptInvite(r.Context(), token, req.ServerID, uid, 0); err != nil {
 		handleSvcErr(w, r, err)
 		return
 	}
