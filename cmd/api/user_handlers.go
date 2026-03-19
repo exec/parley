@@ -123,7 +123,7 @@ func handleGetUser(repo *db.Repository) http.HandlerFunc {
 	}
 }
 
-func handleUpdateProfile(authService *auth.AuthService, repo *db.Repository, hub *ws.Hub) http.HandlerFunc {
+func handleUpdateProfile(authService *auth.AuthService, repo *db.Repository, hub *ws.Hub, cdnHost string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userIDStr := auth.GetUserIDFromContext(r)
 		if userIDStr == "" {
@@ -142,6 +142,16 @@ func handleUpdateProfile(authService *auth.AuthService, repo *db.Repository, hub
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			jsonError(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		// Validate avatar/banner URLs must be empty or from the CDN host.
+		if err := validateMediaURL(req.AvatarURL, cdnHost); err != nil {
+			jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err := validateMediaURL(req.BannerURL, cdnHost); err != nil {
+			jsonError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 

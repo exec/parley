@@ -42,7 +42,8 @@ resource "digitalocean_droplet" "parley_db" {
   ssh_keys = [digitalocean_ssh_key.parley_key.fingerprint]
 
   user_data = templatefile("${path.module}/userdata-db.sh", {
-    db_password = var.db_password
+    db_password    = var.db_password
+    redis_password = var.redis_password
   })
 
   tags = ["parley", "database"]
@@ -93,6 +94,7 @@ resource "digitalocean_droplet" "parley_api" {
     OLLAMA_API_KEY           = var.ollama_api_key
     OLLAMA_MODEL             = var.ollama_model
     BOT_KEY_SECRET           = var.bot_key_secret
+    REDIS_PASSWORD           = var.redis_password
   })
 
   tags = ["parley", "api"]
@@ -186,3 +188,133 @@ output "admin_droplet_ip" {
 
 # Spaces bucket (parley-prod) is managed manually in the DO console
 # with CDN already configured — not managed by Terraform.
+
+# ────────────────────────────────────────────────────────────────────────────
+# Cloud Firewalls — enforced at the hypervisor, independent of OS firewall
+# ────────────────────────────────────────────────────────────────────────────
+
+# Cloudflare published IPv4 ranges (https://www.cloudflare.com/ips-v4)
+locals {
+  cloudflare_ipv4 = [
+    "173.245.48.0/20",
+    "103.21.244.0/22",
+    "103.22.200.0/22",
+    "103.31.4.0/22",
+    "141.101.64.0/18",
+    "108.162.192.0/18",
+    "190.93.240.0/20",
+    "188.114.96.0/20",
+    "197.234.240.0/22",
+    "198.41.128.0/17",
+    "162.158.0.0/15",
+    "104.16.0.0/13",
+    "104.24.0.0/14",
+    "172.64.0.0/13",
+    "131.0.72.0/22",
+  ]
+}
+
+# API nodes: port 80 from Cloudflare + LB only; SSH from admin IP only
+resource "digitalocean_firewall" "parley_api" {
+  name = "parley-api-fw"
+  tags = ["api"]
+
+  # HTTP — Cloudflare IPs and the DO load balancer health-checker
+  inbound_rule {
+    protocol         = "tcp"
+    port_range       = "80"
+    source_addresses = concat(local.cloudflare_ipv4, [digitalocean_loadbalancer.parley_lb.ip])
+  }
+
+  # SSH — admin IP only
+  inbound_rule {
+    protocol         = "tcp"
+    port_range       = "22"
+    source_addresses = [var.admin_allowed_ip]
+  }
+
+  outbound_rule {
+    protocol              = "tcp"
+    port_range            = "1-65535"
+    destination_addresses = ["0.0.0.0/0", "::/0"]
+  }
+  outbound_rule {
+    protocol              = "udp"
+    port_range            = "1-65535"
+    destination_addresses = ["0.0.0.0/0", "::/0"]
+  }
+}
+
+# DB server: DB/Redis ports from VPC only; SSH from admin IP only
+resource "digitalocean_firewall" "parley_db" {
+  name        = "parley-db-fw"
+  droplet_ids = [digitalocean_droplet.parley_db.id]
+
+  # SSH — admin IP only
+  inbound_rule {
+    protocol         = "tcp"
+    port_range       = "22"
+    source_addresses = [var.admin_allowed_ip]
+  }
+
+  # PostgreSQL — VPC only (10.0.0.0/8 covers all DO VPC ranges)
+  inbound_rule {
+    protocol         = "tcp"
+    port_range       = "5432"
+    source_addresses = ["10.0.0.0/8"]
+  }
+
+  # PgBouncer — VPC only
+  inbound_rule {
+    protocol         = "tcp"
+    port_range       = "6432"
+    source_addresses = ["10.0.0.0/8"]
+  }
+
+  # Redis — VPC only
+  inbound_rule {
+    protocol         = "tcp"
+    port_range       = "6379"
+    source_addresses = ["10.0.0.0/8"]
+  }
+
+  outbound_rule {
+    protocol              = "tcp"
+    port_range            = "1-65535"
+    destination_addresses = ["0.0.0.0/0", "::/0"]
+  }
+  outbound_rule {
+    protocol              = "udp"
+    port_range            = "1-65535"
+    destination_addresses = ["0.0.0.0/0", "::/0"]
+  }
+}
+
+# Admin panel: port 80 and SSH from admin IP only
+resource "digitalocean_firewall" "parley_admin" {
+  name        = "parley-admin-fw"
+  droplet_ids = [digitalocean_droplet.parley_admin.id]
+
+  inbound_rule {
+    protocol         = "tcp"
+    port_range       = "80"
+    source_addresses = [var.admin_allowed_ip]
+  }
+
+  inbound_rule {
+    protocol         = "tcp"
+    port_range       = "22"
+    source_addresses = [var.admin_allowed_ip]
+  }
+
+  outbound_rule {
+    protocol              = "tcp"
+    port_range            = "1-65535"
+    destination_addresses = ["0.0.0.0/0", "::/0"]
+  }
+  outbound_rule {
+    protocol              = "udp"
+    port_range            = "1-65535"
+    destination_addresses = ["0.0.0.0/0", "::/0"]
+  }
+}

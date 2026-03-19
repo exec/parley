@@ -180,3 +180,13 @@ variable "bot_key_secret" {
   sensitive   = true
   default     = ""
 }
+variable "redis_password" {
+  description = "Redis authentication password (requirepass)"
+  type        = string
+  sensitive   = true
+}
+
+variable "admin_allowed_ip" {
+  description = "CIDR allowed to reach the admin panel (e.g. your home IP /32)"
+  type        = string
+}

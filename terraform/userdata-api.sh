@@ -19,6 +19,7 @@ OLLAMA_API_URL="${OLLAMA_API_URL}"
 OLLAMA_API_KEY="${OLLAMA_API_KEY}"
 OLLAMA_MODEL="${OLLAMA_MODEL}"
 BOT_KEY_SECRET="${BOT_KEY_SECRET}"
+REDIS_PASSWORD="${REDIS_PASSWORD}"
 
 echo "=== Starting Parley API setup ==="
 
@@ -177,7 +178,7 @@ cat > /etc/parley/env <<EOF
 DATABASE_URL=postgresql://${DB_USER}:$${DB_PASSWORD_ENCODED}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=disable
 JWT_SECRET=${JWT_SECRET}
 PORT=${PORT}
-REDIS_URL=redis://${REDIS_HOST}:6379
+REDIS_URL=redis://:${REDIS_PASSWORD}@${REDIS_HOST}:6379
 PATH=/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 SPACES_ACCESS_KEY=${SPACES_ACCESS_KEY}
 SPACES_SECRET_KEY=${SPACES_SECRET_KEY}
@@ -213,7 +214,7 @@ Type=simple
 User=root
 WorkingDirectory=/parley
 EnvironmentFile=/etc/parley/env
-ExecStartPre=/bin/sh -c 'until redis-cli -h ${REDIS_HOST} ping 2>/dev/null | grep -q PONG; do echo "Waiting for Redis..."; sleep 2; done'
+ExecStartPre=/bin/sh -c 'until redis-cli -h ${REDIS_HOST} -a ${REDIS_PASSWORD} ping 2>/dev/null | grep -q PONG; do echo "Waiting for Redis..."; sleep 2; done'
 ExecStart=/usr/local/bin/parley-api
 Restart=always
 RestartSec=10

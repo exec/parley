@@ -100,22 +100,35 @@ sysctl -w vm.nr_hugepages=512 || true
 echo "=== Installing Redis ==="
 apt-get install -y redis-server
 
-# Configure Redis to listen on all interfaces (VPC traffic is firewalled)
-echo "=== Configuring Redis for remote connections ==="
-sed -i "s/^bind .*/bind 0.0.0.0/" /etc/redis/redis.conf 2>/dev/null || true
-# Disable protected mode since we're behind firewall
-sed -i "s/^protected-mode .*/protected-mode no/" /etc/redis/redis.conf 2>/dev/null || true
+# Configure Redis — bind to loopback + VPC private IP only, require password
+echo "=== Configuring Redis (VPC-only, authenticated) ==="
+# Detect private VPC IP (second address is the VPC interface on DigitalOcean)
+PRIVATE_IP=$(ip addr show | grep 'inet 10\.' | awk '{print $2}' | cut -d/ -f1 | head -1)
+if [ -z "$PRIVATE_IP" ]; then
+    PRIVATE_IP=$(hostname -I | tr ' ' '\n' | grep '^10\.' | head -1)
+fi
+echo "Detected VPC private IP: $PRIVATE_IP"
+
+# Bind to loopback and private VPC IP only (never 0.0.0.0)
+sed -i "s/^bind .*/bind 127.0.0.1 $PRIVATE_IP/" /etc/redis/redis.conf 2>/dev/null || true
+# Require password authentication
+sed -i "s/^# requirepass .*/requirepass ${redis_password}/" /etc/redis/redis.conf 2>/dev/null || true
+grep -q "^requirepass" /etc/redis/redis.conf || echo "requirepass ${redis_password}" >> /etc/redis/redis.conf
+# Keep protected mode on
+sed -i "s/^protected-mode .*/protected-mode yes/" /etc/redis/redis.conf 2>/dev/null || true
 
 # Restart Redis with new configuration
 systemctl restart redis-server
 systemctl enable redis-server
 
-# Configure firewall
-echo "=== Configuring firewall ==="
-ufw allow 22/tcp    # SSH
-ufw allow 5432/tcp  # PostgreSQL
-ufw allow 6432/tcp  # PgBouncer
-ufw allow 6379/tcp  # Redis
+# Configure firewall — DB/Redis only accessible from VPC, not public internet
+echo "=== Configuring firewall (VPC-only DB ports) ==="
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow 22/tcp                                           # SSH
+ufw allow from 10.0.0.0/8 to any port 5432 proto tcp     # PostgreSQL — VPC only
+ufw allow from 10.0.0.0/8 to any port 6432 proto tcp     # PgBouncer — VPC only
+ufw allow from 10.0.0.0/8 to any port 6379 proto tcp     # Redis — VPC only
 ufw --force enable
 
 # Restart PostgreSQL with new configuration

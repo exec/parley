@@ -133,9 +133,13 @@ func (s *Service) GetMyBots(ctx context.Context, callerID int64) ([]UserBot, err
 func (s *Service) ResolveInvite(ctx context.Context, token string) (*BotInviteInfo, error) {
 	botUserID, err := s.repo.ResolveInviteToken(ctx, token)
 	if err != nil {
-		return nil, err
+		return nil, ErrNotFound
 	}
-	return s.repo.GetBotInfo(ctx, botUserID)
+	info, err := s.repo.GetBotInfo(ctx, botUserID)
+	if err != nil {
+		return nil, ErrNotFound
+	}
+	return info, nil
 }
 
 // AcceptInvite adds a bot to a server via invite token. Caller must be server admin or owner,

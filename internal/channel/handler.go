@@ -113,9 +113,17 @@ func (h *Handler) GetServerChannels(w http.ResponseWriter, r *http.Request) {
 	// ownerID is resolved inside the service via the server record; we pass userID and let the service look up ownerID.
 	// To do the filtering we need the ownerID here — fetch it from the service.
 	ownerID := h.service.GetServerOwnerID(r.Context(), serverID)
+	if ownerID == "" {
+		http.Error(w, `{"message":"server not found"}`, http.StatusNotFound)
+		return
+	}
 
 	channels, err := h.service.GetServerChannels(r.Context(), serverID, userID, ownerID)
 	if err != nil {
+		if err.Error() == "server not found" {
+			http.Error(w, `{"message":"server not found"}`, http.StatusNotFound)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
