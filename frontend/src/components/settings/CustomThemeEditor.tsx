@@ -84,6 +84,7 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
   const abortRef = useRef<AbortController | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const debRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMounted = useRef(false);
 
   const updatePreview = useCallback((c: string, base: string) => {
     const doc = iframeRef.current?.contentDocument;
@@ -191,20 +192,23 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
       const url = await uploadFile(file);
       setBgUrl(url);
       const bgRule = `body { background-image: url("${url}"); background-size: cover; background-repeat: no-repeat; background-attachment: fixed; }\n`;
-      const vars = buildGlassPreset(baseTheme, 'frosted');
+      // Use current preset if already set, otherwise default to frosted on first upload
+      const activePreset = glassPreset === 'solid' ? 'frosted' : glassPreset;
+      const vars = buildGlassPreset(baseTheme, activePreset);
       setCSS(prev => {
         const withBg = bgRule + prev.replace(/body\s*\{[^}]*background-image[^}]*\}\n?/g, '');
         return injectGlassVars(withBg, vars);
       });
-      setGlassPreset('frosted');
+      setGlassPreset(activePreset);
     } catch { setError('Upload failed'); }
   };
 
   useEffect(() => {
+    if (!isMounted.current) { isMounted.current = true; return; }
     if (glassPreset === 'solid') return;
     const vars = buildGlassPreset(baseTheme, glassPreset);
     setCSS(prev => injectGlassVars(prev, vars));
-  }, [baseTheme]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [baseTheme, glassPreset]);
 
   const handleSave = async () => {
     setError(null);
