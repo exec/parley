@@ -1,5 +1,10 @@
 const CDN_HOST = (import.meta.env.VITE_CDN_HOST as string) || '';
-const ALLOWED = new Set(['fonts.googleapis.com','fonts.gstatic.com',...(CDN_HOST ? [CDN_HOST] : [])]);
+const ALLOWED = new Set([
+  'fonts.googleapis.com',
+  'fonts.gstatic.com',
+  'parley-prod.nyc3.cdn.digitaloceanspaces.com',
+  ...(CDN_HOST ? [CDN_HOST] : []),
+]);
 const URL_RE = /url\(\s*['"]?([^'"\s)]+)['"]?\s*\)/gi;
 
 export interface CSSValidationError { offendingUrls: string[]; }
