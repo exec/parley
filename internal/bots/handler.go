@@ -66,6 +66,8 @@ func handleSvcErr(w http.ResponseWriter, r *http.Request, err error) {
 		httputil.JSONError(w, "forbidden", http.StatusForbidden)
 	case errors.Is(err, ErrAlreadyExists):
 		httputil.JSONError(w, "already exists", http.StatusConflict)
+	case errors.Is(err, ErrBadRequest):
+		httputil.JSONError(w, "invalid permissions value", http.StatusBadRequest)
 	default:
 		httputil.InternalError(w, err)
 	}
@@ -270,13 +272,48 @@ func (h *Handler) AcceptInvite(w http.ResponseWriter, r *http.Request) {
 	}
 	token := chi.URLParam(r, "token")
 	var req struct {
-		ServerID int64 `json:"server_id"`
+		ServerID           int64 `json:"server_id"`
+		GrantedPermissions int64 `json:"granted_permissions"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ServerID == 0 {
 		httputil.JSONError(w, "server_id required", http.StatusBadRequest)
 		return
 	}
-	if _, err := h.svc.AcceptInvite(r.Context(), token, req.ServerID, uid, 0); err != nil {
+	botUserID, err := h.svc.AcceptInvite(r.Context(), token, req.ServerID, uid, req.GrantedPermissions)
+	if err != nil {
+		handleSvcErr(w, r, err)
+		return
+	}
+	if h.hub != nil {
+		payload, _ := json.Marshal(map[string]string{
+			"server_id": fmt.Sprintf("%d", req.ServerID),
+			"user_id":   fmt.Sprintf("%d", botUserID),
+		})
+		h.hub.BroadcastToChannel(fmt.Sprintf("server:%d", req.ServerID), ws.EventMemberJoin, payload)
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// UpdateInvitePermissions handles PATCH /api/developer/bots/{botId}/invite
+func (h *Handler) UpdateInvitePermissions(w http.ResponseWriter, r *http.Request) {
+	uid, ok := callerID(r)
+	if !ok {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	botID, err := strconv.ParseInt(chi.URLParam(r, "botId"), 10, 64)
+	if err != nil {
+		httputil.JSONError(w, "invalid bot id", http.StatusBadRequest)
+		return
+	}
+	var req struct {
+		Permissions int64 `json:"permissions"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if err := h.svc.UpdateInvitePermissions(r.Context(), botID, uid, req.Permissions); err != nil {
 		handleSvcErr(w, r, err)
 		return
 	}
