@@ -12,7 +12,7 @@ import (
 	"io"
 	"time"
 
-	"parley/internal/permissions"
+	permpkg "parley/internal/permissions"
 )
 
 var ErrForbidden = errors.New("forbidden")
@@ -148,8 +148,7 @@ func (s *Service) ResolveInvite(ctx context.Context, token string) (*BotInviteIn
 // and must be a member of the target server.
 // Returns the bot's user ID so the caller can broadcast a member_join event.
 func (s *Service) AcceptInvite(ctx context.Context, token string, serverID, callerID int64, grantedPermissions int64) (int64, error) {
-	const maxPerms = (int64(1) << 42) - 1
-	if grantedPermissions < 0 || grantedPermissions > maxPerms {
+	if grantedPermissions < 0 || grantedPermissions > permpkg.PermAllPermissions {
 		return 0, ErrBadRequest
 	}
 	isMember, err := s.repo.IsServerMember(ctx, serverID, callerID)
@@ -182,8 +181,7 @@ func (s *Service) AcceptInvite(ctx context.Context, token string, serverID, call
 // UpdateInvitePermissions sets the requested permissions on the bot's invite token.
 // callerID must own the bot. Returns ErrForbidden if they don't.
 func (s *Service) UpdateInvitePermissions(ctx context.Context, botUserID, callerID, permissions int64) error {
-	const maxPerms = (int64(1) << 42) - 1
-	if permissions < 0 || permissions > maxPerms {
+	if permissions < 0 || permissions > permpkg.PermAllPermissions {
 		return ErrBadRequest
 	}
 	err := s.repo.UpdateBotInvitePermissions(ctx, botUserID, callerID, permissions)
@@ -207,7 +205,7 @@ func (s *Service) requireAdmin(ctx context.Context, serverID, callerID int64) er
 	if err != nil {
 		return err
 	}
-	ok, err := permissions.HasPermission(ctx, s.repo.DBRepo(), serverID, callerID, ownerID, permissions.PermAdministrator)
+	ok, err := permpkg.HasPermission(ctx, s.repo.DBRepo(), serverID, callerID, ownerID, permpkg.PermAdministrator)
 	if err != nil {
 		return err
 	}
