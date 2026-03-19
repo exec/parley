@@ -145,14 +145,22 @@
 }
 
 html {
-  /* 100svh = stable "small" viewport height — never shifts when URL bar slides.
-     padding = safe-area insets so ALL pages automatically clear Dynamic Island
-     and home indicator. Background fills the safe-area zones edge-to-edge. */
+  /* 100svh = stable "small" viewport height — never shifts when Safari URL bar
+     slides in/out. Safe-area padding clears Dynamic Island & home indicator.
+     Background fills the safe-area zones edge-to-edge. */
   height: 100svh;
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
   box-sizing: border-box;
   background-color: var(--parley-bg-primary);
+}
+
+/* In PWA standalone mode there is no Safari toolbar, so 100svh incorrectly
+   reserves toolbar space at the bottom. Switch to dvh which = full screen. */
+@media (display-mode: standalone) {
+  html {
+    height: 100dvh;
+  }
 }
 
 body {

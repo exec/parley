@@ -1,7 +1,10 @@
 .main-layout {
   display: flex;
   width: 100%;
-  height: 100%; /* fills html > body > #root, which is 100svh with safe-area padding */
+  /* Primary: 100% of html (which is 100svh/dvh + safe-area padding).
+     Fallback: --app-height set by theme-init.js for login→app transitions. */
+  height: 100%;
+  min-height: 0;
   background-color: var(--bg-primary);
   overflow: hidden;
 }

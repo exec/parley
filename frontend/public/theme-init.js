@@ -16,4 +16,26 @@
     document.body.dataset.theme=t;
     setThemeColor(t);
   }
+
+  // ── Standalone PWA height ────────────────────────────────────────────────
+  // The CSS display-mode:standalone media query handles the svh→dvh switch,
+  // but during login→app transition React may remount before the cascade
+  // resolves. Set an explicit --app-height so there's never a flash.
+  // In standalone: use screen dimensions (true full screen).
+  // In browser: use innerHeight (current visible area, stable enough on mount).
+  var isStandalone = window.navigator.standalone === true ||
+    window.matchMedia('(display-mode: standalone)').matches;
+  var h = isStandalone
+    ? (window.screen.height)  // full physical screen in CSS px
+    : (window.visualViewport ? window.visualViewport.height : window.innerHeight);
+  document.documentElement.style.setProperty('--app-height', h + 'px');
+  window.addEventListener('orientationchange', function(){
+    setTimeout(function(){
+      var isStandalone2 = window.navigator.standalone === true ||
+        window.matchMedia('(display-mode: standalone)').matches;
+      var h2 = isStandalone2 ? window.screen.height
+        : (window.visualViewport ? window.visualViewport.height : window.innerHeight);
+      document.documentElement.style.setProperty('--app-height', h2 + 'px');
+    }, 150);
+  });
 })();
