@@ -736,6 +736,9 @@ WHERE u.is_bot = TRUE
   AND NOT EXISTS (SELECT 1 FROM bot_invite_tokens bit WHERE bit.bot_user_id = u.id);`,
 
 	`ALTER TABLE bot_invite_tokens ADD CONSTRAINT bot_invite_tokens_bot_user_id_key UNIQUE (bot_user_id);`,
+
+	`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_token_expires_at TIMESTAMPTZ;
+UPDATE users SET email_verification_token_expires_at = created_at + INTERVAL '72 hours' WHERE email_verification_token IS NOT NULL AND email_verification_token_expires_at IS NULL;`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

@@ -11,8 +11,8 @@ import (
 
 func (r *Repository) CreateUser(ctx context.Context, user *User) error {
 	query := `
-		INSERT INTO users (username, email, password_hash, avatar_url, banner_url, email_verification_token, phone_number, registration_ip, created_at, updated_at)
-		VALUES ($1, NULLIF($2, ''), $3, $4, $5, NULLIF($6, ''), NULLIF($7, ''), NULLIF($8, ''), $9, $10)
+		INSERT INTO users (username, email, password_hash, avatar_url, banner_url, email_verification_token, email_verification_token_expires_at, phone_number, registration_ip, created_at, updated_at)
+		VALUES ($1, NULLIF($2, ''), $3, $4, $5, NULLIF($6, ''), CASE WHEN NULLIF($6, '') IS NOT NULL THEN NOW() + INTERVAL '72 hours' ELSE NULL END, NULLIF($7, ''), NULLIF($8, ''), $9, $10)
 		RETURNING id
 	`
 
@@ -204,7 +204,9 @@ func (r *Repository) UpdateUser(ctx context.Context, user *User) error {
 	query := `
 		UPDATE users
 		SET username = $1, email = $2, password_hash = $3, avatar_url = $4, banner_url = $5,
-		    email_verification_token = NULLIF($6, ''), bio = $7, display_name = $8, updated_at = $9
+		    email_verification_token = NULLIF($6, ''),
+		    email_verification_token_expires_at = CASE WHEN NULLIF($6, '') IS NOT NULL THEN NOW() + INTERVAL '72 hours' ELSE NULL END,
+		    bio = $7, display_name = $8, updated_at = $9
 		WHERE id = $10
 	`
 
@@ -256,6 +258,7 @@ func (r *Repository) GetUserByVerificationToken(ctx context.Context, token strin
 		       created_at, updated_at
 		FROM users
 		WHERE email_verification_token = $1
+		  AND (email_verification_token_expires_at IS NULL OR email_verification_token_expires_at > NOW())
 	`
 
 	var user User
@@ -516,6 +519,7 @@ func (r *Repository) UpdateUserEmail(ctx context.Context, userID int64, newEmail
 		SET email = $2,
 		    email_verified = FALSE,
 		    email_verification_token = NULLIF($3, ''),
+		    email_verification_token_expires_at = CASE WHEN NULLIF($3, '') IS NOT NULL THEN NOW() + INTERVAL '72 hours' ELSE NULL END,
 		    email_resend_count = 0,
 		    email_resend_date = NULL,
 		    updated_at = NOW()
