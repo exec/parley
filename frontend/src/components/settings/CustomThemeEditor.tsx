@@ -3,7 +3,25 @@ import { UserTheme, NewTheme, publishTheme } from '../../api/themes';
 import { BUILTIN_IDS } from '../../context/ThemeContext';
 import { validateCSS } from '../../lib/cssValidator';
 import { themeVarsCSS } from '../../lib/themePreview';
-import { buildGlassPreset, injectGlassVars, type GlassPreset } from '../../lib/themeGlass';
+import { buildGlassPreset, injectGlassVars, GLASS_PAT, type GlassPreset } from '../../lib/themeGlass';
+
+// Strip the injected bg rule and glass block — these are tracked separately from the user-editable CSS.
+function stripInjected(raw: string): string {
+  return raw
+    .replace(/body\s*\{[^}]*background-image[^}]*\}\n?/g, '')
+    .replace(GLASS_PAT, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+// Compose the full CSS for saving: pure CSS + bg rule + glass block at the end.
+function composeSaveCSS(pureCss: string, bg: string | null, preset: GlassPreset | 'solid', baseTheme: string): string {
+  if (!bg) return pureCss;
+  const bgRule = `body { background-image: url("${bg}"); background-size: cover; background-repeat: no-repeat; background-attachment: fixed; }\n`;
+  if (preset === 'solid') return bgRule + pureCss;
+  const vars = buildGlassPreset(baseTheme, preset);
+  return injectGlassVars(bgRule + pureCss, vars);
+}
 import './CustomThemeEditor.css';
 
 const BUILTIN_LABELS: Record<string, string> = {
@@ -61,17 +79,17 @@ interface Props {
 
 export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel }) => {
   const [name, setName] = useState(existing?.name || '');
-  const [css, setCSS] = useState(existing?.css || '');
+  // css holds only pure user-editable CSS — no bg rule, no glass block.
+  const [css, setCSS] = useState(() => stripInjected(existing?.css ?? ''));
   const [baseTheme, setBaseTheme] = useState(existing?.base_theme || 'abyss');
   const [bgUrl, setBgUrl] = useState<string | null>(existing?.background_url || null);
-  const [glassPreset, setGlassPreset] = useState<GlassPreset | 'solid'>(
-    () => {
-      if ((existing?.css ?? '').includes('/* bg-glass-start */')) {
-        return (existing?.css ?? '').includes('--parley-panel-blur: 0px') ? 'clear' : 'frosted';
-      }
-      return 'solid';
+  const [glassPreset, setGlassPreset] = useState<GlassPreset | 'solid'>(() => {
+    const raw = existing?.css ?? '';
+    if (raw.includes('/* bg-glass-start */')) {
+      return raw.includes('--parley-panel-blur: 0px') ? 'clear' : 'frosted';
     }
-  );
+    return 'solid';
+  });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [publishedState, setPublishedState] = useState<boolean>(existing?.is_published ?? false);
@@ -84,15 +102,17 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
   const abortRef = useRef<AbortController | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const debRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isMounted = useRef(false);
 
-  const updatePreview = useCallback((c: string, base: string, bg: string | null) => {
+  const updatePreview = useCallback((pureCss: string, base: string, bg: string | null, preset: GlassPreset | 'solid') => {
     const doc = iframeRef.current?.contentDocument;
     if (!doc) return;
     const baseEl = doc.getElementById('base');
     const customEl = doc.getElementById('u');
     if (baseEl) baseEl.textContent = themeVarsCSS(base);
-    if (customEl) customEl.textContent = c;
+    const previewCss = bg && preset !== 'solid'
+      ? injectGlassVars(pureCss, buildGlassPreset(base, preset))
+      : pureCss;
+    if (customEl) customEl.textContent = previewCss;
     doc.body.dataset.theme = base;
     doc.body.style.backgroundImage = bg ? `url(${bg})` : '';
   }, []);
@@ -101,14 +121,14 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
     const f = iframeRef.current;
     if (!f) return;
     f.srcdoc = PREVIEW_HTML;
-    f.onload = () => updatePreview(css, baseTheme, bgUrl);
+    f.onload = () => updatePreview(css, baseTheme, bgUrl, glassPreset);
   }, []); // eslint-disable-line
 
   useEffect(() => {
     if (debRef.current) clearTimeout(debRef.current);
-    debRef.current = setTimeout(() => updatePreview(css, baseTheme, bgUrl), 300);
+    debRef.current = setTimeout(() => updatePreview(css, baseTheme, bgUrl, glassPreset), 300);
     return () => { if (debRef.current) clearTimeout(debRef.current); };
-  }, [css, baseTheme, bgUrl, updatePreview]);
+  }, [css, baseTheme, bgUrl, glassPreset, updatePreview]);
 
   // Abort any in-flight AI generation when the component unmounts.
   useEffect(() => {
@@ -160,19 +180,8 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
             } else if (event.status === 'generating') {
               setAiStatus({ type: 'generating' });
             } else if (event.status === 'done') {
-              let generated: string = event.css;
-              if (bgUrl) {
-                // Re-inject the background image (LLM may omit it on fresh generation)
-                generated = generated.replace(/body\s*\{[^}]*background-image[^}]*\}\n?/g, '');
-                const bgRule = `body { background-image: url("${bgUrl}"); background-size: cover; background-repeat: no-repeat; background-attachment: fixed; }\n`;
-                generated = bgRule + generated;
-                // Re-apply glass preset so duplicates are cleaned and block is last
-                if (glassPreset !== 'solid') {
-                  const vars = buildGlassPreset(baseTheme, glassPreset as GlassPreset);
-                  generated = injectGlassVars(generated, vars);
-                }
-              }
-              setCSS(generated);
+              // Strip any injected bg/glass the LLM may have added — those are managed separately.
+              setCSS(stripInjected(event.css));
               setAiStatus(null);
               return;
             } else if (event.status === 'error') {
@@ -191,12 +200,7 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
 
   const applyGlassPreset = (preset: GlassPreset | 'solid') => {
     setGlassPreset(preset);
-    if (preset === 'solid') {
-      setCSS(prev => injectGlassVars(prev, null));
-    } else {
-      const vars = buildGlassPreset(baseTheme, preset);
-      setCSS(prev => injectGlassVars(prev, vars));
-    }
+    // CSS is not modified — bg rule and glass block are composed at save/preview time.
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -204,24 +208,9 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
     try {
       const url = await uploadFile(file);
       setBgUrl(url);
-      const bgRule = `body { background-image: url("${url}"); background-size: cover; background-repeat: no-repeat; background-attachment: fixed; }\n`;
-      // Use current preset if already set, otherwise default to frosted on first upload
-      const activePreset = glassPreset === 'solid' ? 'frosted' : glassPreset;
-      const vars = buildGlassPreset(baseTheme, activePreset);
-      setCSS(prev => {
-        const withBg = bgRule + prev.replace(/body\s*\{[^}]*background-image[^}]*\}\n?/g, '');
-        return injectGlassVars(withBg, vars);
-      });
-      setGlassPreset(activePreset);
+      if (glassPreset === 'solid') setGlassPreset('frosted');
     } catch { setError('Upload failed'); }
   };
-
-  useEffect(() => {
-    if (!isMounted.current) { isMounted.current = true; return; }
-    if (glassPreset === 'solid') return;
-    const vars = buildGlassPreset(baseTheme, glassPreset);
-    setCSS(prev => injectGlassVars(prev, vars));
-  }, [baseTheme, glassPreset]);
 
   const handleSave = async () => {
     setError(null);
@@ -229,7 +218,8 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
     const v = validateCSS(css);
     if (v) { setError(`Disallowed URLs: ${v.offendingUrls.join(', ')}`); return; }
     setSaving(true);
-    try { await onSave({ name: name.trim(), css, base_theme: baseTheme, background_url: bgUrl }); }
+    const fullCss = composeSaveCSS(css, bgUrl, glassPreset, baseTheme);
+    try { await onSave({ name: name.trim(), css: fullCss, base_theme: baseTheme, background_url: bgUrl }); }
     catch (e) { setError(e instanceof Error ? e.message : 'Save failed'); }
     finally { setSaving(false); }
   };
@@ -287,10 +277,6 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
           </label>
           {bgUrl && <button className="theme-editor-remove-bg" onClick={() => {
             setBgUrl(null);
-            setCSS(prev => {
-              const withoutBg = prev.replace(/body\s*\{[^}]*background-image[^}]*\}\n?/g, '');
-              return injectGlassVars(withoutBg, null);
-            });
             setGlassPreset('solid');
           }}>Remove</button>}
         </div>

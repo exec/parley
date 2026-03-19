@@ -54,7 +54,7 @@ export function buildGlassPreset(baseTheme: string, preset: GlassPreset): string
 
 const GLASS_START = '/* bg-glass-start */';
 const GLASS_END   = '/* bg-glass-end */';
-const GLASS_PAT   = /\/\* bg-glass-start \*\/[\s\S]*?\/\* bg-glass-end \*\//;
+export const GLASS_PAT = /\/\* bg-glass-start \*\/[\s\S]*?\/\* bg-glass-end \*\//;
 
 export function injectGlassVars(css: string, glassVars: string | null): string {
   // Remove any existing glass block first.
