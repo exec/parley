@@ -78,6 +78,22 @@ Non-prefixed aliases used by some components (mirror the --parley-* values):
   --accent-hover           same as --parley-accent-hover
   --border                 same as --parley-border
 
+Background image & frosted glass (optional — only set these when the user wants a background image effect):
+  --parley-app-bg              background of .main-layout and .main-content — set to transparent to reveal body background image
+  --parley-panel-bg            background of .sidebar, .channel-list, .user-sidebar, .dm-panel, .vc-chat-sidebar — use rgba() for transparency
+  --parley-panel-blur          backdrop-filter blur on panels — e.g. 14px for frosted glass, 0px for clear
+  --parley-panel-header-bg     background of .server-header (top of channel list) — use rgba() matching panel tint
+  --parley-panel-footer-bg     background of .user-area and .dm-panel-user-area (user strip at bottom) — use rgba() matching panel tint
+  --parley-chat-bg             background of chat area (.chat-container, .chat-window, .chat-header, .message-input-container)
+
+To create a frosted glass effect with a background image:
+  1. Set body { background-image: url("..."); background-size: cover; background-attachment: fixed; background-repeat: no-repeat; }
+  2. Set --parley-app-bg: transparent
+  3. Set --parley-panel-bg: rgba(R, G, B, 0.6) using the theme's secondary bg color
+  4. Set --parley-panel-blur: 14px
+  5. Set --parley-panel-header-bg and --parley-panel-footer-bg to rgba() variants slightly more opaque than the panel
+  6. Set --parley-chat-bg: rgba(R, G, B, 0.78) using the theme's channel-bg color
+
 You may use Google Fonts via @import at the top: @import url('https://fonts.googleapis.com/css2?family=...');
 No other external URLs are permitted.
 If you use a Google Font, also set font-family on [data-theme].
