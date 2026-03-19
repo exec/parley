@@ -638,24 +638,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const receiveUserUpdate = useCallback((update: UserUpdate) => {
-    setMembers(prev => prev.map(m =>
-      m.user_id === update.user_id
-        ? { ...m, username: update.username, avatar_url: update.avatar_url ?? m.avatar_url, banner_url: update.banner_url ?? m.banner_url, display_name: update.display_name !== undefined ? update.display_name : m.display_name, bio: update.bio ?? m.bio }
-        : m
-    ));
+    setMembers(prev => prev.map(m => {
+      if (m.user_id !== update.user_id) return m;
+      const next = { ...m };
+      if (update.username !== undefined) next.username = update.username;
+      if (update.avatar_url !== undefined) next.avatar_url = update.avatar_url;
+      if (update.banner_url !== undefined) next.banner_url = update.banner_url;
+      if (update.display_name !== undefined) next.display_name = update.display_name;
+      if (update.bio !== undefined) next.bio = update.bio;
+      if (update.status_type !== undefined) next.status_type = update.status_type as typeof next.status_type;
+      if (update.status_text !== undefined) next.status_text = update.status_text;
+      return next;
+    }));
     setCurrentUser(prev => {
       if (!prev || prev.id !== update.user_id) return prev;
-      const next = { ...prev, username: update.username, avatar_url: update.avatar_url ?? prev.avatar_url, banner_url: update.banner_url ?? prev.banner_url, display_name: update.display_name !== undefined ? update.display_name : prev.display_name, bio: update.bio ?? prev.bio };
+      const next = { ...prev };
+      if (update.username !== undefined) next.username = update.username;
+      if (update.avatar_url !== undefined) next.avatar_url = update.avatar_url;
+      if (update.banner_url !== undefined) next.banner_url = update.banner_url;
+      if (update.display_name !== undefined) next.display_name = update.display_name;
+      if (update.bio !== undefined) next.bio = update.bio;
+      if (update.status_type !== undefined) next.status_type = update.status_type as typeof next.status_type;
+      if (update.status_text !== undefined) next.status_text = update.status_text;
       // Keep localStorage in sync so page reloads reflect WS-driven updates.
       const { phone_number: _p, phone_verified: _pv, ...safe } = next as typeof next & { phone_number?: string; phone_verified?: boolean };
       localStorage.setItem('user', JSON.stringify(safe));
       return next;
     });
-    setMessages(prev => prev.map(m =>
-      m.author_id === update.user_id
-        ? { ...m, author_username: update.username, author_avatar_url: update.avatar_url ?? m.author_avatar_url, author_display_name: update.display_name !== undefined ? update.display_name : m.author_display_name }
-        : m
-    ));
+    setMessages(prev => prev.map(m => {
+      if (m.author_id !== update.user_id) return m;
+      const next = { ...m };
+      if (update.username !== undefined) next.author_username = update.username;
+      if (update.avatar_url !== undefined) next.author_avatar_url = update.avatar_url;
+      if (update.display_name !== undefined) next.author_display_name = update.display_name;
+      return next;
+    }));
   }, []);
 
   const loadMoreMessages = useCallback(async () => {

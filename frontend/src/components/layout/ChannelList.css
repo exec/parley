@@ -467,8 +467,7 @@
 
 .cl-user-context-menu {
   position: fixed;
-  min-width: 260px;
-  max-width: 300px;
+  width: 280px;
   background: var(--parley-bg-primary, #12121f);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;

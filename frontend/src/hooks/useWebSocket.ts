@@ -32,11 +32,13 @@ export interface MemberRoleUpdate {
 
 export interface UserUpdate {
   user_id: string;
-  username: string;
-  avatar_url: string;
+  username?: string;
+  avatar_url?: string;
   banner_url?: string;
   display_name?: string;
   bio?: string;
+  status_type?: string;
+  status_text?: string;
 }
 
 export interface VoiceStateUpdate {

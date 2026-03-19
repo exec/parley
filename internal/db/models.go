@@ -106,6 +106,8 @@ type ServerMember struct {
 	Roles       []ServerRole `json:"roles" db:"-"`
 	IsBot       bool         `json:"is_bot,omitempty" db:"-"`
 	BotDegraded bool         `json:"bot_degraded,omitempty" db:"-"`
+	StatusType  string       `json:"status_type,omitempty" db:"-"`
+	StatusText  string       `json:"status_text,omitempty" db:"-"`
 }
 
 // Channel represents a text or voice channel

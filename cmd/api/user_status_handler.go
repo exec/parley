@@ -2,13 +2,16 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
 
 	"parley/internal/auth"
-	"parley/internal/websocket"
+	"parley/internal/db"
+	ws "parley/internal/websocket"
 )
 
-func handleUpdateStatus(authService *auth.AuthService, hub *websocket.Hub) http.HandlerFunc {
+func handleUpdateStatus(authService *auth.AuthService, hub *ws.Hub, repo *db.Repository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userIDStr := auth.GetUserIDFromContext(r)
 		if userIDStr == "" {
@@ -27,8 +30,28 @@ func handleUpdateStatus(authService *auth.AuthService, hub *websocket.Hub) http.
 			jsonError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		// Broadcast status update to all connected clients
-		hub.BroadcastStatusUpdate(userIDStr, req.StatusType, req.StatusText)
+
+		// Broadcast USER_UPDATE (with status fields) to every server the user belongs to,
+		// matching the same pattern as profile updates in user_handlers.go.
+		if hub != nil {
+			userID, parseErr := strconv.ParseInt(userIDStr, 10, 64)
+			if parseErr == nil {
+				servers, serversErr := repo.GetServersByUserID(r.Context(), userID)
+				if serversErr == nil {
+					payload, marshalErr := json.Marshal(map[string]string{
+						"user_id":     userIDStr,
+						"status_type": req.StatusType,
+						"status_text": req.StatusText,
+					})
+					if marshalErr == nil {
+						for _, srv := range servers {
+							hub.BroadcastToChannel(fmt.Sprintf("server:%d", srv.ID), ws.EventUserUpdate, payload)
+						}
+					}
+				}
+			}
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"message": "Status updated"})
 	}

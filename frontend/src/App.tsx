@@ -370,6 +370,16 @@ function MainApp() {
 
   const handleUserUpdate = useCallback((update: UserUpdate) => {
     receiveUserUpdate(update);
+    // Sync userStatuses so sidebar/mini-profile status dots update live
+    if (update.status_type !== undefined || update.status_text !== undefined) {
+      setUserStatuses(prev => ({
+        ...prev,
+        [update.user_id]: {
+          status_type: update.status_type ?? prev[update.user_id]?.status_type ?? 'online',
+          status_text: update.status_text ?? prev[update.user_id]?.status_text ?? '',
+        },
+      }));
+    }
   }, [receiveUserUpdate]);
 
   // Fetch initial voice presence whenever the channel list changes (server switch / reload)
@@ -581,15 +591,32 @@ function MainApp() {
     setUserStatuses(prev => ({ ...prev, [userId]: { status_type: statusType, status_text: statusText } }));
   }, []);
 
-  // Seed current user's status from their profile on load
+  // Seed current user's status from their profile on load (always, not just when status_type is truthy)
   useEffect(() => {
-    if (currentUser?.id && currentUser.status_type) {
+    if (currentUser?.id) {
       setUserStatuses(prev => ({
         ...prev,
-        [currentUser.id]: { status_type: currentUser.status_type!, status_text: currentUser.status_text || '' },
+        [currentUser.id]: { status_type: currentUser.status_type || 'online', status_text: currentUser.status_text || '' },
       }));
     }
-  }, [currentUser?.id, currentUser?.status_type]);
+  }, [currentUser?.id, currentUser?.status_type, currentUser?.status_text]);
+
+  // Seed userStatuses from all loaded members so sidebar shows correct status on initial render
+  useEffect(() => {
+    if (!members.length) return;
+    setUserStatuses(prev => {
+      const next = { ...prev };
+      for (const m of members) {
+        if (m.user_id && m.status_type) {
+          next[m.user_id] = {
+            status_type: m.status_type,
+            status_text: m.status_text || '',
+          };
+        }
+      }
+      return next;
+    });
+  }, [members]);
 
   const { sendTyping } = useWebSocket({
     onMessage: handleReceiveMessage,
