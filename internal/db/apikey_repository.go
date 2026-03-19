@@ -116,6 +116,53 @@ func (r *Repository) CreateBotInviteToken(ctx context.Context, botUserID, ownerI
 	return token, err
 }
 
+// CreateBotWithKey atomically creates a bot user, its invite token, and an API key.
+// Returns (botUserID, keyID, error).
+func (r *Repository) CreateBotWithKey(ctx context.Context, botUsername, keyHash, keyPrefix, keyName string, ownerID int64) (botUserID int64, keyID int64, err error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer tx.Rollback()
+
+	// 1. Create bot user
+	randomBytes := make([]byte, 8)
+	if _, err = rand.Read(randomBytes); err != nil {
+		return 0, 0, err
+	}
+	placeholderEmail := fmt.Sprintf("bot_%x@internal.parley", randomBytes)
+	err = tx.QueryRowContext(ctx,
+		`INSERT INTO users (username, email, password_hash, is_bot, bot_owner_id, created_at, updated_at)
+		 VALUES ($1, $2, '', TRUE, $3, NOW(), NOW()) RETURNING id`,
+		botUsername, placeholderEmail, ownerID,
+	).Scan(&botUserID)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	// 2. Create invite token
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO bot_invite_tokens (bot_user_id, token, created_by)
+		 VALUES ($1, gen_random_uuid(), $2)`,
+		botUserID, ownerID,
+	)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	// 3. Create API key
+	err = tx.QueryRowContext(ctx,
+		`INSERT INTO api_keys (key_hash, key_prefix, user_id, owner_id, name, created_at)
+		 VALUES ($1, $2, $3, $4, $5, NOW()) RETURNING id`,
+		keyHash, keyPrefix, botUserID, ownerID, keyName,
+	).Scan(&keyID)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return botUserID, keyID, tx.Commit()
+}
+
 // RevokeAPIKey deletes an API key by ID, verifying ownership.
 func (r *Repository) RevokeAPIKey(ctx context.Context, keyID, ownerID int64) error {
 	res, err := r.db.ExecContext(ctx,

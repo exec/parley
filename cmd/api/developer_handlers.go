@@ -74,40 +74,35 @@ func handleCreateAPIKey(repo *db.Repository) http.HandlerFunc {
 		var targetUserID int64
 		var botUsername string
 		var botUserID int64
+		var keyID int64
+
+		name := strings.TrimSpace(req.Name)
 
 		if req.Type == "bot" {
 			botUsername = strings.TrimSpace(req.BotUsername)
-			botUserID, err = repo.CreateBotUser(r.Context(), botUsername, ownerID)
+			if name == "" {
+				name = botUsername
+			}
+			botUserID, keyID, err = repo.CreateBotWithKey(r.Context(), botUsername, keyHash, keyPrefix, name, ownerID)
 			if err != nil {
 				if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
 					jsonError(w, "bot username already taken", http.StatusConflict)
 					return
 				}
-				jsonError(w, "failed to create bot user", http.StatusInternalServerError)
-				return
-			}
-			if _, err = repo.CreateBotInviteToken(r.Context(), botUserID, ownerID); err != nil {
-				jsonError(w, "failed to create invite token", http.StatusInternalServerError)
+				jsonError(w, "failed to create bot", http.StatusInternalServerError)
 				return
 			}
 			targetUserID = botUserID
 		} else {
 			targetUserID = ownerID
-		}
-
-		name := strings.TrimSpace(req.Name)
-		if name == "" {
-			if req.Type == "bot" {
-				name = botUsername
-			} else {
+			if name == "" {
 				name = "User API Key"
 			}
-		}
-
-		keyID, err := repo.CreateAPIKey(r.Context(), keyHash, keyPrefix, name, targetUserID, ownerID)
-		if err != nil {
-			jsonError(w, "failed to create key", http.StatusInternalServerError)
-			return
+			keyID, err = repo.CreateAPIKey(r.Context(), keyHash, keyPrefix, name, targetUserID, ownerID)
+			if err != nil {
+				jsonError(w, "failed to create key", http.StatusInternalServerError)
+				return
+			}
 		}
 
 		resp := map[string]interface{}{
