@@ -144,6 +144,10 @@
   box-sizing: border-box;
 }
 
+html {
+  background-color: var(--parley-bg-primary);
+}
+
 body {
   font-family: 'Outfit', 'gg sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   background-color: var(--parley-bg-primary);

@@ -189,7 +189,7 @@ function MainApp() {
   const [replyTo, setReplyTo] = useState<Message | null>(null);
 
   // Sidebar visibility — open by default on desktop, closed on mobile
-  const [showMembers, setShowMembers] = useState(() => window.innerWidth > 768);
+  const [showMembers, setShowMembers] = useState(false);
   const [showChannelList, setShowChannelList] = useState(false); // mobile drawer, starts closed
 
   // Bin channel state

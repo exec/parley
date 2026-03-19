@@ -25,6 +25,16 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
+const THEME_BG_COLORS: Record<string, string> = {
+  'abyss': '#0a1628', 'rory': '#000000', 'citron-dark': '#36393f',
+  'citron-light': '#ffffff', 'neon-nights': '#0d0221', 'sakura': '#fff9fb',
+};
+
+function setThemeColor(id: string) {
+  const m = document.getElementById('theme-color-meta');
+  if (m) m.setAttribute('content', THEME_BG_COLORS[id] ?? THEME_BG_COLORS['abyss']);
+}
+
 function applyToDOM(id: string, css?: string | null, baseTheme?: string | null) {
   localStorage.setItem('parley-theme', id);
   const existing = document.getElementById('custom-theme');
@@ -35,11 +45,13 @@ function applyToDOM(id: string, css?: string | null, baseTheme?: string | null) 
     if (existing) { existing.textContent = css; }
     else { const s = document.createElement('style'); s.id='custom-theme'; s.textContent=css; document.head.appendChild(s); }
     localStorage.setItem('parley-custom-css', css);
+    setThemeColor(base);
   } else {
     document.body.dataset.theme = id;
     localStorage.removeItem('parley-theme-base');
     localStorage.removeItem('parley-custom-css');
     existing?.remove();
+    setThemeColor(id);
   }
 }
 
