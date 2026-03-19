@@ -50,6 +50,7 @@ interface DmPanelProps {
   onOpenSettings?: () => void;
   dmUnreadCounts?: Record<string, number>;
   onlineUserIds?: Set<string>;
+  onMarkDmRead?: (dmChannelId: string) => void;
 }
 
 const DmPanel: React.FC<DmPanelProps> = ({
@@ -62,14 +63,29 @@ const DmPanel: React.FC<DmPanelProps> = ({
   onOpenSettings,
   dmUnreadCounts = {},
   onlineUserIds,
+  onMarkDmRead,
 }) => {
   const [contextMenu, setContextMenu] = useState<{ top: number; left: number } | null>(null);
+  const [dmContextMenu, setDmContextMenu] = useState<{ top: number; left: number; channelId: string } | null>(null);
   const userAreaRef = useRef<HTMLDivElement>(null);
 
   const handleUserAreaClick = (e: React.MouseEvent) => {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     setContextMenu({ top: rect.top, left: rect.left });
   };
+
+  const handleDmContextMenu = (e: React.MouseEvent, channelId: string) => {
+    e.preventDefault();
+    setDmContextMenu({ top: e.clientY, left: e.clientX, channelId });
+  };
+
+  // Close DM context menu on outside click
+  useEffect(() => {
+    if (!dmContextMenu) return;
+    const handler = () => setDmContextMenu(null);
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [dmContextMenu]);
 
   return (
     <div className="dm-panel">
@@ -90,6 +106,7 @@ const DmPanel: React.FC<DmPanelProps> = ({
                 key={channel.id}
                 className={`dm-panel-item ${isActive ? 'active' : ''} ${unread > 0 && !isActive ? 'unread' : ''}`}
                 onClick={() => onSelectDm(channel.id)}
+                onContextMenu={(e) => handleDmContextMenu(e, channel.id)}
               >
                 <div className="dm-panel-avatar-wrap">
                   <div className="dm-panel-avatar">
@@ -137,6 +154,20 @@ const DmPanel: React.FC<DmPanelProps> = ({
         </div>
       </div>
 
+      {dmContextMenu && (
+        <div
+          className="dm-item-context-menu"
+          style={{ position: 'fixed', top: dmContextMenu.top, left: dmContextMenu.left, zIndex: 9999 }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <button
+            className="dm-item-context-option"
+            onClick={() => { onMarkDmRead?.(dmContextMenu.channelId); setDmContextMenu(null); }}
+          >
+            Mark as Read
+          </button>
+        </div>
+      )}
       {contextMenu && (
         <UserContextMenu
           position={contextMenu}

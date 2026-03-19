@@ -208,6 +208,11 @@ function MainApp() {
 
   // Unread counts: channelId (or dmChannelId) → unread message count
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  // Mention counts: channelId → count of messages that directly @mentioned the current user
+  const [mentionCounts, setMentionCounts] = useState<Record<string, number>>({});
+  // Persistent map of channelId → serverId, accumulated across all servers visited this session.
+  // Used to correctly attribute unread badges and notification prefs for background-server messages.
+  const channelToServerRef = useRef<Record<string, string>>({});
 
   // Online presence: set of user IDs currently connected via WebSocket
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
@@ -281,10 +286,24 @@ function MainApp() {
     }
   }, [activeChannel?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Accumulate channelId → serverId for every server the user visits.
+  // This lets serverUnreadCounts and notification prefs work for background servers.
+  useEffect(() => {
+    channels.forEach(ch => {
+      channelToServerRef.current[ch.id] = ch.server_id;
+    });
+  }, [channels]);
+
   // Clear unread count when the active channel or DM channel changes
   useEffect(() => {
     if (!activeChannel) return;
     setUnreadCounts(prev => {
+      if (!prev[activeChannel.id]) return prev;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { [activeChannel.id]: _cleared, ...rest } = prev;
+      return rest;
+    });
+    setMentionCounts(prev => {
       if (!prev[activeChannel.id]) return prev;
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { [activeChannel.id]: _cleared, ...rest } = prev;
@@ -295,6 +314,12 @@ function MainApp() {
   useEffect(() => {
     if (!activeDmChannel) return;
     setUnreadCounts(prev => {
+      if (!prev[activeDmChannel.id]) return prev;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { [activeDmChannel.id]: _cleared, ...rest } = prev;
+      return rest;
+    });
+    setMentionCounts(prev => {
       if (!prev[activeDmChannel.id]) return prev;
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { [activeDmChannel.id]: _cleared, ...rest } = prev;
@@ -477,33 +502,50 @@ function MainApp() {
     clearTypingUser(msg.channel_id, msg.author_id);
     receiveMessage(msg);
     if (msg.channel_id !== activeChannel?.id) {
-      // Apply notification preference for this server
-      const pref = getNotifPref(activeServer?.id ?? '');
+      // Use the accumulated channel→server map so background-server messages use the right pref
+      const msgServerId = channelToServerRef.current[msg.channel_id] ?? activeServer?.id ?? '';
+      const pref = getNotifPref(msgServerId);
+      const isDirectMention = msg.content.includes(`<@${currentUser?.id}>`);
       let shouldCount = true;
       if (pref === 'never') {
         shouldCount = false;
       } else if (pref === 'tags') {
         shouldCount = msg.content.includes('@everyone') ||
           msg.content.includes('@here') ||
-          msg.content.includes(`<@${currentUser?.id}>`);
+          isDirectMention;
       } else if (pref === 'direct') {
-        shouldCount = msg.content.includes(`<@${currentUser?.id}>`);
+        shouldCount = isDirectMention;
       }
       if (shouldCount) {
         setUnreadCounts(prev => ({ ...prev, [msg.channel_id]: (prev[msg.channel_id] ?? 0) + 1 }));
+        if (isDirectMention) {
+          setMentionCounts(prev => ({ ...prev, [msg.channel_id]: (prev[msg.channel_id] ?? 0) + 1 }));
+        }
         const channelName = channels.find(c => c.id === msg.channel_id)?.name ?? 'a channel';
-        notify(`#${channelName}`, `${msg.author_username}: ${msg.content}`, msg.author_avatar_url);
+        notify(
+          `#${channelName}`,
+          `${msg.author_username}: ${msg.content}`,
+          msg.author_avatar_url,
+          () => navigate(`/channels/${msgServerId}/${msg.channel_id}`),
+        );
       }
     }
-  }, [receiveMessage, clearTypingUser, activeChannel?.id, activeServer?.id, currentUser?.id, channels, notify]);
+  }, [receiveMessage, clearTypingUser, activeChannel?.id, activeServer?.id, currentUser?.id, channels, notify, navigate]);
 
   const handleReceiveDmMessage = useCallback((msg: DmMessage) => {
     receiveDmMessage(msg);
     if (msg.dm_channel_id !== activeDmChannel?.id) {
       setUnreadCounts(prev => ({ ...prev, [msg.dm_channel_id]: (prev[msg.dm_channel_id] ?? 0) + 1 }));
-      notify(`${msg.author_username}`, msg.content, msg.author_avatar_url);
+      // DMs always count as direct mentions for badge purposes
+      setMentionCounts(prev => ({ ...prev, [msg.dm_channel_id]: (prev[msg.dm_channel_id] ?? 0) + 1 }));
+      notify(
+        `${msg.author_username}`,
+        msg.content,
+        msg.author_avatar_url,
+        () => navigate(`/channels/@me/${msg.dm_channel_id}`),
+      );
     }
-  }, [receiveDmMessage, activeDmChannel?.id, notify]);
+  }, [receiveDmMessage, activeDmChannel?.id, notify, navigate]);
 
   const handleDmDelete = useCallback(async (messageId: string) => {
     if (!activeDmChannel) return;
@@ -675,17 +717,19 @@ function MainApp() {
     sendTyping(activeChannel.id, currentUser.username);
   }, [activeChannel, currentUser, sendTyping]);
 
-  // Aggregate unread counts per server (from the active server's channel list)
+  // Aggregate unread counts per server using the accumulated channel→server map.
+  // This works for background servers (not currently active) because the ref persists.
   const serverUnreadCounts = useMemo(() => {
     const result: Record<string, number> = {};
-    channels.forEach(ch => {
-      const count = unreadCounts[ch.id];
-      if (count) {
-        result[ch.server_id] = (result[ch.server_id] ?? 0) + count;
+    Object.entries(unreadCounts).forEach(([channelId, count]) => {
+      if (!count) return;
+      const serverId = channelToServerRef.current[channelId];
+      if (serverId) {
+        result[serverId] = (result[serverId] ?? 0) + count;
       }
     });
     return result;
-  }, [channels, unreadCounts]);
+  }, [unreadCounts]);
 
   const handleViewProfile = (userId: string) => {
     setProfileUserId(userId);
@@ -744,6 +788,7 @@ function MainApp() {
       voiceParticipants={voiceParticipants}
       activeVoiceChannelId={activeVoiceChannel}
       channelUnreadCounts={unreadCounts}
+      channelMentionCounts={mentionCounts}
       canManageChannels={canManageChannels}
       canMuteMembers={canMuteMembers}
       canKickFromVoice={canKickFromVoice}
@@ -794,6 +839,10 @@ function MainApp() {
       onOpenSettings={() => setShowUserSettings(true)}
       dmUnreadCounts={unreadCounts}
       onlineUserIds={onlineUsers}
+      onMarkDmRead={(dmChannelId) => {
+        setUnreadCounts(prev => { const next = { ...prev }; delete next[dmChannelId]; return next; });
+        setMentionCounts(prev => { const next = { ...prev }; delete next[dmChannelId]; return next; });
+      }}
     />
   );
 
@@ -1132,9 +1181,17 @@ function MainApp() {
         rightPanel={rightPanel}
         serverUnreadCounts={serverUnreadCounts}
         onMarkServerRead={(serverId) => {
+          const serverChannelIds = Object.entries(channelToServerRef.current)
+            .filter(([, sid]) => sid === serverId)
+            .map(([cid]) => cid);
           setUnreadCounts(prev => {
             const next = { ...prev };
-            channels.forEach(ch => { if (ch.server_id === serverId) delete next[ch.id]; });
+            serverChannelIds.forEach(cid => delete next[cid]);
+            return next;
+          });
+          setMentionCounts(prev => {
+            const next = { ...prev };
+            serverChannelIds.forEach(cid => delete next[cid]);
             return next;
           });
         }}

@@ -271,6 +271,7 @@ const SortableChannelItem: React.FC<{
   channel: Channel;
   isActive: boolean;
   unread: number;
+  hasMention?: boolean;
   isRenaming: boolean;
   renameValue: string;
   renameInputRef: React.RefObject<HTMLInputElement>;
@@ -293,7 +294,7 @@ const SortableChannelItem: React.FC<{
   onParticipantContextMenu?: (channelId: string, participantId: string, x: number, y: number) => void;
   onParticipantClick?: (userId: string, clientX: number, clientY: number) => void;
 }> = ({
-  channel, isActive, unread, isRenaming, renameValue, renameInputRef,
+  channel, isActive, unread, hasMention, isRenaming, renameValue, renameInputRef,
   hoveredChannel, canManageChannels, activeVoiceChannelId, voiceParticipants,
   onSelect, onContextMenu, onMouseEnter, onMouseLeave, onDelete, onVoiceClick,
   onRenameChange, onRenameBlur, onRenameKeyDown, isDragging,
@@ -375,7 +376,7 @@ const SortableChannelItem: React.FC<{
           <span className="channel-name">{channel.name}</span>
         )}
         {unread > 0 && !isActive && !isRenaming && (
-          <span className="channel-unread-badge">{unread > 99 ? '99+' : unread}</span>
+          <span className={`channel-unread-badge${hasMention ? ' mention' : ' plain'}`}>{unread > 99 ? '99+' : unread}</span>
         )}
         {canManageChannels && hoveredChannel === channel.id && !isRenaming && (
           <button className="delete-channel-btn" onClick={e => { e.stopPropagation(); onDelete(); }} title="Delete"><X size={14} /></button>
@@ -465,6 +466,7 @@ interface ChannelListProps {
   voiceParticipants?: Record<string, { user_id: string; username: string; avatar_url?: string }[]>;
   activeVoiceChannelId?: string | null;
   channelUnreadCounts?: Record<string, number>;
+  channelMentionCounts?: Record<string, number>;
   canManageChannels?: boolean;
   onRenameChannel?: (channelId: string, newName: string) => void;
   onMarkChannelRead?: (channelId: string) => void;
@@ -495,7 +497,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
   serverName, channels, activeChannelId, onChannelSelect, onCreateChannel,
   onDeleteChannel, onServerSettings, onLeaveServer,
   currentUser, onLogout, onOpenSettings, onVoiceChannelClick,
-  voiceParticipants = {}, activeVoiceChannelId = null, channelUnreadCounts = {},
+  voiceParticipants = {}, activeVoiceChannelId = null, channelUnreadCounts = {}, channelMentionCounts = {},
   canManageChannels = false, onRenameChannel, onMarkChannelRead, onReorderChannels, onChannelSettings,
   canMuteMembers, canKickFromVoice, onVcParticipantClick,
   isOpen = true,
@@ -599,6 +601,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
       channel={ch}
       isActive={ch.id === activeChannelId}
       unread={channelUnreadCounts[ch.id] ?? 0}
+      hasMention={(channelMentionCounts[ch.id] ?? 0) > 0}
       isRenaming={renamingChannelId === ch.id}
       renameValue={renameValue}
       renameInputRef={renameInputRef}

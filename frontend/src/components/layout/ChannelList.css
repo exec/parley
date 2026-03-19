@@ -149,6 +149,11 @@
   line-height: 1;
 }
 
+/* Plain unread (no @mention) uses a muted tone so @mentions stand out */
+.channel-unread-badge.plain {
+  background-color: var(--parley-text-muted, #72767d);
+}
+
 .channel-icon {
   width: 20px;
   height: 20px;

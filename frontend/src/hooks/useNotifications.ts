@@ -37,7 +37,7 @@ export function useNotifications() {
     }
   }, []);
 
-  const notify = useCallback((title: string, body: string, icon?: string) => {
+  const notify = useCallback((title: string, body: string, icon?: string, onClick?: () => void) => {
     const audio = audioRef.current;
     if (audio) {
       audio.currentTime = 0;
@@ -50,7 +50,14 @@ export function useNotifications() {
       Notification.permission === 'granted'
     ) {
       try {
-        new Notification(title, { body, icon, silent: true });
+        const n = new Notification(title, { body, icon, silent: true });
+        if (onClick) {
+          n.onclick = () => {
+            window.focus();
+            onClick();
+            n.close();
+          };
+        }
       } catch {
         // Firefox may throw if called outside a gesture context
       }
