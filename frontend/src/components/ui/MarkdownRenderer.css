@@ -119,7 +119,8 @@
 .mention-pill {
   display: inline;
   border-radius: 3px;
-  padding: 0 3px;
+  padding: 1px 5px;
+  margin: 0 2px;
   font-weight: 500;
   cursor: default;
   transition: background 0.1s ease;
