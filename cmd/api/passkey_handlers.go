@@ -11,6 +11,32 @@ import (
 	"parley/internal/passkey"
 )
 
+func handleRemovePassword(svc *passkey.Service, authService *auth.AuthService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userIDStr := auth.GetUserIDFromContext(r)
+		if userIDStr == "" {
+			jsonError(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		// Require at least one passkey before allowing password removal.
+		pks, err := svc.List(r.Context(), userIDStr)
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if len(pks) == 0 {
+			jsonError(w, "cannot remove password without at least one passkey set up", http.StatusBadRequest)
+			return
+		}
+		if err := authService.RemovePassword(r.Context(), userIDStr); err != nil {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"message": "Password removed"})
+	}
+}
+
 func handlePasskeyRegisterBegin(svc *passkey.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userIDStr := auth.GetUserIDFromContext(r)

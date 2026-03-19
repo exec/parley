@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,6 +33,7 @@ type User struct {
 	EmailVerified bool   `json:"email_verified"`
 	PhoneNumber   string `json:"phone_number,omitempty"`
 	PhoneVerified bool   `json:"phone_verified"`
+	HasPassword   bool   `json:"has_password"`
 }
 
 // AuthService handles authentication operations
@@ -64,8 +66,8 @@ func (s *AuthService) Register(ctx context.Context, username, email_, phone, pas
 	username = strings.ToLower(username)
 
 	// Validate input
-	if username == "" || password == "" {
-		return User{}, "", errors.New("username and password are required")
+	if username == "" {
+		return User{}, "", errors.New("username is required")
 	}
 	if email_ == "" && phone == "" {
 		return User{}, "", errors.New("email or phone number is required")
@@ -73,7 +75,7 @@ func (s *AuthService) Register(ctx context.Context, username, email_, phone, pas
 	if len(username) > 32 {
 		return User{}, "", errors.New("username must be 32 characters or fewer")
 	}
-	if len(password) < 8 {
+	if password != "" && len(password) < 8 {
 		return User{}, "", errors.New("password must be at least 8 characters")
 	}
 	if len(password) > 72 {
@@ -109,10 +111,17 @@ func (s *AuthService) Register(ctx context.Context, username, email_, phone, pas
 		}
 	}
 
-	// Hash the password
-	hashedPassword := s.HashPassword(password)
-	if hashedPassword == "" {
-		return User{}, "", errors.New("failed to hash password")
+	// Hash the password. Empty password means passkey-only account; store an
+	// unusable sentinel ("!") that bcrypt will never produce so password login
+	// is permanently disabled until the user explicitly sets one.
+	var hashedPassword string
+	if password == "" {
+		hashedPassword = "!"
+	} else {
+		hashedPassword = s.HashPassword(password)
+		if hashedPassword == "" {
+			return User{}, "", errors.New("failed to hash password")
+		}
 	}
 
 	// Generate email verification token
@@ -171,6 +180,7 @@ func (s *AuthService) Register(ctx context.Context, username, email_, phone, pas
 		PhoneNumber:   phone,
 		EmailVerified: false,
 		PhoneVerified: false,
+		HasPassword:   hashedPassword != "!",
 	}
 
 	// Generate JWT token
@@ -180,6 +190,34 @@ func (s *AuthService) Register(ctx context.Context, username, email_, phone, pas
 	}
 
 	return user, token, nil
+}
+
+// dbUserToUser converts a db.User to an auth.User. The ID must be pre-formatted.
+func dbUserToUser(dbUser *db.User, id string) User {
+	return User{
+		ID:            id,
+		Username:      dbUser.Username,
+		Email:         dbUser.Email,
+		AvatarURL:     dbUser.AvatarURL,
+		BannerURL:     dbUser.BannerURL,
+		Bio:           dbUser.Bio,
+		DisplayName:   dbUser.DisplayName,
+		Badges:        dbUser.Badges,
+		EmailVerified: dbUser.EmailVerified,
+		PhoneNumber:   dbUser.PhoneNumber,
+		PhoneVerified: dbUser.PhoneVerified,
+		HasPassword:   dbUser.PasswordHash != "!",
+	}
+}
+
+// RemovePassword sets the user's password to the unusable sentinel "!".
+// Requires at least one passkey to be registered (enforced by the caller).
+func (s *AuthService) RemovePassword(ctx context.Context, userIDStr string) error {
+	userID, err := strconv.ParseInt(userIDStr, 10, 64)
+	if err != nil {
+		return errors.New("invalid user ID")
+	}
+	return s.repo.UpdatePasswordHash(ctx, userID, "!")
 }
 
 // Login authenticates a user and returns a token
@@ -220,19 +258,7 @@ func (s *AuthService) Login(ctx context.Context, emailOrPhone, password, ip stri
 	}
 
 	userID := fmt.Sprintf("%d", dbUser.ID)
-	user := User{
-		ID:            userID,
-		Username:      dbUser.Username,
-		Email:         dbUser.Email,
-		AvatarURL:     dbUser.AvatarURL,
-		BannerURL:     dbUser.BannerURL,
-		Bio:           dbUser.Bio,
-		DisplayName:   dbUser.DisplayName,
-		Badges:        dbUser.Badges,
-		EmailVerified: dbUser.EmailVerified,
-		PhoneNumber:   dbUser.PhoneNumber,
-		PhoneVerified: dbUser.PhoneVerified,
-	}
+	user := dbUserToUser(dbUser, userID)
 
 	token, err := s.generateToken(userID)
 	if err != nil {
@@ -316,19 +342,7 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername, cu
 		return User{}, err
 	}
 
-	return User{
-		ID:            userID,
-		Username:      dbUser.Username,
-		Email:         dbUser.Email,
-		AvatarURL:     dbUser.AvatarURL,
-		BannerURL:     dbUser.BannerURL,
-		Bio:           dbUser.Bio,
-		DisplayName:   dbUser.DisplayName,
-		Badges:        dbUser.Badges,
-		EmailVerified: dbUser.EmailVerified,
-		PhoneNumber:   dbUser.PhoneNumber,
-		PhoneVerified: dbUser.PhoneVerified,
-	}, nil
+	return dbUserToUser(dbUser, userID), nil
 }
 
 // VerifyEmail marks the user's email as verified using the given token.
@@ -456,18 +470,10 @@ func (s *AuthService) ChangeEmail(ctx context.Context, userID, newEmail, passwor
 		}
 	}
 
-	return User{
-		ID:            userID,
-		Username:      dbUser.Username,
-		Email:         newEmail,
-		AvatarURL:     dbUser.AvatarURL,
-		BannerURL:     dbUser.BannerURL,
-		Bio:           dbUser.Bio,
-		Badges:        dbUser.Badges,
-		EmailVerified: false,
-		PhoneNumber:   dbUser.PhoneNumber,
-		PhoneVerified: dbUser.PhoneVerified,
-	}, nil
+	u := dbUserToUser(dbUser, userID)
+	u.Email = newEmail
+	u.EmailVerified = false
+	return u, nil
 }
 
 // RequestPasswordReset sends a password reset email to the given address.
@@ -677,17 +683,7 @@ func (s *AuthService) GetUserByID(ctx context.Context, userIDStr string) (User, 
 	if err != nil {
 		return User{}, errors.New("user not found")
 	}
-	return User{
-		ID:            userIDStr,
-		Username:      dbUser.Username,
-		Email:         dbUser.Email,
-		AvatarURL:     dbUser.AvatarURL,
-		BannerURL:     dbUser.BannerURL,
-		Bio:           dbUser.Bio,
-		DisplayName:   dbUser.DisplayName,
-		Badges:        dbUser.Badges,
-		EmailVerified: dbUser.EmailVerified,
-	}, nil
+	return dbUserToUser(dbUser, userIDStr), nil
 }
 
 // GenerateTokenForUser creates a JWT for a given user ID string.
@@ -809,16 +805,8 @@ func (s *AuthService) ChangePhone(ctx context.Context, userID, newPhone, passwor
 			}
 		}
 	}
-	return User{
-		ID:            userID,
-		Username:      dbUser.Username,
-		Email:         dbUser.Email,
-		AvatarURL:     dbUser.AvatarURL,
-		BannerURL:     dbUser.BannerURL,
-		Bio:           dbUser.Bio,
-		Badges:        dbUser.Badges,
-		EmailVerified: dbUser.EmailVerified,
-		PhoneNumber:   newPhone,
-		PhoneVerified: false,
-	}, nil
+	u := dbUserToUser(dbUser, userID)
+	u.PhoneNumber = newPhone
+	u.PhoneVerified = false
+	return u, nil
 }

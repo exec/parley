@@ -705,6 +705,11 @@ WHERE name = '@everyone'
 ALTER TABLE server_members
     ADD COLUMN IF NOT EXISTS invite_code VARCHAR(16) DEFAULT NULL;
 CREATE INDEX IF NOT EXISTS idx_server_members_invite_code ON server_members(invite_code) WHERE invite_code IS NOT NULL;`,
+
+	`-- Store WebAuthn credential flags required for login validation
+ALTER TABLE passkeys
+    ADD COLUMN IF NOT EXISTS backup_eligible BOOLEAN NOT NULL DEFAULT false,
+    ADD COLUMN IF NOT EXISTS backup_state    BOOLEAN NOT NULL DEFAULT false;`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

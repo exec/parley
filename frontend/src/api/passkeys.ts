@@ -151,3 +151,7 @@ export async function deletePasskey(id: number): Promise<void> {
 export async function renamePasskey(id: number, name: string): Promise<void> {
   return apiClient.put<void>(`/auth/passkeys/${id}`, { name });
 }
+
+export async function removePassword(): Promise<void> {
+  return apiClient.delete<void>('/auth/password');
+}

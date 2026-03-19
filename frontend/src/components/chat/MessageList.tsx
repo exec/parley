@@ -5,6 +5,7 @@ import './Chat.css';
 
 interface MessageListProps {
   messages: MessageType[];
+  channelId?: string;
   currentUserId?: string;
   memberMap?: Map<string, string>;
   channelMap?: Map<string, string>;
@@ -30,6 +31,7 @@ interface MessageListProps {
 
 export const MessageList: React.FC<MessageListProps> = ({
   messages,
+  channelId,
   currentUserId,
   memberMap,
   channelMap,
@@ -106,11 +108,21 @@ export const MessageList: React.FC<MessageListProps> = ({
     });
   };
 
-  // Auto-scroll to bottom on new messages
+  // Force scroll to bottom when switching channels
   useEffect(() => {
-    if (shouldAutoScrollRef.current && containerRef.current) {
+    shouldAutoScrollRef.current = true;
+    if (containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
+  }, [channelId]);
+
+  // Auto-scroll to bottom on new messages (deferred so DOM is painted)
+  useEffect(() => {
+    if (!shouldAutoScrollRef.current || !containerRef.current) return;
+    const container = containerRef.current;
+    requestAnimationFrame(() => {
+      container.scrollTop = container.scrollHeight;
+    });
   }, [messages]);
 
   // Handle scroll - both for infinite loading and auto-scroll reset

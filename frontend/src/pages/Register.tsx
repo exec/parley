@@ -2,7 +2,10 @@ import React, { useState, FormEvent } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { apiClient } from '../api/client';
+import { registerPasskey } from '../api/passkeys';
 import './Auth.css';
+
+const passkeySupported = typeof window !== 'undefined' && !!window.PublicKeyCredential;
 
 export const Register: React.FC = () => {
   const navigate = useNavigate();
@@ -20,6 +23,12 @@ export const Register: React.FC = () => {
   const [smsConsent, setSmsConsent] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  // Set to true after account creation when no password was provided
+  const [passkeySetupRequired, setPasskeySetupRequired] = useState(false);
+  const [passkeyError, setPasskeyError] = useState('');
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
+
+  const passkeyOnly = passkeySupported && password === '';
 
   const validate = (): boolean => {
     const e: Record<string, string> = {};
@@ -36,10 +45,11 @@ export const Register: React.FC = () => {
       if (!smsConsent) e.smsConsent = 'You must agree to receive SMS messages to continue';
     }
 
-    if (!password) e.password = 'Password is required';
-    else if (password.length < 8) e.password = 'Password must be at least 8 characters';
-    if (!confirmPassword) e.confirmPassword = 'Please confirm your password';
-    else if (password !== confirmPassword) e.confirmPassword = 'Passwords do not match';
+    if (password) {
+      if (password.length < 8) e.password = 'Password must be at least 8 characters';
+      if (!confirmPassword) e.confirmPassword = 'Please confirm your password';
+      else if (password !== confirmPassword) e.confirmPassword = 'Passwords do not match';
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -50,7 +60,8 @@ export const Register: React.FC = () => {
     if (!validate()) return;
     setLoading(true);
     try {
-      const body: Record<string, string> = { username, password };
+      const body: Record<string, string> = { username };
+      if (password) body.password = password;
       if (method === 'email') body.email = email;
       else body.phone = phone.replace(/[\s\-()]/g, '');
 
@@ -64,6 +75,16 @@ export const Register: React.FC = () => {
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       apiClient.setToken(data.token);
+
+      if (!password) {
+        // Passkey-only account: must complete setup before entering the app.
+        setPasskeySetupRequired(true);
+        setLoading(false);
+        // Immediately kick off passkey creation.
+        handlePasskeySetup();
+        return;
+      }
+
       navigate(redirectTo);
     } catch (err) {
       setErrors({ general: err instanceof Error ? err.message : 'Registration failed. Please try again.' });
@@ -72,6 +93,61 @@ export const Register: React.FC = () => {
     }
   };
 
+  const handlePasskeySetup = async () => {
+    setPasskeyError('');
+    setPasskeyLoading(true);
+    try {
+      await registerPasskey('My Passkey');
+      navigate(redirectTo);
+    } catch (err) {
+      setPasskeyError(
+        err instanceof Error && err.message
+          ? err.message
+          : 'Passkey setup failed or was cancelled. Please try again.'
+      );
+    } finally {
+      setPasskeyLoading(false);
+    }
+  };
+
+  // ── Passkey setup gate ────────────────────────────────────────────────────
+  if (passkeySetupRequired) {
+    return (
+      <div className="auth-page">
+        <nav className="auth-nav">
+          <a href="/" className="auth-nav-brand">Parley</a>
+        </nav>
+        <div className="auth-container">
+          <div className="auth-card">
+            <div className="auth-header">
+              <h1 className="auth-title">Set up your passkey</h1>
+              <p className="auth-subtitle">
+                Your account was created. Complete passkey setup to continue.
+              </p>
+            </div>
+            <div className="auth-form">
+              {passkeyError && <div className="auth-error-banner">{passkeyError}</div>}
+              <p style={{ fontSize: 14, color: 'var(--parley-text-muted)', marginBottom: 16, lineHeight: 1.5 }}>
+                Your browser will prompt you to save a passkey using Touch ID, Face ID, Windows Hello, or a security key. This replaces your password and is required to log in.
+              </p>
+              <Button
+                type="button"
+                variant="primary"
+                size="lg"
+                loading={passkeyLoading}
+                onClick={handlePasskeySetup}
+                style={{ width: '100%' }}
+              >
+                🔑 Set up passkey
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Registration form ─────────────────────────────────────────────────────
   return (
     <div className="auth-page">
       <nav className="auth-nav">
@@ -160,27 +236,34 @@ export const Register: React.FC = () => {
                 className={`input ${errors.password ? 'input-error' : ''}`}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                placeholder="Create a password"
+                placeholder={passkeySupported ? 'Leave empty to set up passkey authentication' : 'Create a password'}
                 autoComplete="new-password"
               />
               {errors.password && <span className="input-error-message">{errors.password}</span>}
+              {passkeyOnly && (
+                <span className="input-hint">
+                  🔑 You'll be prompted to save a passkey after creating your account.
+                </span>
+              )}
             </div>
 
-            <div className="input-wrapper">
-              <label className="input-label">Confirm Password</label>
-              <input
-                type="password"
-                className={`input ${errors.confirmPassword ? 'input-error' : ''}`}
-                value={confirmPassword}
-                onChange={e => setConfirmPassword(e.target.value)}
-                placeholder="Confirm your password"
-                autoComplete="new-password"
-              />
-              {errors.confirmPassword && <span className="input-error-message">{errors.confirmPassword}</span>}
-            </div>
+            {password && (
+              <div className="input-wrapper">
+                <label className="input-label">Confirm Password</label>
+                <input
+                  type="password"
+                  className={`input ${errors.confirmPassword ? 'input-error' : ''}`}
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm your password"
+                  autoComplete="new-password"
+                />
+                {errors.confirmPassword && <span className="input-error-message">{errors.confirmPassword}</span>}
+              </div>
+            )}
 
             <Button type="submit" variant="primary" size="lg" loading={loading}>
-              Register
+              {passkeyOnly ? 'Continue' : 'Register'}
             </Button>
           </form>
           <div className="auth-footer">

@@ -3,7 +3,7 @@ import { X } from 'lucide-react';
 import { User } from '../../api/types';
 import { updateProfile, resendVerification, changeEmail, verifyPhone, resendPhone, changePhone, getMyPhone } from '../../api/auth';
 import { uploadFile } from '../../api/upload';
-import { listPasskeys, registerPasskey, deletePasskey, renamePasskey, PasskeyInfo } from '../../api/passkeys';
+import { listPasskeys, registerPasskey, deletePasskey, renamePasskey, removePassword, PasskeyInfo } from '../../api/passkeys';
 import { DeveloperTab } from './DeveloperTab';
 import { VoiceSettingsTab } from './VoiceSettings';
 import { AppearanceTab } from './AppearanceTab';
@@ -601,16 +601,21 @@ const AccountTab: React.FC<AccountTabProps> = (p) => {
         )}
       </div>
 
-      <PasskeySection />
+      <PasskeySection currentUser={p.currentUser} onUpdate={p.onUpdate} />
     </>
   );
 };
 
 /* ---- Passkey Section (self-contained) ---- */
-const PasskeySection: React.FC = () => {
+interface PasskeySectionProps {
+  currentUser: User | null;
+  onUpdate: (user: User) => void;
+}
+const PasskeySection: React.FC<PasskeySectionProps> = ({ currentUser, onUpdate }) => {
   const [passkeys, setPasskeys] = React.useState<PasskeyInfo[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [adding, setAdding] = React.useState(false);
+  const [removingPassword, setRemovingPassword] = React.useState(false);
   const [error, setError] = React.useState('');
 
   React.useEffect(() => {
@@ -637,12 +642,30 @@ const PasskeySection: React.FC = () => {
   };
 
   const handleDelete = async (id: number) => {
+    if (passkeys.length <= 1 && !currentUser?.has_password) {
+      setError('Cannot remove your only passkey without a password set. Add a password first.');
+      return;
+    }
     if (!confirm('Remove this passkey?')) return;
     try {
       await deletePasskey(id);
       setPasskeys(prev => prev.filter(p => p.id !== id));
-    } catch {
-      setError('Failed to delete passkey');
+    } catch (e: unknown) {
+      setError((e as { message?: string })?.message || 'Failed to delete passkey');
+    }
+  };
+
+  const handleRemovePassword = async () => {
+    if (!confirm('Remove your password? You will only be able to sign in with a passkey.')) return;
+    setRemovingPassword(true);
+    setError('');
+    try {
+      await removePassword();
+      if (currentUser) onUpdate({ ...currentUser, has_password: false });
+    } catch (e: unknown) {
+      setError((e as { message?: string })?.message || 'Failed to remove password');
+    } finally {
+      setRemovingPassword(false);
     }
   };
 
@@ -704,13 +727,25 @@ const PasskeySection: React.FC = () => {
               No passkeys registered yet.
             </p>
           )}
-          <button
-            className="settings-btn settings-btn-primary"
-            onClick={handleAdd}
-            disabled={adding}
-          >
-            {adding ? 'Adding…' : '+ Add passkey'}
-          </button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              className="settings-btn settings-btn-primary"
+              onClick={handleAdd}
+              disabled={adding}
+            >
+              {adding ? 'Adding…' : '+ Add passkey'}
+            </button>
+            {currentUser?.has_password && passkeys.length > 0 && (
+              <button
+                className="settings-btn settings-btn-danger"
+                onClick={handleRemovePassword}
+                disabled={removingPassword}
+                title="Remove password — passkey sign-in only"
+              >
+                {removingPassword ? 'Removing…' : 'Remove password'}
+              </button>
+            )}
+          </div>
         </>
       )}
     </div>

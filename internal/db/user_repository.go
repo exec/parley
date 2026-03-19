@@ -557,6 +557,11 @@ func (r *Repository) ConsumePasswordResetToken(ctx context.Context, token, newHa
 	return nil
 }
 
+func (r *Repository) UpdatePasswordHash(ctx context.Context, userID int64, hash string) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE users SET password_hash = $2, updated_at = NOW() WHERE id = $1`, userID, hash)
+	return err
+}
+
 func (r *Repository) GetPublicUser(ctx context.Context, userID int64) (*PublicUser, error) {
 	query := `
 		SELECT id, username, COALESCE(display_name, ''), COALESCE(avatar_url, ''), COALESCE(banner_url, ''), COALESCE(bio, ''), badges, created_at

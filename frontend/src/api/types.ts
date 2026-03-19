@@ -10,6 +10,7 @@ export interface User {
   email_verified?: boolean;
   phone_number?: string;
   phone_verified?: boolean;
+  has_password?: boolean;
 }
 
 export interface Role {

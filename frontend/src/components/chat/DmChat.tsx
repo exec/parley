@@ -21,9 +21,15 @@ export function DmChat({ channel, messages, currentUserId, onSendMessage, isLoad
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const prevChannelId = useRef<string | null>(null);
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    const isChannelSwitch = prevChannelId.current !== channel.id;
+    prevChannelId.current = channel.id;
+    messagesEndRef.current?.scrollIntoView({
+      behavior: isChannelSwitch ? 'instant' : 'smooth',
+    });
+  }, [messages, channel.id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

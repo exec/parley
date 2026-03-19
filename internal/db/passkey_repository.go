@@ -8,30 +8,32 @@ import (
 
 // Passkey represents a stored WebAuthn credential.
 type Passkey struct {
-	ID           int64
-	UserID       int64
-	CredentialID []byte
-	PublicKey    []byte
-	SignCount     int64
-	AAGUID       []byte
-	Name         string
-	CreatedAt    time.Time
-	LastUsedAt   *time.Time
+	ID             int64
+	UserID         int64
+	CredentialID   []byte
+	PublicKey      []byte
+	SignCount      int64
+	AAGUID         []byte
+	Name           string
+	BackupEligible bool
+	BackupState    bool
+	CreatedAt      time.Time
+	LastUsedAt     *time.Time
 }
 
 func (r *Repository) CreatePasskey(ctx context.Context, p *Passkey) error {
 	query := `
-		INSERT INTO passkeys (user_id, credential_id, public_key, sign_count, aaguid, name, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, NOW())
+		INSERT INTO passkeys (user_id, credential_id, public_key, sign_count, aaguid, name, backup_eligible, backup_state, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
 		RETURNING id, created_at
 	`
 	return r.db.QueryRowContext(ctx, query,
-		p.UserID, p.CredentialID, p.PublicKey, p.SignCount, p.AAGUID, p.Name,
+		p.UserID, p.CredentialID, p.PublicKey, p.SignCount, p.AAGUID, p.Name, p.BackupEligible, p.BackupState,
 	).Scan(&p.ID, &p.CreatedAt)
 }
 
 func (r *Repository) GetPasskeysByUserID(ctx context.Context, userID int64) ([]Passkey, error) {
-	query := `SELECT id, user_id, credential_id, public_key, sign_count, aaguid, name, created_at, last_used_at FROM passkeys WHERE user_id = $1 ORDER BY created_at`
+	query := `SELECT id, user_id, credential_id, public_key, sign_count, aaguid, name, backup_eligible, backup_state, created_at, last_used_at FROM passkeys WHERE user_id = $1 ORDER BY created_at`
 	rows, err := r.db.QueryContext(ctx, query, userID)
 	if err != nil {
 		return nil, err
@@ -41,7 +43,7 @@ func (r *Repository) GetPasskeysByUserID(ctx context.Context, userID int64) ([]P
 	for rows.Next() {
 		var p Passkey
 		var lastUsed sql.NullTime
-		if err := rows.Scan(&p.ID, &p.UserID, &p.CredentialID, &p.PublicKey, &p.SignCount, &p.AAGUID, &p.Name, &p.CreatedAt, &lastUsed); err != nil {
+		if err := rows.Scan(&p.ID, &p.UserID, &p.CredentialID, &p.PublicKey, &p.SignCount, &p.AAGUID, &p.Name, &p.BackupEligible, &p.BackupState, &p.CreatedAt, &lastUsed); err != nil {
 			return nil, err
 		}
 		if lastUsed.Valid {
@@ -53,10 +55,10 @@ func (r *Repository) GetPasskeysByUserID(ctx context.Context, userID int64) ([]P
 }
 
 func (r *Repository) GetPasskeyByCredentialID(ctx context.Context, credID []byte) (*Passkey, error) {
-	query := `SELECT id, user_id, credential_id, public_key, sign_count, aaguid, name, created_at, last_used_at FROM passkeys WHERE credential_id = $1`
+	query := `SELECT id, user_id, credential_id, public_key, sign_count, aaguid, name, backup_eligible, backup_state, created_at, last_used_at FROM passkeys WHERE credential_id = $1`
 	var p Passkey
 	var lastUsed sql.NullTime
-	err := r.db.QueryRowContext(ctx, query, credID).Scan(&p.ID, &p.UserID, &p.CredentialID, &p.PublicKey, &p.SignCount, &p.AAGUID, &p.Name, &p.CreatedAt, &lastUsed)
+	err := r.db.QueryRowContext(ctx, query, credID).Scan(&p.ID, &p.UserID, &p.CredentialID, &p.PublicKey, &p.SignCount, &p.AAGUID, &p.Name, &p.BackupEligible, &p.BackupState, &p.CreatedAt, &lastUsed)
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
 	}

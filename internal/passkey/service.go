@@ -124,15 +124,28 @@ func buildUser(dbUser *db.User, pks []db.Passkey) *passkeyUser {
 				AAGUID:    pk.AAGUID,
 				SignCount: uint32(pk.SignCount),
 			},
+			Flags: webauthn.CredentialFlags{
+				BackupEligible: pk.BackupEligible,
+				BackupState:    pk.BackupState,
+			},
 		}
 	}
 	dn := dbUser.DisplayName
 	if dn == "" {
 		dn = dbUser.Username
 	}
+	// Use email as the account identifier (shown in browser passkey picker).
+	// Fall back to phone, then username if neither is set.
+	name := dbUser.Email
+	if name == "" {
+		name = dbUser.PhoneNumber
+	}
+	if name == "" {
+		name = dbUser.Username
+	}
 	return &passkeyUser{
 		id:          []byte(strconv.FormatInt(dbUser.ID, 10)),
-		username:    dbUser.Username,
+		username:    name,
 		displayName: dn,
 		credentials: creds,
 	}
@@ -206,12 +219,14 @@ func (s *Service) RegisterFinish(ctx context.Context, userIDStr, sessionID, name
 		name = "Passkey"
 	}
 	pk := &db.Passkey{
-		UserID:       userID,
-		CredentialID: credential.ID,
-		PublicKey:    credential.PublicKey,
-		SignCount:    int64(credential.Authenticator.SignCount),
-		AAGUID:       credential.Authenticator.AAGUID,
-		Name:         name,
+		UserID:         userID,
+		CredentialID:   credential.ID,
+		PublicKey:      credential.PublicKey,
+		SignCount:      int64(credential.Authenticator.SignCount),
+		AAGUID:         credential.Authenticator.AAGUID,
+		Name:           name,
+		BackupEligible: credential.Flags.BackupEligible,
+		BackupState:    credential.Flags.BackupState,
 	}
 	return s.repo.CreatePasskey(ctx, pk)
 }
@@ -296,6 +311,7 @@ func (s *Service) List(ctx context.Context, userIDStr string) ([]PasskeyInfo, er
 }
 
 // Delete removes a passkey owned by the given user.
+// Rejects if this is the user's last passkey and they have no password set.
 func (s *Service) Delete(ctx context.Context, userIDStr, idStr string) error {
 	userID, err := strconv.ParseInt(userIDStr, 10, 64)
 	if err != nil {
@@ -305,6 +321,22 @@ func (s *Service) Delete(ctx context.Context, userIDStr, idStr string) error {
 	if err != nil {
 		return fmt.Errorf("invalid passkey ID")
 	}
+
+	// Guard: refuse to remove the last passkey if no password is set.
+	pks, err := s.repo.GetPasskeysByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if len(pks) <= 1 {
+		dbUser, err := s.repo.GetUserByID(ctx, userID)
+		if err != nil {
+			return err
+		}
+		if dbUser.PasswordHash == "!" {
+			return fmt.Errorf("cannot remove your only passkey without a password set")
+		}
+	}
+
 	return s.repo.DeletePasskey(ctx, id, userID)
 }
 

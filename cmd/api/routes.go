@@ -124,6 +124,7 @@ func registerRoutes(
 					r.Get("/passkeys", handleListPasskeys(passkeySvc))
 					r.Delete("/passkeys/{id}", handleDeletePasskey(passkeySvc))
 					r.Put("/passkeys/{id}", handleRenamePasskey(passkeySvc))
+				r.Delete("/password", handleRemovePassword(passkeySvc, authService))
 				}
 			})
 		})

@@ -234,6 +234,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       </div>
       <MessageList
         messages={messages}
+        channelId={channel.id}
         currentUserId={currentUserId}
         memberMap={memberMap}
         channelMap={channelMap}
