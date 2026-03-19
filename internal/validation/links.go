@@ -5,6 +5,15 @@ import (
 	"strings"
 )
 
+// UsernameRe is the allowed character set for usernames: letters, digits,
+// underscores, hyphens, and dots; 1–32 characters.
+var UsernameRe = regexp.MustCompile(`^[a-zA-Z0-9_.\-]{1,32}$`)
+
+// ValidUsername reports whether s is a valid username.
+func ValidUsername(s string) bool {
+	return UsernameRe.MatchString(s)
+}
+
 // mdLinkRe matches markdown links: [display text](url)
 var mdLinkRe = regexp.MustCompile(`\[([^\]\n]{1,500})\]\(([^)\n]+)\)`)
 

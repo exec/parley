@@ -77,6 +77,9 @@ func (s *AuthService) Register(ctx context.Context, username, email_, phone, pas
 	if len(username) > 32 {
 		return User{}, "", errors.New("username must be 32 characters or fewer")
 	}
+	if !validation.ValidUsername(username) {
+		return User{}, "", errors.New("username may only contain letters, numbers, underscores, hyphens and dots")
+	}
 	if password != "" && len(password) < 8 {
 		return User{}, "", errors.New("password must be at least 8 characters")
 	}
@@ -310,6 +313,9 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername, cu
 	if newUsername != "" && newUsername != dbUser.Username {
 		if len(newUsername) > 32 {
 			return User{}, errors.New("username must be 32 characters or fewer")
+		}
+		if !validation.ValidUsername(newUsername) {
+			return User{}, errors.New("username may only contain letters, numbers, underscores, hyphens and dots")
 		}
 		// Check username isn't taken
 		existing, err := s.repo.GetUserByUsername(ctx, newUsername)

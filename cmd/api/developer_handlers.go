@@ -12,6 +12,7 @@ import (
 
 	"parley/internal/auth"
 	"parley/internal/db"
+	"parley/internal/validation"
 )
 
 func handleListAPIKeys(repo *db.Repository) http.HandlerFunc {
@@ -80,6 +81,10 @@ func handleCreateAPIKey(repo *db.Repository) http.HandlerFunc {
 
 		if req.Type == "bot" {
 			botUsername = strings.TrimSpace(req.BotUsername)
+			if !validation.ValidUsername(botUsername) {
+				jsonError(w, "bot username may only contain letters, numbers, underscores, hyphens and dots", http.StatusBadRequest)
+				return
+			}
 			if name == "" {
 				name = botUsername
 			}
@@ -171,6 +176,10 @@ func handleRenameBotUser(repo *db.Repository) http.HandlerFunc {
 		newUsername := strings.TrimSpace(req.Username)
 		if newUsername == "" {
 			jsonError(w, "username is required", http.StatusBadRequest)
+			return
+		}
+		if !validation.ValidUsername(newUsername) {
+			jsonError(w, "bot username may only contain letters, numbers, underscores, hyphens and dots", http.StatusBadRequest)
 			return
 		}
 		if err := repo.RenameBotUser(r.Context(), botID, ownerID, newUsername); err != nil {
