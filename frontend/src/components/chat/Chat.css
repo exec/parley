@@ -3,7 +3,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background-color: var(--parley-channel-bg);
+  background-color: var(--parley-chat-bg, var(--parley-channel-bg));
   color: var(--parley-text-normal);
 }
 
@@ -253,7 +253,7 @@
 /* Message Input Styles */
 .message-input-container {
   padding: 16px;
-  background-color: var(--parley-channel-bg);
+  background-color: var(--parley-chat-bg, var(--parley-channel-bg));
   border-top: 1px solid rgba(var(--accent-rgb), 0.3);
 }
 
@@ -363,14 +363,14 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background-color: var(--parley-channel-bg);
+  background-color: var(--parley-chat-bg, var(--parley-channel-bg));
 }
 
 /* Chat Header */
 .chat-header {
   padding: 10px 16px;
   border-bottom: 1px solid rgba(var(--accent-rgb), 0.2);
-  background-color: var(--parley-channel-bg);
+  background-color: var(--parley-chat-bg, var(--parley-channel-bg));
   flex-shrink: 0;
   display: flex;
   align-items: center;
