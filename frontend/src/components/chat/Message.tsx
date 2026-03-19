@@ -11,23 +11,38 @@ import { isCodeFile, languageFromFilename } from '../../lib/shiki';
 import { getParentAuthor, getParentPreview } from './NestedReplies';
 import { EditHistoryPopover } from './EditHistoryPopover';
 import { ThemeLinkEmbed } from '../theme/ThemeLinkEmbed';
+import { BotInviteEmbed } from '../BotInviteEmbed';
 import { useTheme } from '../../context/ThemeContext';
 import './Chat.css';
 import './NestedReplies.css';
 
-const THEME_URL_RE = /https?:\/\/[^/\s]+\/theme\/([0-9a-f-]{36})/gi;
+type EmbedType = 'theme' | 'bot-invite';
 
-function extractThemeTokens(content: string): string[] {
-  const tokens: string[] = [];
-  let m: RegExpExecArray | null;
-  THEME_URL_RE.lastIndex = 0;
-  while ((m = THEME_URL_RE.exec(content)) !== null) tokens.push(m[1]);
-  return [...new Set(tokens)];
+const EMBED_PATTERN_DEFS: { type: EmbedType; source: string }[] = [
+  { type: 'theme',      source: 'https?://[^/\\s]+/theme/([0-9a-f-]{36})' },
+  { type: 'bot-invite', source: 'https?://[^/\\s]+/invite/bot/([0-9a-f-]{36})' },
+];
+
+function extractEmbeds(content: string): { type: EmbedType; token: string }[] {
+  const seen = new Set<string>();
+  const results: { type: EmbedType; token: string }[] = [];
+  for (const def of EMBED_PATTERN_DEFS) {
+    const re = new RegExp(def.source, 'gi');
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(content)) !== null) {
+      const key = def.type + ':' + m[1];
+      if (!seen.has(key)) { seen.add(key); results.push({ type: def.type, token: m[1] }); }
+    }
+  }
+  return results;
 }
 
-function stripThemeURLs(content: string): string {
-  THEME_URL_RE.lastIndex = 0;
-  return content.replace(THEME_URL_RE, '').trim();
+function stripEmbedURLs(content: string): string {
+  let out = content;
+  for (const def of EMBED_PATTERN_DEFS) {
+    out = out.replace(new RegExp(def.source, 'gi'), '');
+  }
+  return out.trim();
 }
 
 interface MessageProps {
@@ -417,8 +432,8 @@ export const Message: React.FC<MessageProps> = ({
             {getEmojiOnlyCount(message.content)
               ? <div className="message-text message-text--jumbo">{message.content}</div>
               : (() => {
-                  const tokens = extractThemeTokens(message.content);
-                  const cleanContent = tokens.length > 0 ? stripThemeURLs(message.content) : message.content;
+                  const embeds = extractEmbeds(message.content);
+                  const cleanContent = embeds.length > 0 ? stripEmbedURLs(message.content) : message.content;
                   return (
                     <>
                       {cleanContent && (
@@ -426,7 +441,11 @@ export const Message: React.FC<MessageProps> = ({
                           <MarkdownRenderer content={cleanContent} mode="chat" memberMap={memberMap} channelMap={channelMap} onMiniProfile={onMiniProfile} />
                         </div>
                       )}
-                      {tokens.map(tok => <ThemeLinkEmbed key={tok} token={tok} />)}
+                      {embeds.map(({ type, token }) =>
+                        type === 'theme'
+                          ? <ThemeLinkEmbed key={type + ':' + token} token={token} />
+                          : <BotInviteEmbed key={type + ':' + token} token={token} />
+                      )}
                     </>
                   );
                 })()
