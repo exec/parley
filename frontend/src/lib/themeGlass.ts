@@ -47,7 +47,7 @@ export function buildGlassPreset(baseTheme: string, preset: GlassPreset): string
     `  --parley-app-bg: transparent;`,
     `  --parley-panel-bg: rgba(${hexToRgb(panelHex)}, ${opacity.panel});`,
     `  --parley-panel-blur: ${blur};`,
-    `  --parley-panel-header-bg: rgba(${hexToRgb(headerHex)}, ${opacity.header});`,
+    `  --parley-panel-header-bg: transparent;`,
     `  --parley-panel-footer-bg: rgba(${hexToRgb(footerHex)}, ${opacity.footer});`,
     `  --parley-chat-bg: rgba(${hexToRgb(chatHex)}, ${opacity.chat});`,
   ].join('\n');

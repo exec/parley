@@ -253,7 +253,7 @@
 /* Message Input Styles */
 .message-input-container {
   padding: 16px;
-  background-color: var(--parley-chat-bg, var(--parley-channel-bg));
+  background-color: transparent;
   border-top: 1px solid rgba(var(--accent-rgb), 0.3);
 }
 
@@ -370,7 +370,7 @@
 .chat-header {
   padding: 10px 16px;
   border-bottom: 1px solid rgba(var(--accent-rgb), 0.2);
-  background-color: var(--parley-chat-bg, var(--parley-channel-bg));
+  background-color: transparent;
   flex-shrink: 0;
   display: flex;
   align-items: center;
