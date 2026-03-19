@@ -6,7 +6,7 @@
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: var(--parley-bg-secondary);
+  background: var(--parley-app-bg, var(--parley-bg-secondary));
   display: flex;
   animation: settings-fade-in 0.12s ease;
 }
@@ -21,7 +21,9 @@
 .settings-sidebar {
   width: 232px;
   flex-shrink: 0;
-  background: var(--parley-sidebar);
+  background: var(--parley-panel-bg, var(--parley-sidebar));
+  backdrop-filter: blur(var(--parley-panel-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
   border-right: 1px solid var(--parley-border);
   padding: 56px 8px 24px;
   overflow-y: auto;
@@ -97,6 +99,9 @@
   display: flex;
   justify-content: center;
   position: relative;
+  background: var(--parley-chat-bg, transparent);
+  backdrop-filter: blur(var(--parley-panel-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
 }
 
 .settings-content {
@@ -143,7 +148,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 14px 16px;
-  background: var(--parley-sidebar);
+  background: var(--parley-panel-bg, var(--parley-sidebar));
   border-radius: 6px;
   margin-bottom: 8px;
   border: 1px solid var(--parley-border);
@@ -240,7 +245,7 @@
 .settings-inline-form {
   margin-top: 10px;
   padding: 14px 16px;
-  background: var(--parley-sidebar);
+  background: var(--parley-panel-bg, var(--parley-sidebar));
   border: 1px solid var(--parley-border-light);
   border-radius: 6px;
   display: flex;
@@ -354,7 +359,7 @@
   align-items: center;
   gap: 20px;
   padding: 16px;
-  background: var(--parley-sidebar);
+  background: var(--parley-panel-bg, var(--parley-sidebar));
   border: 1px solid var(--parley-border);
   border-radius: 6px;
   margin-bottom: 8px;
@@ -481,7 +486,7 @@
 }
 
 .settings-preview-card {
-  background: var(--parley-sidebar);
+  background: var(--parley-panel-bg, var(--parley-sidebar));
   border: 1px solid var(--parley-border);
   border-radius: 8px;
   overflow: hidden;
@@ -544,7 +549,9 @@
   bottom: 28px;
   left: 50%;
   transform: translateX(-50%);
-  background: var(--parley-bg-tertiary);
+  background: var(--parley-panel-bg, var(--parley-bg-tertiary));
+  backdrop-filter: blur(var(--parley-panel-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
   border: 1px solid var(--parley-border-light);
   border-radius: 8px;
   padding: 12px 20px;
@@ -623,7 +630,7 @@
   padding: 10px 12px;
   font-size: 13px;
   color: var(--parley-text-muted);
-  background: var(--parley-sidebar);
+  background: var(--parley-panel-bg, var(--parley-sidebar));
   border-right: 1px solid var(--parley-border-light);
   white-space: nowrap;
   flex-shrink: 0;
@@ -780,14 +787,14 @@
 
 .roles-new-form {
   padding: 16px;
-  background: var(--parley-sidebar);
+  background: var(--parley-panel-bg, var(--parley-sidebar));
   border: 1px solid var(--parley-border);
   border-radius: 6px;
 }
 
 .roles-edit-form {
   padding: 16px;
-  background: var(--parley-sidebar);
+  background: var(--parley-panel-bg, var(--parley-sidebar));
   border: 1px solid var(--parley-border);
   border-radius: 6px;
 }
@@ -856,7 +863,7 @@
   gap: 8px;
   padding: 8px 12px;
   cursor: pointer;
-  background: var(--parley-sidebar);
+  background: var(--parley-panel-bg, var(--parley-sidebar));
   transition: background 0.1s;
 }
 
@@ -986,7 +993,7 @@
 .dev-copy-btn { flex-shrink: 0; }
 
 .dev-create-form {
-  background: var(--parley-sidebar);
+  background: var(--parley-panel-bg, var(--parley-sidebar));
   border: 1px solid var(--parley-border);
   border-radius: 6px;
   padding: 16px;

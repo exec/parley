@@ -116,7 +116,9 @@
   z-index: 1000;
 }
 .bots-add-modal {
-  background: var(--parley-bg-secondary, #2a2a2a);
+  background: var(--parley-panel-bg, var(--parley-bg-secondary, #2a2a2a));
+  backdrop-filter: blur(var(--parley-panel-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
   border: 1px solid var(--parley-border, #444);
   border-radius: 8px;
   padding: 20px;

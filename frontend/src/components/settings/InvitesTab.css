@@ -3,7 +3,7 @@
 /* ---- Create card ---- */
 
 .invites-create-card {
-  background: var(--parley-bg-secondary);
+  background: var(--parley-panel-bg, var(--parley-bg-secondary));
   border: 1px solid var(--parley-border);
   border-radius: 8px;
   padding: 20px;
@@ -108,7 +108,7 @@
 .invites-row {
   border: 1px solid var(--parley-border);
   border-radius: 6px;
-  background: var(--parley-bg-secondary);
+  background: var(--parley-panel-bg, var(--parley-bg-secondary));
   overflow: hidden;
 }
 
@@ -196,7 +196,7 @@
 
 .invites-members-popover {
   border-top: 1px solid var(--parley-border);
-  background: var(--parley-sidebar);
+  background: var(--parley-panel-bg, var(--parley-sidebar));
   padding: 12px 14px;
 }
 

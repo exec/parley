@@ -2,7 +2,7 @@
 .appearance-display-options { display: flex; flex-direction: column; gap: 4px; margin-bottom: 4px; }
 .appearance-display-option {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 12px; background: var(--parley-bg-secondary);
+  padding: 10px 12px; background: var(--parley-panel-bg, var(--parley-bg-secondary));
   border-radius: 6px; border: 1px solid var(--parley-border);
 }
 .appearance-display-option-info { flex: 1; min-width: 0; }
@@ -15,7 +15,7 @@
 .appearance-theme-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 8px; }
 .appearance-theme-swatch {
   border: 2px solid transparent; border-radius: 8px; padding: 8px;
-  cursor: pointer; background: var(--parley-bg-secondary); transition: border-color .15s;
+  cursor: pointer; background: var(--parley-panel-bg, var(--parley-bg-secondary)); transition: border-color .15s;
 }
 .appearance-theme-swatch:hover,.appearance-theme-swatch.active { border-color: var(--parley-accent); }
 .appearance-swatch-colors { display: flex; gap: 3px; margin-bottom: 6px; border-radius: 4px; overflow: hidden; height: 28px; }
@@ -24,7 +24,7 @@
 .appearance-custom-list { display: flex; flex-direction: column; gap: 6px; }
 .appearance-custom-item {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 8px 12px; background: var(--parley-bg-secondary);
+  padding: 8px 12px; background: var(--parley-panel-bg, var(--parley-bg-secondary));
   border-radius: 6px; border: 1px solid var(--parley-border);
 }
 .appearance-custom-item.active { border-color: var(--parley-accent); }
@@ -50,7 +50,7 @@
 }
 .appearance-repo-btn:hover { text-decoration: underline; }
 .appearance-confirm-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 2000; display: flex; align-items: center; justify-content: center; }
-.appearance-confirm-dialog { background: var(--parley-bg-secondary); border: 1px solid var(--parley-border); border-radius: 8px; padding: 20px; max-width: 360px; width: 90%; }
+.appearance-confirm-dialog { background: var(--parley-panel-bg, var(--parley-bg-secondary)); backdrop-filter: blur(var(--parley-panel-blur, 0px)); -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px)); border: 1px solid var(--parley-border); border-radius: 8px; padding: 20px; max-width: 360px; width: 90%; }
 .appearance-confirm-dialog p { color: var(--parley-text-normal); margin: 0 0 6px; font-size: 14px; }
 .appearance-cancel-btn { padding: 7px 14px; background: var(--parley-bg-hover); border: 1px solid var(--parley-border); border-radius: 4px; color: var(--parley-text-normal); cursor: pointer; font-size: 13px; }
 .appearance-danger-btn { padding: 7px 14px; background: var(--parley-danger); border: none; border-radius: 4px; color: #fff; cursor: pointer; font-size: 13px; font-weight: 600; }

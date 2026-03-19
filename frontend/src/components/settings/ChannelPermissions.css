@@ -205,7 +205,7 @@
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  background: var(--parley-bg-tertiary);
+  background: var(--parley-panel-bg, var(--parley-bg-tertiary));
   border: 1px solid var(--parley-border-light);
   border-radius: 4px;
   max-height: 180px;
@@ -313,7 +313,7 @@
   font-size: 13px;
   padding: 24px;
   text-align: center;
-  background: var(--parley-sidebar);
+  background: var(--parley-panel-bg, var(--parley-sidebar));
   border: 1px dashed var(--parley-border);
   border-radius: 6px;
 }
@@ -343,7 +343,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background: var(--parley-input);
+  background: var(--parley-panel-bg, var(--parley-input));
   border-radius: 4px;
   border: 1px solid var(--parley-border);
 }
@@ -393,7 +393,7 @@
 }
 
 .cp-tristate--inherit {
-  background: var(--parley-sidebar);
+  background: var(--parley-panel-bg, var(--parley-sidebar));
   border-color: var(--parley-border-light);
   color: var(--parley-text-muted);
 }
@@ -419,7 +419,9 @@
   bottom: 0;
   margin-top: 24px;
   padding: 12px 16px;
-  background: var(--parley-bg-tertiary);
+  background: var(--parley-panel-bg, var(--parley-bg-tertiary));
+  backdrop-filter: blur(var(--parley-panel-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
   border: 1px solid var(--parley-border-light);
   border-radius: 6px;
   display: flex;

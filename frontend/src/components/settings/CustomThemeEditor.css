@@ -14,14 +14,14 @@
 .theme-editor-base-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
 .theme-editor-base-btn {
   padding: 5px 10px; border-radius: 4px; border: 2px solid var(--parley-border);
-  background: var(--parley-bg-secondary); color: var(--parley-text-muted);
+  background: var(--parley-panel-bg, var(--parley-bg-secondary)); color: var(--parley-text-muted);
   font-size: 12px; cursor: pointer; transition: border-color .15s, color .15s;
 }
 .theme-editor-base-btn:hover { border-color: var(--parley-accent); color: var(--parley-text-normal); }
 .theme-editor-base-btn--active { border-color: var(--parley-accent); color: var(--parley-text-normal); font-weight: 600; }
 .theme-editor-bg-row { display: flex; align-items: center; gap: 8px; }
 .theme-editor-bg-preview { width: 40px; height: 40px; border-radius: 4px; border: 1px solid var(--parley-border); background-size: cover; background-position: center; flex-shrink: 0; }
-.theme-editor-upload-btn { padding: 6px 12px; background: var(--parley-bg-secondary); border: 1px solid var(--parley-border); border-radius: 4px; color: var(--parley-text-normal); font-size: 13px; cursor: pointer; }
+.theme-editor-upload-btn { padding: 6px 12px; background: var(--parley-panel-bg, var(--parley-bg-secondary)); border: 1px solid var(--parley-border); border-radius: 4px; color: var(--parley-text-normal); font-size: 13px; cursor: pointer; }
 .theme-editor-remove-bg { padding: 6px 10px; background: none; border: 1px solid var(--parley-danger); border-radius: 4px; color: var(--parley-danger); font-size: 13px; cursor: pointer; }
 .theme-editor-error { background: rgba(240,71,71,.1); border: 1px solid var(--parley-danger); border-radius: 4px; padding: 8px 12px; font-size: 13px; color: var(--parley-danger); margin-bottom: 12px; }
 .theme-editor-preview-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--parley-text-muted); margin-bottom: 4px; }
@@ -31,7 +31,7 @@
 .theme-editor-save { flex: 1; padding: 9px; background: var(--parley-accent); color: #fff; border: none; border-radius: 4px; font-size: 14px; font-weight: 600; cursor: pointer; }
 .theme-editor-save:hover { background: var(--parley-accent-hover); }
 .theme-editor-save:disabled { opacity: .5; cursor: not-allowed; }
-.theme-editor-cancel { padding: 9px 18px; background: var(--parley-bg-secondary); border: 1px solid var(--parley-border); border-radius: 4px; color: var(--parley-text-normal); font-size: 14px; cursor: pointer; }
+.theme-editor-cancel { padding: 9px 18px; background: var(--parley-panel-bg, var(--parley-bg-secondary)); border: 1px solid var(--parley-border); border-radius: 4px; color: var(--parley-text-normal); font-size: 14px; cursor: pointer; }
 
 /* AI Theme Generation */
 .theme-editor-ai-section { margin-top: 4px; }
