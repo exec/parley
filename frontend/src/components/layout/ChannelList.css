@@ -648,6 +648,7 @@
   border: none;
   outline: none;
   font-size: 13px;
+  font-family: inherit;
   color: var(--parley-text-primary, #e0e0e0);
   min-width: 0;
 }

@@ -44,6 +44,7 @@ interface DmPanelProps {
   dmChannels: DmChannel[];
   activeDmChannelId: string | null;
   currentUser?: User | null;
+  userStatuses?: Record<string, { status_type: string; status_text: string }>;
   onSelectDm: (channelId: string) => void;
   onLogout?: () => void;
   onOpenSettings?: () => void;
@@ -55,6 +56,7 @@ const DmPanel: React.FC<DmPanelProps> = ({
   dmChannels,
   activeDmChannelId,
   currentUser,
+  userStatuses,
   onSelectDm,
   onLogout,
   onOpenSettings,
@@ -120,11 +122,11 @@ const DmPanel: React.FC<DmPanelProps> = ({
                 ? <img src={currentUser.avatar_url} alt={currentUser.username} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
                 : currentUser?.username?.charAt(0).toUpperCase() || '?'}
             </div>
-            <span className="dm-panel-status-dot online" />
+            <span className={`dm-panel-status-dot ${userStatuses?.[currentUser?.id || '']?.status_type || currentUser?.status_type || 'online'}`} />
           </div>
           <div className="dm-panel-user-details">
             <div className="dm-panel-username">{currentUser?.display_name || currentUser?.username || 'User'}</div>
-            <div className="dm-panel-status">Online</div>
+            <div className="dm-panel-status">{userStatuses?.[currentUser?.id || '']?.status_text || currentUser?.status_text || (() => { const st = userStatuses?.[currentUser?.id || '']?.status_type || currentUser?.status_type || 'online'; return st === 'dnd' ? 'Do Not Disturb' : st === 'afk' ? 'Away' : st === 'invisible' ? 'Invisible' : 'Online'; })()}</div>
           </div>
           <span onClick={e => e.stopPropagation()}><ThemePopover onOpenSettings={() => onOpenSettings?.()} /></span>
           <div className="dm-panel-settings-icon" title="User settings">

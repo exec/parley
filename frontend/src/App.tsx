@@ -589,7 +589,8 @@ function MainApp() {
 
   const handleUserStatusUpdate = useCallback((userId: string, statusType: string, statusText: string) => {
     setUserStatuses(prev => ({ ...prev, [userId]: { status_type: statusType, status_text: statusText } }));
-  }, []);
+    receiveUserUpdate({ user_id: userId, status_type: statusType, status_text: statusText });
+  }, [receiveUserUpdate]);
 
   // Seed current user's status from their profile on load (always, not just when status_type is truthy)
   useEffect(() => {
@@ -776,8 +777,9 @@ function MainApp() {
       onVcParticipantClick={handleVcParticipantClick}
       userStatuses={userStatuses}
       onStatusChange={(type, text) => {
-        if (currentUser?.id) {
+        if (currentUser) {
           setUserStatuses(prev => ({ ...prev, [currentUser.id]: { status_type: type, status_text: text } }));
+          updateCurrentUser({ ...currentUser, status_type: type as any, status_text: text });
         }
       }}
     />
@@ -786,6 +788,7 @@ function MainApp() {
       dmChannels={dmChannels}
       activeDmChannelId={activeDmChannel?.id ?? null}
       currentUser={currentUser}
+      userStatuses={userStatuses}
       onSelectDm={selectDmChannel}
       onLogout={logout}
       onOpenSettings={() => setShowUserSettings(true)}

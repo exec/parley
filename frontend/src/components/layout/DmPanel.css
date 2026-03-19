@@ -141,6 +141,13 @@
   background-color: var(--parley-gray);
 }
 
+.dm-panel-status-dot.dnd { background-color: var(--parley-danger); }
+.dm-panel-status-dot.afk { background-color: var(--parley-yellow); }
+.dm-panel-status-dot.invisible {
+  background-color: transparent;
+  border-color: var(--parley-gray);
+}
+
 .dm-panel-name {
   font-size: 14px;
   font-weight: 500;
