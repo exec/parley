@@ -75,12 +75,17 @@ func handleSvcErr(w http.ResponseWriter, r *http.Request, err error) {
 
 // ListBots handles GET /api/servers/{id}/bots
 func (h *Handler) ListBots(w http.ResponseWriter, r *http.Request) {
+	uid, ok := callerID(r)
+	if !ok {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
 	sid, ok := serverIDParam(r)
 	if !ok {
 		httputil.JSONError(w, "invalid server id", http.StatusBadRequest)
 		return
 	}
-	bots, err := h.svc.ListBots(r.Context(), sid)
+	bots, err := h.svc.ListBots(r.Context(), sid, uid)
 	if err != nil {
 		handleSvcErr(w, r, err)
 		return

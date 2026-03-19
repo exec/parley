@@ -30,8 +30,15 @@ func NewService(repo *Repository, keySecret []byte) *Service {
 	return &Service{repo: repo, keySecret: keySecret[:32]}
 }
 
-// ListBots returns bots in a server. Any member may call this.
-func (s *Service) ListBots(ctx context.Context, serverID int64) ([]Bot, error) {
+// ListBots returns bots in a server. Caller must be a member of the server.
+func (s *Service) ListBots(ctx context.Context, serverID, callerID int64) ([]Bot, error) {
+	isMember, err := s.repo.IsServerMember(ctx, serverID, callerID)
+	if err != nil {
+		return nil, err
+	}
+	if !isMember {
+		return nil, ErrForbidden
+	}
 	return s.repo.ListServerBots(ctx, serverID)
 }
 
