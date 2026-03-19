@@ -814,6 +814,16 @@ function MainApp() {
   const AtMeTopbar = ({ friendsActive }: { friendsActive: boolean }) => (
     <div className="at-me-topbar">
       <button
+        className="chat-header-btn chat-header-btn--hamburger"
+        onClick={() => setShowChannelList(c => !c)}
+        title="Toggle channel list"
+        style={{ marginRight: 4 }}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+        </svg>
+      </button>
+      <button
         className={`at-me-topbar-friends-btn${friendsActive ? ' active' : ''}`}
         onClick={friendsActive ? handleGoHome : handleOpenFriends}
       >
