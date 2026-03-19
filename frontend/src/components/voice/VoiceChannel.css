@@ -12,7 +12,9 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  background: var(--parley-input);
+  background: var(--parley-panel-bg, var(--parley-input));
+  backdrop-filter: blur(var(--parley-panel-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
   border-bottom: 1px solid var(--parley-border);
   flex-shrink: 0;
 }
@@ -129,7 +131,7 @@
   gap: 8px;
   padding: 8px 12px;
   overflow-x: auto;
-  background: var(--parley-input);
+  background: var(--parley-panel-bg, var(--parley-input));
   border-top: 1px solid var(--parley-border);
   flex-shrink: 0;
 }
@@ -146,7 +148,9 @@
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
-  background: var(--parley-input);
+  background: var(--parley-panel-bg, var(--parley-input));
+  backdrop-filter: blur(var(--parley-panel-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
   border-top: 1px solid var(--parley-border);
   flex-shrink: 0;
   justify-content: center;

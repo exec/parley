@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import './Sidebar.css';
 
 interface Server {
@@ -114,7 +115,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         <span className="tooltip">Create Server</span>
       </div>
 
-      {contextMenu && (
+      {contextMenu && createPortal(
         <div
           ref={menuRef}
           className="sidebar-context-menu"
@@ -162,7 +163,8 @@ const Sidebar: React.FC<SidebarProps> = ({
               Leave Server
             </button>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

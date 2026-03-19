@@ -8,7 +8,9 @@
   bottom: 0;
   left: var(--sidebar-width, 232px);
   width: 230px;
-  background: var(--parley-sidebar);
+  background: var(--parley-panel-bg, var(--parley-sidebar));
+  backdrop-filter: blur(var(--parley-panel-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
   border: 1px solid var(--parley-border);
   border-bottom: none;
   border-radius: 8px 8px 0 0;

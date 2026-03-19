@@ -1035,6 +1035,14 @@ function MainApp() {
           receiveChannelUpdate(updated);
         }}
         onlineUserIds={onlineUsers}
+        canKickMembers={canKickMembers}
+        canBanMembers={canBanMembers}
+        onKickMember={activeServer ? (userId) => {
+          serversApi.kickMember(activeServer.id, userId).catch(console.error);
+        } : undefined}
+        onBanMember={activeServer ? (userId) => {
+          serversApi.banMember(activeServer.id, userId).catch(console.error);
+        } : undefined}
       />
     );
   } else if (activeServer) {

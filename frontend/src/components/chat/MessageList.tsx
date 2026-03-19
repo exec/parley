@@ -21,6 +21,10 @@ interface MessageListProps {
   allMessages?: MessageType[];
   canManageMessages?: boolean;
   canAddReactions?: boolean;
+  canKickMembers?: boolean;
+  canBanMembers?: boolean;
+  onKickMember?: (userId: string) => void;
+  onBanMember?: (userId: string) => void;
   onScrollToMessage?: (messageId: string) => void;
 }
 
@@ -42,6 +46,10 @@ export const MessageList: React.FC<MessageListProps> = ({
   allMessages,
   canManageMessages = true,
   canAddReactions = true,
+  canKickMembers,
+  canBanMembers,
+  onKickMember,
+  onBanMember,
   onScrollToMessage: onScrollToMessageProp,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -200,6 +208,10 @@ export const MessageList: React.FC<MessageListProps> = ({
               onScrollToMessage={onScrollToMessageProp ?? handleScrollToMessage}
               canManageMessages={canManageMessages}
               canAddReactions={canAddReactions}
+              canKickMembers={canKickMembers}
+              canBanMembers={canBanMembers}
+              onKickMember={onKickMember}
+              onBanMember={onBanMember}
             />
           ))}
         </div>

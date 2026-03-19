@@ -1,6 +1,6 @@
 .participant-tile {
   position: relative;
-  background: var(--parley-input);
+  background: var(--parley-panel-bg, var(--parley-input));
   border: 1px solid var(--parley-border);
   border-radius: 8px;
   overflow: hidden;

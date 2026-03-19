@@ -47,6 +47,10 @@ interface MessageProps {
   onScrollToMessage?: (messageId: string) => void;
   canManageMessages?: boolean;
   canAddReactions?: boolean;
+  canKickMembers?: boolean;
+  canBanMembers?: boolean;
+  onKickMember?: (userId: string) => void;
+  onBanMember?: (userId: string) => void;
 }
 
 /** Returns the number of emoji if the text is 1–5 emoji only, else null. */
@@ -158,6 +162,10 @@ export const Message: React.FC<MessageProps> = ({
   onScrollToMessage,
   canManageMessages = true,
   canAddReactions = true,
+  canKickMembers,
+  canBanMembers,
+  onKickMember,
+  onBanMember,
 }) => {
   const [showActions, setShowActions] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -536,6 +544,17 @@ export const Message: React.FC<MessageProps> = ({
               <div className="context-menu-divider" />
               <button className="context-menu-item" onClick={handleSendMessage}>Send Message</button>
               <button className="context-menu-item" onClick={handleViewProfile}>View Profile</button>
+              {(canKickMembers || canBanMembers) && (
+                <>
+                  <div className="context-menu-divider" />
+                  {canKickMembers && (
+                    <button className="context-menu-item" style={{ color: '#FFB347' }} onClick={() => { onKickMember?.(message.author_id); closeContextMenu(); }}>Kick Member</button>
+                  )}
+                  {canBanMembers && (
+                    <button className="context-menu-item" style={{ color: '#FF4444' }} onClick={() => { onBanMember?.(message.author_id); closeContextMenu(); }}>Ban Member</button>
+                  )}
+                </>
+              )}
             </>
           )}
           {isOwnMessage && (
@@ -566,6 +585,17 @@ export const Message: React.FC<MessageProps> = ({
           <button className="context-menu-item" onClick={handleViewProfile}>View Profile</button>
           {message.author_id !== currentUserId && (
             <button className="context-menu-item" onClick={handleSendMessage}>Send Message</button>
+          )}
+          {message.author_id !== currentUserId && (canKickMembers || canBanMembers) && (
+            <>
+              <div className="context-menu-divider" />
+              {canKickMembers && (
+                <button className="context-menu-item" style={{ color: '#FFB347' }} onClick={() => { onKickMember?.(message.author_id); closeUserContextMenu(); }}>Kick Member</button>
+              )}
+              {canBanMembers && (
+                <button className="context-menu-item" style={{ color: '#FF4444' }} onClick={() => { onBanMember?.(message.author_id); closeUserContextMenu(); }}>Ban Member</button>
+              )}
+            </>
           )}
         </div>
       )}

@@ -47,6 +47,10 @@ interface ChatWindowProps {
   isOnline?: boolean;
   onlineUserIds?: Set<string>;
   hideRoles?: boolean;
+  canKickMembers?: boolean;
+  canBanMembers?: boolean;
+  onKickMember?: (userId: string) => void;
+  onBanMember?: (userId: string) => void;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -82,6 +86,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   isOnline,
   onlineUserIds,
   hideRoles,
+  canKickMembers,
+  canBanMembers,
+  onKickMember,
+  onBanMember,
 }) => {
   const { hasPerm: checkPerm } = usePermissions(channel.server_id || undefined, channel.id || undefined);
   const canManageMessages = !channel.server_id || checkPerm(PERM_MANAGE_MESSAGES);
@@ -242,6 +250,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         allMessages={messages}
         canManageMessages={canManageMessages}
         canAddReactions={canAddReactions}
+        canKickMembers={canKickMembers}
+        canBanMembers={canBanMembers}
+        onKickMember={onKickMember}
+        onBanMember={onBanMember}
       />
       <TypingIndicator typingUsers={typingUsers} />
       <MessageInput
