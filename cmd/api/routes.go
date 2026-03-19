@@ -283,6 +283,10 @@ func registerRoutes(
 			r.Patch("/developer/bots/{botId}", handleRenameBotUser(repo))
 			r.Patch("/developer/bots/{botId}/invite", botsHandler.UpdateInvitePermissions)
 
+			// GIPHY proxy — keeps the API key server-side
+			r.Get("/giphy/search", handleGiphySearch)
+			r.Get("/giphy/trending", handleGiphyTrending)
+
 			// File upload — 50 MB limit
 			r.With(maxBodyMiddleware(50 * 1024 * 1024)).Post("/upload", handleUpload(spacesClient, repo.DB()))
 

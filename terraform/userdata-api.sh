@@ -156,7 +156,6 @@ fi
 echo "=== Building Parley frontend ==="
 cd /parley/frontend
 cat > .env << 'EOF'
-VITE_GIPHY_API_KEY=${GIPHY_API_KEY}
 VITE_CDN_HOST=$(python3 -c "from urllib.parse import urlparse; print(urlparse('${SPACES_CDN_URL}').hostname or '')")
 EOF
 run_with_retry "npm ci"
@@ -197,6 +196,7 @@ OLLAMA_API_URL=${OLLAMA_API_URL}
 OLLAMA_API_KEY=${OLLAMA_API_KEY}
 OLLAMA_MODEL=${OLLAMA_MODEL}
 BOT_KEY_SECRET=${BOT_KEY_SECRET}
+GIPHY_API_KEY=${GIPHY_API_KEY}
 EOF
 
 # Set proper permissions

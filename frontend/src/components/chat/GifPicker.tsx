@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useViewportAdjust } from '../../hooks/useViewportAdjust';
+import { apiClient } from '../../api/client';
 import './GifPicker.css';
-
-const GIPHY_KEY = import.meta.env.VITE_GIPHY_API_KEY as string;
-const API = 'https://api.giphy.com/v1/gifs';
 
 interface GifResult {
   id: string;
@@ -32,11 +30,15 @@ export const GifPicker: React.FC<GifPickerProps> = ({ onSelect, onClose }) => {
   const fetchGifs = useCallback(async (q: string) => {
     setLoading(true);
     try {
-      const endpoint = q.trim()
-        ? `${API}/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(q)}&limit=24&rating=pg-13`
-        : `${API}/trending?api_key=${GIPHY_KEY}&limit=24&rating=pg-13`;
-      const res = await fetch(endpoint);
-      const json = await res.json();
+      const params = new URLSearchParams({ limit: '24', rating: 'pg-13' });
+      let endpoint: string;
+      if (q.trim()) {
+        params.set('q', q.trim());
+        endpoint = `/giphy/search?${params.toString()}`;
+      } else {
+        endpoint = `/giphy/trending?${params.toString()}`;
+      }
+      const json = await apiClient.get<{ data: GifResult[] }>(endpoint);
       setGifs(json.data ?? []);
     } catch {
       setGifs([]);

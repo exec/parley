@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  readonly VITE_GIPHY_API_KEY: string;
+  readonly VITE_CDN_HOST: string;
 }
 
 interface ImportMeta {
