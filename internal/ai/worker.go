@@ -94,6 +94,8 @@ To create a frosted glass effect with a background image:
   5. Set --parley-panel-header-bg and --parley-panel-footer-bg to rgba() variants slightly more opaque than the panel
   6. Set --parley-chat-bg: rgba(R, G, B, 0.78) using the theme's channel-bg color
 
+CRITICAL: When using frosted glass, do NOT redeclare --parley-app-bg, --parley-panel-bg, --parley-panel-blur, --parley-panel-header-bg, --parley-panel-footer-bg, or --parley-chat-bg anywhere else in [data-theme]. Declaring them twice (once as rgba and once as a solid color) will cause the solid color to override the glass effect. Set each of these variables exactly once.
+
 You may use Google Fonts via @import at the top: @import url('https://fonts.googleapis.com/css2?family=...');
 No other external URLs are permitted.
 If you use a Google Font, also set font-family on [data-theme].

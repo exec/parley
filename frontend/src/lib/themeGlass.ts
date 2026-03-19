@@ -64,13 +64,13 @@ export function injectGlassVars(css: string, glassVars: string | null): string {
 
   const block = `${GLASS_START}\n${glassVars}\n${GLASS_END}`;
 
-  // Find [data-theme] { and insert block right after the {
-  const dataThemePat = /^(\[data-theme\]\s*\{)/m;
+  // Insert block at END of [data-theme] so it overrides any duplicate declarations the LLM may add.
+  const dataThemePat = /^(\[data-theme\]\s*\{)([\s\S]*?)(\n\})/m;
   if (dataThemePat.test(cleaned)) {
-    return cleaned.replace(dataThemePat, `$1\n${block}`);
+    return cleaned.replace(dataThemePat, `$1$2\n${block}\n$3`);
   }
 
-  // No [data-theme] block — prepend one.
+  // No [data-theme] block — wrap in one.
   const wrapper = `[data-theme] {\n${block}\n}`;
   return cleaned ? `${wrapper}\n\n${cleaned}` : wrapper;
 }
