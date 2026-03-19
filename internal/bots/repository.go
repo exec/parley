@@ -89,6 +89,56 @@ func (r *Repository) AddBotToServer(ctx context.Context, serverID, botUserID int
 	return err
 }
 
+// AddBotToServerWithRole adds a bot to a server and (if grantedPermissions > 0)
+// creates a role named "@{botUsername}" and assigns it to the bot.
+// All steps run in a single transaction.
+func (r *Repository) AddBotToServerWithRole(ctx context.Context, serverID, botUserID int64, botUsername string, grantedPermissions int64) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO server_bots (server_id, bot_user_id) VALUES ($1, $2)`,
+		serverID, botUserID)
+	if isPgUniqueViolation(err) {
+		return ErrAlreadyExists
+	}
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO server_members (server_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+		serverID, botUserID)
+	if err != nil {
+		return err
+	}
+
+	if grantedPermissions > 0 {
+		var roleID int64
+		err = tx.QueryRowContext(ctx,
+			`INSERT INTO server_roles (server_id, name, color, permissions)
+			 VALUES ($1, $2, $3, $4)
+			 RETURNING id`,
+			serverID, "@"+botUsername, "#99aab5", grantedPermissions,
+		).Scan(&roleID)
+		if err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO server_member_roles (server_id, user_id, role_id)
+			 VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+			serverID, botUserID, roleID)
+		if err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
 // RemoveBotFromServer deletes server_bots and server_members rows.
 func (r *Repository) RemoveBotFromServer(ctx context.Context, serverID, botUserID int64) error {
 	res, err := r.db.ExecContext(ctx,
@@ -196,15 +246,32 @@ func (r *Repository) AddTokenUsage(ctx context.Context, serverID int64, delta in
 	return err
 }
 
-// ResolveInviteToken returns bot user ID for a given invite token UUID.
-func (r *Repository) ResolveInviteToken(ctx context.Context, token string) (int64, error) {
-	var botUserID int64
+// ResolveInviteToken returns bot user ID and permissions for a given invite token UUID.
+func (r *Repository) ResolveInviteToken(ctx context.Context, token string) (int64, int64, error) {
+	var botUserID, permissions int64
 	err := r.db.QueryRowContext(ctx,
-		`SELECT bot_user_id FROM bot_invite_tokens WHERE token=$1::uuid`, token).Scan(&botUserID)
+		`SELECT bot_user_id, permissions FROM bot_invite_tokens WHERE token=$1::uuid`, token).
+		Scan(&botUserID, &permissions)
 	if errors.Is(err, sql.ErrNoRows) {
-		return 0, ErrNotFound
+		return 0, 0, ErrNotFound
 	}
-	return botUserID, err
+	return botUserID, permissions, err
+}
+
+// UpdateBotInvitePermissions sets permissions on the invite token for botUserID,
+// owned by callerID. Returns ErrNotFound if the caller doesn't own this bot.
+func (r *Repository) UpdateBotInvitePermissions(ctx context.Context, botUserID, callerID, permissions int64) error {
+	result, err := r.db.ExecContext(ctx,
+		`UPDATE bot_invite_tokens SET permissions=$1 WHERE bot_user_id=$2 AND created_by=$3`,
+		permissions, botUserID, callerID)
+	if err != nil {
+		return err
+	}
+	n, _ := result.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // GetUserBots returns bots whose invite tokens were created by callerID,
@@ -214,7 +281,7 @@ func (r *Repository) GetUserBots(ctx context.Context, callerID int64) ([]UserBot
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT DISTINCT ON (u.id)
 			u.id, u.username, COALESCE(u.display_name,''), COALESCE(u.avatar_url,''),
-			u.is_verified, bit.token::text
+			u.is_verified, bit.token::text, bit.permissions
 		FROM bot_invite_tokens bit
 		JOIN users u ON u.id = bit.bot_user_id
 		WHERE bit.created_by = $1
@@ -227,7 +294,7 @@ func (r *Repository) GetUserBots(ctx context.Context, callerID int64) ([]UserBot
 	var bots []UserBot
 	for rows.Next() {
 		var b UserBot
-		if err := rows.Scan(&b.ID, &b.Username, &b.DisplayName, &b.AvatarURL, &b.IsVerified, &b.InviteToken); err != nil {
+		if err := rows.Scan(&b.ID, &b.Username, &b.DisplayName, &b.AvatarURL, &b.IsVerified, &b.InviteToken, &b.Permissions); err != nil {
 			return nil, err
 		}
 		bots = append(bots, b)

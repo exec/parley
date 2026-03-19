@@ -40,7 +40,7 @@ func (s *Service) AddBot(ctx context.Context, serverID, callerID int64, inviteTo
 	if err := s.requireAdmin(ctx, serverID, callerID); err != nil {
 		return 0, err
 	}
-	botUserID, err := s.repo.ResolveInviteToken(ctx, inviteToken)
+	botUserID, _, err := s.repo.ResolveInviteToken(ctx, inviteToken)
 	if errors.Is(err, ErrNotFound) {
 		return 0, ErrNotFound
 	}
@@ -131,7 +131,7 @@ func (s *Service) GetMyBots(ctx context.Context, callerID int64) ([]UserBot, err
 
 // ResolveInvite resolves a bot invite token to bot info. Public (no auth required).
 func (s *Service) ResolveInvite(ctx context.Context, token string) (*BotInviteInfo, error) {
-	botUserID, err := s.repo.ResolveInviteToken(ctx, token)
+	botUserID, _, err := s.repo.ResolveInviteToken(ctx, token)
 	if err != nil {
 		return nil, ErrNotFound
 	}
@@ -156,7 +156,7 @@ func (s *Service) AcceptInvite(ctx context.Context, token string, serverID, call
 	if err := s.requireAdmin(ctx, serverID, callerID); err != nil {
 		return err
 	}
-	botUserID, err := s.repo.ResolveInviteToken(ctx, token)
+	botUserID, _, err := s.repo.ResolveInviteToken(ctx, token)
 	if errors.Is(err, ErrNotFound) {
 		return ErrNotFound
 	}
