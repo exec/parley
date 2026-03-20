@@ -72,6 +72,10 @@ class ConnectionState:
         # Back-reference so models can call gateway (set by Client)
         self.gateway: Any = None
 
+        # Back-reference to the owning Client, set by Client.__init__.
+        # Allows state to call _reapply_status before on_ready fires.
+        self._client: Any = None
+
     # ------------------------------------------------------------------
     # Cache helpers
     # ------------------------------------------------------------------
@@ -117,6 +121,11 @@ class ConnectionState:
             log.exception("Failed to fetch own profile on connect")
 
         await self._populate_servers()
+        if self._client is not None:
+            try:
+                await self._client._reapply_status()
+            except Exception:
+                log.exception("Failed to re-apply status on reconnect")
         await self._dispatch_event("READY", {})
 
     async def _populate_servers(self) -> None:
