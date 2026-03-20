@@ -299,3 +299,11 @@
   background: rgba(var(--parley-danger-rgb), 0.1);
   border-color: var(--parley-danger);
 }
+
+.vc-ctrl--active {
+  border-color: rgba(var(--accent-rgb), 0.5);
+}
+
+.vc-soundboard-wrapper {
+  position: relative;
+}

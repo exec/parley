@@ -13,7 +13,7 @@ import { Landing } from './pages/Landing';
 import { SharedThemePage } from './pages/SharedThemePage';
 import { ThemeRepoPage } from './pages/ThemeRepoPage';
 import { BotInvitePage } from './pages/BotInvitePage';
-import { useWebSocket, MemberRoleUpdate, UserUpdate, VoiceStateUpdate, VoiceForceMuteEvent, RoleUpdateEvent, RoleDeleteEvent, BotStatusUpdate } from './hooks/useWebSocket';
+import { useWebSocket, MemberRoleUpdate, UserUpdate, VoiceStateUpdate, VoiceForceMuteEvent, RoleUpdateEvent, RoleDeleteEvent, BotStatusUpdate, SoundboardPlayEvent } from './hooks/useWebSocket';
 import { VoiceChannel } from './components/voice/VoiceChannel';
 
 import { DmMessage, Message, BinChannelTag, ServerMember } from './api/types';
@@ -154,6 +154,7 @@ function MainApp() {
   // Voice state: channelId → list of participants
   const [voiceParticipants, setVoiceParticipants] = useState<Record<string, { user_id: string; username: string; avatar_url?: string }[]>>({});
   const [activeVoiceChannel, setActiveVoiceChannel] = useState<string | null>(null);
+  const [activeSoundEmojis, setActiveSoundEmojis] = useState<Map<string, string>>(new Map());
 
   const handleVcLeave = useCallback(() => {
     if (currentUser && activeVoiceChannel) {
@@ -666,6 +667,24 @@ function MainApp() {
     });
   }, [members]);
 
+  const handleSoundboardPlay = useCallback((event: SoundboardPlayEvent) => {
+    if (event.channel_id !== activeVoiceChannel) return;
+    const emoji = event.emoji || '🔊';
+    const durationMs = event.duration_ms || 30_000;
+    setActiveSoundEmojis(prev => {
+      const next = new Map(prev);
+      next.set(event.user_id, emoji);
+      return next;
+    });
+    setTimeout(() => {
+      setActiveSoundEmojis(prev => {
+        const next = new Map(prev);
+        next.delete(event.user_id);
+        return next;
+      });
+    }, durationMs);
+  }, [activeVoiceChannel]);
+
   const { sendTyping } = useWebSocket({
     onMessage: handleReceiveMessage,
     onDmMessage: handleReceiveDmMessage,
@@ -712,6 +731,7 @@ function MainApp() {
     }, [applyDmReactionUpdate]),
     activeChannelId: activeChannel?.id ?? null,
     extraChannelIds,
+    onSoundboardPlay: handleSoundboardPlay,
   });
 
   const handleSendTyping = useCallback(() => {
@@ -1015,6 +1035,7 @@ function MainApp() {
         vcChatOpen={vcChatOpen}
         onToggleVcChat={() => setVcChatOpen(v => !v)}
         onParticipantClick={(userId, e) => handleVcParticipantClick(userId, e.clientX, e.clientY)}
+        activeSoundEmojis={activeSoundEmojis}
       />
     );
   } else if (view === 'homepage') {

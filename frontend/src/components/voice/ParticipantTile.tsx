@@ -12,6 +12,7 @@ interface ParticipantTileProps {
   isScreenShare?: boolean;
   displayName?: string;
   avatarUrl?: string;
+  activeSoundEmoji?: string;
   onContextMenu?: (e: React.MouseEvent) => void;
   onClick?: (e: React.MouseEvent) => void;
 }
@@ -23,6 +24,7 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
   isScreenShare,
   displayName,
   avatarUrl,
+  activeSoundEmoji,
   onContextMenu,
   onClick,
 }) => {
@@ -162,6 +164,11 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
         {isMuted && !isScreenShare && (
           <span className="participant-tile-muted">
             <MicOff size={12} color="var(--parley-danger)" />
+          </span>
+        )}
+        {activeSoundEmoji && (
+          <span className="participant-tile-sound-emoji" title="Playing sound">
+            {activeSoundEmoji}
           </span>
         )}
       </div>

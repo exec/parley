@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { RemoteParticipant, LocalParticipant, Track, TrackPublication } from 'livekit-client';
-import { LayoutGrid, Maximize2, MessageSquare, Mic, MicOff, Headphones, HeadphoneOff, Video, VideoOff, Monitor, MonitorOff, PhoneOff, Volume2, X, Expand } from 'lucide-react';
+import { LayoutGrid, Maximize2, MessageSquare, Mic, MicOff, Headphones, HeadphoneOff, Video, VideoOff, Monitor, MonitorOff, PhoneOff, Volume2, X, Expand, Music2 } from 'lucide-react';
 import { Channel } from '../../api/types';
 import { VoiceParticipant, kickVoiceParticipant } from '../../api/voice';
 import { ParticipantTile } from './ParticipantTile';
 import { VoiceContextMenu } from './VoiceContextMenu';
+import { SoundboardPanel } from './SoundboardPanel';
 import './VoiceChannel.css';
 
 interface VoiceChannelProps {
@@ -33,6 +34,7 @@ interface VoiceChannelProps {
   vcChatOpen?: boolean;
   onToggleVcChat?: () => void;
   onParticipantClick?: (userId: string, e: React.MouseEvent) => void;
+  activeSoundEmojis?: Map<string, string>;
 }
 
 type ViewMode = 'grid' | 'speaker';
@@ -63,9 +65,11 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
   vcChatOpen,
   onToggleVcChat,
   onParticipantClick,
+  activeSoundEmojis,
 }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [pinnedIdentity, setPinnedIdentity] = useState<string | null>(null);
+  const [soundboardOpen, setSoundboardOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ participantId: string; x: number; y: number } | null>(null);
   const [enlargedShare, setEnlargedShare] = useState<{ participant: LocalParticipant | RemoteParticipant; isLocal: boolean } | null>(null);
   const [shareCtxMenu, setShareCtxMenu] = useState<{ participant: LocalParticipant | RemoteParticipant; isLocal: boolean; x: number; y: number } | null>(null);
@@ -220,6 +224,7 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
                   isSpeaking={isLocal ? false : activeSpeakers.has(participant.identity)}
                   displayName={meta.displayName}
                   avatarUrl={meta.avatarUrl}
+                  activeSoundEmoji={isLocal ? activeSoundEmojis?.get(currentUser.id) : activeSoundEmojis?.get(participant.identity)}
                   onContextMenu={!isLocal && (canMuteMembers || canKickFromVoice) ? (e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -283,6 +288,7 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
                       isSpeaking={activeSpeakers.has(item.participant.identity)}
                       displayName={meta.displayName}
                       avatarUrl={meta.avatarUrl}
+                      activeSoundEmoji={item.isLocal ? activeSoundEmojis?.get(currentUser.id) : activeSoundEmojis?.get(item.participant.identity)}
                       onContextMenu={!item.isLocal && !item.isScreenShare && (canMuteMembers || canKickFromVoice) ? (e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -396,6 +402,23 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
         <button className={`vc-ctrl ${screenSharing ? '' : 'vc-ctrl--off'}`} onClick={() => onToggleScreenShare().catch(console.error)} title={screenSharing ? 'Stop sharing' : 'Share screen'}>
           {screenSharing ? <Monitor size={18} color="var(--parley-accent)" /> : <MonitorOff size={18} color="var(--parley-text-muted)" />}
         </button>
+        <div className="vc-soundboard-wrapper">
+          <button
+            className={`vc-ctrl${soundboardOpen ? ' vc-ctrl--active' : ''}`}
+            onClick={() => setSoundboardOpen(v => !v)}
+            title="Soundboard"
+          >
+            <Music2 size={18} color={soundboardOpen ? 'var(--parley-accent)' : 'var(--parley-text-muted)'} />
+          </button>
+          {soundboardOpen && connected && localParticipant && (
+            <SoundboardPanel
+              channelId={channel.id}
+              localParticipant={localParticipant}
+              muted={muted}
+              onClose={() => setSoundboardOpen(false)}
+            />
+          )}
+        </div>
         <button className="vc-ctrl vc-ctrl--leave" onClick={onLeave} title="Leave channel">
           <PhoneOff size={18} color="var(--parley-danger)" />
         </button>

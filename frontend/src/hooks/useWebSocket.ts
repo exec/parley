@@ -85,6 +85,15 @@ export interface BotStatusUpdate {
   degraded: boolean;
 }
 
+export interface SoundboardPlayEvent {
+  channel_id: string;
+  user_id: string;
+  sound_id: string;
+  sound_name: string;
+  emoji: string;
+  duration_ms: number;
+}
+
 interface UseWebSocketOptions {
   onMessage: (msg: Message) => void;
   onDmMessage?: (msg: DmMessage) => void;
@@ -122,12 +131,13 @@ interface UseWebSocketOptions {
   onFriendAccept?: (user: FriendUser) => void;
   onFriendRemove?: (userId: string) => void;
   onUserStatusUpdate?: (userId: string, statusType: string, statusText: string) => void;
+  onSoundboardPlay?: (event: SoundboardPlayEvent) => void;
   activeChannelId: string | null;
   extraChannelIds?: string[]; // Additional channels to subscribe to for notifications
   onConnect?: () => void; // Called on every successful (re)connect
 }
 
-export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onServerMemberLeave, onServerMemberKick, onServerMemberBan, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, onChannelCreate, onChannelUpdate, onChannelDelete, onServerUpdate, onServerDelete, onMemberRoleUpdate, onUserUpdate, onVoiceStateUpdate, onVoiceForceMute, onVoiceForceDisconnect, onBinPostCreate, onBinPostUpdate, onBinPostDelete, onChannelOverwriteUpdate, onRoleUpdate, onRoleDelete, onBotStatusUpdate, onDmMessageDelete, onDmReactionUpdate, onFriendRequest, onFriendAccept, onFriendRemove, onUserStatusUpdate, onConnect, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
+export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onServerMemberLeave, onServerMemberKick, onServerMemberBan, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, onChannelCreate, onChannelUpdate, onChannelDelete, onServerUpdate, onServerDelete, onMemberRoleUpdate, onUserUpdate, onVoiceStateUpdate, onVoiceForceMute, onVoiceForceDisconnect, onBinPostCreate, onBinPostUpdate, onBinPostDelete, onChannelOverwriteUpdate, onRoleUpdate, onRoleDelete, onBotStatusUpdate, onDmMessageDelete, onDmReactionUpdate, onFriendRequest, onFriendAccept, onFriendRemove, onUserStatusUpdate, onSoundboardPlay, onConnect, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const subscribedChannelsRef = useRef<Set<string>>(new Set());
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -172,6 +182,7 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
   const onFriendAcceptRef = useLatest(onFriendAccept);
   const onFriendRemoveRef = useLatest(onFriendRemove);
   const onUserStatusUpdateRef = useLatest(onUserStatusUpdate);
+  const onSoundboardPlayRef = useLatest(onSoundboardPlay);
   const onConnectRef = useLatest(onConnect);
 
   const sendTyping = useCallback((channelId: string, username: string) => {
@@ -385,6 +396,8 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
             const p = wsMsg.payload as { user_id: string; status_type: string; status_text: string };
             if (p.user_id) onUserStatusUpdateRef.current(p.user_id, p.status_type ?? '', p.status_text ?? '');
           }
+        } else if (wsMsg.type === 'SOUNDBOARD_PLAY' && onSoundboardPlayRef.current) {
+          onSoundboardPlayRef.current(wsMsg.payload as SoundboardPlayEvent);
         }
       } catch (err) {
         console.error('[WebSocket] Failed to parse message:', err);
