@@ -176,8 +176,8 @@ class HTTPClient:
     # ------------------------------------------------------------------
 
     async def get_me(self) -> dict:
-        """``GET /api/auth/me`` — current user profile."""
-        return await self.get("/api/auth/me")
+        """``GET /api/users/me`` — current user profile."""
+        return await self.get("/api/users/me")
 
     async def login(self, email: str, password: str) -> dict:
         """``POST /api/auth/login`` — returns ``{token, user}``."""
@@ -199,6 +199,35 @@ class HTTPClient:
     async def search_users(self, query: str) -> list[dict]:
         """``GET /api/users/search?q=...``"""
         return await self.get("/api/users/search", q=query)
+
+    async def edit_me(self, **fields) -> dict:
+        """``PATCH /api/users/me`` — update username, display_name, or avatar_url."""
+        allowed = {"username", "display_name", "avatar_url"}
+        body = {k: v for k, v in fields.items() if k in allowed}
+        return await self.request("PATCH", "/api/users/me", json=body)
+
+    async def set_status(self, status_type: str, text: str = "") -> None:
+        """``PATCH /api/users/@me/status`` — set status_type and status_text."""
+        await self.request("PATCH", "/api/users/@me/status", json={
+            "status_type": status_type,
+            "status_text": text,
+        })
+
+    async def send_typing(self, channel_id: int, duration: int = 5) -> None:
+        """``POST /api/channels/{id}/typing`` — notify typing for up to *duration* seconds."""
+        await self.request("POST", f"/api/channels/{channel_id}/typing", json={
+            "duration": max(1, min(60, duration)),
+        })
+
+    async def update_bot_invite(self, bot_id: int, *, permissions: Optional[int] = None,
+                                show_author: Optional[bool] = None) -> dict:
+        """``PATCH /api/developer/bots/{id}/invite`` — update bot invite settings."""
+        body: dict = {}
+        if permissions is not None:
+            body["permissions"] = permissions
+        if show_author is not None:
+            body["show_author"] = show_author
+        return await self.request("PATCH", f"/api/developer/bots/{bot_id}/invite", json=body)
 
     # ------------------------------------------------------------------
     # Servers
