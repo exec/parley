@@ -81,10 +81,16 @@ class Client:
         self._state = ConnectionState(self.http, self._raw_dispatch)
         self._gateway = GatewayClient(self._state)
         self._state.gateway = self._gateway
+        self._state._client = self
 
         # event_name (lowercase) → list of async handlers
         self._listeners: dict[str, list[_CoroFunc]] = {}
         self._task: Optional[asyncio.Task] = None
+
+        # Status state — persisted across reconnects
+        self._status_type: str = "online"
+        self._status_text: str = ""
+        self._degraded: bool = False
 
     # ------------------------------------------------------------------
     # Properties
@@ -184,6 +190,33 @@ class Client:
 
         for handler in self._listeners.get(event_name, []):
             asyncio.ensure_future(self._call_handler(handler, *args))
+
+    async def _reapply_status(self) -> None:
+        """Re-apply non-default status after reconnect. Called by ConnectionState before on_ready."""
+        if self._status_type != "online":
+            try:
+                await self.http.set_status(self._status_type, self._status_text)
+            except Exception:
+                log.warning("Failed to re-apply status on reconnect")
+
+    async def set_status(self, status_type: str, text: str = "") -> None:
+        """Set status. status_type: online | idle | dnd | invisible"""
+        await self.http.set_status(status_type, text)
+        self._status_type = status_type
+        self._status_text = text
+
+    async def set_degraded(self, degraded: bool, reason: str = "") -> None:
+        """
+        Convenience wrapper for signalling bot health to users.
+        True  → DND with optional reason text.
+        False → online, status text cleared.
+        State persists across reconnects.
+        """
+        self._degraded = degraded
+        if degraded:
+            await self.set_status("dnd", reason)
+        else:
+            await self.set_status("online", "")
 
     async def _call_handler(self, handler: _CoroFunc, *args: Any) -> None:
         try:
