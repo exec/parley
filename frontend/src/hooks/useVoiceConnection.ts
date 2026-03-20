@@ -105,7 +105,7 @@ export function useVoiceConnection(
   }, []);
 
   const applyOutputDevice = useCallback((deviceId: string) => {
-    document.querySelectorAll('audio').forEach(el => {
+    audioRefsMap.current.forEach(el => {
       if ('setSinkId' in el) (el as any).setSinkId(deviceId).catch(() => {});
     });
   }, []);
@@ -115,28 +115,37 @@ export function useVoiceConnection(
     audioRefsMap.current.clear();
   }, []);
 
+  // One <audio> element per track SID so mic and screen-share audio are independent.
+  const attachAudioTrack = useCallback((trackSid: string, track: any) => {
+    if (audioRefsMap.current.has(trackSid)) return;
+    const el = document.createElement('audio');
+    el.autoplay = true;
+    document.body.appendChild(el);
+    audioRefsMap.current.set(trackSid, el);
+    track.attach(el);
+    el.muted = deafenedRef.current;
+    const savedSpeaker = settingsRef.current.speakerDeviceId;
+    if (savedSpeaker && 'setSinkId' in el) (el as any).setSinkId(savedSpeaker).catch(() => {});
+  }, []);
+
+  const detachAudioTrack = useCallback((trackSid: string) => {
+    const el = audioRefsMap.current.get(trackSid);
+    if (el) { el.remove(); audioRefsMap.current.delete(trackSid); }
+  }, []);
+
   const attachAudio = useCallback((participant: RemoteParticipant) => {
     participant.getTrackPublications().forEach(pub => {
       if (pub.kind === Track.Kind.Audio && pub.track) {
-        let el = audioRefsMap.current.get(participant.identity);
-        if (!el) {
-          el = document.createElement('audio');
-          el.autoplay = true;
-          document.body.appendChild(el);
-          audioRefsMap.current.set(participant.identity, el);
-        }
-        pub.track.attach(el);
-        el.muted = deafenedRef.current;
-        const savedSpeaker = settingsRef.current.speakerDeviceId;
-        if (savedSpeaker && 'setSinkId' in el) (el as any).setSinkId(savedSpeaker).catch(() => {});
+        attachAudioTrack(pub.trackSid, pub.track);
       }
     });
-  }, []);
+  }, [attachAudioTrack]);
 
-  const detachAudio = useCallback((identity: string) => {
-    const el = audioRefsMap.current.get(identity);
-    if (el) { el.remove(); audioRefsMap.current.delete(identity); }
-  }, []);
+  const detachAudio = useCallback((participant: RemoteParticipant) => {
+    participant.getTrackPublications().forEach(pub => {
+      if (pub.kind === Track.Kind.Audio) detachAudioTrack(pub.trackSid);
+    });
+  }, [detachAudioTrack]);
 
   const doCleanup = useCallback(() => {
     vadRef.current?.destroy();
@@ -203,15 +212,19 @@ export function useVoiceConnection(
 
       room.on(RoomEvent.ParticipantConnected, updateParticipantList);
       room.on(RoomEvent.ParticipantDisconnected, (p) => {
-        detachAudio(p.identity);
+        detachAudio(p as RemoteParticipant);
         updateParticipantList();
       });
-      room.on(RoomEvent.TrackSubscribed, (_t, _p, participant) => {
-        attachAudio(participant as RemoteParticipant);
+      room.on(RoomEvent.TrackSubscribed, (track, publication, _participant) => {
+        if (publication.kind === Track.Kind.Audio && track) {
+          attachAudioTrack(publication.trackSid, track);
+        }
         updateParticipantList();
       });
-      room.on(RoomEvent.TrackUnsubscribed, (_t, _p, participant) => {
-        detachAudio(participant.identity);
+      room.on(RoomEvent.TrackUnsubscribed, (_track, publication) => {
+        if (publication.kind === Track.Kind.Audio) {
+          detachAudioTrack(publication.trackSid);
+        }
         updateParticipantList();
       });
       room.on(RoomEvent.TrackPublished, updateParticipantList);
