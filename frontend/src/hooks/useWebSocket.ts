@@ -92,7 +92,7 @@ interface UseWebSocketOptions {
   onServerMemberLeave?: (serverId: string, userId: string) => void;
   onServerMemberKick?: (serverId: string, userId: string) => void;
   onServerMemberBan?: (serverId: string, userId: string) => void;
-  onTyping?: (userId: string, username: string, channelId: string) => void;
+  onTyping?: (userId: string, username: string, channelId: string, expiresAt?: string) => void;
   onUserOnline?: (userId: string) => void;
   onUserOffline?: (userId: string) => void;
   onPresenceSnapshot?: (userIds: string[]) => void;
@@ -240,9 +240,9 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
           }
         } else if (wsMsg.type === 'USER_TYPING' && onTypingRef.current) {
           if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
-            const payload = wsMsg.payload as { user_id: string; username: string; channel_id: string };
+            const payload = wsMsg.payload as { user_id: string; username: string; channel_id: string; expires_at?: string };
             if (payload.user_id && payload.channel_id) {
-              onTypingRef.current(payload.user_id, payload.username ?? '', payload.channel_id);
+              onTypingRef.current(payload.user_id, payload.username ?? '', payload.channel_id, payload.expires_at);
             }
           }
         } else if (wsMsg.type === 'USER_ONLINE' && onUserOnlineRef.current) {

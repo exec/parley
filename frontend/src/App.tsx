@@ -466,19 +466,25 @@ function MainApp() {
     });
   }, []);
 
-  const handleTyping = useCallback((userId: string, username: string, channelId: string) => {
-    if (userId === currentUser?.id) return; // don't show self typing
+  const handleTyping = useCallback((userId: string, username: string, channelId: string, expiresAt?: string) => {
+    if (userId === currentUser?.id) return;
     const key = `${channelId}:${userId}`;
 
-    // Reset auto-expire timeout
     const existing = typingTimeoutsRef.current.get(key);
     if (existing) clearTimeout(existing);
 
     setTypingUsers(prev => {
       const list = prev[channelId] ?? [];
-      if (list.some(t => t.userId === userId)) return prev; // already in list
+      if (list.some(t => t.userId === userId)) return prev;
       return { ...prev, [channelId]: [...list, { userId, username }] };
     });
+
+    // Use expires_at when present (REST path), fall back to 3s (WS path).
+    let delay = 3000;
+    if (expiresAt) {
+      const ms = new Date(expiresAt).getTime() - Date.now();
+      if (ms > 0) delay = ms;
+    }
 
     const timeout = setTimeout(() => {
       setTypingUsers(prev => {
@@ -492,7 +498,7 @@ function MainApp() {
         return { ...prev, [channelId]: filtered };
       });
       typingTimeoutsRef.current.delete(key);
-    }, 3000);
+    }, delay);
 
     typingTimeoutsRef.current.set(key, timeout);
   }, [currentUser?.id]);
