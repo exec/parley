@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--parley-channel-bg);
+  background: var(--parley-chat-bg, var(--parley-channel-bg));
   overflow: hidden;
 }
 
@@ -132,6 +132,8 @@
   padding: 8px 12px;
   overflow-x: auto;
   background: var(--parley-panel-bg, var(--parley-input));
+  backdrop-filter: blur(var(--parley-panel-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
   border-top: 1px solid var(--parley-border);
   flex-shrink: 0;
 }
@@ -157,7 +159,7 @@
 }
 
 .vc-ctrl {
-  background: var(--parley-bg-tertiary);
+  background: var(--parley-input-bg, var(--parley-bg-tertiary));
   border: 1px solid var(--parley-border-light);
   border-radius: 8px;
   width: 44px;

@@ -54,12 +54,13 @@ echo "=== Configuring PostgreSQL for remote connections ==="
 DB_PRIVATE_IP=$(hostname -I | awk '{print $1}')
 echo "Database private IP: $DB_PRIVATE_IP"
 
-# Update pg_hba.conf to allow connections from the VPC
+# Update pg_hba.conf to allow connections from the local subnet
+# Derive subnet from this VM's IP — works on both DO (10.x.x.x) and Proxmox (192.168.x.x)
+LAN_SUBNET="$${DB_PRIVATE_IP%.*}.0/24"
 PG_HBA=$(find /etc/postgresql -name pg_hba.conf | head -1)
 if [ -n "$PG_HBA" ]; then
-    # Add entries for API droplets using the DigitalOcean VPC range (typically /16 or /20)
-    echo "# Parley API connections - allow VPC range only" >> "$PG_HBA"
-    echo "host    all             all             10.0.0.0/16          md5" >> "$PG_HBA"
+    echo "# Parley API connections - allow LAN subnet only" >> "$PG_HBA"
+    echo "host    all             all             $LAN_SUBNET          scram-sha-256" >> "$PG_HBA"
 fi
 
 # Update postgresql.conf to listen on all interfaces
@@ -98,19 +99,16 @@ sysctl -w vm.nr_hugepages=512 || true
 echo "=== Installing Redis ==="
 apt-get install -y redis-server
 
-# Configure Redis — bind to loopback + all private IPs, require password
-echo "=== Configuring Redis (VPC-only, authenticated) ==="
-# Collect all private IPs (DigitalOcean droplets have eth0=mgmt 10.x and eth1=VPC 10.x)
-ALL_PRIVATE_IPS=$(ip addr show | grep 'inet 10\.' | awk '{print $2}' | cut -d/ -f1 | tr '\n' ' ' | xargs)
-if [ -z "$ALL_PRIVATE_IPS" ]; then
-    ALL_PRIVATE_IPS=$(hostname -I | tr ' ' '\n' | grep '^10\.' | tr '\n' ' ' | xargs)
-fi
+# Configure Redis — bind to loopback + all non-loopback IPs, require password
+echo "=== Configuring Redis (LAN-only, authenticated) ==="
+# Collect all non-loopback IPs — works on both DO (10.x.x.x VPC) and Proxmox (192.168.x.x LAN)
+ALL_PRIVATE_IPS=$(hostname -I | tr ' ' '\n' | grep -v '^127\.' | grep -v '^::' | tr '\n' ' ' | xargs)
 echo "Detected private IPs: $ALL_PRIVATE_IPS"
 
-# Bind to loopback and all private IPs (never 0.0.0.0)
+# Bind to loopback and all LAN IPs (never bare 0.0.0.0)
 sed -i "s/^bind .*/bind 127.0.0.1 $ALL_PRIVATE_IPS/" /etc/redis/redis.conf 2>/dev/null || true
-# Require password authentication
-sed -i "s/^# requirepass .*/requirepass ${redis_password}/" /etc/redis/redis.conf 2>/dev/null || true
+# Require password authentication — handle both commented and active requirepass lines
+sed -i "s/^#\? *requirepass .*/requirepass ${redis_password}/" /etc/redis/redis.conf 2>/dev/null || true
 grep -q "^requirepass" /etc/redis/redis.conf || echo "requirepass ${redis_password}" >> /etc/redis/redis.conf
 # Keep protected mode on
 sed -i "s/^protected-mode .*/protected-mode yes/" /etc/redis/redis.conf 2>/dev/null || true
@@ -119,14 +117,14 @@ sed -i "s/^protected-mode .*/protected-mode yes/" /etc/redis/redis.conf 2>/dev/n
 systemctl restart redis-server
 systemctl enable redis-server
 
-# Configure firewall — DB/Redis only accessible from VPC, not public internet
-echo "=== Configuring firewall (VPC-only DB ports) ==="
+# Configure firewall — DB/Redis only accessible from LAN subnet, not public internet
+echo "=== Configuring firewall (LAN-only DB ports) ==="
 ufw default deny incoming
 ufw default allow outgoing
-ufw allow 22/tcp                                           # SSH
-ufw allow from 10.0.0.0/8 to any port 5432 proto tcp     # PostgreSQL — VPC only
-ufw allow from 10.0.0.0/8 to any port 6432 proto tcp     # PgBouncer — VPC only
-ufw allow from 10.0.0.0/8 to any port 6379 proto tcp     # Redis — VPC only
+ufw allow 22/tcp                                                   # SSH
+ufw allow from "$LAN_SUBNET" to any port 5432 proto tcp           # PostgreSQL — LAN only
+ufw allow from "$LAN_SUBNET" to any port 6432 proto tcp           # PgBouncer — LAN only
+ufw allow from "$LAN_SUBNET" to any port 6379 proto tcp           # Redis — LAN only
 ufw --force enable
 
 # Restart PostgreSQL with new configuration

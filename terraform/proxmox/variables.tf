@@ -89,9 +89,14 @@ variable "admin_memory" {
 }
 
 variable "api_count" {
-  description = "Number of API VMs"
+  description = "Number of API VMs (max 4 with default IPs to avoid collision with admin_ip at .15)"
   type        = number
   default     = 1
+
+  validation {
+    condition     = var.api_count >= 1 && var.api_count <= 9
+    error_message = "api_count must be between 1 and 9."
+  }
 }
 
 # ---- Networking ----
@@ -166,36 +171,28 @@ variable "repo_url" {
   default     = "https://github.com/exec/parley.git"
 }
 
-variable "spaces_access_key" {
-  description = "S3-compatible object storage access key"
+variable "minio_ip" {
+  description = "Static IP for MinIO VM (S3-compatible object storage)"
+  type        = string
+  default     = "192.168.1.21"
+}
+
+variable "minio_access_key" {
+  description = "MinIO root access key (used as SPACES_ACCESS_KEY in the API)"
+  type        = string
+  default     = "parleyminio"
+}
+
+variable "minio_secret_key" {
+  description = "MinIO root secret key (used as SPACES_SECRET_KEY in the API)"
   type        = string
   sensitive   = true
-  default     = ""
 }
 
-variable "spaces_secret_key" {
-  description = "S3-compatible object storage secret key"
+variable "minio_bucket" {
+  description = "MinIO bucket name for Parley uploads"
   type        = string
-  sensitive   = true
-  default     = ""
-}
-
-variable "spaces_bucket" {
-  description = "Object storage bucket name"
-  type        = string
-  default     = "parley-dev"
-}
-
-variable "spaces_endpoint" {
-  description = "S3-compatible endpoint URL"
-  type        = string
-  default     = ""
-}
-
-variable "spaces_cdn_url" {
-  description = "CDN/direct URL for serving uploaded files"
-  type        = string
-  default     = ""
+  default     = "parley"
 }
 
 variable "brevo_api_key" {
@@ -282,4 +279,17 @@ variable "bot_key_secret" {
   type        = string
   sensitive   = true
   default     = ""
+}
+
+variable "redis_password" {
+  description = "Redis authentication password (requirepass)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "lb_ip" {
+  description = "Static IP for the nginx load balancer VM (only used when api_count > 1)"
+  type        = string
+  default     = "192.168.1.20"
 }

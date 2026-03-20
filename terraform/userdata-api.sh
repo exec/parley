@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 # Cloud-init script for Parley API droplets
 # This script sets up the environment and runs the Go API service
 
@@ -104,14 +105,12 @@ echo "=== Installing Node.js ==="
 curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
 run_with_retry "apt-get install -y nodejs"
 
-# Install Go from apt repository
+# Install Go from go.dev (same version as userdata-admin.sh — apt golang-go is too old)
 echo "=== Installing Go ==="
-run_with_retry "apt-get install -y golang-go"
-
-# Verify Go installation
-if ! command -v go &> /dev/null; then
-    echo "ERROR: Go installation failed"
-    exit 1
+if ! command -v go &>/dev/null; then
+    curl -sLO https://go.dev/dl/go1.23.4.linux-amd64.tar.gz
+    tar -C /usr/local -xzf go1.23.4.linux-amd64.tar.gz
+    rm go1.23.4.linux-amd64.tar.gz
 fi
 
 # Redis runs on the DB node - skip local install

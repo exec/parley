@@ -19,6 +19,14 @@ provider "proxmox" {
 
 locals {
   ssh_pub_key = trimspace(file(pathexpand(var.ssh_public_key)))
+
+  # Split api_ip_base into prefix (first 3 octets) and last octet so we can
+  # increment correctly.  cidrhost(base/mask, N) returns the Nth address of
+  # the *network* (index 0 = network address 192.168.1.0, not .11), so we
+  # can't use it here — simple string arithmetic is safer and clearer.
+  _api_parts      = split(".", var.api_ip_base)
+  api_ip_prefix   = "${local._api_parts[0]}.${local._api_parts[1]}.${local._api_parts[2]}"
+  api_ip_last     = tonumber(local._api_parts[3])
 }
 
 # ---- Database VM ----
@@ -50,8 +58,7 @@ resource "proxmox_vm_qemu" "parley_db" {
   nameserver = var.dns_server
   sshkeys    = local.ssh_pub_key
 
-  ciuser     = "root"
-  cicustom   = ""
+  ciuser = "root"
 
   # Cloud-init user data is passed via the userdata-db.sh template
   # For Proxmox, inject via a snippet — see DEPLOYMENT.md for the snippet setup.
@@ -66,9 +73,10 @@ resource "proxmox_vm_qemu" "parley_db" {
     }
 
     inline = [
-      "cloud-init status --wait || true",
+      "until [ -f /var/lib/cloud/instance/boot-finished ]; do sleep 2; done",
       templatefile("${path.module}/../userdata-db.sh", {
-        db_password = var.db_password
+        db_password    = var.db_password
+        redis_password = var.redis_password
       })
     ]
   }
@@ -100,8 +108,8 @@ resource "proxmox_vm_qemu" "parley_api" {
     bridge = var.proxmox_bridge
   }
 
-  # Increment IP by index: api_ip_base is the first node's IP
-  ipconfig0  = "ip=${cidrhost(format("%s/%d", var.api_ip_base, var.subnet_mask), count.index)}/${var.subnet_mask},gw=${var.gateway}"
+  # Increment IP by index: api_ip_base is the first node's IP (.11 → .11, .12, .13 …)
+  ipconfig0  = "ip=${local.api_ip_prefix}.${local.api_ip_last + count.index}/${var.subnet_mask},gw=${var.gateway}"
   nameserver = var.dns_server
   sshkeys    = local.ssh_pub_key
 
@@ -112,11 +120,11 @@ resource "proxmox_vm_qemu" "parley_api" {
       type        = "ssh"
       user        = "root"
       private_key = file(pathexpand(var.ssh_private_key))
-      host        = cidrhost(format("%s/%d", var.api_ip_base, var.subnet_mask), count.index)
+      host        = "${local.api_ip_prefix}.${local.api_ip_last + count.index}"
     }
 
     inline = [
-      "cloud-init status --wait || true",
+      "until [ -f /var/lib/cloud/instance/boot-finished ]; do sleep 2; done",
       templatefile("${path.module}/../userdata-api.sh", {
         DB_HOST                  = var.db_ip
         DB_PORT                  = "6432"
@@ -127,12 +135,12 @@ resource "proxmox_vm_qemu" "parley_api" {
         PORT                     = "8080"
         REPO_URL                 = var.repo_url
         REDIS_HOST               = var.db_ip
-        SPACES_ACCESS_KEY        = var.spaces_access_key
-        SPACES_SECRET_KEY        = var.spaces_secret_key
-        SPACES_BUCKET            = var.spaces_bucket
+        SPACES_ACCESS_KEY        = var.minio_access_key
+        SPACES_SECRET_KEY        = var.minio_secret_key
+        SPACES_BUCKET            = var.minio_bucket
         SPACES_REGION            = "us-east-1"
-        SPACES_ENDPOINT          = var.spaces_endpoint
-        SPACES_CDN_URL           = var.spaces_cdn_url
+        SPACES_ENDPOINT          = "http://${var.minio_ip}:9000"
+        SPACES_CDN_URL           = "http://${var.minio_ip}:9000/${var.minio_bucket}"
         BREVO_API_KEY            = var.brevo_api_key
         BREVO_FROM_EMAIL         = var.brevo_from_email
         SITE_URL                 = var.site_url
@@ -145,14 +153,16 @@ resource "proxmox_vm_qemu" "parley_api" {
         OLLAMA_API_KEY           = var.ollama_api_key
         OLLAMA_MODEL             = var.ollama_model
         BOT_KEY_SECRET           = var.bot_key_secret
+        REDIS_PASSWORD           = var.redis_password
       })
     ]
   }
 
-  depends_on = [proxmox_vm_qemu.parley_db]
+  depends_on = [proxmox_vm_qemu.parley_db, proxmox_vm_qemu.parley_minio]
 }
 
 # ---- Admin VM ----
+
 
 resource "proxmox_vm_qemu" "parley_admin" {
   name        = "parley-admin"
@@ -192,7 +202,7 @@ resource "proxmox_vm_qemu" "parley_admin" {
     }
 
     inline = [
-      "cloud-init status --wait || true",
+      "until [ -f /var/lib/cloud/instance/boot-finished ]; do sleep 2; done",
       templatefile("${path.module}/../userdata-admin.sh", {
         REPO_URL                 = var.repo_url
         DB_HOST                  = var.db_ip
@@ -207,4 +217,116 @@ resource "proxmox_vm_qemu" "parley_admin" {
   }
 
   depends_on = [proxmox_vm_qemu.parley_db]
+}
+
+# ---- Load Balancer VM (nginx, only when api_count > 1) ----
+#
+# A single API node (the default) is accessed directly — no LB needed.
+# When api_count > 1, this VM runs nginx with ip_hash sticky sessions and
+# a 1800s WebSocket idle timeout, matching the DO managed load balancer.
+
+resource "proxmox_vm_qemu" "parley_lb" {
+  count       = var.api_count > 1 ? 1 : 0
+  name        = "parley-lb"
+  target_node = var.proxmox_node
+  clone       = var.vm_template
+  full_clone  = true
+  agent       = 1
+
+  cores   = 1
+  memory  = 512
+  os_type = "cloud-init"
+
+  disk {
+    slot    = "scsi0"
+    size    = "10G"
+    type    = "scsi"
+    storage = var.proxmox_storage
+  }
+
+  network {
+    model  = "virtio"
+    bridge = var.proxmox_bridge
+  }
+
+  ipconfig0  = "ip=${var.lb_ip}/${var.subnet_mask},gw=${var.gateway}"
+  nameserver = var.dns_server
+  sshkeys    = local.ssh_pub_key
+
+  ciuser = "root"
+
+  provisioner "remote-exec" {
+    connection {
+      type        = "ssh"
+      user        = "root"
+      private_key = file(pathexpand(var.ssh_private_key))
+      host        = var.lb_ip
+    }
+
+    inline = [
+      "until [ -f /var/lib/cloud/instance/boot-finished ]; do sleep 2; done",
+      templatefile("${path.module}/../userdata-lb.sh", {
+        UPSTREAM_SERVERS = join("\n", [
+          for i in range(var.api_count) :
+          "    server ${local.api_ip_prefix}.${local.api_ip_last + i}:80;"
+        ])
+      })
+    ]
+  }
+
+  depends_on = [proxmox_vm_qemu.parley_api]
+}
+
+# ---- MinIO VM (S3-compatible object storage) ----
+#
+# Provides the same API surface as DigitalOcean Spaces so the app code is
+# identical across providers. Always provisioned — no DO-style managed bucket
+# exists on Proxmox. API VMs depend on this so SPACES_* env vars resolve.
+
+resource "proxmox_vm_qemu" "parley_minio" {
+  name        = "parley-minio"
+  target_node = var.proxmox_node
+  clone       = var.vm_template
+  full_clone  = true
+  agent       = 1
+
+  cores   = 1
+  memory  = 1024
+  os_type = "cloud-init"
+
+  disk {
+    slot    = "scsi0"
+    size    = "20G"
+    type    = "scsi"
+    storage = var.proxmox_storage
+  }
+
+  network {
+    model  = "virtio"
+    bridge = var.proxmox_bridge
+  }
+
+  ipconfig0  = "ip=${var.minio_ip}/${var.subnet_mask},gw=${var.gateway}"
+  nameserver = var.dns_server
+  sshkeys    = local.ssh_pub_key
+
+  ciuser = "root"
+
+  provisioner "remote-exec" {
+    connection {
+      type        = "ssh"
+      user        = "root"
+      private_key = file(pathexpand(var.ssh_private_key))
+      host        = var.minio_ip
+    }
+
+    inline = [
+      "until [ -f /var/lib/cloud/instance/boot-finished ]; do sleep 2; done",
+      templatefile("${path.module}/../userdata-minio.sh", {
+        minio_access_key = var.minio_access_key
+        minio_secret_key = var.minio_secret_key
+        minio_bucket     = var.minio_bucket
+      })
+    ]
+  }
 }

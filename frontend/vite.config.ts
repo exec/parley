@@ -1,6 +1,12 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+// API_TARGET can be overridden for Docker Compose dev where the api
+// service is reachable by container name rather than localhost.
+// e.g. API_TARGET=http://api:8081 docker compose up
+const apiTarget = process.env.API_TARGET ?? 'http://localhost:8081';
+const wsTarget = apiTarget.replace(/^http/, 'ws');
+
 export default defineConfig({
   plugins: [react()],
   optimizeDeps: {
@@ -10,11 +16,11 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:8081',
+        target: apiTarget,
         changeOrigin: true,
       },
       '/ws': {
-        target: 'ws://localhost:8081',
+        target: wsTarget,
         changeOrigin: true,
         ws: true,
       },

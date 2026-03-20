@@ -1,0 +1,9 @@
+.git
+.worktrees
+terraform
+docs
+bench
+extras
+admin-frontend
+frontend
+*.md
