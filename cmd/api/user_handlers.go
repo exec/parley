@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/lib/pq"
 
 	"parley/internal/auth"
 	"parley/internal/db"
@@ -272,19 +273,28 @@ func handlePatchMe(repo *db.Repository, hub *ws.Hub, cdnHost string) http.Handle
 		}
 
 		if err := repo.UpdateUserFields(r.Context(), userID, user.Username, user.DisplayName, user.AvatarURL); err != nil {
-			jsonError(w, err.Error(), http.StatusInternalServerError)
+			if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
+				jsonError(w, "username already taken", http.StatusConflict)
+				return
+			}
+			jsonError(w, "failed to update profile", http.StatusInternalServerError)
 			return
 		}
 
-		// Broadcast USER_UPDATE to all servers the user belongs to.
+		updated, _ := repo.GetUserByID(r.Context(), userID)
+		if updated == nil {
+			updated = user
+		}
+
+		// Broadcast USER_UPDATE to all servers the user belongs to (using DB-confirmed values).
 		if hub != nil {
 			servers, serversErr := repo.GetServersByUserID(r.Context(), userID)
 			if serversErr == nil {
 				payload, marshalErr := json.Marshal(map[string]string{
 					"user_id":      userIDStr,
-					"username":     user.Username,
-					"display_name": user.DisplayName,
-					"avatar_url":   user.AvatarURL,
+					"username":     updated.Username,
+					"display_name": updated.DisplayName,
+					"avatar_url":   updated.AvatarURL,
 				})
 				if marshalErr == nil {
 					for _, srv := range servers {
@@ -294,10 +304,6 @@ func handlePatchMe(repo *db.Repository, hub *ws.Hub, cdnHost string) http.Handle
 			}
 		}
 
-		updated, _ := repo.GetUserByID(r.Context(), userID)
-		if updated == nil {
-			updated = user
-		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(userMeResponse(updated))
 	}
