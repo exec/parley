@@ -652,6 +652,16 @@ func (r *Repository) SetUserStatusTypeIfNotInvisible(ctx context.Context, userID
 	return err
 }
 
+// UpdateUserFields updates username, display_name, and avatar_url for the given user.
+// Used by PATCH /api/users/me.
+func (r *Repository) UpdateUserFields(ctx context.Context, userID int64, username, displayName, avatarURL string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE users SET username = $2, display_name = $3, avatar_url = $4, updated_at = NOW()
+		 WHERE id = $1`,
+		userID, username, displayName, avatarURL)
+	return err
+}
+
 func (r *Repository) SearchUsers(ctx context.Context, query string, excludeUserID int64) ([]PublicUser, error) {
 	sqlQuery := `
 		SELECT id, username, COALESCE(avatar_url, ''), created_at

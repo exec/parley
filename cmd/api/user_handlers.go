@@ -188,3 +188,117 @@ func handleUpdateProfile(authService *auth.AuthService, repo *db.Repository, hub
 		json.NewEncoder(w).Encode(user)
 	}
 }
+
+// userMeResponse builds the JSON body for GET/PATCH /api/users/me.
+func userMeResponse(u *db.User) map[string]interface{} {
+	return map[string]interface{}{
+		"id":             fmt.Sprintf("%d", u.ID),
+		"username":       u.Username,
+		"display_name":   u.DisplayName,
+		"avatar_url":     u.AvatarURL,
+		"banner_url":     u.BannerURL,
+		"bio":            u.Bio,
+		"badges":         u.Badges,
+		"email_verified": u.EmailVerified,
+		"status_type":    u.StatusType,
+		"status_text":    u.StatusText,
+	}
+}
+
+// handleGetMeSelf handles GET /api/users/me — returns the full profile for the
+// authenticated identity (JWT or bot API key).
+func handleGetMeSelf(repo *db.Repository) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userIDStr := auth.GetUserIDFromContext(r)
+		if userIDStr == "" {
+			jsonError(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		var id int64
+		fmt.Sscan(userIDStr, &id)
+		user, err := repo.GetUserByID(r.Context(), id)
+		if err != nil {
+			jsonError(w, "not found", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(userMeResponse(user))
+	}
+}
+
+// handlePatchMe handles PATCH /api/users/me — updates username, display_name,
+// and/or avatar_url. Password and email changes are ignored.
+func handlePatchMe(repo *db.Repository, hub *ws.Hub, cdnHost string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userIDStr := auth.GetUserIDFromContext(r)
+		if userIDStr == "" {
+			jsonError(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		var req struct {
+			Username    *string `json:"username"`
+			DisplayName *string `json:"display_name"`
+			AvatarURL   *string `json:"avatar_url"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			jsonError(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		if req.AvatarURL != nil {
+			if err := validateMediaURL(*req.AvatarURL, cdnHost); err != nil {
+				jsonError(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+		}
+
+		var userID int64
+		fmt.Sscan(userIDStr, &userID)
+
+		user, err := repo.GetUserByID(r.Context(), userID)
+		if err != nil {
+			jsonError(w, "not found", http.StatusNotFound)
+			return
+		}
+
+		if req.Username != nil && *req.Username != "" {
+			user.Username = *req.Username
+		}
+		if req.DisplayName != nil {
+			user.DisplayName = *req.DisplayName
+		}
+		if req.AvatarURL != nil {
+			user.AvatarURL = *req.AvatarURL
+		}
+
+		if err := repo.UpdateUserFields(r.Context(), userID, user.Username, user.DisplayName, user.AvatarURL); err != nil {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Broadcast USER_UPDATE to all servers the user belongs to.
+		if hub != nil {
+			servers, serversErr := repo.GetServersByUserID(r.Context(), userID)
+			if serversErr == nil {
+				payload, marshalErr := json.Marshal(map[string]string{
+					"user_id":      userIDStr,
+					"username":     user.Username,
+					"display_name": user.DisplayName,
+					"avatar_url":   user.AvatarURL,
+				})
+				if marshalErr == nil {
+					for _, srv := range servers {
+						hub.BroadcastToChannel(fmt.Sprintf("server:%d", srv.ID), ws.EventUserUpdate, payload)
+					}
+				}
+			}
+		}
+
+		updated, _ := repo.GetUserByID(r.Context(), userID)
+		if updated == nil {
+			updated = user
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(userMeResponse(updated))
+	}
+}
