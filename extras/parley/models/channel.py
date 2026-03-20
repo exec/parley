@@ -14,7 +14,7 @@ Use :func:`channel_from_data` to construct the right subclass from a raw dict.
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Optional
 
 from ..enums import ChannelType
 from ..utils import snowflake_to_int, snowflake_to_int_or_none
@@ -23,27 +23,29 @@ from ..utils import snowflake_to_int, snowflake_to_int_or_none
 class Typing:
     """Async context manager that broadcasts a typing indicator while active.
 
-    Sends TYPING every 5 seconds until the block exits. Use via
-    ``async with channel.typing():``.
+    Calls *send_fn* immediately on enter, then repeatedly every *interval*
+    seconds until the block exits.
+
+    Bot clients use the REST path (longer intervals, server-managed expiry);
+    non-Bot clients use the WS TYPING frame path (5-second intervals).
     """
 
-    _INTERVAL = 5.0
-
-    def __init__(self, channel_id: int, state: Any) -> None:
+    def __init__(
+        self,
+        channel_id: int,
+        send_fn: "Callable[[], Awaitable[None]]",
+        interval: float = 5.0,
+    ) -> None:
         self._channel_id = channel_id
-        self._state = state
+        self._send_fn = send_fn
+        self._interval = interval
         self._task: Optional[asyncio.Task] = None
-
-    async def _send(self) -> None:
-        await self._state.gateway.send(
-            "TYPING", {"channel_id": str(self._channel_id)}
-        )
 
     async def _loop(self) -> None:
         try:
             while True:
-                await self._send()
-                await asyncio.sleep(self._INTERVAL)
+                await self._send_fn()
+                await asyncio.sleep(self._interval)
         except asyncio.CancelledError:
             pass
 
@@ -58,6 +60,7 @@ class Typing:
 
 if TYPE_CHECKING:
     from ..state import ConnectionState
+    from ..client import Bot
 
 __all__ = [
     "Channel",
@@ -236,8 +239,11 @@ class TextChannel(Channel):
         data = await self._state.http.get_messages(self.id, limit=limit, before=before)
         return [Message._from_data(m, self._state) for m in data]
 
-    def typing(self) -> Typing:
-        """Return an async context manager that shows a typing indicator.
+    def typing(self, duration: int = 5) -> Typing:
+        """Return a context manager that shows a typing indicator.
+
+        Bot clients use the REST endpoint with server-managed expiry (*duration*
+        seconds, clamped to 1-60). Non-Bot clients use the WS TYPING frame path.
 
         Usage::
 
@@ -245,7 +251,31 @@ class TextChannel(Channel):
                 reply = await slow_ai_call()
             await channel.send(reply)
         """
-        return Typing(self.id, self._state)
+        client = self._state._client if self._state is not None else None
+
+        # Use name-based check to avoid circular import at runtime.
+        # (importing Bot from client.py here would create a cycle.)
+        is_bot = (
+            client is not None
+            and type(client).__name__ in ("Bot", "CommandBot")
+        )
+
+        if is_bot:
+            # REST path: send once per (duration - 2s buffer), minimum 3s interval.
+            interval = float(max(3, duration - 2))
+            send_fn = lambda: client.send_typing(self.id, duration)  # type: ignore[union-attr]
+        else:
+            # WS path: server expires typing in ~5s, resend every 5s.
+            interval = 5.0
+            state = self._state
+
+            async def ws_send() -> None:
+                if state is not None and state.gateway is not None:
+                    await state.gateway.send("TYPING", {"channel_id": str(self.id)})
+
+            send_fn = ws_send
+
+        return Typing(self.id, send_fn, interval)
 
     async def subscribe(self) -> None:
         """Subscribe to real-time events for this channel via the gateway."""
