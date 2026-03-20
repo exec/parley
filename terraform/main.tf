@@ -350,12 +350,13 @@ provider "cloudflare" {
 }
 
 data "cloudflare_zone" "parley" {
-  name = "x86-64.com"
+  name = var.cf_zone
 }
 
 resource "cloudflare_record" "parley_a" {
   zone_id = data.cloudflare_zone.parley.id
-  name    = "parley"
+  # Subdomain label: "parley" from "parley.x86-64.com" / "@" if domain == zone
+  name    = var.domain_name == var.cf_zone ? "@" : trimsuffix(trimsuffix(var.domain_name, var.cf_zone), ".")
   content = digitalocean_loadbalancer.parley_lb.ip
   type    = "A"
   proxied = true

@@ -27,6 +27,11 @@ variable "domain_name" {
   type        = string
 }
 
+variable "cf_zone" {
+  description = "Cloudflare zone (parent domain) that domain_name lives in (e.g. example.com). Auto-detected by infra.yml from the CF API; set manually in tfvars for local runs."
+  type        = string
+}
+
 variable "api_count" {
   description = "Number of API droplets"
   type        = number

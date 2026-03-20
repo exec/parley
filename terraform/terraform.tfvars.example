@@ -9,7 +9,10 @@ api_droplet_size = "s-2vcpu-2gb"
 db_droplet_size  = "s-2vcpu-4gb"
 
 # Domain name (required — no default; change this to migrate to a new domain)
-domain_name = "your-domain.example.com"
+domain_name = "parley.example.com"
+# Cloudflare zone (parent domain). In CI this is auto-detected from the CF API.
+# For local terraform runs, set this to the zone that domain_name lives in.
+cf_zone = "example.com"
 
 # Number of API droplets
 api_count = 3
