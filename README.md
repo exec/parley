@@ -336,6 +336,14 @@ The admin panel is accessible **only from your IP** (the `ADMIN_ALLOWED_IP` secr
 
 > **Note:** Admin authentication uses a separate JWT secret (`ADMIN_JWT_SECRET`) from the main app's `JWT_SECRET`. You can rotate one without invalidating the other.
 
+### The "admin" badge vs. the admin panel
+
+These are two different things:
+
+- **Admin panel** — a separate service with its own login. Used for server moderation, user management, impersonation, etc. Access is controlled by the `parley-admin` CLI as described above.
+
+- **Admin badge** — a badge you can assign to any Parley user account from the admin panel. It grants exactly one in-app privilege: the ability to **feature and unfeature themes** in the theme repository. It does nothing else.
+
 ---
 
 ## 11. Local development
