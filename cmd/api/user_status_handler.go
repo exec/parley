@@ -43,11 +43,10 @@ func handleUpdateStatus(hub *ws.Hub, repo *db.Repository) http.HandlerFunc {
 			return
 		}
 
-		// Trim status_text to 128 chars.
-		if len(req.StatusText) > 128 {
-			req.StatusText = req.StatusText[:128]
+		// Trim status_text to 128 Unicode code points.
+		if len([]rune(req.StatusText)) > 128 {
+			req.StatusText = string([]rune(req.StatusText)[:128])
 		}
-		// Trim any trailing multi-byte boundary issues from the 128-char cut.
 		req.StatusText = strings.TrimSpace(req.StatusText)
 
 		userID, err := strconv.ParseInt(userIDStr, 10, 64)
