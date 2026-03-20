@@ -633,6 +633,25 @@ func (r *Repository) GetUserStatusType(ctx context.Context, userID int64) (strin
 	return statusType, nil
 }
 
+// SetUserStatusType sets status_type unconditionally for the given user.
+// Used by the hub on last WS disconnect.
+func (r *Repository) SetUserStatusType(ctx context.Context, userID int64, statusType string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE users SET status_type = $2, updated_at = NOW() WHERE id = $1`,
+		userID, statusType)
+	return err
+}
+
+// SetUserStatusTypeIfNotInvisible sets status_type only when the current value
+// is not 'invisible'. Used by the hub on first WS connection.
+func (r *Repository) SetUserStatusTypeIfNotInvisible(ctx context.Context, userID int64, statusType string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE users SET status_type = $2, updated_at = NOW()
+		 WHERE id = $1 AND status_type != 'invisible'`,
+		userID, statusType)
+	return err
+}
+
 func (r *Repository) SearchUsers(ctx context.Context, query string, excludeUserID int64) ([]PublicUser, error) {
 	sqlQuery := `
 		SELECT id, username, COALESCE(avatar_url, ''), created_at
