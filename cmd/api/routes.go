@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -21,6 +22,7 @@ import (
 	"parley/internal/message"
 	"parley/internal/passkey"
 	"parley/internal/server"
+	"parley/internal/soundboard"
 	"parley/internal/spaces"
 	"parley/internal/theme"
 	"parley/internal/voice"
@@ -62,7 +64,8 @@ func registerRoutes(
 	// which applies its own 50 MB limit inside the handler.
 	router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path != "/api/upload" && r.URL.Path != "/api/me/themes/generate" {
+			isSoundboardUpload := r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/soundboard")
+			if r.URL.Path != "/api/upload" && r.URL.Path != "/api/me/themes/generate" && !isSoundboardUpload {
 				r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
 			}
 			next.ServeHTTP(w, r)
@@ -249,6 +252,17 @@ func registerRoutes(
 			r.Get("/channels/{channelID}/tags", binHandler.GetTags)
 			r.Post("/channels/{channelID}/tags", binHandler.CreateTag)
 			r.Delete("/channels/{channelID}/tags/{tagID}", binHandler.DeleteTag)
+
+			// Soundboard routes
+			sbRepo := soundboard.NewRepository(repo.DB())
+			sbSvc := soundboard.NewService(sbRepo, spacesClient)
+			soundboardHandler := soundboard.NewHandler(sbRepo, sbSvc, repo, hub, voiceSvc)
+			r.Get("/soundboard", soundboardHandler.ListAll)
+			r.Get("/servers/{serverId}/soundboard", soundboardHandler.List)
+			r.With(maxBodyMiddleware(1<<20 + 4096)).Post("/servers/{serverId}/soundboard", soundboardHandler.Upload)
+			r.Patch("/servers/{serverId}/soundboard/{soundId}", soundboardHandler.UpdateSound)
+			r.Delete("/servers/{serverId}/soundboard/{soundId}", soundboardHandler.DeleteSound)
+			r.Post("/channels/{channelId}/soundboard/play", soundboardHandler.Play)
 
 			// Invite routes
 			r.Post("/servers/{id}/invites", serverHandler.CreateInvite)
