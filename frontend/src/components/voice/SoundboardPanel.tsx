@@ -79,7 +79,8 @@ export const SoundboardPanel: React.FC<SoundboardPanelProps> = ({
             p => p.source === Track.Source.Microphone
           )
         : undefined;
-      const micMediaStreamTrack = (micPub?.track as any)?.mediaStreamTrack as MediaStreamTrack | undefined;
+      const localAudioTrack = micPub?.audioTrack;
+      const originalMST = localAudioTrack?.mediaStreamTrack;
 
       const audioCtx = new AudioContext();
       const resp = await fetch(sound.file_url);
@@ -87,40 +88,31 @@ export const SoundboardPanel: React.FC<SoundboardPanelProps> = ({
       const audioBuffer = await audioCtx.decodeAudioData(buffer);
       const durationMs = Math.round(audioBuffer.duration * 1000);
 
-      if (localParticipant && micMediaStreamTrack) {
-        const micStream = new MediaStream([micMediaStreamTrack]);
-        const micSource = audioCtx.createMediaStreamSource(micStream);
+      const soundSource = audioCtx.createBufferSource();
+      soundSource.buffer = audioBuffer;
+
+      if (localAudioTrack && originalMST) {
+        // Mix mic + sound into one destination, then swap the published track
+        const destination = audioCtx.createMediaStreamDestination();
+
+        const micSource = audioCtx.createMediaStreamSource(new MediaStream([originalMST]));
         const micGain = audioCtx.createGain();
         micGain.gain.value = muted ? 0 : 1;
-
-        const soundSource = audioCtx.createBufferSource();
-        soundSource.buffer = audioBuffer;
-        const soundGain = audioCtx.createGain();
-        soundGain.gain.value = 1;
-
-        const merger = audioCtx.createChannelMerger(2);
         micSource.connect(micGain);
-        micGain.connect(merger, 0, 0);
-        soundSource.connect(soundGain);
-        soundGain.connect(merger, 0, 1);
+        micGain.connect(destination);
 
-        const destination = audioCtx.createMediaStreamDestination();
-        merger.connect(destination);
-
-        const { LocalAudioTrack } = await import('livekit-client');
-        const mergedTrack = new LocalAudioTrack(destination.stream.getAudioTracks()[0]);
-        await localParticipant.publishTrack(mergedTrack, { source: Track.Source.Microphone });
-
+        soundSource.connect(destination);
         soundSource.start();
 
+        await localAudioTrack.replaceTrack(destination.stream.getAudioTracks()[0]);
+
         soundSource.onended = async () => {
+          await localAudioTrack.replaceTrack(originalMST).catch(() => {});
           await audioCtx.close();
-          try { await localParticipant.unpublishTrack(mergedTrack); } catch {}
           setPlaying(null);
         };
       } else {
-        const soundSource = audioCtx.createBufferSource();
-        soundSource.buffer = audioBuffer;
+        // No mic track — play locally only
         soundSource.connect(audioCtx.destination);
         soundSource.start();
         soundSource.onended = () => {
