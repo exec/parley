@@ -232,6 +232,7 @@ func main() {
 	redisHub := websocket.NewRedisHub(hub)
 	if redisHub != nil {
 		hub.SetPublisher(redisHub)
+		hub.SetStatusWriter(repo)
 		redisHub.Subscribe()
 		log.Println("Redis pub/sub enabled for cross-node WebSocket broadcasting")
 	} else {
