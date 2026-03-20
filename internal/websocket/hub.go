@@ -1,8 +1,10 @@
 package websocket
 
 import (
+	"context"
 	"encoding/json"
 	"log"
+	"strconv"
 	"sync"
 )
 
@@ -30,6 +32,13 @@ type Publisher interface {
 	MarkOnline(userID string)
 	MarkOffline(userID string)
 	GetOnlineUserIDs() []string
+}
+
+// StatusWriter is implemented by *db.Repository. Hub uses it to persist
+// online/offline status to the database on WS connect and disconnect.
+type StatusWriter interface {
+	SetUserStatusType(ctx context.Context, userID int64, statusType string) error
+	SetUserStatusTypeIfNotInvisible(ctx context.Context, userID int64, statusType string) error
 }
 
 // safeSend attempts a non-blocking send to the client's send channel.
@@ -84,6 +93,9 @@ type Hub struct {
 	// publisher is optional; if set, events are also published cross-node via Redis
 	publisher Publisher
 
+	// statusWriter persists online/offline status to the DB on connect/disconnect.
+	statusWriter StatusWriter
+
 	// channelAccessChecker is an optional function to verify whether a user is
 	// allowed to subscribe to a channel. If nil, access is denied (fail closed).
 	channelAccessChecker func(userID, channelID string) bool
@@ -108,6 +120,14 @@ func (h *Hub) SetPublisher(p Publisher) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.publisher = p
+}
+
+// SetStatusWriter sets the StatusWriter used to persist online/offline status.
+// Call this before starting the hub's Run loop.
+func (h *Hub) SetStatusWriter(sw StatusWriter) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.statusWriter = sw
 }
 
 // SetChannelAccessChecker sets the function used to decide whether a user may
@@ -216,6 +236,21 @@ func (h *Hub) RegisterClient(client *Client) {
 		}
 	}
 
+	// Persist 'online' status to DB on first connection (skip if invisible).
+	if isFirstConnection {
+		uid, parseErr := strconv.ParseInt(client.userID, 10, 64)
+		h.mu.RLock()
+		sw := h.statusWriter
+		h.mu.RUnlock()
+		if parseErr == nil && sw != nil {
+			go func(id int64) {
+				if err := sw.SetUserStatusTypeIfNotInvisible(context.Background(), id, "online"); err != nil {
+					log.Printf("hub: set online for user %d: %v", id, err)
+				}
+			}(uid)
+		}
+	}
+
 }
 
 // UnregisterClient removes a client from the hub and broadcasts USER_OFFLINE
@@ -270,6 +305,21 @@ func (h *Hub) UnregisterClient(client *Client) {
 				pub.MarkOffline(client.userID)
 				pub.PublishGlobal(EventUserOffline, offlinePayload)
 			}
+		}
+	}
+
+	// Persist 'offline' status to DB unconditionally on last disconnect.
+	if userFullyOffline {
+		uid, parseErr := strconv.ParseInt(client.userID, 10, 64)
+		h.mu.RLock()
+		sw := h.statusWriter
+		h.mu.RUnlock()
+		if parseErr == nil && sw != nil {
+			go func(id int64) {
+				if err := sw.SetUserStatusType(context.Background(), id, "offline"); err != nil {
+					log.Printf("hub: set offline for user %d: %v", id, err)
+				}
+			}(uid)
 		}
 	}
 }
