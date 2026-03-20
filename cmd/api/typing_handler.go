@@ -24,9 +24,28 @@ type typingRateLimiter struct {
 }
 
 func newTypingRateLimiter() *typingRateLimiter {
-	return &typingRateLimiter{
+	rl := &typingRateLimiter{
 		lastAt:  make(map[string]time.Time),
 		lastDur: make(map[string]time.Duration),
+	}
+	go rl.cleanup()
+	return rl
+}
+
+// cleanup removes stale entries every 5 minutes to prevent unbounded map growth.
+func (t *typingRateLimiter) cleanup() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		t.mu.Lock()
+		now := time.Now()
+		for key, last := range t.lastAt {
+			if cooldown, ok := t.lastDur[key]; ok && now.Sub(last) > cooldown+5*time.Minute {
+				delete(t.lastAt, key)
+				delete(t.lastDur, key)
+			}
+		}
+		t.mu.Unlock()
 	}
 }
 
@@ -50,12 +69,14 @@ var globalTypingLimiter = newTypingRateLimiter()
 
 func handleChannelTyping(repo *db.Repository, hub *ws.Hub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// 1. Auth check.
 		userIDStr := auth.GetUserIDFromContext(r)
 		if userIDStr == "" {
 			jsonError(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
 
+		// 2. Parse channel ID from URL.
 		channelIDStr := chi.URLParam(r, "channelId")
 		channelID, err := strconv.ParseInt(channelIDStr, 10, 64)
 		if err != nil {
@@ -63,6 +84,7 @@ func handleChannelTyping(repo *db.Repository, hub *ws.Hub) http.HandlerFunc {
 			return
 		}
 
+		// 3. Decode body / clamp duration.
 		var req struct {
 			Duration int `json:"duration"`
 		}
@@ -78,14 +100,26 @@ func handleChannelTyping(repo *db.Repository, hub *ws.Hub) http.HandlerFunc {
 			req.Duration = 60
 		}
 
-		// Verify channel exists.
-		ch, err := repo.GetChannelByID(r.Context(), channelID)
-		if err != nil {
-			jsonError(w, "channel not found", http.StatusNotFound)
+		// 4. Rate limit check — before any DB calls.
+		key := fmt.Sprintf("%s:%s", userIDStr, channelIDStr)
+		cooldown := time.Duration(req.Duration) * time.Second
+		if !globalTypingLimiter.allow(key, cooldown) {
+			w.WriteHeader(http.StatusTooManyRequests)
 			return
 		}
 
-		// Verify caller is a member of the channel's server.
+		// 5. Verify channel exists.
+		ch, err := repo.GetChannelByID(r.Context(), channelID)
+		if err != nil {
+			if err == db.ErrNotFound {
+				jsonError(w, "channel not found", http.StatusNotFound)
+			} else {
+				jsonError(w, "internal error", http.StatusInternalServerError)
+			}
+			return
+		}
+
+		// 6. Verify caller is a member of the channel's server.
 		userID, _ := strconv.ParseInt(userIDStr, 10, 64)
 		if _, err := repo.GetMember(r.Context(), ch.ServerID, userID); err != nil {
 			if err == db.ErrNotFound {
@@ -96,31 +130,26 @@ func handleChannelTyping(repo *db.Repository, hub *ws.Hub) http.HandlerFunc {
 			return
 		}
 
-		// Rate limit: key = "userID:channelID", cooldown = previous clamped duration.
-		key := fmt.Sprintf("%s:%d", userIDStr, channelID)
-		cooldown := time.Duration(req.Duration) * time.Second
-		if !globalTypingLimiter.allow(key, cooldown) {
-			w.WriteHeader(http.StatusTooManyRequests)
-			return
-		}
-
-		// Look up username and display_name for the broadcast payload.
+		// 7. Look up username and display_name for the broadcast payload.
 		u, err := repo.GetUserByID(r.Context(), userID)
 		if err != nil {
 			jsonError(w, "user not found", http.StatusInternalServerError)
 			return
 		}
 
+		// 8. Broadcast + 204.
 		expiresAt := time.Now().UTC().Add(time.Duration(req.Duration) * time.Second).Format(time.RFC3339)
 
-		payload, _ := json.Marshal(map[string]string{
+		payload, err := json.Marshal(map[string]string{
 			"channel_id":   channelIDStr,
 			"user_id":      userIDStr,
 			"username":     u.Username,
 			"display_name": u.DisplayName,
 			"expires_at":   expiresAt,
 		})
-		hub.BroadcastToChannel(fmt.Sprintf("%d", channelID), ws.EventUserTyping, payload)
+		if err == nil {
+			hub.BroadcastToChannel(channelIDStr, ws.EventUserTyping, payload)
+		}
 
 		w.WriteHeader(http.StatusNoContent)
 	}
