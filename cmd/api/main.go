@@ -232,12 +232,14 @@ func main() {
 	redisHub := websocket.NewRedisHub(hub)
 	if redisHub != nil {
 		hub.SetPublisher(redisHub)
-		hub.SetStatusWriter(repo)
 		redisHub.Subscribe()
 		log.Println("Redis pub/sub enabled for cross-node WebSocket broadcasting")
 	} else {
 		log.Println("Running in local-only WebSocket mode (no Redis)")
 	}
+
+	// Wire StatusWriter unconditionally (required for online/offline persistence)
+	hub.SetStatusWriter(repo)
 
 	// Initialize passkey service (requires Redis for session storage)
 	var passkeySvc *passkey.Service
