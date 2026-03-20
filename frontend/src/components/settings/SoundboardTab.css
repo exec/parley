@@ -121,7 +121,7 @@ h4.soundboard-section-title {
 
 .soundboard-emoji-picker-anchor {
   position: absolute;
-  bottom: calc(100% + 6px);
+  top: calc(100% + 6px);
   left: 0;
   z-index: 200;
 }
