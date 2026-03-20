@@ -53,8 +53,9 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
     };
   }, [participant]);
 
-  // Audio-level ring — poll participant.audioLevel via rAF so we can update at 60fps
-  // without React re-renders. AudioLevelChanged event doesn't exist in LiveKit 2.x.
+  // Audio-level ring — poll participant.audioLevel + participant.isSpeaking via rAF.
+  // Read directly from the participant object to avoid stale closure values.
+  // AudioLevelChanged event doesn't exist in LiveKit 2.x; audioLevel is a plain property.
   useEffect(() => {
     if (isScreenShare) return; // no ring on screen-share tiles
     const el = avatarRef.current;
@@ -62,8 +63,8 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
 
     const update = () => {
       if (el) {
-        const l = Math.max(0, Math.min(1, (participant as any).audioLevel ?? 0));
-        if (!isSpeaking || l < 0.04) {
+        const l = Math.max(0, Math.min(1, participant.audioLevel));
+        if (!participant.isSpeaking || l < 0.04) {
           el.style.borderColor = '';
           el.style.boxShadow = '';
         } else {
@@ -84,7 +85,7 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
       cancelAnimationFrame(rafId);
       if (el) { el.style.borderColor = ''; el.style.boxShadow = ''; }
     };
-  }, [participant, isSpeaking, isScreenShare]);
+  }, [participant, isScreenShare]);
 
   const videoPublication = useMemo(() => {
     const source = isScreenShare ? Track.Source.ScreenShare : Track.Source.Camera;
