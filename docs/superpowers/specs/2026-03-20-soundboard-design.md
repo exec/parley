@@ -160,9 +160,12 @@ CDN URL
 
 1. Wrap the live mic `MediaStream` in a `MediaStreamSourceNode` via `AudioContext.createMediaStreamSource(micStream)`
 2. Route both the mic `GainNode` output and the sound `GainNode` output into a `ChannelMergerNode`
-3. Route the merger to a `MediaStreamDestination`
-4. Call `localParticipant.publishTrack(mergedTrack, { source: Track.Source.Microphone })` replacing the existing mic track
-5. On `AudioBufferSourceNode.onended`: restore original mic-only track, clear local emoji indicator
+3. **If the user is currently muted, set the mic `GainNode` gain to 0** (so their voice doesn't leak through) — sound `GainNode` remains at full gain regardless
+4. Route the merger to a `MediaStreamDestination`
+5. Call `localParticipant.publishTrack(mergedTrack, { source: Track.Source.Microphone })` — this publishes the track even if the user is muted, because soundboard audio bypasses mute state
+6. On `AudioBufferSourceNode.onended`: if the user was muted before playback, re-mute (unpublish the track or re-disable it); clear local emoji indicator
+
+**Muted users can fully use the soundboard.** Only their microphone is gated by mute — soundboard audio always broadcasts.
 
 ### Local preview
 
