@@ -13,6 +13,7 @@ import {
   PERMISSION_CATEGORIES,
   PERM_ALL,
   PERM_ADMINISTRATOR,
+  PERM_MANAGE_SERVER,
   hasPerm,
   permFromNumber,
   permToNumber,
@@ -20,9 +21,10 @@ import {
 import { BotsTab } from './BotsTab';
 import { InvitesTab } from './InvitesTab';
 import { MembersTab } from './MembersTab';
+import { SoundboardTab } from './SoundboardTab';
 import './Settings.css';
 
-type Tab = 'overview' | 'roles' | 'invites' | 'members' | 'bots' | 'danger';
+type Tab = 'overview' | 'roles' | 'invites' | 'members' | 'bots' | 'soundboard' | 'danger';
 
 interface Props {
   isOpen: boolean;
@@ -296,6 +298,11 @@ export const ServerSettings: React.FC<Props> = ({
           <button className={`settings-nav-item${activeTab === 'bots' ? ' active' : ''}`} onClick={() => setActiveTab('bots')}>
             Bots
           </button>
+          {hasPerm(myPerms, PERM_MANAGE_SERVER) && (
+            <button className={`settings-nav-item${activeTab === 'soundboard' ? ' active' : ''}`} onClick={() => setActiveTab('soundboard')}>
+              Soundboard
+            </button>
+          )}
         </div>
         <div className="settings-nav-divider" />
         <div className="settings-sidebar-spacer" />
@@ -584,6 +591,10 @@ export const ServerSettings: React.FC<Props> = ({
               serverId={Number(server.id)}
               isAdmin={hasPerm(myPerms, PERM_ADMINISTRATOR)}
             />
+          )}
+
+          {activeTab === 'soundboard' && server && (
+            <SoundboardTab serverId={Number(server.id)} />
           )}
 
           {activeTab === 'danger' && (

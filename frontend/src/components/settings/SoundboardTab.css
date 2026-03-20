@@ -1,0 +1,153 @@
+/* frontend/src/components/settings/SoundboardTab.css */
+
+.soundboard-tab {
+  padding: 16px 20px;
+}
+
+.soundboard-header {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.soundboard-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--parley-text, #eee);
+}
+
+.soundboard-count {
+  font-size: 0.85rem;
+  opacity: 0.6;
+  color: var(--parley-text-muted, #888);
+}
+
+.soundboard-section-title {
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--parley-text-muted, #888);
+}
+
+h4.soundboard-section-title {
+  margin-top: 1rem;
+}
+
+.soundboard-upload-form {
+  margin-bottom: 1.5rem;
+}
+
+.soundboard-upload-row {
+  display: flex;
+  flex-direction: row;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.soundboard-file-input {
+  flex: 1;
+  min-width: 200px;
+  color: var(--parley-text, #eee);
+  font-size: 0.85rem;
+}
+
+.soundboard-input {
+  flex: 2;
+  min-width: 120px;
+  padding: 0.4rem 0.6rem;
+  background: var(--parley-input, #1a1a1a);
+  border: 1px solid var(--parley-border, #40444b);
+  border-radius: 4px;
+  color: var(--parley-text, #eee);
+  font-size: 0.9rem;
+}
+
+.soundboard-input--emoji {
+  flex: 0 0 80px;
+}
+
+.soundboard-upload-btn {
+  flex: none;
+  padding: 0.4rem 0.75rem;
+  background: var(--parley-accent, #5865f2);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-weight: 600;
+}
+
+.soundboard-upload-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.soundboard-error {
+  color: #f04747;
+  font-size: 0.85rem;
+  margin: 0.4rem 0;
+}
+
+.soundboard-empty {
+  color: var(--parley-text-muted, #888);
+  font-style: italic;
+  font-size: 0.9rem;
+}
+
+.soundboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.75rem;
+}
+
+.soundboard-card {
+  background: var(--parley-bg-secondary, #2f3136);
+  border-radius: 6px;
+  padding: 0.6rem 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--parley-border, #40444b);
+}
+
+.soundboard-card-emoji {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.soundboard-card-name {
+  flex: 1;
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--parley-text, #eee);
+}
+
+.soundboard-card-delete {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--parley-text-muted, #888);
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  border-radius: 3px;
+}
+
+.soundboard-card-delete:hover {
+  color: #f04747;
+  background: rgba(240, 71, 71, 0.1);
+}
