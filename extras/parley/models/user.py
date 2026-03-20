@@ -51,6 +51,8 @@ class PublicUser:
         "banner_url",
         "bio",
         "badges",
+        "status_type",
+        "status_text",
         "_state",
     )
 
@@ -64,6 +66,8 @@ class PublicUser:
         banner_url: str,
         bio: str,
         badges: int,
+        status_type: str = "offline",
+        status_text: str = "",
         state: Optional[Any] = None,
     ) -> None:
         self.id = id
@@ -73,6 +77,8 @@ class PublicUser:
         self.banner_url = banner_url
         self.bio = bio
         self.badges = Badges(badges)
+        self.status_type = status_type
+        self.status_text = status_text
         self._state = state
 
     @classmethod
@@ -85,6 +91,8 @@ class PublicUser:
             banner_url=data.get("banner_url", "") or "",
             bio=data.get("bio", "") or "",
             badges=data.get("badges", 0) or 0,
+            status_type=data.get("status_type", "offline") or "offline",
+            status_text=data.get("status_text", "") or "",
             state=state,
         )
 
@@ -134,6 +142,8 @@ class User(PublicUser):
         banner_url: str,
         bio: str,
         badges: int,
+        status_type: str = "offline",
+        status_text: str = "",
         email: str,
         email_verified: bool,
         state: Optional[Any] = None,
@@ -146,6 +156,8 @@ class User(PublicUser):
             banner_url=banner_url,
             bio=bio,
             badges=badges,
+            status_type=status_type,
+            status_text=status_text,
             state=state,
         )
         self.email = email
@@ -161,6 +173,8 @@ class User(PublicUser):
             banner_url=data.get("banner_url", "") or "",
             bio=data.get("bio", "") or "",
             badges=data.get("badges", 0) or 0,
+            status_type=data.get("status_type", "offline") or "offline",
+            status_text=data.get("status_text", "") or "",
             email=data.get("email", "") or "",
             email_verified=bool(data.get("email_verified", False)),
             state=state,
