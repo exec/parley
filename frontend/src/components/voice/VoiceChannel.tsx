@@ -414,7 +414,6 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
             <SoundboardPanel
               channelId={channel.id}
               localParticipant={localParticipant}
-              muted={muted}
               onClose={() => setSoundboardOpen(false)}
             />
           )}

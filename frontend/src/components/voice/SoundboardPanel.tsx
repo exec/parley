@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { LocalParticipant, Track } from 'livekit-client';
+import { LocalParticipant } from 'livekit-client';
 import { Headphones, Volume2, Square, X } from 'lucide-react';
 import { listAllSounds, playSound, SoundWithServer } from '../../api/soundboard';
 import './SoundboardPanel.css';
@@ -7,14 +7,12 @@ import './SoundboardPanel.css';
 interface SoundboardPanelProps {
   channelId: string;
   localParticipant: LocalParticipant | null;
-  muted: boolean;
   onClose: () => void;
 }
 
 export const SoundboardPanel: React.FC<SoundboardPanelProps> = ({
   channelId,
   localParticipant,
-  muted,
   onClose,
 }) => {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -74,14 +72,6 @@ export const SoundboardPanel: React.FC<SoundboardPanelProps> = ({
     if (playing || previewing) return;
     setPlaying(sound.id);
     try {
-      const micPub = localParticipant
-        ? Array.from(localParticipant.trackPublications.values()).find(
-            p => p.source === Track.Source.Microphone
-          )
-        : undefined;
-      const localAudioTrack = micPub?.audioTrack;
-      const originalMST = localAudioTrack?.mediaStreamTrack;
-
       const audioCtx = new AudioContext();
       const resp = await fetch(sound.file_url);
       const buffer = await resp.arrayBuffer();
@@ -91,35 +81,38 @@ export const SoundboardPanel: React.FC<SoundboardPanelProps> = ({
       const soundSource = audioCtx.createBufferSource();
       soundSource.buffer = audioBuffer;
 
-      if (localAudioTrack && originalMST) {
-        // Mix mic + sound into one destination, then swap the published track
+      // Always play locally through speakers
+      soundSource.connect(audioCtx.destination);
+
+      let publishedTrack: import('livekit-client').LocalAudioTrack | null = null;
+
+      if (localParticipant) {
+        // Fan out to a MediaStreamDestination and publish as a separate VC track.
+        // Others auto-subscribe to all tracks — no mic mixing needed.
         const destination = audioCtx.createMediaStreamDestination();
-
-        const micSource = audioCtx.createMediaStreamSource(new MediaStream([originalMST]));
-        const micGain = audioCtx.createGain();
-        micGain.gain.value = muted ? 0 : 1;
-        micSource.connect(micGain);
-        micGain.connect(destination);
-
         soundSource.connect(destination);
-        soundSource.start();
-
-        await localAudioTrack.replaceTrack(destination.stream.getAudioTracks()[0]);
-
-        soundSource.onended = async () => {
-          await localAudioTrack.replaceTrack(originalMST).catch(() => {});
-          await audioCtx.close();
-          setPlaying(null);
-        };
-      } else {
-        // No mic track — play locally only
-        soundSource.connect(audioCtx.destination);
-        soundSource.start();
-        soundSource.onended = () => {
-          audioCtx.close();
-          setPlaying(null);
-        };
+        try {
+          const { LocalAudioTrack } = await import('livekit-client');
+          publishedTrack = new LocalAudioTrack(
+            destination.stream.getAudioTracks()[0],
+            undefined,
+            /* userProvidedTrack */ true,
+          );
+          await localParticipant.publishTrack(publishedTrack);
+        } catch {
+          // Publishing failed — local playback still works
+        }
       }
+
+      soundSource.start();
+
+      soundSource.onended = async () => {
+        if (publishedTrack && localParticipant) {
+          try { await localParticipant.unpublishTrack(publishedTrack); } catch {}
+        }
+        await audioCtx.close();
+        setPlaying(null);
+      };
 
       await playSound(channelId, sound.id, durationMs);
     } catch {
