@@ -57,3 +57,45 @@ func TestValidateName(t *testing.T) {
 		t.Errorf("32-char name should pass: %v", err)
 	}
 }
+
+func TestValidateEmoji(t *testing.T) {
+	// valid: empty string (optional)
+	if err := ValidateEmoji(""); err != nil {
+		t.Errorf("empty emoji: unexpected error: %v", err)
+	}
+	// valid: single emoji
+	if err := ValidateEmoji("😄"); err != nil {
+		t.Errorf("single emoji: unexpected error: %v", err)
+	}
+	// valid: exactly 64 runes
+	emoji64 := strings.Repeat("a", 64)
+	if err := ValidateEmoji(emoji64); err != nil {
+		t.Errorf("64-char emoji: unexpected error: %v", err)
+	}
+	// invalid: 65 runes
+	emoji65 := strings.Repeat("a", 65)
+	if err := ValidateEmoji(emoji65); err == nil {
+		t.Error("65-char emoji: expected error, got nil")
+	}
+}
+
+func TestReadAll(t *testing.T) {
+	t.Run("under limit", func(t *testing.T) {
+		data, exceeded, err := ReadAll(strings.NewReader("hello"), 10)
+		if err != nil || exceeded || string(data) != "hello" {
+			t.Fatalf("unexpected: data=%q exceeded=%v err=%v", data, exceeded, err)
+		}
+	})
+	t.Run("exact limit", func(t *testing.T) {
+		data, exceeded, err := ReadAll(strings.NewReader("hello"), 5)
+		if err != nil || exceeded || string(data) != "hello" {
+			t.Fatalf("unexpected: data=%q exceeded=%v err=%v", data, exceeded, err)
+		}
+	})
+	t.Run("over limit", func(t *testing.T) {
+		_, exceeded, err := ReadAll(strings.NewReader("hello world"), 5)
+		if err != nil || !exceeded {
+			t.Fatalf("expected exceeded=true, got exceeded=%v err=%v", exceeded, err)
+		}
+	})
+}

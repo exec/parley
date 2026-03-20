@@ -83,11 +83,12 @@ func (r *Repository) GetByID(ctx context.Context, id int64) (*Sound, error) {
 func (r *Repository) Update(ctx context.Context, id int64, name, emoji string) (*Sound, error) {
 	var s Sound
 	var emojiNull sql.NullString
+	emojiParam := sql.NullString{String: emoji, Valid: emoji != ""}
 	err := r.db.QueryRowContext(ctx,
 		`UPDATE soundboard_sounds SET name=$1, emoji=$2
 		 WHERE id=$3
 		 RETURNING id, server_id, uploader_id, name, emoji, file_url, file_key, created_at`,
-		name, emoji, id,
+		name, emojiParam, id,
 	).Scan(&s.ID, &s.ServerID, &s.UploaderID, &s.Name, &emojiNull,
 		&s.FileURL, &s.FileKey, &s.CreatedAt)
 	if err != nil {

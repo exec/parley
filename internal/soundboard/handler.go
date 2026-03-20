@@ -1,7 +1,9 @@
 package soundboard
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -14,6 +16,16 @@ import (
 	"parley/internal/voice"
 	ws "parley/internal/websocket"
 )
+
+type soundboardPlayPayload struct {
+	Type       string `json:"type"`
+	ChannelID  string `json:"channel_id"`
+	UserID     string `json:"user_id"`
+	SoundID    string `json:"sound_id"`
+	SoundName  string `json:"sound_name"`
+	Emoji      string `json:"emoji,omitempty"`
+	DurationMS int64  `json:"duration_ms"`
+}
 
 // Handler handles soundboard HTTP endpoints.
 type Handler struct {
@@ -194,8 +206,12 @@ func (h *Handler) UpdateSound(w http.ResponseWriter, r *http.Request) {
 
 	// Ensure the sound belongs to this server.
 	existing, err := h.repo.GetByID(ctx, soundID)
-	if err != nil || existing.ServerID != serverID {
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && existing.ServerID != serverID) {
 		httputil.JSONError(w, "sound not found", http.StatusNotFound)
+		return
+	} else if err != nil {
+		log.Printf("soundboard: GetByID %d: %v", soundID, err)
+		httputil.JSONError(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 
@@ -267,8 +283,12 @@ func (h *Handler) DeleteSound(w http.ResponseWriter, r *http.Request) {
 
 	// Ensure the sound belongs to this server before deleting.
 	existing, err := h.repo.GetByID(ctx, soundID)
-	if err != nil || existing.ServerID != serverID {
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && existing.ServerID != serverID) {
 		httputil.JSONError(w, "sound not found", http.StatusNotFound)
+		return
+	} else if err != nil {
+		log.Printf("soundboard: GetByID %d: %v", soundID, err)
+		httputil.JSONError(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 
@@ -369,8 +389,12 @@ func (h *Handler) Play(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sound, err := h.repo.GetByID(ctx, soundID)
-	if err != nil || sound.ServerID != ch.ServerID {
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && sound.ServerID != ch.ServerID) {
 		httputil.JSONError(w, "sound not found", http.StatusNotFound)
+		return
+	} else if err != nil {
+		log.Printf("soundboard: GetByID %d: %v", soundID, err)
+		httputil.JSONError(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 
@@ -380,15 +404,23 @@ func (h *Handler) Play(w http.ResponseWriter, r *http.Request) {
 	} else if body.DurationMS < 0 {
 		body.DurationMS = 0
 	}
+	if body.DurationMS == 0 {
+		body.DurationMS = 30_000
+	}
 
-	payload, _ := json.Marshal(map[string]interface{}{
-		"channel_id":  channelIDStr,
-		"user_id":     userIDStr,
-		"sound_id":    body.SoundID,
-		"sound_name":  sound.Name,
-		"emoji":       sound.Emoji,
-		"duration_ms": body.DurationMS,
+	payload, err := json.Marshal(soundboardPlayPayload{
+		ChannelID:  channelIDStr,
+		UserID:     userIDStr,
+		SoundID:    body.SoundID,
+		SoundName:  sound.Name,
+		Emoji:      sound.Emoji,
+		DurationMS: body.DurationMS,
 	})
+	if err != nil {
+		log.Printf("soundboard: marshal play payload: %v", err)
+		httputil.JSONError(w, "internal error", http.StatusInternalServerError)
+		return
+	}
 
 	serverVirtualChannelID := "server:" + strconv.FormatInt(ch.ServerID, 10)
 	h.hub.BroadcastToChannel(serverVirtualChannelID, ws.EventSoundboardPlay, payload)
