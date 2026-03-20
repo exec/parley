@@ -103,3 +103,12 @@ func (s *Service) Participants(ctx context.Context, channelID string) ([]Partici
 	}
 	return out, nil
 }
+
+// IsParticipant returns true if the user is currently in the voice channel.
+func (s *Service) IsParticipant(ctx context.Context, channelID, userID string) (bool, error) {
+	if s.rdb == nil {
+		return false, nil
+	}
+	exists, err := s.rdb.HExists(ctx, presenceKey(channelID), userID).Result()
+	return exists, err
+}

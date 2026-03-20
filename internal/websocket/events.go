@@ -63,4 +63,7 @@ const (
 	EventBinLineCommentCreate = "BIN_LINE_COMMENT_CREATE"
 	EventBinLineCommentUpdate = "BIN_LINE_COMMENT_UPDATE"
 	EventBinLineCommentDelete = "BIN_LINE_COMMENT_DELETE"
+
+	// Soundboard events
+	EventSoundboardPlay = "SOUNDBOARD_PLAY"
 )
