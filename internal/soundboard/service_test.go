@@ -18,6 +18,13 @@ func TestAudioExt(t *testing.T) {
 		t.Errorf("mp3 id3: got (%q, %v)", ext, ok)
 	}
 
+	// MP3 raw MPEG frame sync (no ID3 header)
+	// 0xFF 0xFB: sync word (0xFB & 0xE0 == 0xE0), MPEG version 3 (0xFB & 0x18 == 0x10 != 0x08), layer 3 (0xFB & 0x06 == 0x02 != 0x00)
+	mp3Raw := []byte{0xFF, 0xFB, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+	if ext, ok := audioExt(mp3Raw); !ok || ext != ".mp3" {
+		t.Errorf("mp3 raw: got (%q, %v)", ext, ok)
+	}
+
 	// WAV RIFF....WAVE
 	wav := []byte{0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x41, 0x56, 0x45}
 	if ext, ok := audioExt(wav); !ok || ext != ".wav" {
