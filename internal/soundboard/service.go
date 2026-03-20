@@ -31,7 +31,7 @@ func audioExt(data []byte) (string, bool) {
 	// MP3: ID3v2 tag
 	case data[0] == 0x49 && data[1] == 0x44 && data[2] == 0x33:
 		return ".mp3", true
-	// MP3: raw MPEG frame sync (no ID3)
+	// MP3: raw MPEG frame sync (no ID3) — sync word, valid MPEG version (not reserved 0x08), valid layer (not reserved 0x00)
 	case data[0] == 0xFF && (data[1]&0xE0 == 0xE0) && (data[1]&0x18 != 0x08) && (data[1]&0x06 != 0x00):
 		return ".mp3", true
 	// WAV: RIFF....WAVE
