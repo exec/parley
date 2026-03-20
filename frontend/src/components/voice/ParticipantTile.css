@@ -46,6 +46,13 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  transition: border-color 0.08s ease, box-shadow 0.08s ease;
+}
+
+/* Base ring state — JS overrides border-color and box-shadow with loudness values */
+.participant-tile-avatar--speaking {
+  border-color: rgba(74, 222, 128, 0.4);
+  box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.15), 0 0 10px rgba(74, 222, 128, 0.2);
 }
 
 .participant-tile-avatar img {

@@ -1,6 +1,6 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { RemoteParticipant, LocalParticipant, Track, TrackPublication } from 'livekit-client';
-import { LayoutGrid, Maximize2, MessageSquare, Mic, MicOff, Headphones, HeadphoneOff, Video, VideoOff, Monitor, MonitorOff, PhoneOff, Volume2 } from 'lucide-react';
+import { LayoutGrid, Maximize2, MessageSquare, Mic, MicOff, Headphones, HeadphoneOff, Video, VideoOff, Monitor, MonitorOff, PhoneOff, Volume2, X, Expand } from 'lucide-react';
 import { Channel } from '../../api/types';
 import { VoiceParticipant, kickVoiceParticipant } from '../../api/voice';
 import { ParticipantTile } from './ParticipantTile';
@@ -67,6 +67,9 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [pinnedIdentity, setPinnedIdentity] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ participantId: string; x: number; y: number } | null>(null);
+  const [enlargedShare, setEnlargedShare] = useState<{ participant: LocalParticipant | RemoteParticipant; isLocal: boolean } | null>(null);
+  const [shareCtxMenu, setShareCtxMenu] = useState<{ participant: LocalParticipant | RemoteParticipant; isLocal: boolean; x: number; y: number } | null>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
 
   // Build tile list: local first, then remotes
   const allParticipants = useMemo(() => {
@@ -92,18 +95,34 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
   }, [allParticipants, pinnedIdentity]);
 
   useEffect(() => {
-    if (!contextMenu) return;
+    if (!contextMenu && !enlargedShare && !shareCtxMenu) return;
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setContextMenu(null);
+      if (e.key === 'Escape') { setContextMenu(null); setEnlargedShare(null); setShareCtxMenu(null); }
     };
+    const handleMouse = () => setShareCtxMenu(null);
     window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [contextMenu]);
+    if (shareCtxMenu) window.addEventListener('mousedown', handleMouse);
+    return () => {
+      window.removeEventListener('keydown', handleKey);
+      window.removeEventListener('mousedown', handleMouse);
+    };
+  }, [contextMenu, enlargedShare, shareCtxMenu]);
 
-  // In speaker view: find spotlight participant
-  const spotlightIdentity = pinnedIdentity ?? (activeSpeakers.size > 0 ? Array.from(activeSpeakers)[0] : null);
-  const spotlightParticipant = allParticipants.find(({ participant }) => participant.identity === spotlightIdentity) ?? allParticipants[0];
-  const filmstripParticipants = allParticipants.filter(({ participant }) => participant !== spotlightParticipant?.participant);
+  // In speaker view: screenshares are first-class spotlight candidates.
+  // Build a combined list: screen-share entries first, then plain participant entries.
+  type SpeakerItem = { participant: LocalParticipant | RemoteParticipant; isLocal: boolean; isScreenShare?: boolean };
+  const allSpeakerItems = useMemo<SpeakerItem[]>(() => {
+    const shares: SpeakerItem[] = screenShares.map(s => ({ ...s, isScreenShare: true }));
+    const plain: SpeakerItem[] = allParticipants.map(p => ({ ...p, isScreenShare: false }));
+    return [...shares, ...plain];
+  }, [screenShares, allParticipants]);
+
+  // Key identifies a speaker item so we can pin screenshares too.
+  const speakerKey = (item: SpeakerItem) => item.isScreenShare ? `screen:${item.participant.identity}` : item.participant.identity;
+
+  const spotlightKey = pinnedIdentity ?? (activeSpeakers.size > 0 ? `${Array.from(activeSpeakers)[0]}` : null);
+  const spotlightItem = allSpeakerItems.find(i => speakerKey(i) === spotlightKey) ?? allSpeakerItems[0];
+  const filmstripItems = allSpeakerItems.filter(i => i !== spotlightItem);
 
   const getMeta = (identity: string, participant?: RemoteParticipant | LocalParticipant) => {
     const meta = voiceParticipants[identity];
@@ -161,19 +180,33 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
       {/* Main area */}
       {viewMode === 'grid' ? (
         <div className="vc-grid">
-          {/* Screen share tiles */}
+          {/* Screen share tiles — clickable to expand, right-clickable for menu */}
           {screenShares.map(({ participant, isLocal }) => {
             const meta = isLocal ? localMeta : getMeta(participant.identity, participant as RemoteParticipant);
             return (
-              <ParticipantTile
-                key={`screen-${participant.identity}`}
-                participant={participant}
-                isLocal={isLocal}
-                isSpeaking={activeSpeakers.has(participant.identity)}
-                isScreenShare
-                displayName={meta.displayName}
-                avatarUrl={meta.avatarUrl}
-              />
+              <div key={`screen-${participant.identity}`} className="vc-grid-share-wrap">
+                <ParticipantTile
+                  participant={participant}
+                  isLocal={isLocal}
+                  isSpeaking={activeSpeakers.has(participant.identity)}
+                  isScreenShare
+                  displayName={meta.displayName}
+                  avatarUrl={meta.avatarUrl}
+                  onClick={() => setEnlargedShare({ participant, isLocal })}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setShareCtxMenu({ participant, isLocal, x: e.clientX, y: e.clientY });
+                  }}
+                />
+                <button
+                  className="vc-grid-share-expand"
+                  title="Expand"
+                  onClick={() => setEnlargedShare({ participant, isLocal })}
+                >
+                  <Expand size={14} />
+                </button>
+              </div>
             );
           })}
           {/* Participant tiles */}
@@ -211,55 +244,56 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
           )}
         </div>
       ) : (
+        /* Speaker view — screenshares are first-class spotlight items */
         <div className="vc-speaker">
-          {spotlightParticipant ? (
+          {spotlightItem ? (
             <div
               className="vc-spotlight"
               onClick={() => setPinnedIdentity(
-                pinnedIdentity === spotlightParticipant.participant.identity
-                  ? null
-                  : spotlightParticipant.participant.identity
+                pinnedIdentity === speakerKey(spotlightItem) ? null : speakerKey(spotlightItem)
               )}
             >
               <ParticipantTile
-                participant={spotlightParticipant.participant}
-                isLocal={spotlightParticipant.isLocal}
-                isSpeaking={activeSpeakers.has(spotlightParticipant.participant.identity)}
-                displayName={spotlightParticipant.isLocal ? localMeta.displayName : getMeta(spotlightParticipant.participant.identity, spotlightParticipant.participant as RemoteParticipant).displayName}
-                avatarUrl={spotlightParticipant.isLocal ? localMeta.avatarUrl : getMeta(spotlightParticipant.participant.identity, spotlightParticipant.participant as RemoteParticipant).avatarUrl}
+                participant={spotlightItem.participant}
+                isLocal={spotlightItem.isLocal}
+                isScreenShare={spotlightItem.isScreenShare}
+                isSpeaking={activeSpeakers.has(spotlightItem.participant.identity)}
+                displayName={spotlightItem.isLocal ? localMeta.displayName : getMeta(spotlightItem.participant.identity, spotlightItem.participant as RemoteParticipant).displayName}
+                avatarUrl={spotlightItem.isLocal ? localMeta.avatarUrl : getMeta(spotlightItem.participant.identity, spotlightItem.participant as RemoteParticipant).avatarUrl}
               />
             </div>
           ) : (
             <div className="vc-empty">No one here yet…</div>
           )}
-          {filmstripParticipants.length > 0 && (
+          {filmstripItems.length > 0 && (
             <div className="vc-filmstrip">
-              {filmstripParticipants.map(({ participant, isLocal }) => {
-                const meta = isLocal ? localMeta : getMeta(participant.identity, participant as RemoteParticipant);
+              {filmstripItems.map((item) => {
+                const meta = item.isLocal ? localMeta : getMeta(item.participant.identity, item.participant as RemoteParticipant);
                 return (
                   <div
-                    key={participant.identity}
+                    key={speakerKey(item)}
                     className="vc-filmstrip-tile"
                     style={{ position: 'relative' }}
-                    onClick={() => setPinnedIdentity(participant.identity)}
+                    onClick={() => setPinnedIdentity(speakerKey(item))}
                   >
                     <ParticipantTile
-                      participant={participant}
-                      isLocal={isLocal}
-                      isSpeaking={activeSpeakers.has(participant.identity)}
+                      participant={item.participant}
+                      isLocal={item.isLocal}
+                      isScreenShare={item.isScreenShare}
+                      isSpeaking={activeSpeakers.has(item.participant.identity)}
                       displayName={meta.displayName}
                       avatarUrl={meta.avatarUrl}
-                      onContextMenu={!isLocal && (canMuteMembers || canKickFromVoice) ? (e) => {
+                      onContextMenu={!item.isLocal && !item.isScreenShare && (canMuteMembers || canKickFromVoice) ? (e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        setContextMenu({ participantId: participant.identity, x: e.clientX, y: e.clientY });
+                        setContextMenu({ participantId: item.participant.identity, x: e.clientX, y: e.clientY });
                       } : undefined}
                     />
-                    {canMuteMembers && !isLocal && onMuteParticipant && (
+                    {canMuteMembers && !item.isLocal && !item.isScreenShare && onMuteParticipant && (
                       <button
                         style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: 4, padding: '2px 4px', cursor: 'pointer' }}
                         title="Force mute"
-                        onClick={(e) => { e.stopPropagation(); onMuteParticipant(participant.identity); }}
+                        onClick={(e) => { e.stopPropagation(); onMuteParticipant(item.participant.identity); }}
                       >
                         <MicOff size={14} color="var(--parley-danger)" />
                       </button>
@@ -271,6 +305,66 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
           )}
         </div>
       )}
+
+      {/* Screenshare context menu */}
+      {shareCtxMenu && (() => {
+        const item = shareCtxMenu;
+        const style: React.CSSProperties = {
+          position: 'fixed',
+          top: Math.min(item.y, window.innerHeight - 120),
+          left: Math.min(item.x, window.innerWidth - 200),
+          zIndex: 9999,
+        };
+        return (
+          <div className="vc-context-menu" style={style} onMouseDown={e => e.stopPropagation()}>
+            <button className="vc-context-menu-item" onClick={() => {
+              setEnlargedShare({ participant: item.participant, isLocal: item.isLocal });
+              setShareCtxMenu(null);
+            }}>Expand view</button>
+            <button className="vc-context-menu-item" onClick={() => {
+              setEnlargedShare({ participant: item.participant, isLocal: item.isLocal });
+              setShareCtxMenu(null);
+              document.documentElement.requestFullscreen().catch(() => {});
+            }}>Full screen</button>
+          </div>
+        );
+      })()}
+
+      {/* Enlarged screenshare overlay */}
+      {enlargedShare && (() => {
+        const { participant, isLocal } = enlargedShare;
+        const meta = isLocal ? localMeta : getMeta(participant.identity, participant as RemoteParticipant);
+        return (
+          <div className="vc-share-overlay" ref={overlayRef} onClick={() => setEnlargedShare(null)}>
+            <div className="vc-share-modal" onClick={e => e.stopPropagation()}>
+              <div className="vc-share-modal-controls">
+                <button
+                  className="vc-share-ctrl-btn"
+                  title="Full screen"
+                  onClick={() => overlayRef.current?.requestFullscreen().catch(() => {})}
+                >
+                  <Maximize2 size={16} />
+                </button>
+                <button
+                  className="vc-share-ctrl-btn vc-share-ctrl-btn--close"
+                  title="Close (Esc)"
+                  onClick={() => setEnlargedShare(null)}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <ParticipantTile
+                participant={participant}
+                isLocal={isLocal}
+                isScreenShare
+                isSpeaking={false}
+                displayName={meta.displayName}
+                avatarUrl={meta.avatarUrl}
+              />
+            </div>
+          </div>
+        );
+      })()}
 
       {contextMenu && (
         <VoiceContextMenu

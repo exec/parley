@@ -3,6 +3,8 @@ import { Participant, Track, ParticipantEvent } from 'livekit-client';
 import { MicOff, Monitor } from 'lucide-react';
 import './ParticipantTile.css';
 
+const GREEN = '74, 222, 128'; // speaking ring colour (rgb)
+
 interface ParticipantTileProps {
   participant: Participant;
   isLocal?: boolean;
@@ -25,6 +27,7 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
   onClick,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const avatarRef = useRef<HTMLDivElement>(null);
 
   // trackVersion bumps on any track state change to force memo recomputation
   const [trackVersion, setTrackVersion] = useState(0);
@@ -49,6 +52,39 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
       participant.off(ParticipantEvent.LocalTrackUnpublished, bump);
     };
   }, [participant]);
+
+  // Audio-level ring — poll participant.audioLevel via rAF so we can update at 60fps
+  // without React re-renders. AudioLevelChanged event doesn't exist in LiveKit 2.x.
+  useEffect(() => {
+    if (isScreenShare) return; // no ring on screen-share tiles
+    const el = avatarRef.current;
+    let rafId: number;
+
+    const update = () => {
+      if (el) {
+        const l = Math.max(0, Math.min(1, (participant as any).audioLevel ?? 0));
+        if (!isSpeaking || l < 0.04) {
+          el.style.borderColor = '';
+          el.style.boxShadow = '';
+        } else {
+          const borderAlpha = (0.45 + l * 0.55).toFixed(2);
+          const ringSize    = (2 + l * 4).toFixed(1);
+          const ringAlpha   = (0.2  + l * 0.45).toFixed(2);
+          const glowPx      = Math.round(8 + l * 22);
+          const glowAlpha   = (0.18 + l * 0.62).toFixed(2);
+          el.style.borderColor = `rgba(${GREEN}, ${borderAlpha})`;
+          el.style.boxShadow   = `0 0 0 ${ringSize}px rgba(${GREEN}, ${ringAlpha}), 0 0 ${glowPx}px rgba(${GREEN}, ${glowAlpha})`;
+        }
+      }
+      rafId = requestAnimationFrame(update);
+    };
+    rafId = requestAnimationFrame(update);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      if (el) { el.style.borderColor = ''; el.style.boxShadow = ''; }
+    };
+  }, [participant, isSpeaking, isScreenShare]);
 
   const videoPublication = useMemo(() => {
     const source = isScreenShare ? Track.Source.ScreenShare : Track.Source.Camera;
@@ -92,7 +128,10 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
           style={{ display: hasVideo ? 'block' : 'none' }}
         />
         {!hasVideo && (
-          <div className="participant-tile-avatar">
+          <div
+            ref={avatarRef}
+            className={`participant-tile-avatar${isSpeaking && !isScreenShare ? ' participant-tile-avatar--speaking' : ''}`}
+          >
             {isScreenShare ? (
               <Monitor size={40} color="var(--parley-accent)" />
             ) : avatarUrl ? (

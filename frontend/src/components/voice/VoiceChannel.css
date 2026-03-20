@@ -98,6 +98,120 @@
   align-content: start;
 }
 
+/* Screen share wrapper in grid — full-width with expand hint */
+.vc-grid-share-wrap {
+  position: relative;
+  grid-column: 1 / -1;
+  cursor: pointer;
+}
+
+.vc-grid-share-wrap .participant-tile {
+  /* Let the video's natural aspect ratio drive the height */
+  aspect-ratio: unset;
+  width: 100%;
+  max-height: 60vh;
+}
+
+.vc-grid-share-wrap .participant-tile-video {
+  width: 100%;
+  height: auto;
+  max-height: 60vh;
+  object-fit: contain;
+}
+
+.vc-grid-share-expand {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 5px;
+  color: rgba(255, 255, 255, 0.85);
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.vc-grid-share-wrap:hover .vc-grid-share-expand {
+  opacity: 1;
+}
+
+/* Enlarged screenshare overlay */
+.vc-share-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9980;
+  background: rgba(0, 0, 0, 0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.vc-share-modal {
+  position: relative;
+  max-width: 92vw;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Natural aspect ratio in the overlay — video drives the size */
+.vc-share-modal .participant-tile {
+  aspect-ratio: unset;
+  width: auto;
+  max-width: 92vw;
+  max-height: 84vh;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.vc-share-modal .participant-tile-video {
+  width: auto;
+  height: auto;
+  max-width: 92vw;
+  max-height: 84vh;
+  object-fit: contain;
+}
+
+.vc-share-modal-controls {
+  position: absolute;
+  top: -36px;
+  right: 0;
+  display: flex;
+  gap: 6px;
+  z-index: 1;
+}
+
+.vc-share-ctrl-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.85);
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.vc-share-ctrl-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.vc-share-ctrl-btn--close:hover {
+  background: rgba(220, 60, 60, 0.4);
+  border-color: rgba(220, 60, 60, 0.5);
+}
+
 .vc-empty {
   color: var(--parley-text-muted);
   font-size: 13px;
