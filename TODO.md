@@ -58,6 +58,12 @@ This is a living task list for Parley - a Discord clone.
 
 ---
 
+## Bots
+
+- [ ] **Hard limit: 10 active bots per user** — enforce in `POST /developer/keys` (bot creation path) by counting existing bots owned by the requesting user before inserting. Return 403 with a clear error if at limit.
+
+---
+
 ## Medium Priority
 
 ### Features
