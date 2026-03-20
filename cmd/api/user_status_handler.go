@@ -2,16 +2,16 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"parley/internal/auth"
 	"parley/internal/db"
 	ws "parley/internal/websocket"
 )
 
-func handleUpdateStatus(authService *auth.AuthService, hub *ws.Hub, repo *db.Repository) http.HandlerFunc {
+func handleUpdateStatus(hub *ws.Hub, repo *db.Repository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userIDStr := auth.GetUserIDFromContext(r)
 		if userIDStr == "" {
@@ -26,33 +26,50 @@ func handleUpdateStatus(authService *auth.AuthService, hub *ws.Hub, repo *db.Rep
 			jsonError(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
-		if err := authService.UpdateStatus(r.Context(), userIDStr, req.StatusType, req.StatusText); err != nil {
-			jsonError(w, err.Error(), http.StatusBadRequest)
+
+		// Reject offline — only the hub can write that.
+		if req.StatusType == "offline" {
+			jsonError(w, "offline status is managed by the server", http.StatusBadRequest)
 			return
 		}
 
-		// Broadcast USER_UPDATE (with status fields) to every server the user belongs to,
-		// matching the same pattern as profile updates in user_handlers.go.
+		// Validate allowed values. "idle" is included (authService.UpdateStatus
+		// uses an older allowlist that omits it, so we call repo directly).
+		switch req.StatusType {
+		case "online", "idle", "dnd", "invisible":
+			// valid
+		default:
+			jsonError(w, "invalid status type", http.StatusBadRequest)
+			return
+		}
+
+		// Trim status_text to 128 chars.
+		if len(req.StatusText) > 128 {
+			req.StatusText = req.StatusText[:128]
+		}
+		// Trim any trailing multi-byte boundary issues from the 128-char cut.
+		req.StatusText = strings.TrimSpace(req.StatusText)
+
+		userID, err := strconv.ParseInt(userIDStr, 10, 64)
+		if err != nil {
+			jsonError(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		if err := repo.UpdateUserStatus(r.Context(), userID, req.StatusType, req.StatusText); err != nil {
+			jsonError(w, "failed to update status", http.StatusInternalServerError)
+			return
+		}
+
+		// Broadcast USER_STATUS_UPDATE cross-node via BroadcastStatusUpdate.
 		if hub != nil {
-			userID, parseErr := strconv.ParseInt(userIDStr, 10, 64)
-			if parseErr == nil {
-				servers, serversErr := repo.GetServersByUserID(r.Context(), userID)
-				if serversErr == nil {
-					payload, marshalErr := json.Marshal(map[string]string{
-						"user_id":     userIDStr,
-						"status_type": req.StatusType,
-						"status_text": req.StatusText,
-					})
-					if marshalErr == nil {
-						for _, srv := range servers {
-							hub.BroadcastToChannel(fmt.Sprintf("server:%d", srv.ID), ws.EventUserUpdate, payload)
-						}
-					}
-				}
-			}
+			hub.BroadcastStatusUpdate(userIDStr, req.StatusType, req.StatusText)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"message": "Status updated"})
+		json.NewEncoder(w).Encode(map[string]string{
+			"status_type": req.StatusType,
+			"status_text": req.StatusText,
+		})
 	}
 }
