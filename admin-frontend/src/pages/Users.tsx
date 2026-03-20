@@ -1,14 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  apiGetUsers,
-  apiDeleteUser,
-  apiBanUser,
-  apiUnbanUser,
-  apiForceLogout,
-  apiImpersonateUser,
-  userStatus,
-  User,
+  apiGetUsers, apiDeleteUser, apiBanUser, apiUnbanUser,
+  apiForceLogout, apiImpersonateUser, userStatus, User,
 } from '../api'
 import StatusBadge from '../components/StatusBadge'
 import Modal from '../components/Modal'
@@ -24,8 +18,6 @@ export default function Users() {
   const [q, setQ] = useState('')
   const [offset, setOffset] = useState(0)
   const [hasMore, setHasMore] = useState(false)
-
-  // Modal state
   const [banModal, setBanModal] = useState<User | null>(null)
   const [banReason, setBanReason] = useState('')
   const [banLoading, setBanLoading] = useState(false)
@@ -44,18 +36,12 @@ export default function Users() {
     }
   }, [])
 
-  useEffect(() => {
-    load(q, offset)
-  }, [load, q, offset])
+  useEffect(() => { load(q, offset) }, [load, q, offset])
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    setOffset(0)
-    load(q, 0)
-  }
+  const handleSearch = (e: React.FormEvent) => { e.preventDefault(); setOffset(0); load(q, 0) }
 
   const handleDelete = async (u: User) => {
-    if (!confirm(`DELETE user "${u.username}" (${u.id})?\n\nThis action is IRREVERSIBLE.`)) return
+    if (!confirm(`Delete user "${u.username}"? This is irreversible.`)) return
     try {
       await apiDeleteUser(u.id)
       setSuccess(`User ${u.username} deleted.`)
@@ -84,11 +70,6 @@ export default function Users() {
     }
   }
 
-  const openBanModal = (u: User) => {
-    setBanModal(u)
-    setBanReason('')
-  }
-
   const handleBan = async () => {
     if (!banModal) return
     setBanLoading(true)
@@ -105,197 +86,134 @@ export default function Users() {
   }
 
   const currentPage = Math.floor(offset / PAGE_SIZE) + 1
+  const fmt = (d: string) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 
   return (
     <div>
       <div className="page-header">
-        <h1>USER MANAGEMENT</h1>
+        <h1>Users</h1>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>
+          Search, view and manage platform accounts
+        </p>
       </div>
 
-      {error && (
-        <div className="alert alert-error" onClick={() => setError('')} style={{ cursor: 'pointer' }}>
-          [ERROR] {error}
-        </div>
-      )}
-      {success && (
-        <div className="alert alert-success" onClick={() => setSuccess('')} style={{ cursor: 'pointer' }}>
-          [OK] {success}
-        </div>
-      )}
+      {error && <div className="alert alert-error" onClick={() => setError('')} style={{ cursor: 'pointer' }}>{error}</div>}
+      {success && <div className="alert alert-success" onClick={() => setSuccess('')} style={{ cursor: 'pointer' }}>{success}</div>}
 
       {/* Search */}
       <form onSubmit={handleSearch} className="search-bar">
         <input
           type="search"
-          placeholder="Search username / email / phone..."
+          placeholder="Search by username, email or phone…"
           value={q}
-          onChange={(e) => setQ(e.target.value)}
-          style={{ maxWidth: '360px' }}
+          onChange={e => setQ(e.target.value)}
+          style={{ maxWidth: '380px' }}
         />
-        <button type="submit" className="btn btn-primary">
-          [SEARCH]
-        </button>
+        <button type="submit" className="btn btn-primary">Search</button>
         {q && (
-          <button
-            type="button"
-            className="btn"
-            onClick={() => { setQ(''); setOffset(0) }}
-          >
-            [CLEAR]
+          <button type="button" className="btn" onClick={() => { setQ(''); setOffset(0) }}>
+            Clear
           </button>
         )}
-        <span style={{ fontSize: '11px', color: 'var(--text-dim)', marginLeft: '8px' }}>
+        <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginLeft: '4px' }}>
           {users.length} result{users.length !== 1 ? 's' : ''}
         </span>
       </form>
 
       {/* Table */}
-      <div style={{ overflowX: 'auto' }}>
+      <div className="table-card">
         {loading ? (
-          <div style={{ padding: '32px', textAlign: 'center' }}>
-            <span className="loading">LOADING</span>
+          <div style={{ padding: '48px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+            <div className="loading-spinner" style={{ margin: '0 auto 10px' }} />
+            <div>Loading users…</div>
           </div>
         ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>USERNAME</th>
-                <th>EMAIL</th>
-                <th>PHONE</th>
-                <th>STATUS</th>
-                <th>JOINED</th>
-                <th>ACTIONS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.length === 0 ? (
+          <div style={{ overflowX: 'auto' }}>
+            <table className="data-table">
+              <thead>
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-dim)' }}>
-                    [NO USERS FOUND]
-                  </td>
+                  <th>ID</th>
+                  <th>Username</th>
+                  <th>Email</th>
+                  <th>Phone</th>
+                  <th>Status</th>
+                  <th>Joined</th>
+                  <th>Actions</th>
                 </tr>
-              ) : users.map((u) => (
-                <tr key={u.id}>
-                  <td style={{ fontSize: '11px', color: 'var(--text-dim)', fontFamily: 'var(--font)' }}>
-                    {u.id}
-                  </td>
-                  <td style={{ color: 'var(--green)' }}>{u.username}</td>
-                  <td style={{ fontSize: '11px' }}>{u.email || '—'}</td>
-                  <td style={{ fontSize: '11px' }}>{u.phone_number ?? '—'}</td>
-                  <td><StatusBadge status={userStatus(u)} /></td>
-                  <td style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
-                    {new Date(u.created_at).toLocaleDateString()}
-                  </td>
-                  <td>
-                    <div className="actions">
-                      <button
-                        className="btn"
-                        onClick={() => navigate(`/users/${u.id}`)}
-                        title="View detail"
-                      >
-                        VIEW
-                      </button>
-                      {userStatus(u) === 'active' ? (
-                        <button
-                          className="btn btn-warning"
-                          onClick={() => openBanModal(u)}
-                        >
-                          BAN
-                        </button>
-                      ) : (
-                        <button
-                          className="btn"
-                          onClick={async () => {
-                            try {
-                              await apiUnbanUser(u.id)
-                              setSuccess(`User ${u.username} unbanned.`)
-                              load(q, offset)
-                            } catch (e) {
-                              setError(e instanceof Error ? e.message : 'Unban failed')
-                            }
-                          }}
-                        >
-                          UNBAN
-                        </button>
-                      )}
-                      <button
-                        className="btn"
-                        onClick={() => handleForceLogout(u)}
-                        title="Force logout"
-                      >
-                        F-LOGOUT
-                      </button>
-                      <button
-                        className="btn"
-                        onClick={() => handleImpersonate(u)}
-                        title="Impersonate user"
-                      >
-                        IMPERSONATE
-                      </button>
-                      <button
-                        className="btn btn-danger"
-                        onClick={() => handleDelete(u)}
-                        title="Delete user"
-                      >
-                        DELETE
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {users.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)' }}>
+                      No users found
+                    </td>
+                  </tr>
+                ) : users.map(u => (
+                  <tr key={u.id}>
+                    <td><span className="mono" style={{ color: 'var(--text-muted)' }}>{u.id}</span></td>
+                    <td style={{ fontWeight: '600', color: 'var(--text)' }}>{u.username}</td>
+                    <td>{u.email || <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
+                    <td>{u.phone_number ?? <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
+                    <td><StatusBadge status={userStatus(u)} /></td>
+                    <td><span className="mono" style={{ color: 'var(--text-muted)' }}>{fmt(u.created_at)}</span></td>
+                    <td>
+                      <div className="actions">
+                        <button className="btn" onClick={() => navigate(`/users/${u.id}`)}>View</button>
+                        {userStatus(u) === 'active' ? (
+                          <button className="btn btn-warning" onClick={() => { setBanModal(u); setBanReason('') }}>Ban</button>
+                        ) : (
+                          <button className="btn" onClick={async () => {
+                            try { await apiUnbanUser(u.id); setSuccess(`${u.username} unbanned.`); load(q, offset) }
+                            catch (e) { setError(e instanceof Error ? e.message : 'Unban failed') }
+                          }}>Unban</button>
+                        )}
+                        <button className="btn" onClick={() => handleForceLogout(u)}>Force logout</button>
+                        <button className="btn" onClick={() => handleImpersonate(u)}>Impersonate</button>
+                        <button className="btn btn-danger" onClick={() => handleDelete(u)}>Delete</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
       {/* Pagination */}
       <div className="pagination">
-        <button
-          className="btn"
-          disabled={currentPage === 1}
-          onClick={() => setOffset(offset - PAGE_SIZE)}
-        >
-          &lt; PREV
+        <button className="btn" disabled={currentPage === 1} onClick={() => setOffset(offset - PAGE_SIZE)}>
+          ← Prev
         </button>
-        <span>PAGE {currentPage}</span>
-        <button
-          className="btn"
-          disabled={!hasMore}
-          onClick={() => setOffset(offset + PAGE_SIZE)}
-        >
-          NEXT &gt;
+        <span>Page {currentPage}</span>
+        <button className="btn" disabled={!hasMore} onClick={() => setOffset(offset + PAGE_SIZE)}>
+          Next →
         </button>
       </div>
 
       {/* Ban modal */}
       {banModal && (
-        <Modal title={`BAN USER: ${banModal.username}`} onClose={() => setBanModal(null)} width={440}>
-          <div style={{ marginBottom: '16px', fontSize: '12px', color: 'var(--text-dim)' }}>
-            User: <span style={{ color: 'var(--green)' }}>{banModal.username}</span>
-            <br />
-            ID: <span style={{ color: 'var(--text-dim)', fontSize: '11px' }}>{banModal.id}</span>
+        <Modal title={`Ban user: ${banModal.username}`} onClose={() => setBanModal(null)} width={440}>
+          <div style={{ marginBottom: '16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+            This will immediately revoke access for <strong style={{ color: 'var(--text)' }}>{banModal.username}</strong>.
           </div>
           <div className="form-group">
-            <label>BAN REASON</label>
+            <label>Ban reason</label>
             <textarea
               rows={4}
               value={banReason}
-              onChange={(e) => setBanReason(e.target.value)}
-              placeholder="Enter reason for ban..."
-              style={{ resize: 'vertical' }}
+              onChange={e => setBanReason(e.target.value)}
+              placeholder="Describe the reason for this ban…"
             />
           </div>
           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-            <button className="btn" onClick={() => setBanModal(null)}>
-              CANCEL
-            </button>
+            <button className="btn" onClick={() => setBanModal(null)}>Cancel</button>
             <button
               className="btn btn-danger"
               onClick={handleBan}
               disabled={banLoading || !banReason.trim()}
             >
-              {banLoading ? <span className="loading">BANNING</span> : '[CONFIRM BAN]'}
+              {banLoading ? 'Banning…' : 'Confirm ban'}
             </button>
           </div>
         </Modal>

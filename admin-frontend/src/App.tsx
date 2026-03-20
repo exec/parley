@@ -10,6 +10,7 @@ import UserDetail from './pages/UserDetail'
 import Messages from './pages/Messages'
 import Reports from './pages/Reports'
 import Servers from './pages/Servers'
+import Bots from './pages/Bots'
 import Settings from './pages/Settings'
 
 function ProtectedLayout({ children }: { children: React.ReactNode }) {
@@ -71,6 +72,14 @@ export default function App() {
             element={
               <ProtectedLayout>
                 <Servers />
+              </ProtectedLayout>
+            }
+          />
+          <Route
+            path="/bots"
+            element={
+              <ProtectedLayout>
+                <Bots />
               </ProtectedLayout>
             }
           />

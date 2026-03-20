@@ -262,6 +262,21 @@ export async function apiGenerateInvite(id: number): Promise<{ code: string }> {
   return request<{ code: string }>('POST', `/servers/${id}/invite`)
 }
 
+// ---- Bots ----
+
+export interface Bot {
+  id: number
+  username: string
+  owner_id?: number
+  owner_username?: string
+  banned_at?: string
+  created_at: string
+}
+
+export async function apiGetBots(q?: string, limit = 50, offset = 0): Promise<Bot[]> {
+  return request<Bot[]>('GET', '/bots', undefined, { q, limit, offset })
+}
+
 // ---- Categories ----
 
 export interface Category {

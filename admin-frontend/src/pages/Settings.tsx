@@ -11,15 +11,10 @@ export default function Settings() {
 
   const loadCategories = () => {
     setLoading(true)
-    apiGetCategories()
-      .then(setCategories)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false))
+    apiGetCategories().then(setCategories).catch(e => setError(e.message)).finally(() => setLoading(false))
   }
 
-  useEffect(() => {
-    loadCategories()
-  }, [])
+  useEffect(() => { loadCategories() }, [])
 
   const handleAdd = async (e: FormEvent) => {
     e.preventDefault()
@@ -31,129 +26,78 @@ export default function Settings() {
       setSuccess(`Category "${newCatName.trim()}" created.`)
       setNewCatName('')
       loadCategories()
-    } catch (ex) {
-      setError(ex instanceof Error ? ex.message : 'Create failed')
-    } finally {
-      setAddLoading(false)
-    }
+    } catch (ex) { setError(ex instanceof Error ? ex.message : 'Create failed') }
+    finally { setAddLoading(false) }
   }
 
   const handleDelete = async (cat: Category) => {
     if (!confirm(`Delete category "${cat.name}"?`)) return
-    try {
-      await apiDeleteCategory(cat.id)
-      setSuccess(`Category "${cat.name}" deleted.`)
-      loadCategories()
-    } catch (ex) {
-      setError(ex instanceof Error ? ex.message : 'Delete failed')
-    }
+    try { await apiDeleteCategory(cat.id); setSuccess(`"${cat.name}" deleted.`); loadCategories() }
+    catch (ex) { setError(ex instanceof Error ? ex.message : 'Delete failed') }
   }
 
   return (
     <div>
       <div className="page-header">
-        <h1>SETTINGS</h1>
+        <h1>Settings</h1>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>Platform configuration and report categories</p>
       </div>
 
-      {error && (
-        <div className="alert alert-error" onClick={() => setError('')} style={{ cursor: 'pointer' }}>
-          [ERROR] {error}
-        </div>
-      )}
-      {success && (
-        <div className="alert alert-success" onClick={() => setSuccess('')} style={{ cursor: 'pointer' }}>
-          [OK] {success}
-        </div>
-      )}
+      {error && <div className="alert alert-error" onClick={() => setError('')} style={{ cursor: 'pointer' }}>{error}</div>}
+      {success && <div className="alert alert-success" onClick={() => setSuccess('')} style={{ cursor: 'pointer' }}>{success}</div>}
 
-      <div style={{ maxWidth: '600px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px', alignItems: 'start' }}>
         {/* Report categories */}
-        <div className="panel">
-          <div className="panel-title">// REPORT CATEGORIES</div>
+        <div className="card">
+          <div className="card-title">Report Categories</div>
 
           {loading ? (
-            <div style={{ padding: '16px', textAlign: 'center' }}>
-              <span className="loading">LOADING</span>
+            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+              <div className="loading-spinner" style={{ margin: '0 auto 8px' }} />Loading…
             </div>
           ) : (
             <>
-              <div style={{ marginBottom: '16px' }}>
-                {categories.length === 0 ? (
-                  <div
-                    style={{
-                      padding: '16px',
-                      textAlign: 'center',
-                      color: 'var(--text-dim)',
-                      fontSize: '12px',
-                      border: '1px solid var(--border)',
-                      background: '#000',
-                    }}
-                  >
-                    [NO CATEGORIES DEFINED]
-                  </div>
-                ) : (
+              {categories.length === 0 ? (
+                <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                  No categories defined yet.
+                </div>
+              ) : (
+                <div className="table-card" style={{ marginBottom: '16px' }}>
                   <table className="data-table">
                     <thead>
-                      <tr>
-                        <th>ID</th>
-                        <th>NAME</th>
-                        <th>ACTION</th>
-                      </tr>
+                      <tr><th>ID</th><th>Name</th><th></th></tr>
                     </thead>
                     <tbody>
-                      {categories.map((cat) => (
+                      {categories.map(cat => (
                         <tr key={cat.id}>
-                          <td style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
-                            {cat.id}
-                          </td>
-                          <td style={{ color: 'var(--yellow)' }}>{cat.name}</td>
+                          <td><span className="mono" style={{ color: 'var(--text-muted)' }}>{cat.id}</span></td>
+                          <td style={{ fontWeight: '500', color: 'var(--yellow)' }}>{cat.name}</td>
                           <td>
-                            <button
-                              className="btn btn-danger"
-                              style={{ fontSize: '11px', padding: '3px 8px' }}
-                              onClick={() => handleDelete(cat)}
-                            >
-                              DELETE
+                            <button className="btn btn-danger" style={{ fontSize: '12px', padding: '4px 10px' }} onClick={() => handleDelete(cat)}>
+                              Delete
                             </button>
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                )}
-              </div>
+                </div>
+              )}
 
-              {/* Add new category */}
               <form onSubmit={handleAdd}>
-                <div
-                  style={{
-                    fontSize: '10px',
-                    color: 'var(--text-dim)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.1em',
-                    marginBottom: '8px',
-                  }}
-                >
-                  // ADD NEW CATEGORY
+                <div style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                  Add new category
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <input
                     type="text"
-                    placeholder="Category name..."
+                    placeholder="Category name…"
                     value={newCatName}
-                    onChange={(e) => setNewCatName(e.target.value)}
+                    onChange={e => setNewCatName(e.target.value)}
                     style={{ flex: 1 }}
                   />
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                    disabled={addLoading || !newCatName.trim()}
-                  >
-                    {addLoading ? (
-                      <span className="loading">ADDING</span>
-                    ) : (
-                      '[ADD]'
-                    )}
+                  <button type="submit" className="btn btn-primary" disabled={addLoading || !newCatName.trim()}>
+                    {addLoading ? 'Adding…' : 'Add'}
                   </button>
                 </div>
               </form>
@@ -162,35 +106,29 @@ export default function Settings() {
         </div>
 
         {/* System info */}
-        <div className="panel" style={{ marginTop: '16px' }}>
-          <div className="panel-title">// SYSTEM INFO</div>
-          <div
-            style={{
-              fontFamily: 'var(--font)',
-              fontSize: '11px',
-              color: 'var(--text-dim)',
-              lineHeight: '2',
-              padding: '8px',
-              background: '#000',
-              border: '1px solid var(--border)',
-            }}
-          >
-            <div>
-              <span style={{ color: 'var(--green)' }}>SYSTEM:</span> PARLEY ADMIN CONSOLE
-            </div>
-            <div>
-              <span style={{ color: 'var(--green)' }}>VERSION:</span> 1.0.0
-            </div>
-            <div>
-              <span style={{ color: 'var(--green)' }}>BUILD:</span> production
-            </div>
-            <div>
-              <span style={{ color: 'var(--green)' }}>API:</span> /api
-            </div>
-            <div>
-              <span style={{ color: 'var(--green)' }}>STATUS:</span>{' '}
-              <span style={{ color: 'var(--green)' }}>ONLINE</span>
-            </div>
+        <div className="card">
+          <div className="card-title">System Information</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {[
+              { label: 'Console', value: 'Parley Admin' },
+              { label: 'Version', value: '2.0.0' },
+              { label: 'Environment', value: 'Production' },
+              { label: 'API base', value: '/api' },
+              { label: 'Status', value: 'Operational', valueColor: 'var(--green)' },
+            ].map(item => (
+              <div key={item.label} style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '8px 0',
+                borderBottom: '1px solid var(--border)',
+              }}>
+                <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '500' }}>{item.label}</span>
+                <span style={{ fontSize: '13px', fontFamily: 'var(--mono)', color: item.valueColor ?? 'var(--text)' }}>
+                  {item.value}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       </div>

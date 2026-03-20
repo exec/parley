@@ -1,15 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
-  apiGetUser,
-  apiBanUser,
-  apiUnbanUser,
-  apiForceLogout,
-  apiImpersonateUser,
-  apiDeleteUser,
-  apiSetBadges,
-  userStatus,
-  User,
+  apiGetUser, apiBanUser, apiUnbanUser, apiForceLogout,
+  apiImpersonateUser, apiDeleteUser, apiSetBadges, userStatus, User,
 } from '../api'
 import StatusBadge from '../components/StatusBadge'
 import Modal from '../components/Modal'
@@ -21,8 +14,6 @@ export default function UserDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-
-  // Ban modal
   const [showBanModal, setShowBanModal] = useState(false)
   const [banReason, setBanReason] = useState('')
   const [actionLoading, setActionLoading] = useState(false)
@@ -33,14 +24,11 @@ export default function UserDetail() {
     setLoading(true)
     apiGetUser(Number(id))
       .then(setUser)
-      .catch((e) => setError(e.message))
+      .catch(e => setError(e.message))
       .finally(() => setLoading(false))
   }, [id])
 
-  const reload = () => {
-    if (!id) return
-    apiGetUser(Number(id)).then(setUser).catch(() => {})
-  }
+  const reload = () => { if (id) apiGetUser(Number(id)).then(setUser).catch(() => {}) }
 
   const handleBan = async () => {
     if (!user) return
@@ -52,35 +40,21 @@ export default function UserDetail() {
       reload()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Ban failed')
-    } finally {
-      setActionLoading(false)
-    }
+    } finally { setActionLoading(false) }
   }
 
   const handleUnban = async () => {
-    if (!user) return
-    if (!confirm(`Unban "${user.username}"?`)) return
+    if (!user || !confirm(`Unban "${user.username}"?`)) return
     setActionLoading(true)
-    try {
-      await apiUnbanUser(user.id)
-      setSuccess('User unbanned.')
-      reload()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Unban failed')
-    } finally {
-      setActionLoading(false)
-    }
+    try { await apiUnbanUser(user.id); setSuccess('User unbanned.'); reload() }
+    catch (e) { setError(e instanceof Error ? e.message : 'Unban failed') }
+    finally { setActionLoading(false) }
   }
 
   const handleForceLogout = async () => {
-    if (!user) return
-    if (!confirm(`Force logout "${user.username}"?`)) return
-    try {
-      await apiForceLogout(user.id)
-      setSuccess('Force logout sent.')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Force logout failed')
-    }
+    if (!user || !confirm(`Force logout "${user.username}"?`)) return
+    try { await apiForceLogout(user.id); setSuccess('Force logout sent.') }
+    catch (e) { setError(e instanceof Error ? e.message : 'Force logout failed') }
   }
 
   const handleImpersonate = async () => {
@@ -88,9 +62,7 @@ export default function UserDetail() {
     try {
       const { token } = await apiImpersonateUser(user.id)
       window.open(`https://parley.x86-64.com/impersonate?token=${token}`, '_blank')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Impersonate failed')
-    }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Impersonate failed') }
   }
 
   const handleToggleBadge = async (bit: number) => {
@@ -101,30 +73,23 @@ export default function UserDetail() {
       const res = await apiSetBadges(user.id, newBadges)
       setUser({ ...user, badges: res.badges })
       setSuccess('Badges updated.')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Badge update failed')
-    } finally {
-      setBadgesLoading(false)
-    }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Badge update failed') }
+    finally { setBadgesLoading(false) }
   }
 
   const handleDelete = async () => {
-    if (!user) return
-    if (!confirm(`DELETE user "${user.username}"?\n\nThis is IRREVERSIBLE.`)) return
-    try {
-      await apiDeleteUser(user.id)
-      navigate('/users')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Delete failed')
-    }
+    if (!user || !confirm(`Delete user "${user.username}"? This is irreversible.`)) return
+    try { await apiDeleteUser(user.id); navigate('/users') }
+    catch (e) { setError(e instanceof Error ? e.message : 'Delete failed') }
   }
 
-  const fmt = (d?: string | null) => d ? new Date(d).toLocaleString() : '—'
+  const fmt = (d?: string | null) => d ? new Date(d).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : '—'
 
   if (loading) {
     return (
-      <div style={{ padding: '40px', textAlign: 'center' }}>
-        <span className="loading">LOADING USER DATA</span>
+      <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+        <div className="loading-spinner" style={{ margin: '0 auto 12px' }} />
+        Loading user…
       </div>
     )
   }
@@ -132,10 +97,8 @@ export default function UserDetail() {
   if (!user) {
     return (
       <div>
-        <div className="alert alert-error">[ERROR] {error || 'User not found'}</div>
-        <button className="btn" onClick={() => navigate('/users')}>
-          &lt; BACK
-        </button>
+        <div className="alert alert-error">{error || 'User not found'}</div>
+        <button className="btn" onClick={() => navigate('/users')}>← Back to users</button>
       </div>
     )
   }
@@ -145,189 +108,176 @@ export default function UserDetail() {
   return (
     <div>
       {/* Header */}
-      <div className="page-header" style={{ display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button className="btn" onClick={() => navigate('/users')}>
-            &lt; BACK
-          </button>
-          <h1 style={{ margin: 0 }}>{user.username}</h1>
-          <StatusBadge status={status} />
-        </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px', flexWrap: 'wrap' }}>
+        <button className="btn" onClick={() => navigate('/users')}>← Users</button>
+        <h1 style={{ fontSize: '22px', fontWeight: '700', letterSpacing: '-0.02em', margin: 0 }}>{user.username}</h1>
+        <StatusBadge status={status} />
       </div>
 
-      {error && (
-        <div className="alert alert-error" onClick={() => setError('')} style={{ cursor: 'pointer', marginBottom: '12px' }}>
-          [ERROR] {error}
-        </div>
-      )}
-      {success && (
-        <div className="alert alert-success" onClick={() => setSuccess('')} style={{ cursor: 'pointer', marginBottom: '12px' }}>
-          [OK] {success}
-        </div>
-      )}
+      {error && <div className="alert alert-error" onClick={() => setError('')} style={{ cursor: 'pointer', marginBottom: '14px' }}>{error}</div>}
+      {success && <div className="alert alert-success" onClick={() => setSuccess('')} style={{ cursor: 'pointer', marginBottom: '14px' }}>{success}</div>}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-        {/* User info panel */}
-        <div className="panel">
-          <div className="panel-title">// USER RECORD</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) minmax(0,1fr)', gap: '16px', alignItems: 'start' }}>
+        {/* User record */}
+        <div className="card">
+          <div className="card-title">Account Details</div>
           <div className="detail-grid">
             <span className="detail-label">ID</span>
-            <span className="detail-value" style={{ fontSize: '11px' }}>{user.id}</span>
+            <span className="detail-value mono" style={{ color: 'var(--text-muted)' }}>{user.id}</span>
 
             <span className="detail-label">Username</span>
-            <span className="detail-value" style={{ color: 'var(--green)' }}>{user.username}</span>
+            <span className="detail-value" style={{ fontWeight: '600', color: 'var(--text)' }}>{user.username}</span>
 
             <span className="detail-label">Email</span>
             <span className="detail-value">{user.email || '—'}</span>
 
-            <span className="detail-label">Email Verified</span>
-            <span className="detail-value">{user.email_verified ? '[YES]' : '[NO]'}</span>
+            <span className="detail-label">Email verified</span>
+            <span className="detail-value">
+              {user.email_verified
+                ? <span style={{ color: 'var(--green)', fontWeight: '600' }}>Yes</span>
+                : <span style={{ color: 'var(--text-muted)' }}>No</span>}
+            </span>
 
             <span className="detail-label">Phone</span>
             <span className="detail-value">{user.phone_number ?? '—'}</span>
 
-            <span className="detail-label">Phone Verified</span>
-            <span className="detail-value">{user.phone_verified ? '[YES]' : '[NO]'}</span>
+            <span className="detail-label">Phone verified</span>
+            <span className="detail-value">
+              {user.phone_verified
+                ? <span style={{ color: 'var(--green)', fontWeight: '600' }}>Yes</span>
+                : <span style={{ color: 'var(--text-muted)' }}>No</span>}
+            </span>
 
             <span className="detail-label">Status</span>
             <span className="detail-value"><StatusBadge status={status} /></span>
 
-            <span className="detail-label">System User</span>
-            <span className="detail-value">{user.is_system ? '[YES]' : 'no'}</span>
-
             <span className="detail-label">Joined</span>
-            <span className="detail-value">{fmt(user.created_at)}</span>
+            <span className="detail-value mono" style={{ color: 'var(--text-secondary)' }}>{fmt(user.created_at)}</span>
 
             <span className="detail-label">Reg. IP</span>
-            <span className="detail-value" style={{ fontFamily: 'var(--font)', fontSize: '11px' }}>
+            <span className="detail-value mono" style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>
               {user.registration_ip || '—'}
             </span>
 
             <span className="detail-label">Last IP</span>
-            <span className="detail-value" style={{ fontFamily: 'var(--font)', fontSize: '11px' }}>
+            <span className="detail-value mono" style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>
               {user.last_seen_ip || '—'}
             </span>
           </div>
 
           {status === 'banned' && (
-            <div
-              style={{
-                marginTop: '16px',
-                padding: '10px',
-                border: '1px solid #5a1a1a',
-                background: 'rgba(255,68,68,0.05)',
-              }}
-            >
-              <div style={{ color: 'var(--red)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '6px' }}>
-                // BAN RECORD
+            <div style={{
+              marginTop: '18px',
+              padding: '14px',
+              borderRadius: '8px',
+              border: '1px solid rgba(248,113,113,0.25)',
+              background: 'var(--red-soft)',
+            }}>
+              <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>
+                Ban Record
               </div>
               <div className="detail-grid">
-                <span className="detail-label">Banned At</span>
+                <span className="detail-label">Banned at</span>
                 <span className="detail-value" style={{ color: 'var(--red)' }}>{fmt(user.banned_at)}</span>
-
                 <span className="detail-label">Reason</span>
-                <span className="detail-value" style={{ color: 'var(--red)' }}>{user.ban_reason || '—'}</span>
+                <span className="detail-value" style={{ color: 'var(--text)' }}>{user.ban_reason || '—'}</span>
               </div>
             </div>
           )}
         </div>
 
-        {/* Actions panel */}
-        <div className="panel">
-          <div className="panel-title">// ACTIONS</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {status === 'active' ? (
-              <button
-                className="btn btn-warning"
-                onClick={() => { setShowBanModal(true); setBanReason('') }}
-              >
-                [BAN USER]
+        {/* Actions + badges */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className="card">
+            <div className="card-title">Actions</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {status === 'active' ? (
+                <button className="btn btn-warning" style={{ justifyContent: 'center' }}
+                  onClick={() => { setShowBanModal(true); setBanReason('') }}>
+                  Ban user
+                </button>
+              ) : (
+                <button className="btn" style={{ justifyContent: 'center' }}
+                  onClick={handleUnban} disabled={actionLoading}>
+                  Unban user
+                </button>
+              )}
+              <button className="btn" style={{ justifyContent: 'center' }} onClick={handleForceLogout} disabled={actionLoading}>
+                Force logout
               </button>
-            ) : (
-              <button className="btn" onClick={handleUnban} disabled={actionLoading}>
-                [UNBAN USER]
+              <button className="btn" style={{ justifyContent: 'center' }} onClick={handleImpersonate}>
+                Impersonate
               </button>
-            )}
-            <button className="btn" onClick={handleForceLogout} disabled={actionLoading}>
-              [FORCE LOGOUT]
-            </button>
-            <button className="btn" onClick={handleImpersonate}>
-              [IMPERSONATE]
-            </button>
-            <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '4px 0' }} />
-            <button className="btn btn-danger" onClick={handleDelete}>
-              [DELETE USER]
-            </button>
+              <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '4px 0' }} />
+              <button className="btn btn-danger" style={{ justifyContent: 'center' }} onClick={handleDelete}>
+                Delete account
+              </button>
+            </div>
+
+            <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: '1px solid var(--border)' }}>
+              <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>
+                Quick links
+              </div>
+              <Link to={`/messages?user_id=${user.id}`}
+                style={{ fontSize: '13px', color: 'var(--accent)', display: 'block', padding: '4px 0' }}>
+                View messages →
+              </Link>
+            </div>
           </div>
 
-          {/* Link to messages */}
-          <div style={{ marginTop: '20px' }}>
-            <div className="panel-title">// QUICK LINKS</div>
-            <Link
-              to={`/messages?user_id=${user.id}`}
-              style={{
-                display: 'block',
-                padding: '6px 0',
-                fontSize: '12px',
-                color: 'var(--green-dim)',
-              }}
-            >
-              &gt; View messages by this user
-            </Link>
+          <div className="card">
+            <div className="card-title">Badges</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {[
+                { bit: 2, label: 'Parley Admin', color: 'var(--accent)' },
+                { bit: 1, label: 'Donor', color: 'var(--yellow)' },
+              ].map(({ bit, label, color }) => {
+                const active = ((user.badges ?? 0) & bit) !== 0
+                return (
+                  <label key={bit} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    cursor: 'pointer',
+                    padding: '8px 10px',
+                    borderRadius: '7px',
+                    background: active ? 'rgba(255,255,255,0.04)' : 'transparent',
+                    border: `1px solid ${active ? 'rgba(255,255,255,0.1)' : 'transparent'}`,
+                    transition: 'all 0.12s',
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={active}
+                      disabled={badgesLoading}
+                      onChange={() => handleToggleBadge(bit)}
+                      style={{ accentColor: color, width: '15px', height: '15px' }}
+                    />
+                    <span style={{ fontSize: '13px', fontWeight: '500', color: active ? color : 'var(--text-secondary)' }}>
+                      {label}
+                    </span>
+                  </label>
+                )
+              })}
+              {badgesLoading && <span className="loading" style={{ fontSize: '12px' }}>Saving</span>}
+            </div>
           </div>
-        </div>
-      </div>
-
-      {/* Badges panel */}
-      <div className="panel" style={{ marginTop: '16px' }}>
-        <div className="panel-title">// BADGES</div>
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
-          {[
-            { bit: 2, label: 'Parley Admin' },
-            { bit: 1, label: 'Donor' },
-          ].map(({ bit, label }) => {
-            const active = ((user.badges ?? 0) & bit) !== 0
-            return (
-              <label key={bit} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px' }}>
-                <input
-                  type="checkbox"
-                  checked={active}
-                  disabled={badgesLoading}
-                  onChange={() => handleToggleBadge(bit)}
-                  style={{ accentColor: 'var(--green)', width: '14px', height: '14px' }}
-                />
-                <span style={{ color: active ? 'var(--green)' : 'var(--text-dim)' }}>{label}</span>
-              </label>
-            )
-          })}
-          {badgesLoading && <span className="loading" style={{ fontSize: '11px' }}>SAVING</span>}
         </div>
       </div>
 
       {/* Ban modal */}
       {showBanModal && (
-        <Modal title={`BAN: ${user.username}`} onClose={() => setShowBanModal(false)} width={440}>
-          <div style={{ marginBottom: '12px', fontSize: '12px', color: 'var(--text-dim)' }}>
-            Banning: <span style={{ color: 'var(--green)' }}>{user.username}</span>
+        <Modal title={`Ban: ${user.username}`} onClose={() => setShowBanModal(false)} width={440}>
+          <div style={{ marginBottom: '14px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+            This will revoke access for <strong style={{ color: 'var(--text)' }}>{user.username}</strong>.
           </div>
           <div className="form-group">
-            <label>BAN REASON</label>
-            <textarea
-              rows={4}
-              value={banReason}
-              onChange={(e) => setBanReason(e.target.value)}
-              placeholder="Enter reason..."
-              style={{ resize: 'vertical' }}
-            />
+            <label>Ban reason</label>
+            <textarea rows={4} value={banReason} onChange={e => setBanReason(e.target.value)} placeholder="Describe the reason…" />
           </div>
           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-            <button className="btn" onClick={() => setShowBanModal(false)}>CANCEL</button>
-            <button
-              className="btn btn-danger"
-              onClick={handleBan}
-              disabled={actionLoading || !banReason.trim()}
-            >
-              {actionLoading ? <span className="loading">BANNING</span> : '[CONFIRM BAN]'}
+            <button className="btn" onClick={() => setShowBanModal(false)}>Cancel</button>
+            <button className="btn btn-danger" onClick={handleBan} disabled={actionLoading || !banReason.trim()}>
+              {actionLoading ? 'Banning…' : 'Confirm ban'}
             </button>
           </div>
         </Modal>

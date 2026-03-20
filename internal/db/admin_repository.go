@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 )
 
 // ============ Admin Operations ============
@@ -218,6 +219,52 @@ func (r *Repository) AdminSearchUsers(ctx context.Context, query string, limit, 
 		users = append(users, u)
 	}
 	return users, rows.Err()
+}
+
+// AdminBotRow is a lightweight view of a bot user for the admin panel.
+type AdminBotRow struct {
+	ID            int64      `json:"id"`
+	Username      string     `json:"username"`
+	OwnerID       *int64     `json:"owner_id,omitempty"`
+	OwnerUsername string     `json:"owner_username,omitempty"`
+	BannedAt      *time.Time `json:"banned_at,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+}
+
+func (r *Repository) AdminGetBots(ctx context.Context, query string, limit, offset int) ([]AdminBotRow, error) {
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	base := `
+		SELECT b.id, b.username, b.bot_owner_id, COALESCE(o.username, ''), b.banned_at, b.created_at
+		FROM users b
+		LEFT JOIN users o ON o.id = b.bot_owner_id
+		WHERE b.is_bot = TRUE AND b.is_system = FALSE`
+	if query != "" {
+		rows, err = r.db.QueryContext(ctx, base+` AND (b.username ILIKE $1 OR CAST(b.id AS TEXT) = $2)
+			ORDER BY b.created_at DESC LIMIT $3 OFFSET $4`,
+			"%"+query+"%", query, limit, offset)
+	} else {
+		rows, err = r.db.QueryContext(ctx, base+` ORDER BY b.created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var bots []AdminBotRow
+	for rows.Next() {
+		var b AdminBotRow
+		var bannedAt sql.NullTime
+		if err := rows.Scan(&b.ID, &b.Username, &b.OwnerID, &b.OwnerUsername, &bannedAt, &b.CreatedAt); err != nil {
+			return nil, err
+		}
+		if bannedAt.Valid {
+			b.BannedAt = &bannedAt.Time
+		}
+		bots = append(bots, b)
+	}
+	return bots, rows.Err()
 }
 
 func (r *Repository) GetAdminStats(ctx context.Context) (map[string]int64, error) {

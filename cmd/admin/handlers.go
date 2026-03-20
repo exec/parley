@@ -64,6 +64,21 @@ func handleStats(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, stats)
 }
 
+func handleListBots(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query().Get("q")
+	limit := queryInt(r, "limit", 50)
+	offset := queryInt(r, "offset", 0)
+	bots, err := repo.AdminGetBots(r.Context(), q, limit, offset)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if bots == nil {
+		bots = []db.AdminBotRow{}
+	}
+	jsonOK(w, bots)
+}
+
 func handleListUsers(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
 	limit := queryInt(r, "limit", 50)

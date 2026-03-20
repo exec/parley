@@ -3,15 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { apiLogin } from '../api'
 
-const ASCII_LOGO = `
- ██████╗  █████╗ ██████╗ ██╗     ███████╗██╗   ██╗
- ██╔══██╗██╔══██╗██╔══██╗██║     ██╔════╝╚██╗ ██╔╝
- ██████╔╝███████║██████╔╝██║     █████╗   ╚████╔╝
- ██╔═══╝ ██╔══██║██╔══██╗██║     ██╔══╝    ╚██╔╝
- ██║     ██║  ██║██║  ██║███████╗███████╗   ██║
- ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚══════╝   ╚═╝
-`.trim()
-
 export default function Login() {
   const { login } = useAuth()
   const navigate = useNavigate()
@@ -36,182 +27,136 @@ export default function Login() {
   }
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: 'var(--bg)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '20px',
-      }}
-    >
-      {/* ASCII Logo */}
-      <pre
-        style={{
-          color: 'var(--green)',
-          fontSize: '11px',
-          lineHeight: '1.3',
-          marginBottom: '8px',
-          textAlign: 'center',
-          textShadow: '0 0 8px rgba(50,205,50,0.4)',
-        }}
-      >
-        {ASCII_LOGO}
-      </pre>
+    <div style={{
+      minHeight: '100vh',
+      background: 'var(--bg)',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '24px',
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+      {/* Subtle background geometry */}
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        backgroundImage: `
+          radial-gradient(ellipse 60% 40% at 50% 0%, rgba(6,182,212,0.07) 0%, transparent 70%),
+          radial-gradient(ellipse 40% 30% at 80% 80%, rgba(6,182,212,0.04) 0%, transparent 60%)
+        `,
+        pointerEvents: 'none',
+      }} />
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        backgroundImage: 'radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px)',
+        backgroundSize: '32px 32px',
+        pointerEvents: 'none',
+      }} />
 
-      <div
-        style={{
-          color: 'var(--green-dim)',
-          fontSize: '11px',
-          letterSpacing: '0.3em',
-          textTransform: 'uppercase',
-          marginBottom: '40px',
-        }}
-      >
-        ADMIN CONSOLE — AUTHORIZED ACCESS ONLY
+      {/* Logo */}
+      <div style={{ textAlign: 'center', marginBottom: '36px', position: 'relative' }}>
+        <div style={{
+          width: '52px',
+          height: '52px',
+          borderRadius: '14px',
+          background: 'linear-gradient(135deg, var(--accent) 0%, #0284c7 100%)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '22px',
+          fontWeight: '800',
+          color: '#fff',
+          margin: '0 auto 14px',
+          boxShadow: '0 4px 20px rgba(6,182,212,0.4)',
+        }}>P</div>
+        <h1 style={{ fontSize: '22px', fontWeight: '700', color: 'var(--text)', letterSpacing: '-0.02em', margin: 0 }}>
+          Parley Admin
+        </h1>
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
+          Authorized access only
+        </p>
       </div>
 
-      {/* Login box */}
-      <div
-        style={{
-          width: '100%',
-          maxWidth: '420px',
-          border: '1px solid var(--green-dark)',
-          background: 'var(--bg-secondary)',
-          boxShadow: '0 0 24px rgba(50,205,50,0.08)',
-        }}
-      >
-        {/* Box header */}
-        <div
-          style={{
-            padding: '10px 16px',
-            borderBottom: '1px solid var(--green-dark)',
-            background: 'var(--bg)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-          }}
-        >
-          <span style={{ color: 'var(--green-dim)', fontSize: '11px', letterSpacing: '0.1em' }}>
-            // AUTHENTICATE
-          </span>
-          <span className="cursor-blink" />
-        </div>
+      {/* Login card */}
+      <div style={{
+        width: '100%',
+        maxWidth: '380px',
+        background: 'var(--bg-surface)',
+        border: '1px solid var(--border-bright)',
+        borderRadius: '14px',
+        padding: '28px',
+        boxShadow: 'var(--shadow-lg)',
+        position: 'relative',
+      }}>
+        {error && (
+          <div className="alert alert-error" style={{ marginBottom: '18px' }}>
+            {error}
+          </div>
+        )}
 
-        <form onSubmit={handleSubmit} style={{ padding: '24px' }}>
-          {error && (
-            <div className="alert alert-error" style={{ marginBottom: '16px' }}>
-              [ERROR] {error}
-            </div>
-          )}
-
+        <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="username">USERNAME</label>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <span
-                style={{
-                  color: 'var(--green)',
-                  fontFamily: 'var(--font)',
-                  fontSize: '13px',
-                  padding: '6px 8px',
-                  background: '#000',
-                  border: '1px solid var(--green-dark)',
-                  borderRight: 'none',
-                }}
-              >
-                &gt;_
-              </span>
-              <input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="enter username"
-                autoComplete="username"
-                autoFocus
-                style={{ flex: 1 }}
-              />
-            </div>
+            <label htmlFor="username">Username</label>
+            <input
+              id="username"
+              type="text"
+              value={username}
+              onChange={e => setUsername(e.target.value)}
+              placeholder="Enter your username"
+              autoComplete="username"
+              autoFocus
+            />
           </div>
 
           <div className="form-group">
-            <label htmlFor="password">PASSWORD</label>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <span
-                style={{
-                  color: 'var(--green)',
-                  fontFamily: 'var(--font)',
-                  fontSize: '13px',
-                  padding: '6px 8px',
-                  background: '#000',
-                  border: '1px solid var(--green-dark)',
-                  borderRight: 'none',
-                }}
-              >
-                &gt;_
-              </span>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="enter password"
-                autoComplete="current-password"
-                style={{ flex: 1 }}
-              />
-            </div>
+            <label htmlFor="password">Password</label>
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="Enter your password"
+              autoComplete="current-password"
+            />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="btn btn-primary"
             style={{
               width: '100%',
               padding: '10px',
-              fontSize: '13px',
-              letterSpacing: '0.15em',
+              background: loading ? 'rgba(6,182,212,0.15)' : 'var(--accent)',
+              border: 'none',
+              borderRadius: '8px',
+              color: loading ? 'var(--accent)' : '#fff',
+              fontSize: '14px',
+              fontWeight: '600',
+              fontFamily: 'var(--font)',
+              cursor: loading ? 'not-allowed' : 'pointer',
               marginTop: '8px',
-              justifyContent: 'center',
+              transition: 'background 0.15s, opacity 0.15s',
+              opacity: loading ? 0.7 : 1,
             }}
           >
             {loading ? (
-              <span className="loading">AUTHENTICATING</span>
+              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                <span className="loading-spinner" style={{ width: '14px', height: '14px' }} />
+                Signing in…
+              </span>
             ) : (
-              '[ AUTHENTICATE ]'
+              'Sign in'
             )}
           </button>
         </form>
-
-        <div
-          style={{
-            borderTop: '1px solid var(--green-dark)',
-            padding: '8px 16px',
-            fontSize: '10px',
-            color: 'var(--green-dark)',
-            letterSpacing: '0.05em',
-          }}
-        >
-          WARNING: Unauthorized access is prohibited. All activity is logged.
-        </div>
       </div>
 
-      {/* Boot-up text */}
-      <div
-        style={{
-          marginTop: '32px',
-          fontSize: '10px',
-          color: 'var(--green-dark)',
-          letterSpacing: '0.08em',
-          textAlign: 'center',
-          lineHeight: '1.8',
-        }}
-      >
-        <div>PARLEY ADMIN CONSOLE v1.0.0</div>
-        <div>CONNECTION: SECURE</div>
-      </div>
+      <p style={{ marginTop: '20px', fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center' }}>
+        All activity is monitored and logged.
+      </p>
     </div>
   )
 }
