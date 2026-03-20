@@ -245,7 +245,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ]);
       setChannels(chs ?? []);
       setMembers(mems ?? []);
-      const target = (channelId && chs?.find(c => c.id === channelId)) || chs?.find(c => c.type === 0);
+      const resolvedChannelId = channelId || localStorage.getItem(`parley_last_channel_${serverId}`) || undefined;
+      const target = (resolvedChannelId && chs?.find(c => c.id === resolvedChannelId)) || chs?.find(c => c.type === 0);
       if (target) {
         setActiveChannel(target);
         setIsLoadingMessages(true);
@@ -268,6 +269,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const ch = channels.find(c => c.id === channelId);
     if (!ch) return;
     setActiveChannel(ch);
+    if (activeServer) localStorage.setItem(`parley_last_channel_${activeServer.id}`, channelId);
     setHasMoreMessages(false);
     setIsLoadingMessages(true);
     try {
@@ -279,7 +281,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoadingMessages(false);
     }
-  }, [channels]);
+  }, [channels, activeServer]);
 
   const createServer = useCallback(async (name: string) => {
     const srv = await serversApi.createServer(name);
