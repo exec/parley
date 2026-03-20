@@ -202,6 +202,9 @@ func registerRoutes(
 			r.Post("/messages/{id}/reactions", messageHandler.ToggleReaction)
 			r.Get("/messages/{id}/versions", messageHandler.GetMessageVersions)
 
+			// Typing indicator
+			r.Post("/channels/{channelId}/typing", handleChannelTyping(repo, hub))
+
 			// Voice routes
 			voiceHandler := voice.NewHandler(voiceSvc, repo, hub)
 			r.Get("/channels/{channelId}/voice/token", voiceHandler.Token)
