@@ -56,6 +56,10 @@ class Typing:
     async def __aexit__(self, *_: Any) -> None:
         if self._task:
             self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
             self._task = None
 
 if TYPE_CHECKING:

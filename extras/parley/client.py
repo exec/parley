@@ -193,7 +193,7 @@ class Client:
 
     async def _reapply_status(self) -> None:
         """Re-apply non-default status after reconnect. Called by ConnectionState before on_ready."""
-        if self._status_type != "online":
+        if self._status_type != "online" or self._status_text:
             try:
                 await self.http.set_status(self._status_type, self._status_text)
             except Exception:

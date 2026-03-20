@@ -343,7 +343,7 @@ class ConnectionState:
     async def _handle_bot_status_update(self, payload: dict) -> None:
         server_id = int(payload["server_id"])
         bot_user_id = int(payload["bot_user_id"])
-        is_degraded = bool(payload.get("is_degraded", False))
+        is_degraded = bool(payload.get("degraded", False))
         key = (server_id, bot_user_id)
         member = self.members.get(key)
         if member is not None:
