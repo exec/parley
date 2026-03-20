@@ -53,37 +53,47 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
     };
   }, [participant]);
 
-  // Audio-level ring — poll participant.audioLevel + participant.isSpeaking via rAF.
-  // Read directly from the participant object to avoid stale closure values.
-  // AudioLevelChanged event doesn't exist in LiveKit 2.x; audioLevel is a plain property.
+  // Audio-level ring — event-driven via IsSpeakingChanged (server-sent, ~100-200ms interval).
+  // rAF only runs while speaking to smoothly track audioLevel between server updates.
+  // Direct DOM manipulation avoids React re-renders.
   useEffect(() => {
-    if (isScreenShare) return; // no ring on screen-share tiles
+    if (isScreenShare) return;
     const el = avatarRef.current;
-    let rafId: number;
+    let rafId: number | null = null;
 
-    const update = () => {
-      if (el) {
-        const l = Math.max(0, Math.min(1, participant.audioLevel));
-        if (!participant.isSpeaking || l < 0.04) {
-          el.style.borderColor = '';
-          el.style.boxShadow = '';
-        } else {
-          const borderAlpha = (0.45 + l * 0.55).toFixed(2);
-          const ringSize    = (2 + l * 4).toFixed(1);
-          const ringAlpha   = (0.2  + l * 0.45).toFixed(2);
-          const glowPx      = Math.round(8 + l * 22);
-          const glowAlpha   = (0.18 + l * 0.62).toFixed(2);
-          el.style.borderColor = `rgba(${GREEN}, ${borderAlpha})`;
-          el.style.boxShadow   = `0 0 0 ${ringSize}px rgba(${GREEN}, ${ringAlpha}), 0 0 ${glowPx}px rgba(${GREEN}, ${glowAlpha})`;
-        }
-      }
-      rafId = requestAnimationFrame(update);
+    const applyRing = () => {
+      if (!el) return;
+      const l = Math.max(0, Math.min(1, participant.audioLevel));
+      const borderAlpha = (0.45 + l * 0.55).toFixed(2);
+      const ringSize    = (2 + l * 4).toFixed(1);
+      const ringAlpha   = (0.2  + l * 0.45).toFixed(2);
+      const glowPx      = Math.round(8 + l * 22);
+      const glowAlpha   = (0.18 + l * 0.62).toFixed(2);
+      el.style.borderColor = `rgba(${GREEN}, ${borderAlpha})`;
+      el.style.boxShadow   = `0 0 0 ${ringSize}px rgba(${GREEN}, ${ringAlpha}), 0 0 ${glowPx}px rgba(${GREEN}, ${glowAlpha})`;
+      rafId = requestAnimationFrame(applyRing);
     };
-    rafId = requestAnimationFrame(update);
+
+    const clearRing = () => {
+      if (el) { el.style.borderColor = ''; el.style.boxShadow = ''; }
+    };
+
+    const onSpeakingChanged = (speaking: boolean) => {
+      if (speaking) {
+        applyRing();
+      } else {
+        if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
+        clearRing();
+      }
+    };
+
+    participant.on(ParticipantEvent.IsSpeakingChanged, onSpeakingChanged);
+    if (participant.isSpeaking) applyRing();
 
     return () => {
-      cancelAnimationFrame(rafId);
-      if (el) { el.style.borderColor = ''; el.style.boxShadow = ''; }
+      participant.off(ParticipantEvent.IsSpeakingChanged, onSpeakingChanged);
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      clearRing();
     };
   }, [participant, isScreenShare]);
 
