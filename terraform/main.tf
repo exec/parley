@@ -5,6 +5,24 @@ terraform {
       source  = "digitalocean/digitalocean"
       version = "~> 2.0"
     }
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = "~> 4.0"
+    }
+  }
+
+  # Remote state in DO Spaces (S3-compatible).
+  # Credentials passed via -backend-config in CI or via AWS_* env vars locally.
+  # First-time migration from local state: terraform init -migrate-state
+  backend "s3" {
+    endpoint                    = "https://nyc3.digitaloceanspaces.com"
+    bucket                      = "parley-prod"
+    key                         = "terraform-state/terraform.tfstate"
+    region                      = "us-east-1" # required field; ignored by DO Spaces
+    skip_credentials_validation = true
+    skip_metadata_api_check     = true
+    skip_region_validation      = true
+    force_path_style            = true
   }
 }
 
@@ -320,4 +338,31 @@ resource "digitalocean_firewall" "parley_admin" {
     port_range            = "1-65535"
     destination_addresses = ["0.0.0.0/0", "::/0"]
   }
+}
+
+# ────────────────────────────────────────────────────────────────────────────
+# Cloudflare DNS — parley.x86-64.com → load balancer IP
+# Credentials: CLOUDFLARE_API_TOKEN env var (set in CI from CLOUDFLARE_API_KEY secret)
+# ────────────────────────────────────────────────────────────────────────────
+
+provider "cloudflare" {
+  # Reads CLOUDFLARE_API_TOKEN from the environment automatically.
+}
+
+data "cloudflare_zone" "parley" {
+  name = "x86-64.com"
+}
+
+resource "cloudflare_record" "parley_a" {
+  zone_id = data.cloudflare_zone.parley.id
+  name    = "parley"
+  content = digitalocean_loadbalancer.parley_lb.ip
+  type    = "A"
+  proxied = true
+  ttl     = 1 # 1 = automatic (required when proxied = true)
+}
+
+output "dns_record" {
+  description = "Cloudflare DNS record for parley.x86-64.com"
+  value       = "${cloudflare_record.parley_a.name}.${data.cloudflare_zone.parley.name} → ${digitalocean_loadbalancer.parley_lb.ip}"
 }

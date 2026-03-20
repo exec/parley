@@ -1,0 +1,134 @@
+name: Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Terraform action to run"
+        required: true
+        default: "plan"
+        type: choice
+        options:
+          - plan
+          - apply
+  push:
+    branches: [main]
+    paths:
+      - "terraform/**"
+
+# Required GitHub secrets (set via gh secret set or the Actions UI):
+#
+#   DO_TOKEN                  — DigitalOcean API token
+#   CLOUDFLARE_API_KEY        — Cloudflare API token (zone:read + dns:edit)
+#   DB_PASSWORD               — PostgreSQL parley user password
+#   JWT_SECRET                — JWT signing secret
+#   SPACES_ACCESS_KEY         — DO Spaces access key (used for state backend + app)
+#   SPACES_SECRET_KEY         — DO Spaces secret key
+#   SPACES_CDN_URL            — DO Spaces CDN base URL
+#   BREVO_API_KEY             — Brevo transactional email API key
+#   ADMIN_JWT_SECRET          — Admin panel JWT secret
+#   ADMIN_IMPERSONATE_SECRET  — Admin impersonation shared secret
+#   LIVEKIT_API_KEY           — LiveKit API key
+#   LIVEKIT_API_SECRET        — LiveKit API secret
+#   GIPHY_API_KEY             — Giphy API key
+#   OLLAMA_API_KEY            — Ollama API key
+#   BOT_KEY_SECRET            — Bot API key encryption secret
+#   REDIS_PASSWORD            — Redis auth password
+#   ADMIN_ALLOWED_IP          — CIDR for admin access (e.g. 1.2.3.4/32)
+#   SSH_PUBLIC_KEY            — SSH public key content for droplet access
+#   REPO_URL                  — Git repo URL (e.g. https://github.com/exec/parley.git)
+#
+# Remote state: stored in DO Spaces bucket "parley-prod" at terraform-state/terraform.tfstate
+# First-time setup: run `terraform init -migrate-state` locally to push existing local state.
+
+jobs:
+  terraform:
+    name: Terraform ${{ github.event.inputs.action || 'apply' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+
+    env:
+      # Cloudflare provider reads CLOUDFLARE_API_TOKEN automatically
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_KEY }}
+
+      # DO Spaces S3-compatible backend credentials
+      AWS_ACCESS_KEY_ID: ${{ secrets.SPACES_ACCESS_KEY }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.SPACES_SECRET_KEY }}
+
+      # Terraform variables — sensitive
+      TF_VAR_do_token: ${{ secrets.DO_TOKEN }}
+      TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+      TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
+      TF_VAR_spaces_access_key: ${{ secrets.SPACES_ACCESS_KEY }}
+      TF_VAR_spaces_secret_key: ${{ secrets.SPACES_SECRET_KEY }}
+      TF_VAR_spaces_cdn_url: ${{ secrets.SPACES_CDN_URL }}
+      TF_VAR_brevo_api_key: ${{ secrets.BREVO_API_KEY }}
+      TF_VAR_admin_jwt_secret: ${{ secrets.ADMIN_JWT_SECRET }}
+      TF_VAR_admin_impersonate_secret: ${{ secrets.ADMIN_IMPERSONATE_SECRET }}
+      TF_VAR_livekit_api_key: ${{ secrets.LIVEKIT_API_KEY }}
+      TF_VAR_livekit_api_secret: ${{ secrets.LIVEKIT_API_SECRET }}
+      TF_VAR_giphy_api_key: ${{ secrets.GIPHY_API_KEY }}
+      TF_VAR_ollama_api_key: ${{ secrets.OLLAMA_API_KEY }}
+      TF_VAR_bot_key_secret: ${{ secrets.BOT_KEY_SECRET }}
+      TF_VAR_redis_password: ${{ secrets.REDIS_PASSWORD }}
+      TF_VAR_admin_allowed_ip: ${{ secrets.ADMIN_ALLOWED_IP }}
+
+      # Terraform variables — non-sensitive
+      TF_VAR_region: "nyc3"
+      TF_VAR_api_droplet_size: "s-2vcpu-2gb"
+      TF_VAR_db_droplet_size: "s-2vcpu-4gb"
+      TF_VAR_api_count: "3"
+      TF_VAR_domain_name: "parley.x86-64.com"
+      TF_VAR_spaces_bucket: "parley-prod"
+      TF_VAR_spaces_endpoint: "https://nyc3.digitaloceanspaces.com"
+      TF_VAR_brevo_from_email: "noreply@parley.x86-64.com"
+      TF_VAR_site_url: "https://parley.x86-64.com"
+      TF_VAR_livekit_url: "wss://parley-6jjbl5wy.livekit.cloud"
+      TF_VAR_ollama_api_url: "https://ollama.com"
+      TF_VAR_ollama_model: "devstral-small-2:24b-cloud"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.7"
+
+      - name: Write SSH public key
+        env:
+          SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
+          REPO_URL: ${{ secrets.REPO_URL }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PUBLIC_KEY" > ~/.ssh/id_ed25519.pub
+          chmod 644 ~/.ssh/id_ed25519.pub
+          # Private key not needed in CI (no provisioner connections during apply)
+          touch ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          echo "TF_VAR_ssh_public_key=$HOME/.ssh/id_ed25519.pub" >> "$GITHUB_ENV"
+          echo "TF_VAR_ssh_private_key=$HOME/.ssh/id_ed25519" >> "$GITHUB_ENV"
+          echo "TF_VAR_repo_url=$REPO_URL" >> "$GITHUB_ENV"
+
+      - name: Terraform Init
+        env:
+          SPACES_ACCESS_KEY: ${{ secrets.SPACES_ACCESS_KEY }}
+          SPACES_SECRET_KEY: ${{ secrets.SPACES_SECRET_KEY }}
+        run: |
+          terraform init \
+            -backend-config="access_key=$SPACES_ACCESS_KEY" \
+            -backend-config="secret_key=$SPACES_SECRET_KEY"
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        run: terraform plan -no-color -out=tfplan
+
+      - name: Terraform Apply
+        if: >
+          github.event.inputs.action == 'apply' ||
+          (github.event_name == 'push' && github.ref == 'refs/heads/main')
+        run: terraform apply -auto-approve tfplan
