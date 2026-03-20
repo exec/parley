@@ -16,7 +16,7 @@ export default defineConfig({
       { text: 'Guide', link: '/' },
       { text: 'Endpoints', link: '/endpoints/messages' },
       { text: 'Theming', link: '/theming' },
-      { text: 'Parley', link: 'https://parley.x86-64.com' },
+      { text: 'Parley', link: process.env.VITE_SITE_URL ?? '' },
     ],
 
     sidebar: [

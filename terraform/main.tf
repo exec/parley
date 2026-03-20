@@ -341,7 +341,7 @@ resource "digitalocean_firewall" "parley_admin" {
 }
 
 # ────────────────────────────────────────────────────────────────────────────
-# Cloudflare DNS — parley.x86-64.com → load balancer IP
+# Cloudflare DNS — var.domain_name → load balancer IP
 # Credentials: CLOUDFLARE_API_TOKEN env var (set in CI from CLOUDFLARE_API_KEY secret)
 # ────────────────────────────────────────────────────────────────────────────
 
@@ -363,6 +363,6 @@ resource "cloudflare_record" "parley_a" {
 }
 
 output "dns_record" {
-  description = "Cloudflare DNS record for parley.x86-64.com"
+  description = "Cloudflare DNS record for ${var.domain_name}"
   value       = "${cloudflare_record.parley_a.name}.${data.cloudflare_zone.parley.name} → ${digitalocean_loadbalancer.parley_lb.ip}"
 }

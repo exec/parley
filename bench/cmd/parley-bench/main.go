@@ -14,7 +14,14 @@ import (
 	"parley/bench/internal/scenarios"
 )
 
-const productionHost = "parley.x86-64.com"
+// productionHost is the domain to block bench runs against.
+// Override via PARLEY_PROD_DOMAIN env var when migrating to a new domain.
+var productionHost = func() string {
+	if v := os.Getenv("PARLEY_PROD_DOMAIN"); v != "" {
+		return v
+	}
+	return os.Getenv("DOMAIN")
+}()
 
 func main() {
 	if err := rootCmd().Execute(); err != nil {

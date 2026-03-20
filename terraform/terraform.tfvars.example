@@ -8,8 +8,8 @@ region = "nyc3"
 api_droplet_size = "s-2vcpu-2gb"
 db_droplet_size  = "s-2vcpu-4gb"
 
-# Domain name
-domain_name = "parley.x86-64.com"
+# Domain name (required — no default; change this to migrate to a new domain)
+domain_name = "your-domain.example.com"
 
 # Number of API droplets
 api_count = 3

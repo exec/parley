@@ -49,9 +49,8 @@ type AuthService struct {
 // NewAuthService creates a new AuthService instance
 func NewAuthService(repo *db.Repository) *AuthService {
 	return &AuthService{
-		config:  GetConfig(),
-		repo:    repo,
-		siteURL: "https://parley.x86-64.com",
+		config: GetConfig(),
+		repo:   repo,
 	}
 }
 

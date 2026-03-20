@@ -67,28 +67,48 @@ jobs:
         run: JWT_SECRET=test-secret go test ./...
 
       - name: Deploy API servers
+        env:
+          SITE_DOMAIN: ${{ vars.DOMAIN }}
         run: |
           for IP in $API_HOSTS; do
-            ssh -i ~/.ssh/deploy_key root@$IP '
+            ssh -i ~/.ssh/deploy_key root@$IP "
               set -e
               cd /parley && git pull origin main
               go build -mod=mod -o /usr/local/bin/parley-api ./cmd/api
-              cd frontend && npm ci && npm run build && cp -r dist/* /var/www/parley/
+              cd frontend
+              if [ -f .env ]; then
+                grep -q '^VITE_SITE_URL=' .env \
+                  && sed -i 's|^VITE_SITE_URL=.*|VITE_SITE_URL=https://$SITE_DOMAIN|' .env \
+                  || echo 'VITE_SITE_URL=https://$SITE_DOMAIN' >> .env
+              else
+                echo 'VITE_SITE_URL=https://$SITE_DOMAIN' > .env
+              fi
+              npm ci && npm run build && cp -r dist/* /var/www/parley/
               systemctl restart parley-api
-              for i in $(seq 10); do curl -sf http://localhost:8080/health && break; sleep 2; done || { echo "Health check failed"; exit 1; }
+              for i in \$(seq 10); do curl -sf http://localhost:8080/health && break; sleep 2; done || { echo 'Health check failed'; exit 1; }
               echo OK
-            ' &
+            " &
           done
           wait
 
       - name: Deploy admin server
+        env:
+          SITE_DOMAIN: ${{ vars.DOMAIN }}
         run: |
-          ssh -i ~/.ssh/deploy_key root@$ADMIN_HOST '
+          ssh -i ~/.ssh/deploy_key root@$ADMIN_HOST "
             set -e
-            export PATH=$PATH:/usr/local/go/bin
+            export PATH=\$PATH:/usr/local/go/bin
             cd /parley && git pull origin main
             go build -mod=mod -o /usr/local/bin/parley-admin ./cmd/admin
-            cd /parley/admin-frontend && npm ci && npm run build
+            cd /parley/admin-frontend
+            if [ -f .env ]; then
+              grep -q '^VITE_SITE_URL=' .env \
+                && sed -i 's|^VITE_SITE_URL=.*|VITE_SITE_URL=https://$SITE_DOMAIN|' .env \
+                || echo 'VITE_SITE_URL=https://$SITE_DOMAIN' >> .env
+            else
+              echo 'VITE_SITE_URL=https://$SITE_DOMAIN' > .env
+            fi
+            npm ci && npm run build
             mkdir -p /var/www/parley-admin
             cp -r dist/* /var/www/parley-admin/
             if [ ! -f /etc/systemd/system/parley-admin.service ]; then
@@ -102,7 +122,7 @@ jobs:
             rm -f /etc/nginx/sites-enabled/default
             nginx -t && systemctl reload nginx
             echo OK
-          '
+          "
 
       - name: Remove runner IP from DO firewalls
         if: always()

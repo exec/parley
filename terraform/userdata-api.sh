@@ -155,8 +155,11 @@ fi
 # Build the frontend
 echo "=== Building Parley frontend ==="
 cd /parley/frontend
-cat > .env << 'EOF'
-VITE_CDN_HOST=$(python3 -c "from urllib.parse import urlparse; print(urlparse('${SPACES_CDN_URL}').hostname or '')")
+CDN_HOST=$(python3 -c "from urllib.parse import urlparse; print(urlparse('${SPACES_CDN_URL}').hostname or '')")
+# Unquoted EOF allows shell to write the resolved values into the file
+cat > .env << EOF
+VITE_CDN_HOST=$$CDN_HOST
+VITE_SITE_URL=${SITE_URL}
 EOF
 run_with_retry "npm ci"
 run_with_retry "npm run build"

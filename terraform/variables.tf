@@ -23,9 +23,8 @@ variable "db_droplet_size" {
 }
 
 variable "domain_name" {
-  description = "Domain name for Parley"
+  description = "Domain name for Parley (e.g. parley.example.com). Set via TF_VAR_domain_name or tfvars."
   type        = string
-  default     = "parley.x86-64.com"
 }
 
 variable "api_count" {
@@ -103,15 +102,15 @@ variable "brevo_api_key" {
 }
 
 variable "brevo_from_email" {
-  description = "From email address for verification emails"
+  description = "From email address for verification emails (e.g. noreply@<domain_name>)"
   type        = string
-  default     = "noreply@parley.x86-64.com"
+  default     = ""
 }
 
 variable "site_url" {
-  description = "Public URL of the site (used in email links)"
+  description = "Public URL of the site (e.g. https://<domain_name>). Used in email links."
   type        = string
-  default     = "https://parley.x86-64.com"
+  default     = ""
 }
 
 variable "admin_jwt_secret" {

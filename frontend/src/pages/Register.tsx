@@ -1,4 +1,5 @@
 import React, { useState, FormEvent } from 'react';
+import { SITE_URL } from '../config';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { apiClient } from '../api/client';
@@ -221,7 +222,7 @@ export const Register: React.FC = () => {
                     />
                     <span className="auth-sms-text">
                       I agree to receive automated transactional SMS messages from Parley (up to 5 msgs/mo). Msg &amp; data rates may apply. Frequency may vary. Reply <strong>STOP</strong> to opt out or <strong>HELP</strong> for assistance. Your mobile number will not be sold or shared with third parties for promotional or marketing purposes.{' '}
-                      <a href="https://parley.x86-64.com/privacy/" target="_blank" rel="noopener noreferrer" className="auth-link">Terms &amp; Privacy Policy</a>.
+                      <a href={`${SITE_URL}/privacy/`} target="_blank" rel="noopener noreferrer" className="auth-link">Terms &amp; Privacy Policy</a>.
                     </span>
                   </label>
                   {errors.smsConsent && <span className="input-error-message">{errors.smsConsent}</span>}

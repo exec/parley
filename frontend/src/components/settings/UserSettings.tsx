@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { SITE_URL } from '../../config';
 import { X } from 'lucide-react';
 import { User } from '../../api/types';
 import { updateProfile, resendVerification, changeEmail, verifyPhone, resendPhone, changePhone, getMyPhone } from '../../api/auth';
@@ -553,7 +554,7 @@ const AccountTab: React.FC<AccountTabProps> = (p) => {
               <input type="checkbox" checked={p.smsConsent} onChange={e => p.setSmsConsent(e.target.checked)} style={{ marginTop: 2, flexShrink: 0, accentColor: 'var(--parley-accent)' }} />
               <span style={{ fontSize: 11, color: 'var(--parley-text-muted)', lineHeight: 1.5 }}>
                 I agree to receive automated transactional SMS messages (up to 5/mo). Msg &amp; data rates may apply. Reply <strong style={{ color: '#777' }}>STOP</strong> to opt out.{' '}
-                <a href="https://parley.x86-64.com/privacy/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--parley-accent)' }}>Privacy Policy</a>.
+                <a href={`${SITE_URL}/privacy/`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--parley-accent)' }}>Privacy Policy</a>.
               </span>
             </label>
             {p.phoneChangeMsg && <span style={{ fontSize: 12, color: p.phoneChangeMsg.ok ? '#44cc44' : '#ff6666' }}>{p.phoneChangeMsg.text}</span>}

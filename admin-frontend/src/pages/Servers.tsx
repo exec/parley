@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { apiGetServers, apiDisbandServer, apiGenerateInvite, Server } from '../api'
+import { SITE_URL } from '../config'
 
 const PAGE_SIZE = 50
 
@@ -47,7 +48,7 @@ export default function Servers() {
 
   const currentPage = Math.floor(offset / PAGE_SIZE) + 1
   const fmt = (d: string) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-  const inviteURL = inviteCode ? `https://parley.x86-64.com/invite/${inviteCode.code}` : ''
+  const inviteURL = inviteCode ? `${SITE_URL}/invite/${inviteCode.code}` : ''
 
   return (
     <div>

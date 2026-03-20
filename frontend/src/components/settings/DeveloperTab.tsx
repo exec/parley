@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { SITE_URL } from '../../config';
 import { listAPIKeys, createAPIKey, revokeAPIKey, renameBotUser, APIKeyInfo, CreateKeyResponse } from '../../api/developer';
 import { getMyBots, updateBotInvitePermissions, updateBotShowAuthor, UserBot } from '../../api/bots';
 import { PERMISSION_CATEGORIES, permFromNumber } from '../../lib/permissions';
@@ -159,7 +160,7 @@ export const DeveloperTab: React.FC = () => {
         <div className="settings-section-title">API Documentation</div>
         <p className="settings-form-hint" style={{ marginBottom: 10 }}>
           Build bots and integrations on Parley.{' '}
-          <a href="https://parley.x86-64.com/docs/developer" target="_blank" rel="noopener noreferrer"
+          <a href={`${SITE_URL}/docs/developer`} target="_blank" rel="noopener noreferrer"
             style={{ color: 'var(--accent)' }}>
             View the API docs &rarr;
           </a>

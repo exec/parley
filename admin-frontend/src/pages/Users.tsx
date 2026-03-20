@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { SITE_URL } from '../config'
 import { useNavigate } from 'react-router-dom'
 import {
   apiGetUsers, apiDeleteUser, apiBanUser, apiUnbanUser,
@@ -64,7 +65,7 @@ export default function Users() {
   const handleImpersonate = async (u: User) => {
     try {
       const { token } = await apiImpersonateUser(u.id)
-      window.open(`https://parley.x86-64.com/impersonate?token=${token}`, '_blank')
+      window.open(`${SITE_URL}/impersonate?token=${token}`, '_blank')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Impersonate failed')
     }

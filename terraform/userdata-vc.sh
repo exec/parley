@@ -1,10 +1,10 @@
 #!/bin/bash
 # Cloud-init script for the Parley voice (LiveKit) droplet
-# DNS prereq: A record  vc.parley.x86-64.com → this droplet's public IP
+# DNS prereq: A record  vc.${DOMAIN_NAME} → this droplet's public IP
 
 LIVEKIT_API_KEY="${LIVEKIT_API_KEY}"
 LIVEKIT_API_SECRET="${LIVEKIT_API_SECRET}"
-VC_DOMAIN="vc.parley.x86-64.com"
+VC_DOMAIN="vc.${DOMAIN_NAME}"
 
 echo "=== Starting Parley VC (LiveKit) setup ==="
 
@@ -103,7 +103,7 @@ nginx -t && systemctl restart nginx && systemctl enable nginx
 
 # ── TLS via certbot (non-fatal — DNS may not be ready yet) ───────────────────
 certbot --nginx -d "$${VC_DOMAIN}" --non-interactive --agree-tos \
-  --email noreply@parley.x86-64.com --redirect || \
+  --email noreply@${DOMAIN_NAME} --redirect || \
   echo "WARNING: certbot failed (DNS not ready?) — run certbot manually after DNS propagates"
 
 # ── Firewall ──────────────────────────────────────────────────────────────────

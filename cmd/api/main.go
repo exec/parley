@@ -142,9 +142,6 @@ func main() {
 	brevoAPIKey := os.Getenv("BREVO_API_KEY")
 	brevoFromEmail := os.Getenv("BREVO_FROM_EMAIL")
 	siteURL := os.Getenv("SITE_URL")
-	if siteURL == "" {
-		siteURL = "https://parley.x86-64.com"
-	}
 	var emailClient *email.Client
 	if brevoAPIKey != "" && brevoFromEmail != "" {
 		emailClient = email.NewClient(brevoAPIKey, brevoFromEmail, "Parley")
@@ -323,6 +320,11 @@ func main() {
 		log.Println("LiveKit voice service not configured (LIVEKIT_API_KEY/LIVEKIT_API_SECRET/LIVEKIT_URL not set)")
 	}
 
+	// Register production origin in CORS allowlist from env
+	if siteURL != "" {
+		allowedOrigins[siteURL] = true
+	}
+
 	// Setup chi router
 	router := setupRouter(config, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, passkeySvc, redisHub, parseCDNHost(spacesCDNURL), siteURL, botsHandler)
 
@@ -437,9 +439,8 @@ func setupRouter(
 
 // allowedOrigins lists origins permitted to access the API
 var allowedOrigins = map[string]bool{
-	"https://parley.x86-64.com": true,
-	"http://localhost:5173":      true, // Vite dev server
-	"http://localhost:8080":      true, // local API dev
+	"http://localhost:5173": true, // Vite dev server
+	"http://localhost:8080": true, // local API dev
 }
 
 // corsMiddleware returns a CORS middleware handler

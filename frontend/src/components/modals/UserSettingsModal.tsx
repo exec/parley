@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { SITE_URL } from '../../config';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { User } from '../../api/types';
@@ -491,7 +492,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                   />
                   <span style={{ fontSize: 11, color: '#666', lineHeight: 1.5 }}>
                     I agree to receive automated transactional SMS messages from Parley (up to 5 msgs/mo). Msg &amp; data rates may apply. Frequency may vary. Reply <strong style={{ color: '#888' }}>STOP</strong> to opt out or <strong style={{ color: '#888' }}>HELP</strong> for assistance. Your mobile number will not be sold or shared for marketing.{' '}
-                    <a href="https://parley.x86-64.com/privacy/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--parley-accent)' }}>Terms &amp; Privacy Policy</a>.
+                    <a href={`${SITE_URL}/privacy/`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--parley-accent)' }}>Terms &amp; Privacy Policy</a>.
                   </span>
                 </label>
                 {phoneChangeMessage && (
