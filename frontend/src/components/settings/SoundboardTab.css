@@ -69,8 +69,61 @@ h4.soundboard-section-title {
   font-size: 0.9rem;
 }
 
-.soundboard-input--emoji {
-  flex: 0 0 80px;
+/* Emoji picker trigger */
+.soundboard-emoji-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.soundboard-emoji-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  background: var(--parley-input, #1a1a1a);
+  border: 1px solid var(--parley-border, #40444b);
+  border-radius: 4px;
+  color: var(--parley-text-muted, #888);
+  cursor: pointer;
+  font-size: 1.1rem;
+}
+
+.soundboard-emoji-btn:hover {
+  border-color: var(--parley-accent, #5865f2);
+  color: var(--parley-text, #eee);
+}
+
+.soundboard-emoji-preview {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.soundboard-emoji-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  background: none;
+  border: none;
+  color: var(--parley-text-muted, #888);
+  cursor: pointer;
+  padding: 0;
+  border-radius: 3px;
+}
+
+.soundboard-emoji-clear:hover {
+  color: var(--parley-danger, #f04747);
+}
+
+.soundboard-emoji-picker-anchor {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 200;
 }
 
 .soundboard-upload-btn {

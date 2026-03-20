@@ -1,8 +1,8 @@
 .soundboard-panel {
   position: absolute;
   bottom: 100%;
-  left: 0;
   right: 0;
+  width: 340px;
   background: var(--parley-bg-tertiary, var(--parley-panel-bg, #1e2124));
   border-radius: 8px;
   border: 1px solid var(--parley-border);

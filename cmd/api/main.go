@@ -304,6 +304,9 @@ func main() {
 			log.Printf("Warning: failed to init Spaces client: %v", err)
 		} else {
 			spacesClient = sc
+			if corsErr := sc.ConfigureCORS(context.Background(), siteURL); corsErr != nil {
+				log.Printf("Warning: failed to configure Spaces CORS: %v", corsErr)
+			}
 		}
 	}
 

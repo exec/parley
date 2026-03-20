@@ -11,6 +11,7 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
 type Client struct {
@@ -70,6 +71,32 @@ func (c *Client) Upload(ctx context.Context, key string, r io.Reader, size int64
 	}
 
 	return fmt.Sprintf("%s/%s", c.cdnURL, key), nil
+}
+
+// ConfigureCORS sets a CORS rule on the bucket allowing GET requests from the
+// given origin. Called once at startup so audio files can be fetched via the
+// Web Audio API from the browser. If origin is empty, the rule is skipped.
+func (c *Client) ConfigureCORS(ctx context.Context, origin string) error {
+	if origin == "" {
+		return nil
+	}
+	_, err := c.s3.PutBucketCors(ctx, &s3.PutBucketCorsInput{
+		Bucket: aws.String(c.bucket),
+		CORSConfiguration: &types.CORSConfiguration{
+			CORSRules: []types.CORSRule{
+				{
+					AllowedOrigins: []string{origin},
+					AllowedMethods: []string{"GET"},
+					AllowedHeaders: []string{"*"},
+					MaxAgeSeconds:  aws.Int32(3600),
+				},
+			},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("spaces: put bucket cors: %w", err)
+	}
+	return nil
 }
 
 // Delete removes an object from the bucket by key.
