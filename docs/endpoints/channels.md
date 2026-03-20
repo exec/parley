@@ -6,6 +6,7 @@
 |---|---|
 | `0` | Text channel |
 | `1` | Voice channel |
+| `2` | Bin channel (code-sharing / paste board) |
 
 ---
 
@@ -90,8 +91,11 @@ interface Channel {
   id: string
   server_id: string
   name: string
-  type: 0 | 1         // 0 = text, 1 = voice
+  type: 0 | 1 | 2     // 0 = text, 1 = voice, 2 = bin
   position: number
+  parent_id?: string   // category parent ID, if any
+  topic?: string
   created_at: string
+  updated_at: string
 }
 ```

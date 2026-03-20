@@ -15,8 +15,9 @@ Returns all servers the authenticated user (or bot) is a member of.
     "name": "My Server",
     "icon_url": "https://cdn.parley.x86-64.com/uploads/icon.png",
     "owner_id": "111",
-    "member_count": 42,
-    "created_at": "2026-01-01T00:00:00Z"
+    "vanity_url": "my-server",
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-01-01T00:00:00Z"
   }
 ]
 ```
@@ -97,7 +98,7 @@ Adds a **bot user** to a server. Requires the caller to be the server owner or h
 
 The `bot_user_id` is returned when you create a Bot API Key (see [API Keys](/endpoints/developer)).
 
-**Response** `200 OK`
+**Response** `201 Created`
 
 ```json
 { "server_id": "987", "user_id": "222", "nickname": "" }

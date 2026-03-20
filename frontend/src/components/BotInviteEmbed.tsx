@@ -42,9 +42,10 @@ export const BotInviteEmbed: React.FC<Props> = ({ token }) => {
       headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
     })
       .then(r => r.json())
-      .then((data: { id: number; name: string }[]) => {
-        setServers(data);
-        if (data.length) setSelectedServer(data[0].id);
+      .then((data: { id: string; name: string }[]) => {
+        const mapped = data.map(s => ({ id: Number(s.id), name: s.name }));
+        setServers(mapped);
+        if (mapped.length) setSelectedServer(mapped[0].id);
       })
       .catch(() => {});
   }, [isLoggedIn]);
@@ -166,6 +167,11 @@ export const BotInviteEmbed: React.FC<Props> = ({ token }) => {
       badge={bot.is_verified}
       actions={actions}
     >
+      {bot.owner_username && (
+        <p style={{ fontSize: 12, color: 'var(--parley-text-muted,#888)', margin: '0 0 10px' }}>
+          by <span style={{ color: 'var(--parley-text,#eee)' }}>@{bot.owner_username}</span>
+        </p>
+      )}
       {permissionsSection}
       {serverSelector}
     </EmbedCard>

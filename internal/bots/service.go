@@ -139,7 +139,7 @@ func (s *Service) GetMyBots(ctx context.Context, callerID int64) ([]UserBot, err
 
 // ResolveInvite resolves a bot invite token to bot info. Public (no auth required).
 func (s *Service) ResolveInvite(ctx context.Context, token string) (*BotInviteInfo, error) {
-	botUserID, permissions, err := s.repo.ResolveInviteToken(ctx, token)
+	botUserID, permissions, showAuthor, ownerUsername, err := s.repo.ResolveInviteTokenFull(ctx, token)
 	if err != nil {
 		return nil, ErrNotFound
 	}
@@ -148,7 +148,19 @@ func (s *Service) ResolveInvite(ctx context.Context, token string) (*BotInviteIn
 		return nil, ErrNotFound
 	}
 	info.Permissions = permissions
+	if showAuthor {
+		info.OwnerUsername = ownerUsername
+	}
 	return info, nil
+}
+
+// UpdateShowAuthor sets whether the developer's username is shown on the bot invite embed.
+func (s *Service) UpdateShowAuthor(ctx context.Context, botUserID, callerID int64, showAuthor bool) error {
+	err := s.repo.UpdateBotShowAuthor(ctx, botUserID, callerID, showAuthor)
+	if errors.Is(err, ErrNotFound) {
+		return ErrForbidden
+	}
+	return err
 }
 
 // AcceptInvite adds a bot to a server via invite token. Caller must be server admin or owner,

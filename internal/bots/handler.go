@@ -300,6 +300,7 @@ func (h *Handler) AcceptInvite(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateInvitePermissions handles PATCH /api/developer/bots/{botId}/invite
+// Accepts optional fields: permissions (int64) and show_author (bool).
 func (h *Handler) UpdateInvitePermissions(w http.ResponseWriter, r *http.Request) {
 	uid, ok := callerID(r)
 	if !ok {
@@ -312,15 +313,24 @@ func (h *Handler) UpdateInvitePermissions(w http.ResponseWriter, r *http.Request
 		return
 	}
 	var req struct {
-		Permissions int64 `json:"permissions"`
+		Permissions *int64 `json:"permissions"`
+		ShowAuthor  *bool  `json:"show_author"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	if err := h.svc.UpdateInvitePermissions(r.Context(), botID, uid, req.Permissions); err != nil {
-		handleSvcErr(w, r, err)
-		return
+	if req.Permissions != nil {
+		if err := h.svc.UpdateInvitePermissions(r.Context(), botID, uid, *req.Permissions); err != nil {
+			handleSvcErr(w, r, err)
+			return
+		}
+	}
+	if req.ShowAuthor != nil {
+		if err := h.svc.UpdateShowAuthor(r.Context(), botID, uid, *req.ShowAuthor); err != nil {
+			handleSvcErr(w, r, err)
+			return
+		}
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

@@ -739,6 +739,8 @@ WHERE u.is_bot = TRUE
 
 	`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_token_expires_at TIMESTAMPTZ;
 UPDATE users SET email_verification_token_expires_at = created_at + INTERVAL '72 hours' WHERE email_verification_token IS NOT NULL AND email_verification_token_expires_at IS NULL;`,
+
+	`ALTER TABLE bot_invite_tokens ADD COLUMN IF NOT EXISTS show_author BOOLEAN NOT NULL DEFAULT FALSE;`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

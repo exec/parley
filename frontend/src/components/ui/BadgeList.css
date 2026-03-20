@@ -46,7 +46,7 @@
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.12s;
-  z-index: 100;
+  z-index: 9999;
 }
 
 .badge-item:hover::after {

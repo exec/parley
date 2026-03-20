@@ -424,15 +424,15 @@
 /* User context menu */
 .user-context-menu {
   position: fixed;
-  background-color: var(--parley-panel-bg, var(--bg-primary));
+  background: var(--parley-panel-bg, var(--bg-primary));
   backdrop-filter: blur(var(--parley-panel-blur, 0px));
   -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
-  border: 1px solid var(--parley-border, var(--border));
-  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
   padding: 4px;
   min-width: 180px;
-  z-index: 1000;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  z-index: 2000;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .user-context-menu-item {

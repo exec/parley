@@ -11,7 +11,7 @@
 .message-list-container {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  padding: 16px 0;
   display: flex;
   flex-direction: column;
 }
@@ -64,7 +64,7 @@
 /* Individual Message Styles */
 .message {
   display: flex;
-  padding: 8px 0 1px;
+  padding: 8px 16px 1px;
   border-radius: 4px;
   transition: background-color 0.15s ease;
   position: relative;
@@ -588,12 +588,14 @@
 .message.message-grouped {
   padding-top: 1px;
   padding-bottom: 1px;
+  padding-left: 16px;
+  padding-right: 16px;
 }
 
 .message-avatar-grouped {
-  width: 40px;
-  min-width: 40px;
-  margin-right: 12px;
+  width: 52px;
+  min-width: 52px;
+  margin-right: 0;
   display: flex;
   align-items: center;
   justify-content: flex-end;

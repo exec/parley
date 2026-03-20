@@ -310,7 +310,7 @@ const UserSidebar: React.FC<UserSidebarProps> = ({
         document.body
       )}
 
-      {contextMenu && (
+      {contextMenu && createPortal(
         <UserContextMenu
           member={contextMenu.member}
           isCurrentUser={contextMenu.member.user_id === currentUserId}
@@ -324,7 +324,8 @@ const UserSidebar: React.FC<UserSidebarProps> = ({
           onManageRoles={() => onManageRoles?.(contextMenu.member.user_id)}
           onKick={onKick}
           onBan={onBan}
-        />
+        />,
+        document.body
       )}
     </div>
   );

@@ -34,6 +34,7 @@ export interface BotInviteInfo {
   avatar_url?: string;
   is_verified: boolean;
   permissions: number;
+  owner_username?: string;
 }
 
 export const listBots = (serverId: number) =>
@@ -64,6 +65,7 @@ export interface UserBot {
   is_verified: boolean;
   invite_token: string;
   permissions: number;
+  show_author: boolean;
 }
 
 export const getMyBots = () =>
@@ -81,6 +83,11 @@ export const acceptBotInvite = (token: string, serverId: number, grantedPermissi
 export const updateBotInvitePermissions = (botId: number, permissions: bigint) =>
   apiClient.patch<void>(`/developer/bots/${botId}/invite`, {
     permissions: Number(permissions),
+  });
+
+export const updateBotShowAuthor = (botId: number, showAuthor: boolean) =>
+  apiClient.patch<void>(`/developer/bots/${botId}/invite`, {
+    show_author: showAuthor,
   });
 
 export const PROVIDER_MODELS: Record<string, { label: string; value: string }[]> = {

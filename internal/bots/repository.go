@@ -258,6 +258,36 @@ func (r *Repository) ResolveInviteToken(ctx context.Context, token string) (int6
 	return botUserID, permissions, err
 }
 
+// ResolveInviteTokenFull returns bot user ID, permissions, show_author flag, and owner username.
+func (r *Repository) ResolveInviteTokenFull(ctx context.Context, token string) (botUserID, permissions int64, showAuthor bool, ownerUsername string, err error) {
+	err = r.db.QueryRowContext(ctx,
+		`SELECT bit.bot_user_id, bit.permissions, bit.show_author,
+		        CASE WHEN bit.show_author THEN u.username ELSE '' END
+		 FROM bot_invite_tokens bit
+		 JOIN users u ON u.id = bit.created_by
+		 WHERE bit.token = $1::uuid`, token).
+		Scan(&botUserID, &permissions, &showAuthor, &ownerUsername)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, 0, false, "", ErrNotFound
+	}
+	return
+}
+
+// UpdateBotShowAuthor sets the show_author flag on a bot's invite token.
+func (r *Repository) UpdateBotShowAuthor(ctx context.Context, botUserID, callerID int64, showAuthor bool) error {
+	result, err := r.db.ExecContext(ctx,
+		`UPDATE bot_invite_tokens SET show_author=$1 WHERE bot_user_id=$2 AND created_by=$3`,
+		showAuthor, botUserID, callerID)
+	if err != nil {
+		return err
+	}
+	n, _ := result.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // UpdateBotInvitePermissions sets permissions on the invite token for botUserID,
 // owned by callerID. Returns ErrNotFound if the caller doesn't own this bot.
 func (r *Repository) UpdateBotInvitePermissions(ctx context.Context, botUserID, callerID, permissions int64) error {
@@ -281,7 +311,7 @@ func (r *Repository) GetUserBots(ctx context.Context, callerID int64) ([]UserBot
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT DISTINCT ON (u.id)
 			u.id, u.username, COALESCE(u.display_name,''), COALESCE(u.avatar_url,''),
-			u.is_verified, bit.token::text, bit.permissions
+			u.is_verified, bit.token::text, bit.permissions, bit.show_author
 		FROM bot_invite_tokens bit
 		JOIN users u ON u.id = bit.bot_user_id
 		WHERE bit.created_by = $1
@@ -294,7 +324,7 @@ func (r *Repository) GetUserBots(ctx context.Context, callerID int64) ([]UserBot
 	var bots []UserBot
 	for rows.Next() {
 		var b UserBot
-		if err := rows.Scan(&b.ID, &b.Username, &b.DisplayName, &b.AvatarURL, &b.IsVerified, &b.InviteToken, &b.Permissions); err != nil {
+		if err := rows.Scan(&b.ID, &b.Username, &b.DisplayName, &b.AvatarURL, &b.IsVerified, &b.InviteToken, &b.Permissions, &b.ShowAuthor); err != nil {
 			return nil, err
 		}
 		bots = append(bots, b)

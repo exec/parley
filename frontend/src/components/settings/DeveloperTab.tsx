@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { listAPIKeys, createAPIKey, revokeAPIKey, renameBotUser, APIKeyInfo, CreateKeyResponse } from '../../api/developer';
-import { getMyBots, updateBotInvitePermissions, UserBot } from '../../api/bots';
+import { getMyBots, updateBotInvitePermissions, updateBotShowAuthor, UserBot } from '../../api/bots';
 import { PERMISSION_CATEGORIES, permFromNumber } from '../../lib/permissions';
 
 export const DeveloperTab: React.FC = () => {
@@ -21,6 +21,7 @@ export const DeveloperTab: React.FC = () => {
   const [myBots, setMyBots] = useState<UserBot[]>([]);
   const [botPerms, setBotPerms] = useState<Record<number, bigint>>({});
   const [botPermsError, setBotPermsError] = useState<Record<number, string>>({});
+  const [botShowAuthor, setBotShowAuthor] = useState<Record<number, boolean>>({});
   const saveTimers = React.useRef<Record<number, ReturnType<typeof setTimeout>>>({});
 
   // Rename
@@ -47,9 +48,14 @@ export const DeveloperTab: React.FC = () => {
     getMyBots()
       .then(bots => {
         setMyBots(bots);
-        const initial: Record<number, bigint> = {};
-        for (const b of bots) initial[b.id] = permFromNumber(b.permissions);
-        setBotPerms(initial);
+        const initialPerms: Record<number, bigint> = {};
+        const initialShow: Record<number, boolean> = {};
+        for (const b of bots) {
+          initialPerms[b.id] = permFromNumber(b.permissions);
+          initialShow[b.id] = b.show_author;
+        }
+        setBotPerms(initialPerms);
+        setBotShowAuthor(initialShow);
       })
       .catch(() => {});
   }, []);
@@ -122,6 +128,14 @@ export const DeveloperTab: React.FC = () => {
           .catch(() => setBotPermsError(e => ({ ...e, [botId]: 'Failed to save — try again' })));
       }, 500);
       return next;
+    });
+  };
+
+  const handleToggleShowAuthor = (botId: number) => {
+    const next = !botShowAuthor[botId];
+    setBotShowAuthor(prev => ({ ...prev, [botId]: next }));
+    updateBotShowAuthor(botId, next).catch(() => {
+      setBotShowAuthor(prev => ({ ...prev, [botId]: !next }));
     });
   };
 
@@ -308,7 +322,7 @@ export const DeveloperTab: React.FC = () => {
                 <div style={{ fontWeight: 600, marginBottom: 4 }}>
                   {bot.display_name} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>@{bot.username}</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                   <code style={{ fontSize: 12, background: 'var(--input)', padding: '3px 6px', borderRadius: 4, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {inviteURL}
                   </code>
@@ -320,6 +334,15 @@ export const DeveloperTab: React.FC = () => {
                     Copy
                   </button>
                 </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', marginBottom: 10 }}>
+                  <input
+                    type="checkbox"
+                    checked={!!botShowAuthor[bot.id]}
+                    onChange={() => handleToggleShowAuthor(bot.id)}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  Show my username on the invite page
+                </label>
                 <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   Requested Permissions
                 </div>

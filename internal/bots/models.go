@@ -74,16 +74,18 @@ type UserBot struct {
 	IsVerified  bool   `json:"is_verified"`
 	InviteToken string `json:"invite_token"`
 	Permissions int64  `json:"permissions"`
+	ShowAuthor  bool   `json:"show_author"`
 }
 
 // BotInviteInfo is returned by GET /api/bots/invite/{token}.
 type BotInviteInfo struct {
-	BotID       int64  `json:"bot_id"`
-	Username    string `json:"username"`
-	DisplayName string `json:"display_name"`
-	AvatarURL   string `json:"avatar_url,omitempty"`
-	IsVerified  bool   `json:"is_verified"`
-	Permissions int64  `json:"permissions"`
+	BotID         int64  `json:"bot_id"`
+	Username      string `json:"username"`
+	DisplayName   string `json:"display_name"`
+	AvatarURL     string `json:"avatar_url,omitempty"`
+	IsVerified    bool   `json:"is_verified"`
+	Permissions   int64  `json:"permissions"`
+	OwnerUsername string `json:"owner_username,omitempty"`
 }
 
 // ParleyMonthlyBudget is the total compute-credit budget per server per month.

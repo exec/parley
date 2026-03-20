@@ -12,13 +12,17 @@ Returns the full profile of the authenticated user. For a Bot API Key, returns t
 {
   "id": "123456789",
   "username": "dylan",
+  "display_name": "Dylan",
   "email": "dylan@example.com",
   "avatar_url": "https://cdn.parley.x86-64.com/uploads/avatar.png",
   "banner_url": "",
   "bio": "Hello world",
+  "badges": 0,
   "email_verified": true,
   "phone_number": "",
-  "phone_verified": false
+  "phone_verified": false,
+  "status_type": "online",
+  "status_text": ""
 }
 ```
 
@@ -40,9 +44,11 @@ Returns a user's public profile.
 {
   "id": "123456789",
   "username": "dylan",
+  "display_name": "Dylan",
   "avatar_url": "https://cdn.parley.x86-64.com/uploads/avatar.png",
   "banner_url": "",
   "bio": "Hello world",
+  "badges": 0,
   "created_at": "2026-01-01T00:00:00Z"
 }
 ```

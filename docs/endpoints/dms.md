@@ -14,12 +14,11 @@ Returns all open DM channels for the authenticated user.
     "id": "123456789",
     "user1_id": "111",
     "user2_id": "222",
-    "other_user": {
-      "id": "222",
-      "username": "alice",
-      "avatar_url": ""
-    },
-    "last_message_at": "2026-03-14T12:34:56Z"
+    "created_at": "2026-03-14T00:00:00Z",
+    "other_user_id": "222",
+    "other_username": "alice",
+    "other_display_name": "Alice",
+    "other_avatar_url": "https://cdn.parley.x86-64.com/uploads/avatar.png"
   }
 ]
 ```
@@ -38,15 +37,15 @@ Opens (or returns an existing) DM channel with another user.
 { "user_id": "222" }
 ```
 
-**Response** `200 OK` — DM channel object.
+**Response** `200 OK` — DM channel object (same shape as list items above).
 
 ---
 
 ## Get DM Messages
 
-<span class="method get">GET</span><span class="route">/api/dms/{dmId}/messages?limit=50&offset=0</span>
+<span class="method get">GET</span><span class="route">/api/dms/{dmId}/messages?limit=50&before=</span>
 
-Returns messages in a DM channel, newest first.
+Returns messages in a DM channel, newest first. Uses cursor-based pagination — pass the oldest message ID as `before` to load earlier messages. Max `limit` is 200.
 
 **Response** `200 OK` — array of message objects (same shape as channel messages).
 

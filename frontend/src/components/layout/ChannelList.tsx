@@ -791,10 +791,11 @@ const ChannelList: React.FC<ChannelListProps> = ({
         />,
         document.body
       )}
-      {serverContextMenu && (
-        <ServerContextMenu position={serverContextMenu} onClose={() => setServerContextMenu(null)} onSettings={onServerSettings} onLeave={onLeaveServer} />
+      {serverContextMenu && createPortal(
+        <ServerContextMenu position={serverContextMenu} onClose={() => setServerContextMenu(null)} onSettings={onServerSettings} onLeave={onLeaveServer} />,
+        document.body
       )}
-      {channelContextMenu && (
+      {channelContextMenu && createPortal(
         <ChannelContextMenu
           channel={channelContextMenu.channel}
           position={{ top: channelContextMenu.top, left: channelContextMenu.left }}
@@ -804,9 +805,10 @@ const ChannelList: React.FC<ChannelListProps> = ({
           onDelete={() => onDeleteChannel(channelContextMenu.channel.id)}
           onMarkAsRead={() => onMarkChannelRead?.(channelContextMenu.channel.id)}
           onChannelSettings={onChannelSettings ? () => onChannelSettings(channelContextMenu.channel.id) : undefined}
-        />
+        />,
+        document.body
       )}
-      {vcParticipantMenu && (
+      {vcParticipantMenu && createPortal(
         <VoiceContextMenu
           position={{ x: vcParticipantMenu.x, y: vcParticipantMenu.y }}
           participantId={vcParticipantMenu.participantId}
@@ -822,7 +824,8 @@ const ChannelList: React.FC<ChannelListProps> = ({
             setVcParticipantMenu(null);
           }}
           onClose={() => setVcParticipantMenu(null)}
-        />
+        />,
+        document.body
       )}
     </div>
   );

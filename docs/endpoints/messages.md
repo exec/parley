@@ -33,7 +33,9 @@ Sends a message to a text channel. The authenticated user (or bot) must be a mem
   "id": "123456789",
   "channel_id": "987654321",
   "author_id": "111",
-  "author": "dylan",
+  "author_username": "dylan",
+  "author_display_name": "Dylan",
+  "author_avatar_url": "https://cdn.parley.x86-64.com/uploads/avatar.png",
   "content": "Hello, world!",
   "created_at": "2026-03-14T12:34:56Z",
   "nonce": "optional-client-dedup-id",
@@ -48,13 +50,13 @@ Sends a message to a text channel. The authenticated user (or bot) must be a mem
 
 **Bot Key** — message is from the bot user:
 ```json
-{ "author": "MyBot", "author_is_bot": true, "via_api": true }
+{ "author_username": "MyBot", "author_is_bot": true, "via_api": true }
 ```
 Shows a purple **BOT** badge in chat (`author_is_bot` takes precedence).
 
 **User Key (Selfbot)** — message is from you:
 ```json
-{ "author": "dylan", "author_is_bot": false, "via_api": true }
+{ "author_username": "dylan", "author_is_bot": false, "via_api": true }
 ```
 Shows a 🤖 selfbot icon in chat.
 
@@ -64,16 +66,16 @@ Shows a 🤖 selfbot icon in chat.
 
 ## Get Messages
 
-<span class="method get">GET</span><span class="route">/api/channels/{channelId}/messages?limit=50&offset=0</span>
+<span class="method get">GET</span><span class="route">/api/channels/{channelId}/messages?limit=50&before=</span>
 
-Returns messages in a channel, newest first.
+Returns messages in a channel, newest first. Uses cursor-based pagination.
 
 **Query parameters**
 
 | Parameter | Default | Description |
 |---|---|---|
-| `limit` | `50` | Number of messages (max 100) |
-| `offset` | `0` | Pagination offset |
+| `limit` | `50` | Number of messages (max 50) |
+| `before` | — | Message ID cursor — returns messages older than this ID |
 
 **Response** `200 OK`
 
@@ -83,7 +85,9 @@ Returns messages in a channel, newest first.
     "id": "123456789",
     "channel_id": "987654321",
     "author_id": "111",
-    "author": "dylan",
+    "author_username": "dylan",
+    "author_display_name": "Dylan",
+    "author_avatar_url": "https://cdn.parley.x86-64.com/uploads/avatar.png",
     "content": "Hello!",
     "created_at": "2026-03-14T12:34:56Z",
     "reactions": [],
@@ -144,18 +148,22 @@ interface Message {
   id: string
   channel_id: string
   author_id: string
-  author: string            // username
-  avatar_url?: string
+  author_username: string        // login username
+  author_display_name?: string   // display name (may differ from username)
+  author_avatar_url?: string
+  author_is_bot: boolean         // true if sent by a bot user
+  via_api: boolean               // true if sent via an API key (bot or selfbot)
   content: string
-  created_at: string        // ISO 8601
-  updated_at?: string       // set on edits
+  created_at: string             // ISO 8601
+  updated_at: string             // set on edits
   nonce?: string
+  parent_id?: string             // reply-to message ID
+  parent_author_username?: string
+  parent_author_display_name?: string
   attachment_url?: string
   attachment_name?: string
   attachment_type?: string
   reactions: Reaction[]
-  author_is_bot: boolean    // true if sent by a bot user
-  via_api: boolean          // true if sent via a User API Key (selfbot)
 }
 
 interface Reaction {
