@@ -97,6 +97,12 @@ This is a living task list for Parley - a Discord clone.
 
 ## Future / Large Projects
 
+- [ ] **Bot API: soundboard support** — when bots get voice channel support, expose soundboard endpoints in the bot API: `GET /api/servers/{serverId}/soundboard` (already exists), plus a bot-triggered `POST /api/channels/{channelId}/soundboard/play` that fires the `SOUNDBOARD_PLAY` WebSocket event into the channel without requiring a LiveKit connection (server-side trigger). Bots should be able to list sounds from any server they're in and play them into any VC they're connected to.
+
+- [ ] **Server custom emoji** — per-server emoji uploaded by members with `PermManageExpressions`. When implemented, soundboard sounds (which already have an `emoji` field) should support custom emoji via an optional `custom_emoji_id` FK alongside the existing `emoji` (unicode) field. The soundboard tab in server settings should show the custom emoji picker once custom emoji exist. The VC soundboard panel should render custom emoji images inline where `custom_emoji_id` is set.
+
+
+
 - [ ] Admin panel for service administration
   - Full observability and administrative capabilities
   - Ban users (dissolve accounts with funny error message)
