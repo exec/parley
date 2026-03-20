@@ -241,11 +241,20 @@ class Client:
     # ------------------------------------------------------------------
 
     async def fetch_me(self) -> User:
-        """Fetch and return the authenticated user's own profile."""
+        """Fetch the authenticated user's profile and update the cache."""
         data = await self.http.get_me()
-        user = User._from_data(data, self._state)
-        self._state.user = user
-        return user
+        self._state.user = User._from_data(data, self._state)
+        return self._state.user
+
+    async def edit_profile(self, **fields) -> User:
+        """Update own profile. Allowed fields: username, display_name, avatar_url."""
+        data = await self.http.edit_me(**fields)
+        self._state.user = User._from_data(data, self._state)
+        return self._state.user
+
+    async def send_typing(self, channel_id: int, duration: int = 5) -> None:
+        """Send a typing indicator to *channel_id* for *duration* seconds (1-60)."""
+        await self.http.send_typing(channel_id, duration)
 
     async def fetch_user(self, user_id: int) -> PublicUser:
         """Fetch a user's public profile by ID."""
