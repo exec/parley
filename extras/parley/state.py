@@ -341,7 +341,14 @@ class ConnectionState:
         self._dispatch("voice_state_update", payload)
 
     async def _handle_bot_status_update(self, payload: dict) -> None:
-        self._dispatch("bot_status_update", payload)
+        server_id = int(payload["server_id"])
+        bot_user_id = int(payload["bot_user_id"])
+        is_degraded = bool(payload.get("is_degraded", False))
+        key = (server_id, bot_user_id)
+        member = self.members.get(key)
+        if member is not None:
+            member.bot_degraded = is_degraded
+        await self._dispatch_event("BOT_STATUS_UPDATE", payload)
 
 
 # ------------------------------------------------------------------
