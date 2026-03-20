@@ -203,7 +203,7 @@ func (h *Handler) UpdateSound(w http.ResponseWriter, r *http.Request) {
 		Name  string `json:"name"`
 		Emoji string `json:"emoji"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&body); err != nil {
 		httputil.JSONError(w, "invalid JSON", http.StatusBadRequest)
 		return
 	}
@@ -355,8 +355,6 @@ func (h *Handler) Play(w http.ResponseWriter, r *http.Request) {
 
 	var body struct {
 		SoundID    string `json:"sound_id"`
-		SoundName  string `json:"sound_name"`
-		Emoji      string `json:"emoji"`
 		DurationMS int64  `json:"duration_ms"`
 	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&body); err != nil {
@@ -364,17 +362,31 @@ func (h *Handler) Play(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Cap duration_ms at 60s.
+	soundID, err := strconv.ParseInt(body.SoundID, 10, 64)
+	if err != nil {
+		httputil.JSONError(w, "invalid sound_id", http.StatusBadRequest)
+		return
+	}
+
+	sound, err := h.repo.GetByID(ctx, soundID)
+	if err != nil || sound.ServerID != ch.ServerID {
+		httputil.JSONError(w, "sound not found", http.StatusNotFound)
+		return
+	}
+
+	// Cap duration_ms at 60s; negative values become 0 (no timeout override).
 	if body.DurationMS > 60_000 {
 		body.DurationMS = 60_000
+	} else if body.DurationMS < 0 {
+		body.DurationMS = 0
 	}
 
 	payload, _ := json.Marshal(map[string]interface{}{
 		"channel_id":  channelIDStr,
 		"user_id":     userIDStr,
 		"sound_id":    body.SoundID,
-		"sound_name":  body.SoundName,
-		"emoji":       body.Emoji,
+		"sound_name":  sound.Name,
+		"emoji":       sound.Emoji,
 		"duration_ms": body.DurationMS,
 	})
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"time"
 
@@ -107,6 +108,7 @@ func (s *Service) Participants(ctx context.Context, channelID string) ([]Partici
 // IsParticipant returns true if the user is currently in the voice channel.
 func (s *Service) IsParticipant(ctx context.Context, channelID, userID string) (bool, error) {
 	if s.rdb == nil {
+		log.Printf("soundboard: IsParticipant called but Redis is not configured; returning false")
 		return false, nil
 	}
 	exists, err := s.rdb.HExists(ctx, presenceKey(channelID), userID).Result()
