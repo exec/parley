@@ -741,6 +741,19 @@ WHERE u.is_bot = TRUE
 UPDATE users SET email_verification_token_expires_at = created_at + INTERVAL '72 hours' WHERE email_verification_token IS NOT NULL AND email_verification_token_expires_at IS NULL;`,
 
 	`ALTER TABLE bot_invite_tokens ADD COLUMN IF NOT EXISTS show_author BOOLEAN NOT NULL DEFAULT FALSE;`,
+
+	`-- Soundboard sounds
+	CREATE TABLE IF NOT EXISTS soundboard_sounds (
+	    id          BIGSERIAL PRIMARY KEY,
+	    server_id   BIGINT NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
+	    uploader_id BIGINT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+	    name        VARCHAR(32) NOT NULL,
+	    emoji       VARCHAR(64),
+	    file_url    TEXT NOT NULL,
+	    file_key    TEXT NOT NULL,
+	    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+	CREATE INDEX IF NOT EXISTS idx_soundboard_sounds_server ON soundboard_sounds(server_id);`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string
