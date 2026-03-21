@@ -786,6 +786,24 @@ UPDATE users SET email_verification_token_expires_at = created_at + INTERVAL '72
 		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 	);
 	CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id, created_at DESC);`,
+
+	`-- Server discovery: description + is_public on servers; server_categories; server_category_assignments
+	ALTER TABLE servers ADD COLUMN IF NOT EXISTS description TEXT;
+	ALTER TABLE servers ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT FALSE;
+	CREATE INDEX IF NOT EXISTS idx_servers_is_public ON servers(is_public) WHERE is_public = TRUE;
+
+	CREATE TABLE IF NOT EXISTS server_categories (
+	    id         BIGSERIAL PRIMARY KEY,
+	    name       VARCHAR(100) NOT NULL UNIQUE,
+	    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+
+	CREATE TABLE IF NOT EXISTS server_category_assignments (
+	    server_id   BIGINT NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
+	    category_id BIGINT NOT NULL REFERENCES server_categories(id) ON DELETE CASCADE,
+	    PRIMARY KEY (server_id, category_id)
+	);
+	CREATE INDEX IF NOT EXISTS idx_sca_category_id ON server_category_assignments(category_id);`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

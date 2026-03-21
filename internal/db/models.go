@@ -78,15 +78,34 @@ type ReportCategory struct {
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
 
+type ServerCategory struct {
+	ID        int64     `json:"id" db:"id"`
+	Name      string    `json:"name" db:"name"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+}
+
+// PublicServerRow is the DB scan target for discovery queries.
+// Categories are populated in a second pass after the main query.
+type PublicServerRow struct {
+	ID          int64          `db:"id"`
+	Name        string         `db:"name"`
+	IconURL     sql.NullString `db:"icon_url"`
+	VanityURL   sql.NullString `db:"vanity_url"`
+	Description sql.NullString `db:"description"`
+	MemberCount int            `db:"member_count"`
+}
+
 // Server represents a Discord server/guild
 type Server struct {
-	ID        int64          `json:"id" db:"id"`
-	Name      string         `json:"name" db:"name"`
-	IconURL   sql.NullString `json:"icon_url" db:"icon_url"`
-	OwnerID   int64          `json:"owner_id" db:"owner_id"`
-	VanityURL sql.NullString `json:"vanity_url" db:"vanity_url"`
-	CreatedAt time.Time      `json:"created_at" db:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at" db:"updated_at"`
+	ID          int64          `json:"id" db:"id"`
+	Name        string         `json:"name" db:"name"`
+	IconURL     sql.NullString `json:"icon_url" db:"icon_url"`
+	OwnerID     int64          `json:"owner_id" db:"owner_id"`
+	VanityURL   sql.NullString `json:"vanity_url" db:"vanity_url"`
+	Description sql.NullString `json:"description" db:"description"`
+	IsPublic    bool           `json:"is_public" db:"is_public"`
+	CreatedAt   time.Time      `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at" db:"updated_at"`
 }
 
 // ServerMember represents a member of a server
