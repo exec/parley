@@ -364,6 +364,51 @@ func handleDeleteCategory(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, map[string]string{"message": "deleted"})
 }
 
+// Server category management
+
+func handleListServerCategories(w http.ResponseWriter, r *http.Request) {
+	cats, err := repo.GetServerCategories(r.Context())
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if cats == nil {
+		cats = []db.ServerCategory{}
+	}
+	jsonOK(w, cats)
+}
+
+func handleCreateServerCategory(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name string `json:"name"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+	if req.Name == "" {
+		jsonError(w, "name required", http.StatusBadRequest)
+		return
+	}
+	cat, err := repo.CreateServerCategory(r.Context(), req.Name)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+	jsonOK(w, cat)
+}
+
+func handleDeleteServerCategory(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		jsonError(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	if err := repo.DeleteServerCategory(r.Context(), id); err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	jsonOK(w, map[string]string{"message": "deleted"})
+}
+
 func handleListServers(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
 	limit := queryInt(r, "limit", 50)

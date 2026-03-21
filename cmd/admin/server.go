@@ -168,6 +168,11 @@ func runServer() {
 			r.Post("/categories", handleCreateCategory)
 			r.Delete("/categories/{id}", handleDeleteCategory)
 
+			// Server categories
+			r.Get("/server-categories", handleListServerCategories)
+			r.Post("/server-categories", handleCreateServerCategory)
+			r.Delete("/server-categories/{id}", handleDeleteServerCategory)
+
 			// Bots
 			r.Get("/bots", handleListBots)
 
