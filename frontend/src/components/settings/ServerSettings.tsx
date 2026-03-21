@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X } from 'lucide-react';
-import { Server, ServerMember, Role } from '../../api/types';
+import { Server, ServerMember, Role, ServerCategory } from '../../api/types';
 import { updateServer, deleteServer, setVanityURL, getMyPermissions } from '../../api/servers';
+import { getServerCategories, getServerCategoryAssignments, setServerCategories } from '../../api/discovery';
+import '../discovery/DiscoveryPage.css';
 import { uploadFile } from '../../api/upload';
 import {
   getServerRoles,
@@ -23,6 +25,13 @@ import { InvitesTab } from './InvitesTab';
 import { MembersTab } from './MembersTab';
 import { SoundboardTab } from './SoundboardTab';
 import './Settings.css';
+
+function arrayEquals(a: number[], b: number[]): boolean {
+  if (a.length !== b.length) return false;
+  const sa = [...a].sort();
+  const sb = [...b].sort();
+  return sa.every((v, i) => v === sb[i]);
+}
 
 type Tab = 'overview' | 'roles' | 'invites' | 'members' | 'bots' | 'soundboard' | 'danger';
 
@@ -46,6 +55,11 @@ export const ServerSettings: React.FC<Props> = ({
   const [name, setName] = useState('');
   const [vanityUrl, setVanityUrl] = useState('');
   const [iconUrl, setIconUrl] = useState('');
+  const [description, setDescription] = useState('');
+  const [isPublic, setIsPublic] = useState(false);
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([]);
+  const [initialCategoryIds, setInitialCategoryIds] = useState<number[]>([]);
+  const [allCategories, setAllCategories] = useState<ServerCategory[]>([]);
   const [iconUploading, setIconUploading] = useState(false);
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [overviewError, setOverviewError] = useState('');
@@ -84,7 +98,20 @@ export const ServerSettings: React.FC<Props> = ({
       setName(server.name);
       setVanityUrl(server.vanity_url || '');
       setIconUrl(server.icon_url || '');
+      setDescription(server.description ?? '');
+      setIsPublic(server.is_public ?? false);
       setOverviewError('');
+
+      // Fetch categories
+      Promise.all([
+        getServerCategories(),
+        getServerCategoryAssignments(server.id),
+      ]).then(([cats, assigned]) => {
+        setAllCategories(cats);
+        const ids = assigned.map(c => c.id);
+        setSelectedCategoryIds(ids);
+        setInitialCategoryIds(ids);
+      }).catch(() => {});
       setShowDeleteConfirm(false);
       setDeleteError('');
       setCreatingRole(false);
@@ -163,7 +190,10 @@ export const ServerSettings: React.FC<Props> = ({
   const hasOverviewChanges = () => server && (
     name !== server.name ||
     vanityUrl !== (server.vanity_url || '') ||
-    iconUrl !== (server.icon_url || '')
+    iconUrl !== (server.icon_url || '') ||
+    description !== (server.description ?? '') ||
+    isPublic !== (server.is_public ?? false) ||
+    !arrayEquals(selectedCategoryIds, initialCategoryIds)
   );
 
   const attemptClose = () => {
@@ -194,13 +224,15 @@ export const ServerSettings: React.FC<Props> = ({
     setOverviewLoading(true);
     setOverviewError('');
     try {
-      const updated = await updateServer(server.id, name.trim(), iconUrl || undefined);
+      const updated = await updateServer(server.id, name.trim(), iconUrl || undefined, description, isPublic);
       if (vanityUrl.trim() !== (server.vanity_url || '')) {
         const withVanity = await setVanityURL(server.id, vanityUrl.trim());
         onUpdate(withVanity);
       } else {
         onUpdate(updated);
       }
+      await setServerCategories(server.id, selectedCategoryIds);
+      setInitialCategoryIds(selectedCategoryIds);
     } catch (err: unknown) {
       setOverviewError(err instanceof Error ? err.message : 'Failed to update server');
     } finally {
@@ -370,12 +402,78 @@ export const ServerSettings: React.FC<Props> = ({
                 <div className="settings-form-hint">Letters, numbers, and hyphens only. Leave blank to disable.</div>
               </div>
 
+              {/* Description */}
+              <div className="settings-section">
+                <div className="settings-section-title">Description</div>
+                <textarea
+                  className="settings-form-input settings-bio-input"
+                  value={description}
+                  onChange={e => setDescription(e.target.value.slice(0, 200))}
+                  placeholder="What's your server about?"
+                  rows={3}
+                  maxLength={200}
+                  disabled={overviewLoading}
+                />
+                <div className="settings-form-hint" style={{ textAlign: 'right', marginTop: 4 }}>
+                  {description.length} / 200
+                </div>
+              </div>
+
+              {/* Server Directory */}
+              <div className="settings-section">
+                <div className="settings-section-title">Server Directory</div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: vanityUrl.trim() ? 'pointer' : 'not-allowed' }}>
+                  <input
+                    type="checkbox"
+                    checked={isPublic}
+                    onChange={e => setIsPublic(e.target.checked)}
+                    disabled={!vanityUrl.trim() || overviewLoading}
+                  />
+                  <span>List this server in the public directory</span>
+                </label>
+                <div className="settings-form-hint">
+                  {vanityUrl.trim()
+                    ? 'Your server will appear in Discover when enabled.'
+                    : 'A vanity URL is required to list your server publicly.'}
+                </div>
+
+                {isPublic && allCategories.length > 0 && (
+                  <div style={{ marginTop: 12 }}>
+                    <div className="settings-section-title" style={{ marginBottom: 8 }}>
+                      Categories <span style={{ color: 'var(--text-muted, #72767d)', fontWeight: 400 }}>(up to 3)</span>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {allCategories.map(cat => {
+                        const selected = selectedCategoryIds.includes(cat.id);
+                        return (
+                          <button
+                            key={cat.id}
+                            className={`discovery-cat-pill${selected ? ' active' : ''}`}
+                            onClick={() => {
+                              if (selected) {
+                                setSelectedCategoryIds(ids => ids.filter(id => id !== cat.id));
+                              } else if (selectedCategoryIds.length < 3) {
+                                setSelectedCategoryIds(ids => [...ids, cat.id]);
+                              }
+                            }}
+                            disabled={overviewLoading}
+                            type="button"
+                          >
+                            {cat.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div style={{ display: 'flex', gap: 10, marginBottom: 32 }}>
                 <button className="settings-btn settings-btn-primary" onClick={handleSaveOverview} disabled={overviewLoading}>
                   {overviewLoading ? 'Saving...' : 'Save Changes'}
                 </button>
                 {hasOverviewChanges() && (
-                  <button className="settings-btn settings-btn-secondary" onClick={() => { setName(server.name); setVanityUrl(server.vanity_url || ''); setIconUrl(server.icon_url || ''); }}>
+                  <button className="settings-btn settings-btn-secondary" onClick={() => { setName(server.name); setVanityUrl(server.vanity_url || ''); setIconUrl(server.icon_url || ''); setDescription(server.description ?? ''); setIsPublic(server.is_public ?? false); setSelectedCategoryIds(initialCategoryIds); }}>
                     Reset
                   </button>
                 )}
@@ -655,7 +753,7 @@ export const ServerSettings: React.FC<Props> = ({
       {hasOverviewChanges() && !unsavedConfirm && activeTab === 'overview' && (
         <div className="settings-unsaved-bar">
           <span className="settings-unsaved-text">You have unsaved changes</span>
-          <button className="settings-btn settings-btn-ghost" onClick={() => { setName(server.name); setVanityUrl(server.vanity_url || ''); setIconUrl(server.icon_url || ''); }}>Reset</button>
+          <button className="settings-btn settings-btn-ghost" onClick={() => { setName(server.name); setVanityUrl(server.vanity_url || ''); setIconUrl(server.icon_url || ''); setDescription(server.description ?? ''); setIsPublic(server.is_public ?? false); setSelectedCategoryIds(initialCategoryIds); }}>Reset</button>
           <button className="settings-btn settings-btn-primary" onClick={handleSaveOverview} disabled={overviewLoading}>
             {overviewLoading ? 'Saving...' : 'Save Changes'}
           </button>
