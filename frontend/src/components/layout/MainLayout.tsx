@@ -20,6 +20,8 @@ interface MainLayoutProps {
   onServerSelect: (serverId: string) => void;
   onCreateServer: () => void;
   onHomepage?: () => void;
+  onDiscovery?: () => void;
+  discoveryActive?: boolean;
   serverUnreadCounts?: Record<string, number>;
   onMarkServerRead?: (serverId: string) => void;
   onNotificationSettings?: (serverId: string) => void;
@@ -41,6 +43,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({
   onServerSelect,
   onCreateServer,
   onHomepage,
+  onDiscovery,
+  discoveryActive,
   serverUnreadCounts,
   onMarkServerRead,
   onNotificationSettings,
@@ -60,6 +64,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({
           onServerSelect={onServerSelect}
           onCreateServer={onCreateServer}
           onHomepage={onHomepage}
+          onDiscovery={onDiscovery}
+          discoveryActive={discoveryActive}
           serverUnreadCounts={serverUnreadCounts}
           onMarkServerRead={onMarkServerRead}
           onNotificationSettings={onNotificationSettings}

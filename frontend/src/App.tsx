@@ -35,6 +35,7 @@ import { BinChannel } from './components/bin/BinChannel';
 import { PostView } from './components/bin/PostView';
 import { CreatePostModal } from './components/bin/CreatePostModal';
 import { Homepage } from './pages/Homepage';
+import { DiscoveryPage } from './components/discovery/DiscoveryPage';
 import { CreateServerModal } from './components/modals/CreateServerModal';
 import { CreateChannelModal } from './components/modals/CreateChannelModal';
 import { UserProfileModal } from './components/modals/UserProfileModal';
@@ -274,6 +275,9 @@ function MainApp() {
   // Friends view toggle
   const [activeFriendsView, setActiveFriendsView] = useState(false);
 
+  // Discovery view toggle
+  const [showDiscovery, setShowDiscovery] = useState(false);
+
   // Determine current view
   const view: View = activeDmChannel ? 'dm' : activeServer ? 'server' : 'homepage';
 
@@ -375,10 +379,11 @@ function MainApp() {
     setMentionCounts(prev => { const next = new Set(prev); next.delete(activeDmChannel.id); return next; });
   }, [activeDmChannel?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Reset friends view when navigating to a server or DM channel
+  // Reset friends view and discovery when navigating to a server or DM channel
   useEffect(() => {
     if (activeServer || activeDmChannel) {
       setActiveFriendsView(false);
+      setShowDiscovery(false);
     }
   }, [activeServer, activeDmChannel]);
 
@@ -820,6 +825,12 @@ function MainApp() {
 
   const handleGoHome = () => {
     selectServer('__none__');
+    setShowDiscovery(false);
+  };
+
+  const handleDiscovery = () => {
+    setShowDiscovery(true);
+    selectServer('__none__');
   };
 
   const handleOpenFriends = () => {
@@ -1027,7 +1038,23 @@ function MainApp() {
     </div>
   );
 
-  if (activeFriendsView) {
+  if (showDiscovery) {
+    mainContent = (
+      <DiscoveryPage
+        currentUserId={currentUser?.id}
+        joinedServerIds={new Set(servers.map(s => s.id))}
+        onJoin={async (vanityUrl) => {
+          try {
+            await serversApi.joinServerByInvite(vanityUrl);
+            loadServers();
+            setShowDiscovery(false);
+          } catch (err) {
+            console.error('Failed to join server:', err);
+          }
+        }}
+      />
+    );
+  } else if (activeFriendsView) {
     mainContent = (
       <div className="at-me-layout">
         <AtMeTopbar friendsActive={true} />
@@ -1266,6 +1293,8 @@ function MainApp() {
         onServerSelect={selectServer}
         onCreateServer={() => setShowCreateServer(true)}
         onHomepage={handleGoHome}
+        onDiscovery={handleDiscovery}
+        discoveryActive={showDiscovery}
         leftPanel={leftPanel}
         leftPanelOpen={showChannelList}
         rightPanel={rightPanel}
