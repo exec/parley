@@ -1360,3 +1360,97 @@ func (h *Handler) SetVanityURL(w http.ResponseWriter, r *http.Request) {
 
 	render.JSON(w, r, server)
 }
+
+// GetAuditLog handles GET /servers/{id}/audit-log
+func (h *Handler) GetAuditLog(w http.ResponseWriter, r *http.Request) {
+	serverID := chi.URLParam(r, "id")
+	serverIDInt, err := strconv.ParseInt(serverID, 10, 64)
+	if err != nil {
+		httputil.JSONError(w, "invalid server ID", http.StatusBadRequest)
+		return
+	}
+
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	srv, err := h.service.GetServer(r.Context(), serverID)
+	if err != nil {
+		httputil.JSONError(w, "server not found", http.StatusNotFound)
+		return
+	}
+
+	isOwner := srv.OwnerID == userID
+	if !isOwner {
+		sID, _ := permissions.ParseInt64(serverID)
+		aID, _ := permissions.ParseInt64(userID)
+		ownerIDInt, _ := permissions.ParseInt64(srv.OwnerID)
+		allowed, err := permissions.HasPermission(r.Context(), h.service.Repo(), sID, aID, ownerIDInt, permissions.PermViewAuditLog)
+		if err != nil || !allowed {
+			httputil.JSONError(w, "forbidden", http.StatusForbidden)
+			return
+		}
+	}
+
+	q := r.URL.Query()
+	limit := 50
+	if l, err := strconv.Atoi(q.Get("limit")); err == nil && l > 0 {
+		if l > 100 {
+			l = 100
+		}
+		limit = l
+	}
+	offset := 0
+	if o, err := strconv.Atoi(q.Get("offset")); err == nil && o >= 0 {
+		offset = o
+	}
+	action := q.Get("action")
+	var actorFilter *int64
+	if a := q.Get("actor_id"); a != "" {
+		if v, err := strconv.ParseInt(a, 10, 64); err == nil {
+			actorFilter = &v
+		}
+	}
+
+	logs, total, err := h.service.Repo().ListAuditLogs(r.Context(), serverIDInt, actorFilter, action, limit, offset)
+	if err != nil {
+		httputil.InternalError(w, err)
+		return
+	}
+
+	type logEntry struct {
+		ID            int64      `json:"id,string"`
+		ServerID      int64      `json:"server_id,string"`
+		ActorID       *int64     `json:"actor_id,omitempty"`
+		ActorUsername string     `json:"actor_username"`
+		Action        string     `json:"action"`
+		TargetID      string     `json:"target_id,omitempty"`
+		TargetType    string     `json:"target_type,omitempty"`
+		TargetName    string     `json:"target_name,omitempty"`
+		Changes       []byte     `json:"changes,omitempty"`
+		Reason        string     `json:"reason,omitempty"`
+		CreatedAt     time.Time  `json:"created_at"`
+	}
+
+	out := make([]logEntry, len(logs))
+	for i, l := range logs {
+		out[i] = logEntry{
+			ID:            l.ID,
+			ServerID:      l.ServerID,
+			ActorID:       l.ActorID,
+			ActorUsername: l.ActorUsername,
+			Action:        l.Action,
+			TargetID:      l.TargetID,
+			TargetType:    l.TargetType,
+			TargetName:    l.TargetName,
+			Changes:       l.Changes,
+			Reason:        l.Reason,
+			CreatedAt:     l.CreatedAt,
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"logs": out, "total": total})
+}

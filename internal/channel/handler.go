@@ -3,6 +3,7 @@ package channel
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"parley/internal/audit"
@@ -80,6 +81,19 @@ func (h *Handler) CreateChannel(w http.ResponseWriter, r *http.Request) {
 		httputil.JSONError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	actorIDInt, _ := strconv.ParseInt(userID, 10, 64)
+	actorUsername, _ := h.service.Repo().GetUsernameByID(r.Context(), actorIDInt)
+	serverIDInt, _ := strconv.ParseInt(serverID, 10, 64)
+	h.auditSvc.Log(r.Context(), audit.Entry{
+		ServerID:      serverIDInt,
+		ActorID:       &actorIDInt,
+		ActorUsername: actorUsername,
+		Action:        "channel.create",
+		TargetID:      ch.ID,
+		TargetType:    "channel",
+		TargetName:    ch.Name,
+	})
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -161,6 +175,8 @@ func (h *Handler) UpdateChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	beforeCh, _ := h.service.GetChannel(r.Context(), id)
+
 	ch, err := h.service.UpdateChannel(r.Context(), id, req.Name, req.Topic, userID)
 	if err != nil {
 		if err.Error() == "forbidden" {
@@ -169,6 +185,25 @@ func (h *Handler) UpdateChannel(w http.ResponseWriter, r *http.Request) {
 		}
 		httputil.JSONError(w, "invalid request", http.StatusBadRequest)
 		return
+	}
+
+	if beforeCh != nil {
+		actorIDInt, _ := strconv.ParseInt(userID, 10, 64)
+		actorUsername, _ := h.service.Repo().GetUsernameByID(r.Context(), actorIDInt)
+		serverIDInt, _ := strconv.ParseInt(ch.ServerID, 10, 64)
+		h.auditSvc.Log(r.Context(), audit.Entry{
+			ServerID:      serverIDInt,
+			ActorID:       &actorIDInt,
+			ActorUsername: actorUsername,
+			Action:        "channel.update",
+			TargetID:      ch.ID,
+			TargetType:    "channel",
+			TargetName:    ch.Name,
+			Changes: map[string]any{
+				"before": map[string]any{"name": beforeCh.Name, "topic": beforeCh.Topic},
+				"after":  map[string]any{"name": ch.Name, "topic": ch.Topic},
+			},
+		})
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -189,6 +224,8 @@ func (h *Handler) DeleteChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	chToDelete, _ := h.service.GetChannel(r.Context(), id)
+
 	if err := h.service.DeleteChannel(r.Context(), id, userID); err != nil {
 		switch err.Error() {
 		case "channel not found":
@@ -199,6 +236,21 @@ func (h *Handler) DeleteChannel(w http.ResponseWriter, r *http.Request) {
 			httputil.InternalError(w, err)
 		}
 		return
+	}
+
+	if chToDelete != nil {
+		actorIDInt, _ := strconv.ParseInt(userID, 10, 64)
+		actorUsername, _ := h.service.Repo().GetUsernameByID(r.Context(), actorIDInt)
+		serverIDInt, _ := strconv.ParseInt(chToDelete.ServerID, 10, 64)
+		h.auditSvc.Log(r.Context(), audit.Entry{
+			ServerID:      serverIDInt,
+			ActorID:       &actorIDInt,
+			ActorUsername: actorUsername,
+			Action:        "channel.delete",
+			TargetID:      chToDelete.ID,
+			TargetType:    "channel",
+			TargetName:    chToDelete.Name,
+		})
 	}
 
 	w.WriteHeader(http.StatusNoContent)

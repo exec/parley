@@ -297,6 +297,7 @@ func registerRoutes(
 			// GET previews invite info without joining; POST actually joins.
 			r.With(rateLimitMiddleware(inviteLimiter)).Get("/invites/{code}", serverHandler.PreviewInvite)
 			r.With(rateLimitMiddleware(inviteLimiter)).Post("/invites/{code}", serverHandler.JoinInvite)
+			r.Get("/servers/{id}/audit-log", serverHandler.GetAuditLog)
 			r.Put("/servers/{id}/vanity", serverHandler.SetVanityURL)
 			r.Put("/servers/{id}/categories", serverHandler.SetServerCategories)
 			r.Get("/servers/{id}/categories", serverHandler.GetServerCategoriesForServer)

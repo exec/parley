@@ -420,6 +420,9 @@ func (s *ChannelService) ReorderChannels(ctx context.Context, serverID string, o
 	return channels, nil
 }
 
+// Repo returns the underlying repository. Used by handlers for audit logging.
+func (s *ChannelService) Repo() *db.Repository { return s.repo }
+
 // GetServerOwnerID returns the server owner's ID as a string, or "" on error.
 func (s *ChannelService) GetServerOwnerID(ctx context.Context, serverID string) string {
 	id, err := strconv.ParseInt(serverID, 10, 64)
