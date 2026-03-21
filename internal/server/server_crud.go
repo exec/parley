@@ -2,8 +2,10 @@ package server
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
+	"strconv"
 
 	"parley/internal/db"
 	ws "parley/internal/websocket"
@@ -90,12 +92,15 @@ func (s *ServerService) GetUserServers(ctx context.Context, userID string) ([]*S
 	return result, nil
 }
 
-func (s *ServerService) UpdateServer(ctx context.Context, id, name, iconURL string) (*Server, error) {
+func (s *ServerService) UpdateServer(ctx context.Context, id, name, iconURL, description string, isPublic bool) (*Server, error) {
 	if id == "" {
 		return nil, errors.New("server ID is required")
 	}
 	if name == "" {
 		return nil, errors.New("server name is required")
+	}
+	if len(description) > 200 {
+		return nil, errors.New("description must be 200 characters or fewer")
 	}
 
 	serverID, err := idToInt64(id)
@@ -111,8 +116,15 @@ func (s *ServerService) UpdateServer(ctx context.Context, id, name, iconURL stri
 		return nil, err
 	}
 
+	// is_public requires a vanity URL
+	if isPublic && !server.VanityURL.Valid {
+		return nil, errors.New("a vanity URL is required to list your server publicly")
+	}
+
 	server.Name = name
 	server.IconURL = nullString(iconURL)
+	server.Description = sql.NullString{String: description, Valid: description != ""}
+	server.IsPublic = isPublic
 
 	if err = s.repo.UpdateServer(ctx, server); err != nil {
 		if errors.Is(err, db.ErrNotFound) {
@@ -163,4 +175,92 @@ func (s *ServerService) GetServerByVanityURL(ctx context.Context, vanityURL stri
 		return nil, err
 	}
 	return dbServerToService(srv), nil
+}
+
+// ListServerCategories returns all admin-managed server categories.
+func (s *ServerService) ListServerCategories(ctx context.Context) ([]db.ServerCategory, error) {
+	cats, err := s.repo.GetServerCategories(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if cats == nil {
+		cats = []db.ServerCategory{}
+	}
+	return cats, nil
+}
+
+// SetServerCategories replaces the category assignments for a server.
+// Authorization (owner check) is handled at the handler layer.
+func (s *ServerService) SetServerCategories(ctx context.Context, serverID string, categoryIDs []int64) ([]db.ServerCategory, error) {
+	if len(categoryIDs) > 3 {
+		return nil, errors.New("maximum 3 categories allowed")
+	}
+	id, err := idToInt64(serverID)
+	if err != nil {
+		return nil, errors.New("invalid server ID")
+	}
+	if err := s.repo.SetServerCategories(ctx, id, categoryIDs); err != nil {
+		return nil, err
+	}
+	cats, err := s.repo.GetServerCategoryAssignments(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if cats == nil {
+		cats = []db.ServerCategory{}
+	}
+	return cats, nil
+}
+
+// GetServerCategoryAssignments returns the categories assigned to a specific server.
+func (s *ServerService) GetServerCategoryAssignments(ctx context.Context, serverID string) ([]db.ServerCategory, error) {
+	id, err := idToInt64(serverID)
+	if err != nil {
+		return nil, errors.New("invalid server ID")
+	}
+	cats, err := s.repo.GetServerCategoryAssignments(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if cats == nil {
+		cats = []db.ServerCategory{}
+	}
+	return cats, nil
+}
+
+const discoverPageSize = 24
+
+// Discover returns paginated public servers.
+func (s *ServerService) Discover(ctx context.Context, categoryID *int64, q string, page int) ([]PublicServer, int, error) {
+	if page < 1 {
+		page = 1
+	}
+	if len(q) > 100 {
+		q = q[:100]
+	}
+	offset := (page - 1) * discoverPageSize
+
+	rows, total, err := s.repo.GetPublicServers(ctx, categoryID, q, discoverPageSize, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	servers := make([]PublicServer, 0, len(rows))
+	for _, row := range rows {
+		id := strconv.FormatInt(row.ID, 10)
+		cats, _ := s.repo.GetServerCategoryAssignments(ctx, row.ID)
+		if cats == nil {
+			cats = []db.ServerCategory{}
+		}
+		servers = append(servers, PublicServer{
+			ID:          id,
+			Name:        row.Name,
+			IconURL:     row.IconURL.String,
+			VanityURL:   row.VanityURL.String,
+			Description: row.Description.String,
+			MemberCount: row.MemberCount,
+			Categories:  cats,
+		})
+	}
+	return servers, total, nil
 }

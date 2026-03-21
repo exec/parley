@@ -33,8 +33,10 @@ type CreateServerRequest struct {
 }
 
 type UpdateServerRequest struct {
-	Name    string `json:"name"`
-	IconURL string `json:"icon_url"`
+	Name        string `json:"name"`
+	IconURL     string `json:"icon_url"`
+	Description string `json:"description"`
+	IsPublic    bool   `json:"is_public"`
 }
 
 type AddMemberRequest struct {
@@ -149,7 +151,7 @@ func (h *Handler) UpdateServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updatedServer, err := h.service.UpdateServer(r.Context(), id, req.Name, req.IconURL)
+	updatedServer, err := h.service.UpdateServer(r.Context(), id, req.Name, req.IconURL, req.Description, req.IsPublic)
 	if err != nil {
 		httputil.InternalError(w, err)
 		return

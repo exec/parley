@@ -14,13 +14,26 @@ import (
 // ============ API layer types ============
 
 type Server struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	IconURL   string    `json:"icon_url,omitempty"`
-	OwnerID   string    `json:"owner_id"`
-	VanityURL string    `json:"vanity_url,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	IconURL     string    `json:"icon_url,omitempty"`
+	OwnerID     string    `json:"owner_id"`
+	VanityURL   string    `json:"vanity_url,omitempty"`
+	Description string    `json:"description,omitempty"`
+	IsPublic    bool      `json:"is_public"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// PublicServer is the API representation of a server in the public discovery directory.
+type PublicServer struct {
+	ID          string              `json:"id"`
+	Name        string              `json:"name"`
+	IconURL     string              `json:"icon_url,omitempty"`
+	VanityURL   string              `json:"vanity_url"`
+	Description string              `json:"description,omitempty"`
+	MemberCount int                 `json:"member_count"`
+	Categories  []db.ServerCategory `json:"categories"`
 }
 
 type Role struct {
@@ -88,13 +101,15 @@ func (s *ServerService) Repo() *db.Repository { return s.repo }
 
 func dbServerToService(s *db.Server) *Server {
 	return &Server{
-		ID:        int64ToID(s.ID),
-		Name:      s.Name,
-		IconURL:   nullStringToString(s.IconURL),
-		OwnerID:   int64ToID(s.OwnerID),
-		VanityURL: nullStringToString(s.VanityURL),
-		CreatedAt: s.CreatedAt,
-		UpdatedAt: s.UpdatedAt,
+		ID:          int64ToID(s.ID),
+		Name:        s.Name,
+		IconURL:     nullStringToString(s.IconURL),
+		OwnerID:     int64ToID(s.OwnerID),
+		VanityURL:   nullStringToString(s.VanityURL),
+		Description: s.Description.String,
+		IsPublic:    s.IsPublic,
+		CreatedAt:   s.CreatedAt,
+		UpdatedAt:   s.UpdatedAt,
 	}
 }
 
