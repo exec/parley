@@ -148,6 +148,12 @@ func (s *ServerService) JoinServerByInvite(ctx context.Context, code, userID str
 		return nil, errors.New("invalid user ID format")
 	}
 
+	if banned, err := s.repo.IsServerBanned(ctx, server.ID, userIDInt); err != nil {
+		return nil, err
+	} else if banned {
+		return nil, errors.New("you are banned from this server")
+	}
+
 	member := &db.ServerMember{
 		ServerID:   server.ID,
 		UserID:     userIDInt,
@@ -184,6 +190,12 @@ func (s *ServerService) JoinServerByVanityURL(ctx context.Context, vanityURL, us
 	userIDInt, err := idToInt64(userID)
 	if err != nil {
 		return nil, errors.New("invalid user ID format")
+	}
+
+	if banned, err := s.repo.IsServerBanned(ctx, server.ID, userIDInt); err != nil {
+		return nil, err
+	} else if banned {
+		return nil, errors.New("you are banned from this server")
 	}
 
 	member := &db.ServerMember{

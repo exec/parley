@@ -480,9 +480,17 @@ func (h *Handler) JoinInvite(w http.ResponseWriter, r *http.Request) {
 	// First try as a regular invite code, then fall back to vanity URL
 	server, err := h.service.JoinServerByInvite(r.Context(), code, userID)
 	if err != nil {
+		if err.Error() == "you are banned from this server" {
+			httputil.JSONError(w, err.Error(), http.StatusForbidden)
+			return
+		}
 		// Try as vanity URL
 		server, err = h.service.JoinServerByVanityURL(r.Context(), code, userID)
 		if err != nil {
+			if err.Error() == "you are banned from this server" {
+				httputil.JSONError(w, err.Error(), http.StatusForbidden)
+				return
+			}
 			httputil.JSONError(w, "invite not found or invalid", http.StatusNotFound)
 			return
 		}
