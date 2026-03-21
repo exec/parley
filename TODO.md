@@ -127,7 +127,7 @@ Features ordered roughly by complexity. Grouped by what they touch.
 
 ### Discovery
 
-- [ ] **Server discovery / public servers list** — `is_public` + `description` on servers, admin-managed `server_categories`, junction table (max 3 per server). `GET /api/discover` (paginated, searchable, filterable by category). Globe icon in sidebar → DiscoveryPage. Server settings Overview tab gets description + is_public toggle + category picker. Spec: `docs/superpowers/specs/2026-03-21-server-discovery-design.md`.
+- [x] **Server discovery / public servers list** — `is_public` + `description` on servers, admin-managed `server_categories`, junction table (max 3 per server). `GET /api/discover` (paginated, searchable, filterable by category). Globe icon in sidebar → DiscoveryPage. Server settings Overview tab gets description + is_public toggle + category picker. Spec: `docs/superpowers/specs/2026-03-21-server-discovery-design.md`.
 
 ### Large — significant new systems
 
