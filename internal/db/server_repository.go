@@ -101,18 +101,18 @@ func (r *Repository) GetServersByUserID(ctx context.Context, userID int64) ([]*S
 func (r *Repository) UpdateServer(ctx context.Context, server *Server) error {
 	query := `
 		UPDATE servers
-		SET name = $1, icon_url = $2, owner_id = $3, vanity_url = $4, updated_at = $5
-		WHERE id = $6
+		SET name = $1, icon_url = $2, owner_id = $3, vanity_url = $4,
+		    description = $5, is_public = $6, updated_at = NOW()
+		WHERE id = $7
 	`
-
-	server.UpdatedAt = time.Now()
 
 	result, err := r.db.ExecContext(ctx, query,
 		server.Name,
 		server.IconURL,
 		server.OwnerID,
 		server.VanityURL,
-		server.UpdatedAt,
+		server.Description,
+		server.IsPublic,
 		server.ID,
 	)
 	if err != nil {
