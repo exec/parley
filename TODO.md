@@ -123,7 +123,7 @@ Features ordered roughly by complexity. Grouped by what they touch.
 ### Moderation — touches server + permissions + message/voice middleware
 
 - [ ] **Member timeout** — `PermModerateMember` can time out a user for a duration (1m/5m/10m/1h/1d). `timed_out_until` column on `server_members`; middleware blocks messages and voice while active. Duration picker in member context menu. Timeout badge in sidebar.
-- [ ] **Server audit log** — structured log of privileged actions (kick/ban/timeout, role changes, channel changes, invite changes). New `server_audit_log` table. `GET /servers/{id}/audit-log` (paginated, filterable). Requires `PermViewAuditLog`. Audit Log tab in ServerSettings.
+- [x] **Server audit log** — structured log of privileged actions (kick/ban/timeout, role changes, channel changes, invite changes). New `server_audit_log` table. `GET /servers/{id}/audit-log` (paginated, filterable). Requires `PermViewAuditLog`. Audit Log tab in ServerSettings.
 
 ### Discovery
 
