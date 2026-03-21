@@ -225,14 +225,13 @@ export const ServerSettings: React.FC<Props> = ({
     setOverviewError('');
     try {
       const updated = await updateServer(server.id, name.trim(), iconUrl || undefined, description, isPublic);
+      let finalServer = updated;
       if (vanityUrl.trim() !== (server.vanity_url || '')) {
-        const withVanity = await setVanityURL(server.id, vanityUrl.trim());
-        onUpdate(withVanity);
-      } else {
-        onUpdate(updated);
+        finalServer = await setVanityURL(server.id, vanityUrl.trim());
       }
       await setServerCategories(server.id, selectedCategoryIds);
       setInitialCategoryIds(selectedCategoryIds);
+      onUpdate(finalServer);
     } catch (err: unknown) {
       setOverviewError(err instanceof Error ? err.message : 'Failed to update server');
     } finally {
