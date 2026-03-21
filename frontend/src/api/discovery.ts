@@ -11,7 +11,7 @@ export async function discoverServers(params: {
   q?: string;
 } = {}): Promise<{ servers: PublicServer[]; total: number }> {
   const search = new URLSearchParams();
-  if (params.page) search.set('page', String(params.page));
+  if (params.page != null) search.set('page', String(params.page));
   if (params.categoryId != null) search.set('category_id', String(params.categoryId));
   if (params.q) search.set('q', params.q);
   const qs = search.toString();
