@@ -3,9 +3,13 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"time"
+
+	"parley/internal/audit"
 )
 
 var (
@@ -114,4 +118,120 @@ func (r *Repository) CreateUserPreferences(ctx context.Context, userID int64) er
 		`INSERT INTO user_preferences (user_id, active_theme)
 		 VALUES ($1, 'rory') ON CONFLICT DO NOTHING`, userID)
 	return err
+}
+
+// nullableString converts an empty string to a NULL sql.NullString.
+func nullableString(s string) sql.NullString {
+	return sql.NullString{String: s, Valid: s != ""}
+}
+
+// GetUsernameByID returns the username for a user ID. Used by audit call sites.
+func (r *Repository) GetUsernameByID(ctx context.Context, userID int64) (string, error) {
+	var username string
+	err := r.db.QueryRowContext(ctx, `SELECT username FROM users WHERE id = $1`, userID).Scan(&username)
+	if err != nil {
+		return "", err
+	}
+	return username, nil
+}
+
+// GetServerRoleByID fetches a single role by ID (used for role.update before-snapshot).
+func (r *Repository) GetServerRoleByID(ctx context.Context, roleID int64) (*ServerRole, error) {
+	row := r.db.QueryRowContext(ctx,
+		`SELECT id, server_id, name, color, permissions, hoist, position, is_everyone, created_at
+		 FROM server_roles WHERE id = $1`, roleID)
+	var role ServerRole
+	if err := row.Scan(&role.ID, &role.ServerID, &role.Name, &role.Color,
+		&role.Permissions, &role.Hoist, &role.Position, &role.IsEveryone, &role.CreatedAt); err != nil {
+		return nil, err
+	}
+	return &role, nil
+}
+
+// AuditLog is the DB model for server_audit_logs.
+type AuditLog struct {
+	ID            int64
+	ServerID      int64
+	ActorID       *int64
+	ActorUsername string
+	Action        string
+	TargetID      string
+	TargetType    string
+	TargetName    string
+	Changes       []byte // raw JSONB
+	Reason        string
+	CreatedAt     time.Time
+}
+
+// CreateAuditLog inserts one audit log row.
+func (r *Repository) CreateAuditLog(ctx context.Context, e audit.Entry) error {
+	var changesJSON []byte
+	if e.Changes != nil {
+		var err error
+		changesJSON, err = json.Marshal(e.Changes)
+		if err != nil {
+			return err
+		}
+	}
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO server_audit_logs
+		 (server_id, actor_id, actor_username, action, target_id, target_type, target_name, changes, reason)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		e.ServerID, e.ActorID, e.ActorUsername, e.Action,
+		nullableString(e.TargetID), nullableString(e.TargetType), nullableString(e.TargetName),
+		changesJSON, nullableString(e.Reason),
+	)
+	return err
+}
+
+// ListAuditLogs returns audit log entries for a server, newest first.
+// actorID and action are optional filters (nil / "" = no filter).
+// Returns (entries, totalCount, error).
+func (r *Repository) ListAuditLogs(ctx context.Context, serverID int64, actorID *int64, action string, limit, offset int) ([]AuditLog, int, error) {
+	args := []any{serverID}
+	where := `WHERE server_id = $1`
+	idx := 2
+	if actorID != nil {
+		where += fmt.Sprintf(` AND actor_id = $%d`, idx)
+		args = append(args, *actorID)
+		idx++
+	}
+	if action != "" {
+		where += fmt.Sprintf(` AND action = $%d`, idx)
+		args = append(args, action)
+		idx++
+	}
+
+	// total count
+	var total int
+	if err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM server_audit_logs `+where, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	// paginated rows
+	args = append(args, limit, offset)
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, server_id, actor_id, actor_username, action,
+		        COALESCE(target_id,''), COALESCE(target_type,''), COALESCE(target_name,''),
+		        changes, COALESCE(reason,''), created_at
+		 FROM server_audit_logs `+where+
+			fmt.Sprintf(` ORDER BY created_at DESC LIMIT $%d OFFSET $%d`, idx, idx+1),
+		args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var logs []AuditLog
+	for rows.Next() {
+		var l AuditLog
+		if err := rows.Scan(&l.ID, &l.ServerID, &l.ActorID, &l.ActorUsername,
+			&l.Action, &l.TargetID, &l.TargetType, &l.TargetName,
+			&l.Changes, &l.Reason, &l.CreatedAt); err != nil {
+			return nil, 0, err
+		}
+		logs = append(logs, l)
+	}
+	return logs, total, rows.Err()
 }

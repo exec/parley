@@ -807,6 +807,24 @@ UPDATE users SET email_verification_token_expires_at = created_at + INTERVAL '72
 
 	`-- Widen invites.code to accommodate 6-byte (12-char) hex codes from S3 entropy fix
 ALTER TABLE invites ALTER COLUMN code TYPE VARCHAR(16);`,
+
+	`-- Server audit log
+CREATE TABLE IF NOT EXISTS server_audit_logs (
+    id              BIGSERIAL PRIMARY KEY,
+    server_id       BIGINT NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
+    actor_id        BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    actor_username  TEXT NOT NULL DEFAULT '',
+    action          VARCHAR(50) NOT NULL,
+    target_id       TEXT,
+    target_type     VARCHAR(20),
+    target_name     TEXT,
+    changes         JSONB,
+    reason          TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_sal_server_time ON server_audit_logs(server_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sal_actor       ON server_audit_logs(server_id, actor_id) WHERE actor_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_sal_action      ON server_audit_logs(server_id, action);`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string
