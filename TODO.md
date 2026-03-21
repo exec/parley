@@ -102,8 +102,8 @@ Features ordered roughly by complexity. Grouped by what they touch.
 - [x] **Scroll-to-bottom button** — floating "↓" button in MessageList when scrolled up; shows unread count badge when new messages arrive while scrolled up.
 - [x] **Large emoji rendering** — messages containing only 1–5 emoji (no other text) render at 2× font size. Detection logic fixed in Message.tsx.
 - [x] **Character counter in MessageInput** — show remaining chars when content exceeds 80% of the 4000-char limit. Red when at limit.
-- [ ] **Collapse long messages** — messages longer than ~20 lines are capped with a "See more" expand link. State per-message in component only.
-- [ ] **Copy message content** — "Copy Text" option in message right-click context menu; writes raw content to clipboard.
+- [x] **Collapse long messages** — messages longer than ~20 lines are capped with a "See more" expand link. State per-message in component only.
+- [x] **Copy message content** — "Copy Text" option in message right-click context menu; writes raw content to clipboard.
 
 ### Fixes
 

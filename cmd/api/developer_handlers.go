@@ -88,6 +88,16 @@ func handleCreateAPIKey(repo *db.Repository) http.HandlerFunc {
 			if name == "" {
 				name = botUsername
 			}
+			const maxBotsPerUser = 10
+			botCount, countErr := repo.CountBotsByOwner(r.Context(), ownerID)
+			if countErr != nil {
+				jsonError(w, "failed to check bot limit", http.StatusInternalServerError)
+				return
+			}
+			if botCount >= maxBotsPerUser {
+				jsonError(w, "bot limit reached: maximum 10 bots per user", http.StatusForbidden)
+				return
+			}
 			botUserID, keyID, err = repo.CreateBotWithKey(r.Context(), botUsername, keyHash, keyPrefix, name, ownerID)
 			if err != nil {
 				if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {

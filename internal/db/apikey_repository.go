@@ -76,6 +76,16 @@ func (r *Repository) UpdateAPIKeyLastUsed(ctx context.Context, keyID int64) erro
 	return err
 }
 
+// CountBotsByOwner returns how many bot users the given owner has created.
+func (r *Repository) CountBotsByOwner(ctx context.Context, ownerID int64) (int, error) {
+	var count int
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM users WHERE is_bot = TRUE AND bot_owner_id = $1`,
+		ownerID,
+	).Scan(&count)
+	return count, err
+}
+
 // GetAPIKeysByOwner returns all API keys owned by the given user, enriched with bot info.
 func (r *Repository) GetAPIKeysByOwner(ctx context.Context, ownerID int64) ([]APIKeyInfo, error) {
 	rows, err := r.db.QueryContext(ctx, `
