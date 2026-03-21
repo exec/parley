@@ -5,7 +5,9 @@
   overflow-y: auto;
   padding: 32px;
   gap: 24px;
-  background: var(--bg-primary, #1a1b1e);
+  background: var(--parley-panel-bg, var(--bg-primary, #1a1b1e));
+  backdrop-filter: blur(var(--parley-panel-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
   color: var(--text-primary, #dcddde);
 }
 

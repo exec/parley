@@ -100,6 +100,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       <div className="divider" />
 
+      <div className="sidebar-scroll">
       <div className="server-list">
         {servers.map(server => {
           const isActive = server.id === activeServerId;
@@ -126,7 +127,9 @@ const Sidebar: React.FC<SidebarProps> = ({
           );
         })}
       </div>
+      </div>{/* end sidebar-scroll */}
 
+      <div className="sidebar-bottom">
       <div className="divider" />
 
       <div className="add-server-button" onClick={onCreateServer}>
@@ -151,6 +154,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         )}
         <span className="tooltip">Notifications</span>
       </button>
+      </div>{/* end sidebar-bottom */}
 
       {contextMenu && createPortal(
         <div

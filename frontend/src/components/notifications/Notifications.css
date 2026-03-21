@@ -1,10 +1,12 @@
 .notif-panel {
   position: fixed;
-  left: 72px;
-  bottom: 80px;
+  left: 80px;
+  bottom: 16px;
   width: 340px;
   max-height: 480px;
-  background: var(--bg-secondary, #2b2d31);
+  background: var(--parley-panel-bg, var(--bg-secondary, #2b2d31));
+  backdrop-filter: blur(var(--parley-panel-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
   border: 1px solid var(--border-color, rgba(255,255,255,0.08));
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.45);
