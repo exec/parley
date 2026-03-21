@@ -37,16 +37,27 @@ type FriendRequestsResponse struct {
 	Outgoing []FriendRequest `json:"outgoing"`
 }
 
+// FriendNotifyFunc is called to fire a notification.
+type FriendNotifyFunc func(ctx context.Context, recipientID int64, username, avatarURL string)
+
 // Service handles all friend business logic and DB access.
 type Service struct {
-	db  *sql.DB
-	hub *ws.Hub
+	db             *sql.DB
+	hub            *ws.Hub
+	notifyRequest  FriendNotifyFunc
+	notifyAccept   FriendNotifyFunc
 }
 
 // NewService creates a Service.
 func NewService(repo *db.Repository, hub *ws.Hub) *Service {
 	return &Service{db: repo.DB(), hub: hub}
 }
+
+// SetNotifyFriendRequest registers a callback for friend request notifications.
+func (s *Service) SetNotifyFriendRequest(fn FriendNotifyFunc) { s.notifyRequest = fn }
+
+// SetNotifyFriendAccept registers a callback for friend accept notifications.
+func (s *Service) SetNotifyFriendAccept(fn FriendNotifyFunc) { s.notifyAccept = fn }
 
 // GetFriends returns all accepted friends for userID.
 func (s *Service) GetFriends(ctx context.Context, userID int64) ([]FriendUser, error) {
@@ -229,6 +240,12 @@ func (s *Service) SendRequest(ctx context.Context, senderID int64, username stri
 	// Broadcast to receiver
 	s.sendToUser(strconv.FormatInt(receiverID, 10), ws.EventFriendRequest, map[string]interface{}{"request": req})
 
+	// Fire notification asynchronously
+	if s.notifyRequest != nil {
+		fn := s.notifyRequest
+		go fn(ctx, receiverID, senderUsername, senderAvatar)
+	}
+
 	return req, nil
 }
 
@@ -266,6 +283,12 @@ func (s *Service) AcceptRequest(ctx context.Context, requestID, currentUserID in
 	s.sendToUser(strconv.FormatInt(senderID, 10), ws.EventFriendAccept, map[string]interface{}{"user": receiverUser})
 	// Notify receiver's other sessions (they already accepted, but other tabs need to update)
 	s.sendToUser(strconv.FormatInt(receiverID, 10), ws.EventFriendAccept, map[string]interface{}{"user": senderUser})
+
+	// Fire accept notification to the original sender
+	if s.notifyAccept != nil {
+		fn := s.notifyAccept
+		go fn(ctx, senderID, receiverUser.Username, receiverUser.AvatarURL)
+	}
 
 	return senderUser, nil
 }

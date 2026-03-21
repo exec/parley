@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
-import { User, Server, Channel, Message, ServerMember, DmChannel, DmMessage, Reaction, FriendUser, FriendRequest, FriendRequestsResponse } from '../api/types';
+import { User, Server, Channel, Message, ServerMember, DmChannel, DmMessage, Reaction, FriendUser, FriendRequest, FriendRequestsResponse, AppNotification } from '../api/types';
 
 // Pure helper: applies a single reaction add/remove to an array of messages.
 // Works for both Message[] and DmMessage[] since both have id and reactions fields.
@@ -39,6 +39,7 @@ import * as channelsApi from '../api/channels';
 import * as messagesApi from '../api/messages';
 import * as dmsApi from '../api/dms';
 import * as friendsApi from '../api/friends';
+import * as notificationsApi from '../api/notifications';
 import { getCurrentUser } from '../api/auth';
 import { ReactionUpdate, MemberRoleUpdate, UserUpdate, BotStatusUpdate } from '../hooks/useWebSocket';
 import { resetThemeOnLogout } from './ThemeContext';
@@ -64,6 +65,8 @@ interface AppState {
   friendRequests: FriendRequestsResponse;
   pendingRequestCount: number;
   pendingJumpMessageId: string | null;
+  notifications: AppNotification[];
+  unreadNotificationCount: number;
 }
 
 interface AppActions {
@@ -119,6 +122,10 @@ interface AppActions {
   receiveFriendRequest: (req: FriendRequest) => void;
   receiveFriendAccept: (user: FriendUser) => void;
   receiveFriendRemove: (userId: string) => void;
+  receiveNotification: (notif: AppNotification) => void;
+  markNotificationRead: (id: string) => Promise<void>;
+  markAllNotificationsRead: () => Promise<void>;
+  loadNotifications: () => Promise<void>;
 }
 
 const AppContext = createContext<(AppState & AppActions) | null>(null);
@@ -168,6 +175,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const pendingRequestCount = friendRequests.incoming.length;
   const [pendingJumpMessageId, setPendingJumpMessageId] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const unreadNotificationCount = notifications.filter(n => !n.read).length;
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -813,6 +822,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setFriends(prev => prev.filter(f => f.id !== userId));
   }, []);
 
+  const loadNotifications = useCallback(async () => {
+    try {
+      const data = await notificationsApi.getNotifications();
+      setNotifications(data ?? []);
+    } catch { /* ignore */ }
+  }, []);
+
+  const receiveNotification = useCallback((notif: AppNotification) => {
+    setNotifications(prev => [notif, ...prev]);
+  }, []);
+
+  const markNotificationRead = useCallback(async (id: string) => {
+    await notificationsApi.markRead(id);
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  }, []);
+
+  const markAllNotificationsRead = useCallback(async () => {
+    await notificationsApi.markAllRead();
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  }, []);
+
   return (
     <AppContext.Provider value={{
       currentUser,
@@ -886,6 +916,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       receiveFriendRequest,
       receiveFriendAccept,
       receiveFriendRemove,
+      notifications,
+      unreadNotificationCount,
+      receiveNotification,
+      markNotificationRead,
+      markAllNotificationsRead,
+      loadNotifications,
     }}>
       {children}
     </AppContext.Provider>

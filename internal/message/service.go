@@ -53,13 +53,17 @@ type Message struct {
 // loose coupling (no import of the bots package).
 type BotTriggerFunc func(ctx context.Context, msgID, channelID, serverID, authorID, content, parentID string)
 
+// MentionNotifyFunc is called after a message is created to fire mention notifications.
+type MentionNotifyFunc func(ctx context.Context, authorID int64, authorUsername, authorAvatarURL, content, channelName string, serverID, channelID, messageID int64)
+
 // MessageService provides message management operations
 type MessageService struct {
-	mu          sync.RWMutex
-	repo        *db.Repository
-	broadcaster Broadcaster
-	botTrigger  BotTriggerFunc
-	memberCache *cache.MembershipCache
+	mu             sync.RWMutex
+	repo           *db.Repository
+	broadcaster    Broadcaster
+	botTrigger     BotTriggerFunc
+	mentionNotify  MentionNotifyFunc
+	memberCache    *cache.MembershipCache
 }
 
 // NewMessageService creates a new MessageService with the given repository
@@ -89,6 +93,13 @@ func (s *MessageService) SetBotTrigger(fn BotTriggerFunc) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.botTrigger = fn
+}
+
+// SetMentionNotify registers a function to call for @mention notifications.
+func (s *MessageService) SetMentionNotify(fn MentionNotifyFunc) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.mentionNotify = fn
 }
 
 // SendMessage creates a new message in a channel.
@@ -218,6 +229,7 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 	// Fire bot trigger asynchronously so it never blocks the HTTP response
 	s.mu.RLock()
 	trigger := s.botTrigger
+	mentionFn := s.mentionNotify
 	s.mu.RUnlock()
 	if trigger != nil {
 		parentIDStr := ""
@@ -226,6 +238,9 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 		}
 		serverIDStr := strconv.FormatInt(srv.ID, 10)
 		trigger(ctx, msg.ID, channelID, serverIDStr, authorID, content, parentIDStr)
+	}
+	if mentionFn != nil && content != "" {
+		go mentionFn(ctx, authorIDInt, authorUsername, authorAvatarURL, content, ch.Name, srv.ID, channelIDInt, dbMsg.ID)
 	}
 
 	return msg, nil

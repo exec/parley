@@ -66,4 +66,7 @@ const (
 
 	// Soundboard events
 	EventSoundboardPlay = "SOUNDBOARD_PLAY"
+
+	// Notification events
+	EventNotificationCreate = "NOTIFICATION_CREATE"
 )

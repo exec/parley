@@ -25,6 +25,9 @@ interface MainLayoutProps {
   onNotificationSettings?: (serverId: string) => void;
   onServerSettings?: (serverId: string) => void;
   onLeaveServer?: (serverId: string) => void;
+  unreadNotificationCount?: number;
+  notifPanelOpen?: boolean;
+  onToggleNotifPanel?: () => void;
 }
 
 const MainLayout: React.FC<MainLayoutProps> = ({
@@ -43,6 +46,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({
   onNotificationSettings,
   onServerSettings,
   onLeaveServer,
+  unreadNotificationCount,
+  notifPanelOpen,
+  onToggleNotifPanel,
 }) => {
   return (
     <div className="main-layout">
@@ -59,6 +65,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({
           onNotificationSettings={onNotificationSettings}
           onServerSettings={onServerSettings}
           onLeaveServer={onLeaveServer}
+          unreadNotificationCount={unreadNotificationCount}
+          notifPanelOpen={notifPanelOpen}
+          onToggleNotifPanel={onToggleNotifPanel}
         />
         {leftPanel}
       </div>

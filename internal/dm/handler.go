@@ -1,6 +1,7 @@
 package dm
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log"
@@ -17,15 +18,24 @@ import (
 	ws "parley/internal/websocket"
 )
 
+// DmNotifyFunc is called after a DM is sent to create a notification for the recipient.
+type DmNotifyFunc func(ctx context.Context, recipientID int64, authorUsername, authorAvatarURL string, dmChannelID int64)
+
 // Handler handles HTTP requests for DMs
 type Handler struct {
-	repo *db.Repository
-	hub  *ws.Hub
+	repo       *db.Repository
+	hub        *ws.Hub
+	dmNotify   DmNotifyFunc
 }
 
 // NewHandler creates a new DM handler
 func NewHandler(repo *db.Repository, hub *ws.Hub) *Handler {
 	return &Handler{repo: repo, hub: hub}
+}
+
+// SetDmNotify registers a function to call after a DM is sent.
+func (h *Handler) SetDmNotify(fn DmNotifyFunc) {
+	h.dmNotify = fn
 }
 
 // OpenDmChannelRequest represents the request to open/start a DM
@@ -267,6 +277,20 @@ func (h *Handler) SendDmMessage(w http.ResponseWriter, r *http.Request) {
 			virtualChannelID := "dm:" + strconv.FormatInt(dmChannelID, 10)
 			h.hub.BroadcastToChannel(virtualChannelID, "dm_message", msgJSON)
 		}
+	}
+
+	// Notify the recipient asynchronously
+	if h.dmNotify != nil {
+		recipientID := channel.User1ID
+		if channel.User1ID == currentUserID {
+			recipientID = channel.User2ID
+		}
+		var senderUsername, senderAvatarURL string
+		h.repo.DB().QueryRowContext(r.Context(),
+			"SELECT username, COALESCE(avatar_url,'') FROM users WHERE id=$1", currentUserID,
+		).Scan(&senderUsername, &senderAvatarURL)
+		notifyFn := h.dmNotify
+		go notifyFn(context.Background(), recipientID, senderUsername, senderAvatarURL, dmChannelID)
 	}
 
 	w.Header().Set("Content-Type", "application/json")

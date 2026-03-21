@@ -16,7 +16,8 @@ import { BotInvitePage } from './pages/BotInvitePage';
 import { useWebSocket, MemberRoleUpdate, UserUpdate, VoiceStateUpdate, VoiceForceMuteEvent, RoleUpdateEvent, RoleDeleteEvent, BotStatusUpdate, SoundboardPlayEvent } from './hooks/useWebSocket';
 import { VoiceChannel } from './components/voice/VoiceChannel';
 
-import { DmMessage, Message, BinChannelTag, ServerMember } from './api/types';
+import { DmMessage, Message, BinChannelTag, ServerMember, AppNotification } from './api/types';
+import NotificationPanel from './components/notifications/NotificationPanel';
 import { ForwardModal } from './components/chat/ForwardModal';
 import * as serversApi from './api/servers';
 import * as channelsApi from './api/channels';
@@ -118,6 +119,12 @@ function MainApp() {
     selectChannelAround,
     clearJumpTarget,
     pendingJumpMessageId,
+    notifications,
+    unreadNotificationCount,
+    receiveNotification,
+    markNotificationRead,
+    markAllNotificationsRead,
+    loadNotifications,
   } = useApp();
 
   const navigate = useNavigate();
@@ -132,6 +139,7 @@ function MainApp() {
   const [showServerSettings, setShowServerSettings] = useState(false);
   const [serverSettingsInitialTab, setServerSettingsInitialTab] = useState<'overview' | 'roles' | 'danger'>('overview');
   const [showUserSettings, setShowUserSettings] = useState(false);
+  const [showNotifPanel, setShowNotifPanel] = useState(false);
   const [vcChatOpen, setVcChatOpen] = useState(false);
   // Assign roles modal (from context menu on a specific user)
   const [showAssignRoles, setShowAssignRoles] = useState(false);
@@ -176,6 +184,19 @@ function MainApp() {
 
   // Request notification permission once on mount (Chromium allows this without a gesture)
   useEffect(() => { requestPermission(); }, [requestPermission]);
+
+  // Load in-app notifications on mount
+  useEffect(() => {
+    if (currentUser) loadNotifications();
+  }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleNotifNavigate = useCallback((notif: AppNotification) => {
+    if (notif.channel_id && notif.message_id) {
+      handleJumpToMessage(notif.channel_id, notif.message_id);
+    } else if (notif.dm_channel_id) {
+      selectDmChannel(notif.dm_channel_id);
+    }
+  }, [handleJumpToMessage, selectDmChannel]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
   // Voice state: channelId → list of participants
@@ -759,6 +780,7 @@ function MainApp() {
     activeChannelId: activeChannel?.id ?? null,
     extraChannelIds,
     onSoundboardPlay: handleSoundboardPlay,
+    onNotification: receiveNotification,
   });
 
   const handleSendTyping = useCallback(() => {
@@ -1273,6 +1295,9 @@ function MainApp() {
           setShowServerSettings(true);
         }}
         onLeaveServer={(serverId) => leaveServer(serverId)}
+        unreadNotificationCount={unreadNotificationCount}
+        notifPanelOpen={showNotifPanel}
+        onToggleNotifPanel={() => setShowNotifPanel(p => !p)}
       >
         {mainContent}
         {/* Mobile backdrop — closes drawers when tapping outside */}
@@ -1284,6 +1309,16 @@ function MainApp() {
         )}
       </MainLayout>
 
+
+      {showNotifPanel && (
+        <NotificationPanel
+          notifications={notifications}
+          onMarkAllRead={markAllNotificationsRead}
+          onMarkRead={markNotificationRead}
+          onNavigate={handleNotifNavigate}
+          onClose={() => setShowNotifPanel(false)}
+        />
+      )}
 
       <CreateServerModal
         isOpen={showCreateServer}

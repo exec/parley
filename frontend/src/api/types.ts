@@ -1,3 +1,18 @@
+export interface AppNotification {
+  id: string;
+  type: 'mention' | 'dm' | 'friend_request' | 'friend_accept';
+  title: string;
+  body: string;
+  actor_username: string;
+  actor_avatar_url?: string;
+  server_id?: string;
+  channel_id?: string;
+  message_id?: string;
+  dm_channel_id?: string;
+  read: boolean;
+  created_at: string;
+}
+
 export interface User {
   id: string;
   username: string;

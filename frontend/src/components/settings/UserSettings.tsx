@@ -10,7 +10,7 @@ import { VoiceSettingsTab } from './VoiceSettings';
 import { AppearanceTab } from './AppearanceTab';
 import './Settings.css';
 
-type Tab = 'account' | 'profile' | 'developer' | 'voice' | 'appearance';
+type Tab = 'account' | 'profile' | 'notifications' | 'developer' | 'voice' | 'appearance';
 
 interface Props {
   isOpen: boolean;
@@ -230,6 +230,9 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
           <button className={`settings-nav-item${activeTab === 'profile' ? ' active' : ''}`} onClick={() => setActiveTab('profile')}>
             Profile
           </button>
+          <button className={`settings-nav-item${activeTab === 'notifications' ? ' active' : ''}`} onClick={() => setActiveTab('notifications')}>
+            Notifications
+          </button>
           <button className={`settings-nav-item${activeTab === 'developer' ? ' active' : ''}`} onClick={() => setActiveTab('developer')}>
             Developer
           </button>
@@ -302,6 +305,7 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
             onReset={handleReset}
             hasChanges={hasChanges()}
           />}
+          {activeTab === 'notifications' && <NotificationsTab />}
           {activeTab === 'developer' && <DeveloperTab />}
           {activeTab === 'voice' && <VoiceSettingsTab />}
           {activeTab === 'appearance' && <AppearanceTab />}
@@ -891,5 +895,65 @@ const ProfileTab: React.FC<ProfileTabProps> = (p) => {
         </div>
       </div>
     </>
+  );
+};
+
+/* ---- Notifications Tab ---- */
+
+const NotificationsTab: React.FC = () => {
+  const [permission, setPermission] = React.useState<NotificationPermission>(
+    typeof Notification !== 'undefined' ? Notification.permission : 'default'
+  );
+
+  const handleEnable = async () => {
+    if (typeof Notification === 'undefined') return;
+    const result = await Notification.requestPermission();
+    setPermission(result);
+  };
+
+  const supported = typeof Notification !== 'undefined';
+
+  return (
+    <div>
+      <h2 className="settings-page-title">Notifications</h2>
+
+      <div className="settings-section">
+        <div className="settings-section-title">Browser Push Notifications</div>
+        <div className="settings-form-hint" style={{ marginBottom: 12 }}>
+          Allow Parley to show desktop notifications for mentions, direct messages, and friend requests even when the app is not in focus.
+        </div>
+
+        {!supported && (
+          <div className="settings-error">
+            Your browser does not support desktop notifications.
+          </div>
+        )}
+
+        {supported && permission === 'granted' && (
+          <div className="settings-success">
+            Desktop notifications are enabled.
+          </div>
+        )}
+
+        {supported && permission === 'denied' && (
+          <div className="settings-error">
+            Notifications are blocked. To enable them, click the lock icon in your browser's address bar and allow notifications for this site, then reload.
+          </div>
+        )}
+
+        {supported && permission === 'default' && (
+          <button className="settings-save-btn" onClick={handleEnable}>
+            Enable Desktop Notifications
+          </button>
+        )}
+      </div>
+
+      <div className="settings-section">
+        <div className="settings-section-title">Per-Server Notification Settings</div>
+        <div className="settings-form-hint">
+          To configure notification settings for a specific server, right-click the server icon in the sidebar and choose <strong>Notification Settings</strong>.
+        </div>
+      </div>
+    </div>
   );
 };

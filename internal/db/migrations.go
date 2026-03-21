@@ -768,6 +768,24 @@ UPDATE users SET email_verification_token_expires_at = created_at + INTERVAL '72
 	`-- Forwarded message data (JSONB snapshot stored at forward time)
 	ALTER TABLE messages ADD COLUMN IF NOT EXISTS forwarded_data JSONB;
 	ALTER TABLE dm_messages ADD COLUMN IF NOT EXISTS forwarded_data JSONB;`,
+
+	`-- In-app notification center
+	CREATE TABLE IF NOT EXISTS notifications (
+		id BIGSERIAL PRIMARY KEY,
+		user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		type VARCHAR(50) NOT NULL,
+		title TEXT NOT NULL DEFAULT '',
+		body TEXT NOT NULL DEFAULT '',
+		actor_username TEXT NOT NULL DEFAULT '',
+		actor_avatar_url TEXT NOT NULL DEFAULT '',
+		server_id BIGINT REFERENCES servers(id) ON DELETE CASCADE,
+		channel_id BIGINT REFERENCES channels(id) ON DELETE SET NULL,
+		message_id BIGINT REFERENCES messages(id) ON DELETE SET NULL,
+		dm_channel_id BIGINT REFERENCES dm_channels(id) ON DELETE CASCADE,
+		read BOOLEAN NOT NULL DEFAULT FALSE,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+	CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id, created_at DESC);`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

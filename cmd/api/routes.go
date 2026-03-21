@@ -20,6 +20,7 @@ import (
 	"parley/internal/dm"
 	"parley/internal/friend"
 	"parley/internal/message"
+	"parley/internal/notification"
 	"parley/internal/passkey"
 	"parley/internal/server"
 	"parley/internal/soundboard"
@@ -223,8 +224,17 @@ func registerRoutes(
 			r.Post("/channels/{channelId}/voice/participants/{targetUserId}/mute", voiceHandler.MuteParticipant)
 			r.Post("/channels/{channelId}/voice/participants/{targetUserId}/kick", voiceHandler.KickParticipant)
 
+			// Notification service — wired into DM, friend, and message flows
+			notifSvc := notification.New(repo, hub)
+			messageService.SetMentionNotify(notifSvc.NotifyMentions)
+			notifHandler := notification.NewHandler(repo)
+			r.Get("/notifications", notifHandler.GetNotifications)
+			r.Patch("/notifications/read-all", notifHandler.MarkAllRead)
+			r.Patch("/notifications/{id}/read", notifHandler.MarkRead)
+
 			// DM routes
 			dmHandler := dm.NewHandler(repo, hub)
+			dmHandler.SetDmNotify(notifSvc.NotifyDM)
 			r.Get("/dms", dmHandler.GetDmChannels)
 			r.Post("/dms", dmHandler.OpenDmChannel)
 			r.Get("/dms/{id}/messages", dmHandler.GetDmMessages)
@@ -235,6 +245,8 @@ func registerRoutes(
 
 			// Friend routes
 			friendSvc := friend.NewService(repo, hub)
+			friendSvc.SetNotifyFriendRequest(notifSvc.NotifyFriendRequest)
+			friendSvc.SetNotifyFriendAccept(notifSvc.NotifyFriendAccept)
 			friendHandler := friend.NewHandler(friendSvc)
 			r.Get("/friends", friendHandler.GetFriends)
 			r.Get("/friend-requests", friendHandler.GetRequests)
