@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useCallback, useMemo, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { Message as MessageType } from '../../api/types';
 import { Message } from './Message';
 import './Chat.css';
@@ -55,11 +56,29 @@ export const MessageList: React.FC<MessageListProps> = ({
   onScrollToMessage: onScrollToMessageProp,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll: true when user is at bottom (new messages should pull them along)
   const shouldAutoScrollRef = useRef(true);
-  const prevChannelIdRef = useRef<string | undefined>(undefined);
-  // Timestamp of last channel switch — used to suppress the scroll handler
-  // from cancelling auto-scroll while the new channel's messages are loading.
+  // Suppress scroll handler briefly after channel switch to avoid race
   const channelSwitchTimeRef = useRef(0);
+  // Track channel for switch detection
+  const prevChannelIdRef = useRef<string | undefined>(undefined);
+
+  // Scroll anchor: snapshot taken right before triggering a load-more.
+  // Used to restore visual position after messages are prepended.
+  const scrollAnchorRef = useRef<{ scrollTop: number; scrollHeight: number } | null>(null);
+  // Track first message ID to detect prepend vs append
+  const prevFirstMsgIdRef = useRef<string | undefined>(undefined);
+
+  // Ref-based load lock so we never fire multiple loads before React state propagates.
+  // This is the key fix for the multi-page load bug.
+  const loadingLockRef = useRef(false);
+
+  // Scroll-to-bottom button state
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
+  // Track the last message ID to detect new appended messages vs prepended history
+  const prevLastMsgIdRef = useRef<string | undefined>(undefined);
 
   const handleScrollToMessage = useCallback((messageId: string) => {
     const el = document.getElementById(`message-${messageId}`);
@@ -73,37 +92,27 @@ export const MessageList: React.FC<MessageListProps> = ({
   const groupMessagesByDate = useCallback(
     (msgs: MessageType[]): Map<string, MessageType[]> => {
       const groups = new Map<string, MessageType[]>();
-
       msgs.forEach((msg) => {
         const date = new Date(msg.created_at).toLocaleDateString('en-US', {
           year: 'numeric',
           month: 'long',
           day: 'numeric',
         });
-
-        if (!groups.has(date)) {
-          groups.set(date, []);
-        }
+        if (!groups.has(date)) groups.set(date, []);
         groups.get(date)!.push(msg);
       });
-
       return groups;
     },
     []
   );
 
-  // Format date for display
   const formatDateHeader = (dateString: string): string => {
     const date = new Date(dateString);
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
-
-    if (date.toDateString() === today.toDateString()) {
-      return 'Today';
-    } else if (date.toDateString() === yesterday.toDateString()) {
-      return 'Yesterday';
-    }
+    if (date.toDateString() === today.toDateString()) return 'Today';
+    if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
     return date.toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
@@ -112,49 +121,7 @@ export const MessageList: React.FC<MessageListProps> = ({
     });
   };
 
-  // Scroll to bottom on new messages, and always on channel switch.
-  // Combining both deps here ensures the channel-switch reset runs in the
-  // same effect pass as the message render, so the scroll handler can't
-  // race in between and cancel shouldAutoScrollRef.
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const container = containerRef.current;
-    const changedChannel = prevChannelIdRef.current !== channelId;
-    prevChannelIdRef.current = channelId;
-    if (changedChannel) {
-      shouldAutoScrollRef.current = true;
-      channelSwitchTimeRef.current = Date.now();
-    }
-    if (!shouldAutoScrollRef.current) return;
-    requestAnimationFrame(() => {
-      container.scrollTop = container.scrollHeight;
-    });
-  }, [messages, channelId]);
-
-  // Handle scroll - both for infinite loading and auto-scroll reset
-  const handleScroll = useCallback(() => {
-    if (!containerRef.current) return;
-    // Ignore scroll events fired immediately after a channel switch — the
-    // container briefly sits at scrollTop=0 which would cancel auto-scroll.
-    if (Date.now() - channelSwitchTimeRef.current < 400) return;
-
-    const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
-
-    // Reset auto-scroll when user scrolls to bottom
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
-    if (isAtBottom) {
-      shouldAutoScrollRef.current = true;
-    }
-
-    // Load more when near the top
-    if (onLoadMore && !isLoading && hasMore && scrollTop < 100) {
-      shouldAutoScrollRef.current = false;
-      onLoadMore();
-    }
-  }, [onLoadMore, hasMore, isLoading]);
-
   // Sort by integer ID so WS events arriving out of order never mis-sequence.
-  // Pending (optimistic) messages have a non-numeric id; sort them last.
   const sortedMessages = useMemo(() => {
     return [...messages].sort((a, b) => {
       const aId = parseInt(a.id, 10);
@@ -166,84 +133,211 @@ export const MessageList: React.FC<MessageListProps> = ({
     });
   }, [messages]);
 
-  const groupedMessages = groupMessagesByDate(sortedMessages);
+  const firstMsgId = sortedMessages[0]?.id;
+  const lastMsgId = sortedMessages[sortedMessages.length - 1]?.id;
 
+  // Keep an up-to-date ref for isAtBottom so the unread effect can read it
+  // without needing it as a dependency (avoids stale closure issues).
+  const isAtBottomRef = useRef(true);
+  useEffect(() => { isAtBottomRef.current = isAtBottom; }, [isAtBottom]);
+
+  // Track new messages arriving at the END while scrolled away (unread count).
+  // Distinguishes appends (new WS message) from prepends (load-more history)
+  // by verifying the last message ID numerically advanced.
+  useEffect(() => {
+    const prevLast = prevLastMsgIdRef.current;
+    prevLastMsgIdRef.current = lastMsgId;
+    if (prevLast === undefined || lastMsgId === prevLast) return;
+    const prevN = parseInt(prevLast, 10);
+    const curN = parseInt(lastMsgId ?? '', 10);
+    if (!isNaN(prevN) && !isNaN(curN) && curN > prevN && !isAtBottomRef.current) {
+      setUnreadCount(c => c + 1);
+    }
+  }, [lastMsgId]);
+
+  // Main scroll-position management. useLayoutEffect runs synchronously after DOM
+  // update, before paint — critical so the user never sees a flash of wrong position.
+  useLayoutEffect(() => {
+    if (!containerRef.current) return;
+    const container = containerRef.current;
+    const changedChannel = prevChannelIdRef.current !== channelId;
+
+    if (changedChannel) {
+      // Full reset on channel switch
+      prevChannelIdRef.current = channelId;
+      prevFirstMsgIdRef.current = firstMsgId;
+      shouldAutoScrollRef.current = true;
+      loadingLockRef.current = false;
+      scrollAnchorRef.current = null;
+      channelSwitchTimeRef.current = Date.now();
+      setIsAtBottom(true);
+      setUnreadCount(0);
+      container.scrollTop = container.scrollHeight;
+      return;
+    }
+
+    // Prepend detected: first message changed and we have a saved anchor.
+    // Restore the viewport so the user sees the same message they were looking at.
+    if (firstMsgId !== prevFirstMsgIdRef.current && scrollAnchorRef.current !== null) {
+      const { scrollTop: savedTop, scrollHeight: savedH } = scrollAnchorRef.current;
+      const delta = container.scrollHeight - savedH;
+      container.scrollTop = savedTop + delta;
+      scrollAnchorRef.current = null;
+      prevFirstMsgIdRef.current = firstMsgId;
+      return;
+    }
+
+    prevFirstMsgIdRef.current = firstMsgId;
+
+    // Auto-scroll to bottom when new messages arrive and user was already at bottom
+    if (shouldAutoScrollRef.current) {
+      container.scrollTop = container.scrollHeight;
+    }
+  }, [sortedMessages, channelId, firstMsgId]);
+
+  // Clear the load lock when the isLoading prop goes false (load completed)
+  useEffect(() => {
+    if (!isLoading) {
+      loadingLockRef.current = false;
+    }
+  }, [isLoading]);
+
+  // Trigger a load-more with scroll anchor saved. The ref lock prevents double-fires
+  // that would happen between scroll events and React state propagation.
+  const triggerLoadMore = useCallback(() => {
+    if (!onLoadMore || !hasMore || loadingLockRef.current || !containerRef.current) return;
+    scrollAnchorRef.current = {
+      scrollTop: containerRef.current.scrollTop,
+      scrollHeight: containerRef.current.scrollHeight,
+    };
+    loadingLockRef.current = true;
+    onLoadMore();
+  }, [onLoadMore, hasMore]);
+
+  const scrollToBottom = useCallback(() => {
+    if (!containerRef.current) return;
+    containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    shouldAutoScrollRef.current = true;
+    setIsAtBottom(true);
+    setUnreadCount(0);
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    if (!containerRef.current) return;
+    // Ignore scroll events fired immediately after a channel switch
+    if (Date.now() - channelSwitchTimeRef.current < 400) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+    const atBottom = scrollHeight - scrollTop - clientHeight < 100;
+
+    setIsAtBottom(atBottom);
+    if (atBottom) {
+      shouldAutoScrollRef.current = true;
+      setUnreadCount(0);
+    } else {
+      shouldAutoScrollRef.current = false;
+    }
+
+    // Load more history when scrolled near the top
+    if (scrollTop < 150) {
+      triggerLoadMore();
+    }
+  }, [triggerLoadMore]);
+
+  const groupedMessages = groupMessagesByDate(sortedMessages);
   const GROUP_WINDOW_MS = 10 * 60 * 1000;
   const MAX_GROUP_SIZE = 10;
 
   return (
-    <div
-      ref={containerRef}
-      className="message-list-container"
-      onScroll={handleScroll}
-    >
-      {/* Invisible trigger for infinite scroll */}
-      {hasMore && <div className="load-more-trigger" />}
+    <div className="message-list-wrapper">
+      <div
+        ref={containerRef}
+        className="message-list-container"
+        onScroll={handleScroll}
+      >
+        {hasMore && <div className="load-more-trigger" />}
 
-      {isLoading && hasMore && (
-        <div className="message-loading">Loading older messages...</div>
-      )}
+        {isLoading && hasMore && (
+          <div className="message-loading">Loading older messages...</div>
+        )}
 
-      {Array.from(groupedMessages.entries()).map(([date, dateMessages]) => {
-        // Compute grouped flags within each date group (iterative to avoid TDZ)
-        const groupedFlags: boolean[] = [];
-        for (let idx = 0; idx < dateMessages.length; idx++) {
-          const msg = dateMessages[idx];
-          if (idx === 0) { groupedFlags.push(false); continue; }
-          const prev = dateMessages[idx - 1];
-          if (prev.author_id !== msg.author_id) { groupedFlags.push(false); continue; }
-          if (new Date(msg.created_at).getTime() - new Date(prev.created_at).getTime() > GROUP_WINDOW_MS) { groupedFlags.push(false); continue; }
-          // Count how many consecutive grouped messages are in this streak
-          let streakLen = 0;
-          for (let i = idx - 1; i >= 0; i--) {
-            if (dateMessages[i].author_id !== msg.author_id) break;
-            streakLen++;
-            if (!groupedFlags[i]) break;
+        {Array.from(groupedMessages.entries()).map(([date, dateMessages]) => {
+          const groupedFlags: boolean[] = [];
+          for (let idx = 0; idx < dateMessages.length; idx++) {
+            const msg = dateMessages[idx];
+            if (idx === 0) { groupedFlags.push(false); continue; }
+            const prev = dateMessages[idx - 1];
+            if (prev.author_id !== msg.author_id) { groupedFlags.push(false); continue; }
+            if (new Date(msg.created_at).getTime() - new Date(prev.created_at).getTime() > GROUP_WINDOW_MS) {
+              groupedFlags.push(false); continue;
+            }
+            let streakLen = 0;
+            for (let i = idx - 1; i >= 0; i--) {
+              if (dateMessages[i].author_id !== msg.author_id) break;
+              streakLen++;
+              if (!groupedFlags[i]) break;
+            }
+            groupedFlags.push(streakLen < MAX_GROUP_SIZE);
           }
-          groupedFlags.push(streakLen < MAX_GROUP_SIZE);
-        }
 
-        return (
-        <div key={date} className="date-group">
-          <div className="date-divider">
-            <div className="date-divider-line" />
-            <span className="date-divider-text">{formatDateHeader(date)}</span>
-            <div className="date-divider-line" />
+          return (
+            <div key={date} className="date-group">
+              <div className="date-divider">
+                <div className="date-divider-line" />
+                <span className="date-divider-text">{formatDateHeader(date)}</span>
+                <div className="date-divider-line" />
+              </div>
+              {dateMessages.map((message, idx) => (
+                <Message
+                  key={message.id}
+                  message={message}
+                  currentUserId={currentUserId}
+                  isGrouped={groupedFlags[idx]}
+                  memberMap={memberMap}
+                  channelMap={channelMap}
+                  messages={allMessages}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                  onReact={onReact}
+                  onReply={onReply}
+                  onViewProfile={onViewProfile}
+                  onSendMessage={onSendMessage}
+                  onMiniProfile={onMiniProfile}
+                  onScrollToMessage={onScrollToMessageProp ?? handleScrollToMessage}
+                  canManageMessages={canManageMessages}
+                  canAddReactions={canAddReactions}
+                  canKickMembers={canKickMembers}
+                  canBanMembers={canBanMembers}
+                  onKickMember={onKickMember}
+                  onBanMember={onBanMember}
+                />
+              ))}
+            </div>
+          );
+        })}
+
+        {messages.length === 0 && !isLoading && (
+          <div className="message-empty">
+            <h3>No messages yet</h3>
+            <p>Be the first to send a message in this channel!</p>
           </div>
-          {dateMessages.map((message, idx) => (
-            <Message
-              key={message.id}
-              message={message}
-              currentUserId={currentUserId}
-              isGrouped={groupedFlags[idx]}
-              memberMap={memberMap}
-              channelMap={channelMap}
-              messages={allMessages}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              onReact={onReact}
-              onReply={onReply}
-              onViewProfile={onViewProfile}
-              onSendMessage={onSendMessage}
-              onMiniProfile={onMiniProfile}
-              onScrollToMessage={onScrollToMessageProp ?? handleScrollToMessage}
-              canManageMessages={canManageMessages}
-              canAddReactions={canAddReactions}
-              canKickMembers={canKickMembers}
-              canBanMembers={canBanMembers}
-              onKickMember={onKickMember}
-              onBanMember={onBanMember}
-            />
-          ))}
-        </div>
-        );
-      })}
+        )}
+      </div>
 
-      {messages.length === 0 && !isLoading && (
-        <div className="message-empty">
-          <h3>No messages yet</h3>
-          <p>Be the first to send a message in this channel!</p>
-        </div>
+      {/* Scroll-to-bottom button — shown when user has scrolled up from the latest messages */}
+      {!isAtBottom && (
+        <button
+          className="scroll-to-bottom-btn"
+          onClick={scrollToBottom}
+          title="Jump to latest messages"
+        >
+          {unreadCount > 0 && (
+            <span className="scroll-to-bottom-badge">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
+          <ChevronDown size={20} />
+        </button>
       )}
     </div>
   );
