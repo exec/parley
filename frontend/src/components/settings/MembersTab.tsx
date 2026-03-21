@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, UserX } from 'lucide-react';
 import { Server, ServerMember, Role } from '../../api/types';
-import { Invite, listServerInvites, revokeInvite } from '../../api/servers';
+import { Invite, listServerInvites, revokeInvite, ServerBan, listServerBans, unbanMember } from '../../api/servers';
 import { getServerRoles, getMemberRoles, assignRoleToMember, removeRoleFromMember } from '../../api/roles';
 import './MembersTab.css';
 
@@ -126,6 +126,11 @@ export const MembersTab: React.FC<Props> = ({ server, members }) => {
   const [tooltipMember, setTooltipMember] = useState<string | null>(null);
   const anchorRefs = useRef<Record<string, HTMLElement | null>>({});
 
+  const [bans, setBans] = useState<ServerBan[]>([]);
+  const [bansLoading, setBansLoading] = useState(false);
+  const [bansError, setBansError] = useState('');
+  const [unbanning, setUnbanning] = useState<string | null>(null);
+
   const loadInvites = useCallback(async () => {
     if (!server) return;
     try {
@@ -166,10 +171,38 @@ export const MembersTab: React.FC<Props> = ({ server, members }) => {
     setMemberRoles(Object.fromEntries(entries));
   }, [server, members]);
 
+  const loadBans = useCallback(async () => {
+    if (!server) return;
+    setBansLoading(true);
+    setBansError('');
+    try {
+      const list = await listServerBans(server.id);
+      setBans(list ?? []);
+    } catch (e) {
+      setBansError(e instanceof Error ? e.message : 'Failed to load bans');
+    } finally {
+      setBansLoading(false);
+    }
+  }, [server]);
+
+  const handleUnban = async (userId: string) => {
+    if (!server) return;
+    setUnbanning(userId);
+    try {
+      await unbanMember(server.id, userId);
+      setBans(prev => prev.filter(b => b.user_id !== userId));
+    } catch (e) {
+      setBansError(e instanceof Error ? e.message : 'Failed to unban member');
+    } finally {
+      setUnbanning(null);
+    }
+  };
+
   useEffect(() => {
     loadInvites();
     loadRoles();
-  }, [loadInvites, loadRoles]);
+    loadBans();
+  }, [loadInvites, loadRoles, loadBans]);
 
   useEffect(() => {
     if (expandedMember) {
@@ -334,6 +367,47 @@ export const MembersTab: React.FC<Props> = ({ server, members }) => {
           );
         })}
       </div>
+
+      {/* Banned Members */}
+      <h3 className="settings-section-title" style={{ marginTop: '2rem' }}>Banned Members</h3>
+      {bansError && <div className="settings-error">{bansError}</div>}
+      {bansLoading ? (
+        <div className="members-empty">Loading…</div>
+      ) : bans.length === 0 ? (
+        <div className="members-empty">No banned members.</div>
+      ) : (
+        <div className="members-list">
+          {bans.map(ban => (
+            <div key={ban.user_id} className="members-item">
+              <div className="members-item-header" style={{ cursor: 'default' }}>
+                <div className="members-item-avatar">
+                  {ban.avatar_url
+                    ? <img src={ban.avatar_url} alt={ban.username} />
+                    : ban.username.charAt(0).toUpperCase()
+                  }
+                </div>
+                <div className="members-item-names">
+                  <span className="members-item-display">{ban.username}</span>
+                </div>
+                {ban.reason && (
+                  <div className="members-item-meta">
+                    <span className="members-item-joined" title="Ban reason">{ban.reason}</span>
+                  </div>
+                )}
+                <button
+                  className="settings-btn settings-btn-secondary"
+                  style={{ marginLeft: 'auto', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 4 }}
+                  onClick={() => handleUnban(ban.user_id)}
+                  disabled={unbanning === ban.user_id}
+                >
+                  <UserX size={13} />
+                  {unbanning === ban.user_id ? 'Unbanning…' : 'Unban'}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

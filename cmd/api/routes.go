@@ -170,6 +170,8 @@ func registerRoutes(
 			r.Delete("/servers/{id}/leave", serverHandler.LeaveServer)
 			r.Post("/servers/{id}/members/{userID}/kick", serverHandler.KickMember)
 			r.Post("/servers/{id}/members/{userID}/ban", serverHandler.BanMember)
+			r.Get("/servers/{id}/bans", serverHandler.ListBans)
+			r.Delete("/servers/{id}/bans/{userID}", serverHandler.UnbanMember)
 
 			// Role routes
 			r.Get("/servers/{id}/roles", serverHandler.GetServerRoles)

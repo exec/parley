@@ -382,3 +382,43 @@ func (r *Repository) IsServerBanned(ctx context.Context, serverID, userID int64)
 	).Scan(&count)
 	return count > 0, err
 }
+
+type ServerBan struct {
+	UserID    int64     `json:"user_id,string"`
+	Username  string    `json:"username"`
+	AvatarURL string    `json:"avatar_url"`
+	Reason    string    `json:"reason"`
+	BannedAt  time.Time `json:"banned_at"`
+}
+
+func (r *Repository) ListServerBans(ctx context.Context, serverID int64) ([]ServerBan, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT sb.user_id, u.username, COALESCE(u.avatar_url,''), sb.reason, sb.created_at
+		 FROM server_bans sb
+		 JOIN users u ON u.id = sb.user_id
+		 WHERE sb.server_id = $1
+		 ORDER BY sb.created_at DESC`,
+		serverID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	bans := make([]ServerBan, 0)
+	for rows.Next() {
+		var b ServerBan
+		if err := rows.Scan(&b.UserID, &b.Username, &b.AvatarURL, &b.Reason, &b.BannedAt); err != nil {
+			return nil, err
+		}
+		bans = append(bans, b)
+	}
+	return bans, rows.Err()
+}
+
+func (r *Repository) RemoveServerBan(ctx context.Context, serverID, userID int64) error {
+	_, err := r.db.ExecContext(ctx,
+		`DELETE FROM server_bans WHERE server_id = $1 AND user_id = $2`,
+		serverID, userID,
+	)
+	return err
+}

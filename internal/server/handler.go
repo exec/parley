@@ -994,6 +994,56 @@ func (h *Handler) BanMember(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// ListBans handles GET /servers/:id/bans
+func (h *Handler) ListBans(w http.ResponseWriter, r *http.Request) {
+	serverID := chi.URLParam(r, "id")
+	currentUserID := auth.GetUserIDFromContext(r)
+	if currentUserID == "" {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	_, allowed, err := h.service.CanBan(r.Context(), serverID, currentUserID)
+	if err != nil {
+		httputil.InternalError(w, err)
+		return
+	}
+	if !allowed {
+		httputil.JSONError(w, "you do not have permission to view bans", http.StatusForbidden)
+		return
+	}
+	bans, err := h.service.ListBans(r.Context(), serverID)
+	if err != nil {
+		httputil.InternalError(w, err)
+		return
+	}
+	render.JSON(w, r, bans)
+}
+
+// UnbanMember handles DELETE /servers/:id/bans/:userID
+func (h *Handler) UnbanMember(w http.ResponseWriter, r *http.Request) {
+	serverID := chi.URLParam(r, "id")
+	targetUserID := chi.URLParam(r, "userID")
+	currentUserID := auth.GetUserIDFromContext(r)
+	if currentUserID == "" {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	_, allowed, err := h.service.CanBan(r.Context(), serverID, currentUserID)
+	if err != nil {
+		httputil.InternalError(w, err)
+		return
+	}
+	if !allowed {
+		httputil.JSONError(w, "you do not have permission to unban members", http.StatusForbidden)
+		return
+	}
+	if err := h.service.UnbanMember(r.Context(), serverID, targetUserID); err != nil {
+		httputil.InternalError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // GetMyPermissions handles GET /servers/:id/my-permissions
 func (h *Handler) GetMyPermissions(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "id")

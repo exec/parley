@@ -91,8 +91,9 @@ export const ServerSettings: React.FC<Props> = ({
       setSelectedRoleId(null);
       setRolesError('');
       setUnsavedConfirm(false);
+      loadMyPerms();
     }
-  }, [isOpen, server, initialTab]);
+  }, [isOpen, server, initialTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load roles when roles tab is active
   useEffect(() => {

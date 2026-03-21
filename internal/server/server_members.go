@@ -151,6 +151,26 @@ func (s *ServerService) BanMember(ctx context.Context, serverID, userID, bannedB
 	return nil
 }
 
+func (s *ServerService) ListBans(ctx context.Context, serverID string) ([]db.ServerBan, error) {
+	id, err := idToInt64(serverID)
+	if err != nil {
+		return nil, errors.New("invalid server ID")
+	}
+	return s.repo.ListServerBans(ctx, id)
+}
+
+func (s *ServerService) UnbanMember(ctx context.Context, serverID, userID string) error {
+	sID, err := idToInt64(serverID)
+	if err != nil {
+		return errors.New("invalid server ID")
+	}
+	uID, err := idToInt64(userID)
+	if err != nil {
+		return errors.New("invalid user ID")
+	}
+	return s.repo.RemoveServerBan(ctx, sID, uID)
+}
+
 func (s *ServerService) GetMembers(ctx context.Context, serverID string) ([]*ServerMember, error) {
 	if serverID == "" {
 		return nil, errors.New("server ID is required")
