@@ -6,10 +6,11 @@ import (
 	"errors"
 	"time"
 
+	"parley/internal/audit"
 	"parley/internal/db"
 )
 
-func (s *ServerService) CreateInvite(ctx context.Context, serverID, createdBy string, maxUses *int, expiresAt *time.Time) (*Invite, error) {
+func (s *ServerService) CreateInvite(ctx context.Context, serverID, createdBy string, maxUses *int, expiresAt *time.Time, actorUsername string) (*Invite, error) {
 	if serverID == "" {
 		return nil, errors.New("server ID is required")
 	}
@@ -56,6 +57,16 @@ func (s *ServerService) CreateInvite(ctx context.Context, serverID, createdBy st
 	if err = s.repo.CreateInvite(ctx, invite); err != nil {
 		return nil, err
 	}
+
+	s.auditSvc.Log(ctx, audit.Entry{
+		ServerID:      serverIDInt,
+		ActorID:       &createdByInt,
+		ActorUsername: actorUsername,
+		Action:        "invite.create",
+		TargetID:      invite.Code,
+		TargetType:    "invite",
+		TargetName:    invite.Code,
+	})
 
 	return &Invite{
 		ID:        int64ToID(invite.ID),
@@ -223,7 +234,7 @@ func (s *ServerService) GetServerInvites(ctx context.Context, serverID string) (
 	return result, nil
 }
 
-func (s *ServerService) RevokeInvite(ctx context.Context, serverID, code, requestingUserID string) error {
+func (s *ServerService) RevokeInvite(ctx context.Context, serverID, code, requestingUserID string, actorUsername string) error {
 	serverIDInt, err := idToInt64(serverID)
 	if err != nil {
 		return errors.New("invalid server ID")
@@ -239,7 +250,21 @@ func (s *ServerService) RevokeInvite(ctx context.Context, serverID, code, reques
 		return errors.New("not a member of this server")
 	}
 
-	return s.repo.RevokeInvite(ctx, code, serverIDInt)
+	if err := s.repo.RevokeInvite(ctx, code, serverIDInt); err != nil {
+		return err
+	}
+
+	s.auditSvc.Log(ctx, audit.Entry{
+		ServerID:      serverIDInt,
+		ActorID:       &userIDInt,
+		ActorUsername: actorUsername,
+		Action:        "invite.revoke",
+		TargetID:      code,
+		TargetType:    "invite",
+		TargetName:    code,
+	})
+
+	return nil
 }
 
 func (s *ServerService) GetInviteMembers(ctx context.Context, serverID, code, requestingUserID string) ([]*db.InviteMember, error) {
@@ -260,7 +285,7 @@ func (s *ServerService) GetInviteMembers(ctx context.Context, serverID, code, re
 	return s.repo.GetMembersByInviteCode(ctx, code, serverIDInt)
 }
 
-func (s *ServerService) SetVanityURL(ctx context.Context, serverID, userID, vanityURL string) (*Server, error) {
+func (s *ServerService) SetVanityURL(ctx context.Context, serverID, vanityURL string, actorID int64, actorUsername string) (*Server, error) {
 	if serverID == "" {
 		return nil, errors.New("server ID is required")
 	}
@@ -273,8 +298,7 @@ func (s *ServerService) SetVanityURL(ctx context.Context, serverID, userID, vani
 	if err != nil {
 		return nil, errors.New("server not found")
 	}
-	userIDInt, _ := idToInt64(userID)
-	if srv.OwnerID != userIDInt {
+	if srv.OwnerID != actorID {
 		return nil, errors.New("only the server owner can set the vanity URL")
 	}
 
@@ -295,5 +319,15 @@ func (s *ServerService) SetVanityURL(ctx context.Context, serverID, userID, vani
 	}
 
 	srv.VanityURL = slug
+
+	s.auditSvc.Log(ctx, audit.Entry{
+		ServerID:      serverIDInt,
+		ActorID:       &actorID,
+		ActorUsername: actorUsername,
+		Action:        "server.vanity_update",
+		TargetType:    "server",
+		TargetName:    vanityURL,
+	})
+
 	return dbServerToService(srv), nil
 }

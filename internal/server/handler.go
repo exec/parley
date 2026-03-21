@@ -142,14 +142,14 @@ func (h *Handler) UpdateServer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify the user is the owner
-	server, err := h.service.GetServer(r.Context(), id)
+	beforeServer, err := h.service.GetServer(r.Context(), id)
 	if err != nil {
 		httputil.JSONError(w, "server not found", http.StatusNotFound)
 		return
 	}
 
 	userID := auth.GetUserIDFromContext(r)
-	if userID == "" || server.OwnerID != userID {
+	if userID == "" || beforeServer.OwnerID != userID {
 		httputil.JSONError(w, "only the server owner can update the server", http.StatusForbidden)
 		return
 	}
@@ -165,6 +165,33 @@ func (h *Handler) UpdateServer(w http.ResponseWriter, r *http.Request) {
 			httputil.InternalError(w, err)
 		}
 		return
+	}
+
+	if beforeServer != nil {
+		updateActorIDInt, _ := strconv.ParseInt(userID, 10, 64)
+		updateActorUsername, _ := h.service.Repo().GetUsernameByID(r.Context(), updateActorIDInt)
+		serverIDInt, _ := strconv.ParseInt(id, 10, 64)
+		h.auditSvc.Log(r.Context(), audit.Entry{
+			ServerID:      serverIDInt,
+			ActorID:       &updateActorIDInt,
+			ActorUsername: updateActorUsername,
+			Action:        "server.update",
+			TargetType:    "server",
+			Changes: map[string]any{
+				"before": map[string]any{
+					"name":        beforeServer.Name,
+					"icon_url":    beforeServer.IconURL,
+					"description": beforeServer.Description,
+					"is_public":   beforeServer.IsPublic,
+				},
+				"after": map[string]any{
+					"name":        updatedServer.Name,
+					"icon_url":    updatedServer.IconURL,
+					"description": updatedServer.Description,
+					"is_public":   updatedServer.IsPublic,
+				},
+			},
+		})
 	}
 
 	render.JSON(w, r, updatedServer)
@@ -401,7 +428,9 @@ func (h *Handler) CreateInvite(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	invite, err := h.service.CreateInvite(r.Context(), serverID, userID, body.MaxUses, expiresAt)
+	actorIDInt, _ := strconv.ParseInt(userID, 10, 64)
+	actorUsername, _ := h.service.Repo().GetUsernameByID(r.Context(), actorIDInt)
+	invite, err := h.service.CreateInvite(r.Context(), serverID, userID, body.MaxUses, expiresAt, actorUsername)
 	if err != nil {
 		httputil.InternalError(w, err)
 		return
@@ -1131,7 +1160,9 @@ func (h *Handler) RevokeInvite(w http.ResponseWriter, r *http.Request) {
 		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	err := h.service.RevokeInvite(r.Context(), serverID, code, userID)
+	revokeActorIDInt, _ := strconv.ParseInt(userID, 10, 64)
+	revokeActorUsername, _ := h.service.Repo().GetUsernameByID(r.Context(), revokeActorIDInt)
+	err := h.service.RevokeInvite(r.Context(), serverID, code, userID, revokeActorUsername)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) || err.Error() == "invite not found" {
 			httputil.JSONError(w, "invite not found", http.StatusNotFound)
@@ -1309,7 +1340,9 @@ func (h *Handler) SetVanityURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	server, err := h.service.SetVanityURL(r.Context(), serverID, userID, req.VanityURL)
+	vanityActorIDInt, _ := strconv.ParseInt(userID, 10, 64)
+	vanityActorUsername, _ := h.service.Repo().GetUsernameByID(r.Context(), vanityActorIDInt)
+	server, err := h.service.SetVanityURL(r.Context(), serverID, req.VanityURL, vanityActorIDInt, vanityActorUsername)
 	if err != nil {
 		status := http.StatusInternalServerError
 		if err.Error() == "only the server owner can set the vanity URL" {
