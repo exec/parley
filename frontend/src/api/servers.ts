@@ -40,11 +40,15 @@ export async function createServer(name: string, iconURL?: string): Promise<Serv
 export async function updateServer(
   id: string,
   name: string,
-  iconURL?: string
+  iconURL?: string,
+  description?: string,
+  isPublic?: boolean,
 ): Promise<Server> {
   return apiClient.put<Server>(`/servers/${id}`, {
     name,
     icon_url: iconURL,
+    description: description ?? '',
+    is_public: isPublic ?? false,
   });
 }
 

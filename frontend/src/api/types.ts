@@ -48,8 +48,26 @@ export interface Server {
   icon_url?: string;
   owner_id: string;
   vanity_url?: string;
+  description?: string;
+  is_public?: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface ServerCategory {
+  id: number;
+  name: string;
+  created_at?: string;
+}
+
+export interface PublicServer {
+  id: string;
+  name: string;
+  icon_url?: string;
+  vanity_url: string;
+  description?: string;
+  member_count: number;
+  categories: ServerCategory[];
 }
 
 export interface ServerMember {
