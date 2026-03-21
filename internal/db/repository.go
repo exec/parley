@@ -165,13 +165,16 @@ type AuditLog struct {
 
 // CreateAuditLog inserts one audit log row.
 func (r *Repository) CreateAuditLog(ctx context.Context, e audit.Entry) error {
-	var changesJSON []byte
+	// changesArg is nil (→ SQL NULL) when there are no changes, or a JSON string
+	// when there are. lib/pq sends []byte as bytea (binary), which Postgres rejects
+	// for JSONB, so we pass the JSON as a string instead.
+	var changesArg interface{}
 	if e.Changes != nil {
-		var err error
-		changesJSON, err = json.Marshal(e.Changes)
+		b, err := json.Marshal(e.Changes)
 		if err != nil {
 			return err
 		}
+		changesArg = string(b)
 	}
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO server_audit_logs
@@ -179,7 +182,7 @@ func (r *Repository) CreateAuditLog(ctx context.Context, e audit.Entry) error {
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 		e.ServerID, e.ActorID, e.ActorUsername, e.Action,
 		nullableString(e.TargetID), nullableString(e.TargetType), nullableString(e.TargetName),
-		changesJSON, nullableString(e.Reason),
+		changesArg, nullableString(e.Reason),
 	)
 	return err
 }
