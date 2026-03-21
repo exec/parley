@@ -804,6 +804,9 @@ UPDATE users SET email_verification_token_expires_at = created_at + INTERVAL '72
 	    PRIMARY KEY (server_id, category_id)
 	);
 	CREATE INDEX IF NOT EXISTS idx_sca_category_id ON server_category_assignments(category_id);`,
+
+	`-- Widen invites.code to accommodate 6-byte (12-char) hex codes from S3 entropy fix
+ALTER TABLE invites ALTER COLUMN code TYPE VARCHAR(16);`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string
