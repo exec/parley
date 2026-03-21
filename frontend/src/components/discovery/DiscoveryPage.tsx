@@ -27,6 +27,13 @@ export const DiscoveryPage: React.FC<Props> = ({ currentUserId: _currentUserId, 
     getServerCategories().then(setCategories).catch(() => {});
   }, []);
 
+  // Clear debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
   const loadServers = useCallback(async (q: string, catId: number | null, pg: number) => {
     setLoading(true);
     try {
