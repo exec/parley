@@ -116,6 +116,7 @@ Features ordered roughly by complexity. Grouped by what they touch.
 
 ### Message features — new backend table + endpoints + frontend (internal/message/, Message.tsx)
 
+- [ ] **User and message reporting** — "Report" option in user right-click context menu and message context menu. Submits a report with a category (from existing `report_categories`) and optional description. `POST /api/reports`. Admin panel already has report viewing; this adds the frontend submission flow and backend endpoint.
 - [ ] **Pinned messages** — `PermManageMessages` can pin/unpin. New `pinned_messages` table. `POST/DELETE /channels/{id}/pins/{messageId}`, `GET /channels/{id}/pins`. Pin indicator on messages; "📌 N pinned" button in channel header opens a panel.
 - [x] **Forward message** — "Forward" in context menu opens a modal to pick a channel/DM and sends the content there (quoted or with a forward embed). No new backend endpoints needed.
 
@@ -126,11 +127,11 @@ Features ordered roughly by complexity. Grouped by what they touch.
 
 ### Discovery
 
-- [ ] **Server discovery / public servers list** — `is_public`, `description`, `category` on servers. `GET /discover` (paginated, searchable). Discovery icon in sidebar → DiscoveryPage with server cards showing member count and description. Direct join for public servers.
+- [ ] **Server discovery / public servers list** — `is_public` + `description` on servers, admin-managed `server_categories`, junction table (max 3 per server). `GET /api/discover` (paginated, searchable, filterable by category). Globe icon in sidebar → DiscoveryPage. Server settings Overview tab gets description + is_public toggle + category picker. Spec: `docs/superpowers/specs/2026-03-21-server-discovery-design.md`.
 
 ### Large — significant new systems
 
-- [ ] **In-app notification center** — new `notifications` table. Notify on: @mention, reaction to your message, friend request, DM while away. `GET /notifications`, `PATCH /notifications/read-all`. Bell icon in sidebar with unread badge; WS push via `NOTIFICATION_CREATE`.
+- [x] **In-app notification center** — new `notifications` table. Notify on: @mention, reaction to your message, friend request, DM while away. `GET /notifications`, `PATCH /notifications/read-all`. Bell icon in sidebar with unread badge; WS push via `NOTIFICATION_CREATE`.
 - [ ] **2FA / TOTP (Google Authenticator)** — `totp_secret` (encrypted), `totp_enabled`, `totp_backup_codes` on users. Setup flow: generate secret → show QR → confirm code → save backup codes. Login flow: detect `requires_2fa`, show TOTP challenge modal. Touch: internal/auth/, AccountTab.tsx.
 - [ ] **Custom server emoji** — `server_emoji` table; `PermManageExpressions` to manage. Upload PNG/GIF ≤ 256 KB, 2–32 char name. Emoji picker shows custom emoji first. Messages resolve `:custom:` codes to inline `<img>`. Soundboard gets optional `custom_emoji_id` FK. Custom Emoji tab in ServerSettings.
 - [ ] **Screen sharing / Go Live** — `getDisplayMedia()` → publish `LocalVideoTrack` via livekit-client. `PermStream` check on join. `SCREEN_SHARE_STARTED/STOPPED` WS events. ParticipantTile gains video element; layout shifts to large center tile when someone is sharing. "Go Live" button in VoiceControls.
