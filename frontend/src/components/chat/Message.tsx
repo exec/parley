@@ -72,11 +72,18 @@ interface MessageProps {
 function getEmojiOnlyCount(text: string): number | null {
   const t = text.trim();
   if (!t) return null;
-  // Strip all emoji-related codepoints; if anything non-whitespace remains, not emoji-only
-  const stripped = t.replace(/\p{Extended_Pictographic}|\p{Emoji_Modifier}|\p{Regional_Indicator}|\uFE0F|\uFE0E|\u200D/gu, '').trim();
+  // Strip all emoji-related codepoints; if anything non-whitespace remains, not emoji-only.
+  // Also strip Unicode tag characters used in subdivision flag sequences (e.g. 🏴󠁧󠁢󠁳󠁣󠁴󠁿).
+  const stripped = t.replace(/\p{Extended_Pictographic}|\p{Emoji_Modifier}|\p{Regional_Indicator}|\uFE0F|\uFE0E|\u200D|[\u{E0000}-\u{E007F}]/gu, '').trim();
   if (stripped.length > 0) return null;
-  // Count distinct emoji sequences (flag = two regional indicators, others = pictographic + modifiers)
-  const matches = t.match(/\p{Regional_Indicator}{2}|\p{Extended_Pictographic}[\p{Emoji_Modifier}\uFE0F\uFE0E\u200D\p{Extended_Pictographic}]*/gu);
+  // Count distinct visible emoji units:
+  //   - Flag pair: two Regional_Indicator codepoints
+  //   - Standard emoji: base pictographic + optional modifier/VS + optional ZWJ chain
+  // NOTE: \p{Extended_Pictographic} is intentionally NOT in the tail character class so
+  // adjacent emoji (no ZWJ) are counted separately rather than greedily merged into one.
+  const matches = t.match(
+    /\p{Regional_Indicator}{2}|\p{Extended_Pictographic}[\uFE0F\uFE0E\p{Emoji_Modifier}]?(?:\u200D\p{Extended_Pictographic}[\uFE0F\uFE0E\p{Emoji_Modifier}]?)*/gu
+  );
   if (!matches || matches.length < 1 || matches.length > 5) return null;
   return matches.length;
 }
