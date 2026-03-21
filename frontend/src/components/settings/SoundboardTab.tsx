@@ -22,8 +22,10 @@ export const SoundboardTab: React.FC<Props> = ({ serverId }) => {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [pickerOpensDown, setPickerOpensDown] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const emojiWrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -101,11 +103,17 @@ export const SoundboardTab: React.FC<Props> = ({ serverId }) => {
             className="soundboard-input"
           />
           {/* Emoji picker trigger */}
-          <div className="soundboard-emoji-wrapper">
+          <div className="soundboard-emoji-wrapper" ref={emojiWrapperRef}>
             <button
               type="button"
               className="soundboard-emoji-btn"
-              onClick={() => setShowEmojiPicker(v => !v)}
+              onClick={() => {
+                if (!showEmojiPicker && emojiWrapperRef.current) {
+                  const rect = emojiWrapperRef.current.getBoundingClientRect();
+                  setPickerOpensDown(rect.bottom + 400 <= window.innerHeight - 16);
+                }
+                setShowEmojiPicker(v => !v);
+              }}
               title="Pick emoji"
             >
               {uploadEmoji ? (
@@ -125,7 +133,10 @@ export const SoundboardTab: React.FC<Props> = ({ serverId }) => {
               </button>
             )}
             {showEmojiPicker && (
-              <div className="soundboard-emoji-picker-anchor">
+              <div
+                className="soundboard-emoji-picker-anchor"
+                style={pickerOpensDown ? { top: 'calc(100% + 6px)', bottom: 'auto' } : { bottom: 'calc(100% + 6px)', top: 'auto' }}
+              >
                 <EmojiPicker
                   ref={emojiPickerRef}
                   onSelect={emoji => { setUploadEmoji(emoji); setShowEmojiPicker(false); }}
