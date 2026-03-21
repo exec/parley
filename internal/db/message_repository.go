@@ -104,11 +104,13 @@ func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, li
 				SELECT m.id, m.channel_id, m.author_id, m.content, COALESCE(m.nonce, ''), m.created_at, m.updated_at,
 				       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
 				       u.username, COALESCE(u.avatar_url, ''), u.is_bot, COALESCE(u.display_name, ''), m.parent_id,
-				       COALESCE(pu.username, ''), COALESCE(pu.display_name, ''), m.via_api
+				       COALESCE(pu.username, ''), COALESCE(pu.display_name, ''), m.via_api,
+				       (pin.message_id IS NOT NULL) AS is_pinned, pin.pinned_at
 				FROM messages m
 				JOIN users u ON u.id = m.author_id
 				LEFT JOIN messages pm ON pm.id = m.parent_id
 				LEFT JOIN users pu ON pu.id = pm.author_id
+				LEFT JOIN pinned_messages pin ON pin.message_id = m.id AND pin.channel_id = m.channel_id
 				WHERE m.channel_id = $1 AND m.id < $3
 				ORDER BY m.id DESC
 				LIMIT $2
@@ -122,11 +124,13 @@ func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, li
 				SELECT m.id, m.channel_id, m.author_id, m.content, COALESCE(m.nonce, ''), m.created_at, m.updated_at,
 				       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
 				       u.username, COALESCE(u.avatar_url, ''), u.is_bot, COALESCE(u.display_name, ''), m.parent_id,
-				       COALESCE(pu.username, ''), COALESCE(pu.display_name, ''), m.via_api
+				       COALESCE(pu.username, ''), COALESCE(pu.display_name, ''), m.via_api,
+				       (pin.message_id IS NOT NULL) AS is_pinned, pin.pinned_at
 				FROM messages m
 				JOIN users u ON u.id = m.author_id
 				LEFT JOIN messages pm ON pm.id = m.parent_id
 				LEFT JOIN users pu ON pu.id = pm.author_id
+				LEFT JOIN pinned_messages pin ON pin.message_id = m.id AND pin.channel_id = m.channel_id
 				WHERE m.channel_id = $1
 				ORDER BY m.id DESC
 				LIMIT $2
@@ -162,6 +166,8 @@ func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, li
 			&message.ParentAuthorUsername,
 			&message.ParentAuthorDisplayName,
 			&message.ViaApi,
+			&message.IsPinned,
+			&message.PinnedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -172,6 +178,66 @@ func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, li
 		return nil, err
 	}
 	return messages, nil
+}
+
+// PinMessage pins a message in a channel. Idempotent (ON CONFLICT DO NOTHING).
+func (r *Repository) PinMessage(ctx context.Context, channelID, messageID, pinnedByID int64) error {
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO pinned_messages (channel_id, message_id, pinned_by, pinned_at)
+		 VALUES ($1, $2, $3, NOW())
+		 ON CONFLICT (channel_id, message_id) DO NOTHING`,
+		channelID, messageID, pinnedByID,
+	)
+	return err
+}
+
+// UnpinMessage unpins a message in a channel.
+func (r *Repository) UnpinMessage(ctx context.Context, channelID, messageID int64) error {
+	_, err := r.db.ExecContext(ctx,
+		`DELETE FROM pinned_messages WHERE channel_id = $1 AND message_id = $2`,
+		channelID, messageID,
+	)
+	return err
+}
+
+// GetPinnedMessages returns all pinned messages in a channel, newest-pinned first.
+func (r *Repository) GetPinnedMessages(ctx context.Context, channelID int64) ([]*Message, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT m.id, m.channel_id, m.author_id, m.content, COALESCE(m.nonce, ''), m.created_at, m.updated_at,
+		       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
+		       u.username, COALESCE(u.avatar_url, ''), u.is_bot, COALESCE(u.display_name, ''), m.parent_id,
+		       COALESCE(pu.username, ''), COALESCE(pu.display_name, ''), m.via_api,
+		       TRUE AS is_pinned, pin.pinned_at
+		FROM pinned_messages pin
+		JOIN messages m ON m.id = pin.message_id
+		JOIN users u ON u.id = m.author_id
+		LEFT JOIN messages pm ON pm.id = m.parent_id
+		LEFT JOIN users pu ON pu.id = pm.author_id
+		WHERE pin.channel_id = $1
+		ORDER BY pin.pinned_at DESC
+	`, channelID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var messages []*Message
+	for rows.Next() {
+		var msg Message
+		err := rows.Scan(
+			&msg.ID, &msg.ChannelID, &msg.AuthorID, &msg.Content, &msg.Nonce,
+			&msg.CreatedAt, &msg.UpdatedAt,
+			&msg.AttachmentURL, &msg.AttachmentName, &msg.AttachmentType,
+			&msg.AuthorUsername, &msg.AuthorAvatarURL, &msg.AuthorIsBot, &msg.AuthorDisplayName,
+			&msg.ParentID, &msg.ParentAuthorUsername, &msg.ParentAuthorDisplayName,
+			&msg.ViaApi, &msg.IsPinned, &msg.PinnedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		messages = append(messages, &msg)
+	}
+	return messages, rows.Err()
 }
 
 // SearchMessages searches messages within a server with optional content, author, and channel filters.

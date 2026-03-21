@@ -1243,3 +1243,125 @@
   animation: message-highlight-flash 1.5s ease-out forwards;
   border-radius: 4px;
 }
+
+/* ── Pin indicator on messages ──────────────────────────────── */
+.message-pin-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--parley-text-muted);
+  font-size: 0.72em;
+  margin-bottom: 2px;
+  opacity: 0.75;
+}
+
+/* ── Pinned messages panel ──────────────────────────────────── */
+.pinned-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 360px;
+  height: 100%;
+  background: var(--parley-bg-secondary, #2f3136);
+  border-left: 1px solid var(--parley-border, rgba(255,255,255,0.06));
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+  box-shadow: -4px 0 16px rgba(0,0,0,0.25);
+}
+
+.pinned-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--parley-border, rgba(255,255,255,0.06));
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--parley-text-normal);
+  flex-shrink: 0;
+}
+
+.pinned-panel-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--parley-text-muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+.pinned-panel-close:hover { color: var(--parley-text-normal); }
+
+.pinned-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.pinned-panel-empty {
+  padding: 24px 16px;
+  color: var(--parley-text-muted);
+  font-size: 0.85em;
+  text-align: center;
+}
+
+.pinned-item {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--parley-border, rgba(255,255,255,0.04));
+  transition: background 0.1s;
+}
+.pinned-item:hover { background: rgba(255,255,255,0.03); }
+.pinned-item:last-child { border-bottom: none; }
+
+.pinned-item-author {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.82em;
+  font-weight: 600;
+  color: var(--parley-text-normal);
+  margin-bottom: 4px;
+}
+
+.pinned-item-date {
+  font-weight: 400;
+  font-size: 0.85em;
+  color: var(--parley-text-muted);
+}
+
+.pinned-item-content {
+  font-size: 0.875em;
+  color: var(--parley-text-normal);
+  line-height: 1.5;
+  max-height: 80px;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+}
+.pinned-item-content p { margin: 0; }
+
+.pinned-item-attachment {
+  color: var(--parley-text-muted);
+}
+
+.pinned-item-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.pinned-item-btn {
+  background: none;
+  border: none;
+  font-size: 0.78em;
+  cursor: pointer;
+  color: var(--parley-accent, #5865f2);
+  padding: 0;
+  font-weight: 500;
+}
+.pinned-item-btn:hover { text-decoration: underline; }
+.pinned-item-btn--unpin { color: var(--parley-text-muted); }
+.pinned-item-btn--unpin:hover { color: #ed4245; }

@@ -44,6 +44,8 @@ type Message struct {
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
 	Reactions       []Reaction `json:"reactions"`
+	IsPinned        bool       `json:"is_pinned,omitempty"`
+	PinnedAt        *time.Time `json:"pinned_at,omitempty"`
 }
 
 // BotTriggerFunc is called after a message is created. All args are strings for
@@ -357,6 +359,8 @@ func (s *MessageService) GetChannelMessages(ctx context.Context, channelID, user
 			CreatedAt:               dbMsg.CreatedAt,
 			UpdatedAt:               dbMsg.UpdatedAt,
 			Reactions:               reactions,
+			IsPinned:                dbMsg.IsPinned,
+			PinnedAt:                dbMsg.PinnedAt,
 		})
 	}
 
@@ -676,4 +680,165 @@ func (s *MessageService) CanManageMessage(ctx context.Context, messageID, userID
 	}
 
 	return permissions.HasChannelPermission(ctx, s.repo, srv.ID, userIDInt, srv.OwnerID, msg.ChannelID, permissions.PermManageMessages)
+}
+
+// PinMessage pins a message. Requires PermManageMessages or PermPinMessages.
+func (s *MessageService) PinMessage(ctx context.Context, channelID, messageID, userID string) error {
+	chIDInt, err := strconv.ParseInt(channelID, 10, 64)
+	if err != nil {
+		return errors.New("invalid channel ID")
+	}
+	msgIDInt, err := strconv.ParseInt(messageID, 10, 64)
+	if err != nil {
+		return errors.New("invalid message ID")
+	}
+	userIDInt, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		return errors.New("invalid user ID")
+	}
+
+	ch, err := s.repo.GetChannelByID(ctx, chIDInt)
+	if err != nil {
+		return errors.New("channel not found")
+	}
+	srv, err := s.repo.GetServerByID(ctx, ch.ServerID)
+	if err != nil {
+		return errors.New("server not found")
+	}
+
+	canPin, err := permissions.HasChannelPermission(ctx, s.repo, srv.ID, userIDInt, srv.OwnerID, chIDInt,
+		permissions.PermManageMessages|permissions.PermPinMessages)
+	if err != nil {
+		return err
+	}
+	if !canPin {
+		return errors.New("forbidden")
+	}
+
+	// Verify the message belongs to this channel
+	msg, err := s.repo.GetMessageByID(ctx, msgIDInt)
+	if err != nil {
+		if err == db.ErrNotFound {
+			return errors.New("message not found")
+		}
+		return err
+	}
+	if msg.ChannelID != chIDInt {
+		return errors.New("message not found")
+	}
+
+	if err := s.repo.PinMessage(ctx, chIDInt, msgIDInt, userIDInt); err != nil {
+		return err
+	}
+
+	s.mu.RLock()
+	if s.broadcaster != nil {
+		s.broadcaster.BroadcastToChannel(channelID, "MESSAGE_PINNED", map[string]string{
+			"channel_id": channelID,
+			"message_id": messageID,
+		})
+	}
+	s.mu.RUnlock()
+	return nil
+}
+
+// UnpinMessage unpins a message. Requires PermManageMessages or PermPinMessages.
+func (s *MessageService) UnpinMessage(ctx context.Context, channelID, messageID, userID string) error {
+	chIDInt, err := strconv.ParseInt(channelID, 10, 64)
+	if err != nil {
+		return errors.New("invalid channel ID")
+	}
+	msgIDInt, err := strconv.ParseInt(messageID, 10, 64)
+	if err != nil {
+		return errors.New("invalid message ID")
+	}
+	userIDInt, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		return errors.New("invalid user ID")
+	}
+
+	ch, err := s.repo.GetChannelByID(ctx, chIDInt)
+	if err != nil {
+		return errors.New("channel not found")
+	}
+	srv, err := s.repo.GetServerByID(ctx, ch.ServerID)
+	if err != nil {
+		return errors.New("server not found")
+	}
+
+	canPin, err := permissions.HasChannelPermission(ctx, s.repo, srv.ID, userIDInt, srv.OwnerID, chIDInt,
+		permissions.PermManageMessages|permissions.PermPinMessages)
+	if err != nil {
+		return err
+	}
+	if !canPin {
+		return errors.New("forbidden")
+	}
+
+	if err := s.repo.UnpinMessage(ctx, chIDInt, msgIDInt); err != nil {
+		return err
+	}
+
+	s.mu.RLock()
+	if s.broadcaster != nil {
+		s.broadcaster.BroadcastToChannel(channelID, "MESSAGE_UNPINNED", map[string]string{
+			"channel_id": channelID,
+			"message_id": messageID,
+		})
+	}
+	s.mu.RUnlock()
+	return nil
+}
+
+// GetChannelPins returns all pinned messages for a channel. Any member with ViewChannel can call this.
+func (s *MessageService) GetChannelPins(ctx context.Context, channelID, userID string) ([]*Message, error) {
+	chIDInt, err := strconv.ParseInt(channelID, 10, 64)
+	if err != nil {
+		return nil, errors.New("invalid channel ID")
+	}
+	userIDInt, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		return nil, errors.New("invalid user ID")
+	}
+
+	ch, err := s.repo.GetChannelByID(ctx, chIDInt)
+	if err != nil {
+		return nil, errors.New("channel not found")
+	}
+	srv, err := s.repo.GetServerByID(ctx, ch.ServerID)
+	if err != nil {
+		return nil, errors.New("server not found")
+	}
+	canView, err := permissions.HasChannelPermission(ctx, s.repo, srv.ID, userIDInt, srv.OwnerID, chIDInt, permissions.PermViewChannel)
+	if err != nil || !canView {
+		return nil, errors.New("forbidden")
+	}
+
+	dbMsgs, err := s.repo.GetPinnedMessages(ctx, chIDInt)
+	if err != nil {
+		return nil, err
+	}
+
+	msgs := make([]*Message, 0, len(dbMsgs))
+	for _, dbMsg := range dbMsgs {
+		msgs = append(msgs, &Message{
+			ID:                      strconv.FormatInt(dbMsg.ID, 10),
+			ChannelID:               channelID,
+			AuthorID:                strconv.FormatInt(dbMsg.AuthorID, 10),
+			AuthorUsername:          dbMsg.AuthorUsername,
+			AuthorDisplayName:       dbMsg.AuthorDisplayName,
+			AuthorAvatarURL:         dbMsg.AuthorAvatarURL,
+			AuthorIsBot:             dbMsg.AuthorIsBot,
+			Content:                 dbMsg.Content,
+			AttachmentURL:           dbMsg.AttachmentURL,
+			AttachmentName:          dbMsg.AttachmentName,
+			AttachmentType:          dbMsg.AttachmentType,
+			CreatedAt:               dbMsg.CreatedAt,
+			UpdatedAt:               dbMsg.UpdatedAt,
+			IsPinned:                true,
+			PinnedAt:                dbMsg.PinnedAt,
+			Reactions:               []Reaction{},
+		})
+	}
+	return msgs, nil
 }

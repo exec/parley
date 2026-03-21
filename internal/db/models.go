@@ -140,10 +140,12 @@ type Message struct {
 	AuthorUsername          string    `json:"author_username" db:"-"`
 	AuthorDisplayName       string    `json:"author_display_name" db:"-"`
 	AuthorAvatarURL         string    `json:"author_avatar_url,omitempty" db:"-"`
-	AuthorIsBot             bool      `json:"author_is_bot,omitempty"`
-	ViaApi                  bool      `json:"via_api,omitempty"`
-	ParentAuthorUsername    string    `json:"parent_author_username,omitempty" db:"-"`
-	ParentAuthorDisplayName string    `json:"parent_author_display_name,omitempty" db:"-"`
+	AuthorIsBot             bool       `json:"author_is_bot,omitempty"`
+	ViaApi                  bool       `json:"via_api,omitempty"`
+	ParentAuthorUsername    string     `json:"parent_author_username,omitempty" db:"-"`
+	ParentAuthorDisplayName string     `json:"parent_author_display_name,omitempty" db:"-"`
+	IsPinned                bool       `json:"is_pinned,omitempty"`
+	PinnedAt                *time.Time `json:"pinned_at,omitempty"`
 }
 
 // DmChannel represents a direct message channel between two users

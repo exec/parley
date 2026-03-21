@@ -206,6 +206,9 @@ func registerRoutes(
 			r.Delete("/messages/{id}", messageHandler.DeleteMessage)
 			r.Post("/messages/{id}/reactions", messageHandler.ToggleReaction)
 			r.Get("/messages/{id}/versions", messageHandler.GetMessageVersions)
+			r.Get("/channels/{channelID}/pins", messageHandler.GetChannelPins)
+			r.Post("/channels/{channelID}/pins/{messageID}", messageHandler.PinMessage)
+			r.Delete("/channels/{channelID}/pins/{messageID}", messageHandler.UnpinMessage)
 
 			// Typing indicator
 			r.Post("/channels/{channelId}/typing", handleChannelTyping(repo, hub))

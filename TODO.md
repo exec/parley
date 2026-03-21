@@ -60,7 +60,7 @@ This is a living task list for Parley - a Discord clone.
 
 ## Bots
 
-- [ ] **Hard limit: 10 active bots per user** — enforce in `POST /developer/keys` (bot creation path) by counting existing bots owned by the requesting user before inserting. Return 403 with a clear error if at limit.
+- [x] **Hard limit: 10 active bots per user** — enforce in `POST /developer/keys` (bot creation path) by counting existing bots owned by the requesting user before inserting. Return 403 with a clear error if at limit.
 
 ---
 
@@ -111,7 +111,7 @@ Features ordered roughly by complexity. Grouped by what they touch.
 
 ### Bots
 
-- [ ] **Enforce 10-bot hard limit per user** — count existing bots owned by the user before creating a new one; return 403 if already at 10. Touch: internal/bots/handler.go or cmd/api/developer_handlers.go.
+- [x] **Enforce 10-bot hard limit per user** — count existing bots owned by the user before creating a new one; return 403 if already at 10. Touch: internal/bots/handler.go or cmd/api/developer_handlers.go.
 - [ ] **Bot API: soundboard triggering** — expose `POST /api/channels/{channelId}/soundboard/play` for bot auth; broadcasts `SOUNDBOARD_PLAY` WS event server-side without requiring a LiveKit connection. Touch: internal/soundboard/handler.go, cmd/api/routes.go.
 
 ### Message features — new backend table + endpoints + frontend (internal/message/, Message.tsx)

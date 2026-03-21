@@ -4,9 +4,11 @@ import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { TypingIndicator } from './TypingIndicator';
 import { usePermissions } from '../../hooks/usePermissions';
-import { PERM_MANAGE_MESSAGES, PERM_ADD_REACTIONS } from '../../lib/permissions';
+import { PERM_MANAGE_MESSAGES, PERM_ADD_REACTIONS, PERM_PIN_MESSAGES } from '../../lib/permissions';
 import MiniProfile from '../layout/MiniProfile';
 import { SearchPanel } from '../search/SearchPanel';
+import { PinnedPanel, PinIcon } from './PinnedPanel';
+import { pinMessage, unpinMessage } from '../../api/messages';
 import './Chat.css';
 
 interface TypingUser {
@@ -94,6 +96,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const { hasPerm: checkPerm } = usePermissions(channel.server_id || undefined, channel.id || undefined);
   const canManageMessages = !channel.server_id || checkPerm(PERM_MANAGE_MESSAGES);
   const canAddReactions = !channel.server_id || checkPerm(PERM_ADD_REACTIONS);
+  const canPin = !!channel.server_id && (checkPerm(PERM_MANAGE_MESSAGES) || checkPerm(PERM_PIN_MESSAGES));
 
   const [miniProfile, setMiniProfile] = useState<{
     member: ServerMember;
@@ -124,6 +127,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   }, [members, messages]);
 
   const [showSearch, setShowSearch] = useState(false);
+  const [showPins, setShowPins] = useState(false);
 
   const replyValue = replyTo ? `@${replyTo.author_username} ` : '';
   const [editingTopic, setEditingTopic] = useState(false);
@@ -203,9 +207,15 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 </svg>
               </button>
             )}
+            {/* Pinned messages — server channels only */}
+            {channel.server_id && (
+              <button className="chat-header-btn" onClick={() => { setShowPins(s => !s); setShowSearch(false); }} title="Pinned messages" style={{ color: showPins ? 'var(--parley-accent)' : 'var(--parley-text-muted)' }}>
+                <PinIcon size={16} />
+              </button>
+            )}
             {/* Search — server channels only */}
             {channel.server_id && (
-              <button className="chat-header-btn" onClick={() => setShowSearch(s => !s)} title="Search messages" style={{ color: showSearch ? 'var(--parley-accent)' : 'var(--parley-text-muted)' }}>
+              <button className="chat-header-btn" onClick={() => { setShowSearch(s => !s); setShowPins(false); }} title="Search messages" style={{ color: showSearch ? 'var(--parley-accent)' : 'var(--parley-text-muted)' }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="11" cy="11" r="8" />
                   <line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -253,8 +263,15 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         canAddReactions={canAddReactions}
         canKickMembers={canKickMembers}
         canBanMembers={canBanMembers}
+        canPin={canPin}
         onKickMember={onKickMember}
         onBanMember={onBanMember}
+        onPin={async (messageId) => {
+          try { await pinMessage(channel.id, messageId); } catch { /* ignore */ }
+        }}
+        onUnpin={async (messageId) => {
+          try { await unpinMessage(channel.id, messageId); } catch { /* ignore */ }
+        }}
       />
       <TypingIndicator typingUsers={typingUsers} />
       <MessageInput
@@ -285,6 +302,15 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         />
       )}
     </div>
+    {showPins && channel.server_id && (
+      <PinnedPanel
+        channelId={channel.id}
+        canPin={canPin}
+        onClose={() => setShowPins(false)}
+        memberMap={memberMap}
+        channelMap={channelMap}
+      />
+    )}
     {showSearch && channel.server_id && (
       <SearchPanel
         serverId={channel.server_id}

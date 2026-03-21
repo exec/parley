@@ -76,3 +76,15 @@ export async function getMessage(id: string): Promise<Message> {
 export async function toggleReaction(messageId: string, emoji: string): Promise<void> {
   return apiClient.post<void>(`/messages/${messageId}/reactions`, { emoji });
 }
+
+export async function getPinnedMessages(channelId: string): Promise<Message[]> {
+  return apiClient.get<Message[]>(`/channels/${channelId}/pins`);
+}
+
+export async function pinMessage(channelId: string, messageId: string): Promise<void> {
+  return apiClient.post<void>(`/channels/${channelId}/pins/${messageId}`);
+}
+
+export async function unpinMessage(channelId: string, messageId: string): Promise<void> {
+  return apiClient.delete<void>(`/channels/${channelId}/pins/${messageId}`);
+}

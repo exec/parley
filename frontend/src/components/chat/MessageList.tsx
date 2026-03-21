@@ -25,9 +25,12 @@ interface MessageListProps {
   canAddReactions?: boolean;
   canKickMembers?: boolean;
   canBanMembers?: boolean;
+  canPin?: boolean;
   onKickMember?: (userId: string) => void;
   onBanMember?: (userId: string) => void;
   onScrollToMessage?: (messageId: string) => void;
+  onPin?: (messageId: string) => void;
+  onUnpin?: (messageId: string) => void;
 }
 
 export const MessageList: React.FC<MessageListProps> = ({
@@ -51,9 +54,12 @@ export const MessageList: React.FC<MessageListProps> = ({
   canAddReactions = true,
   canKickMembers,
   canBanMembers,
+  canPin,
   onKickMember,
   onBanMember,
   onScrollToMessage: onScrollToMessageProp,
+  onPin,
+  onUnpin,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -308,8 +314,11 @@ export const MessageList: React.FC<MessageListProps> = ({
                   canAddReactions={canAddReactions}
                   canKickMembers={canKickMembers}
                   canBanMembers={canBanMembers}
+                  canPin={canPin}
                   onKickMember={onKickMember}
                   onBanMember={onBanMember}
+                  onPin={onPin}
+                  onUnpin={onUnpin}
                 />
               ))}
             </div>

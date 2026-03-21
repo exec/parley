@@ -96,6 +96,8 @@ export interface Message {
   parent_id?: string;
   parent_author_username?: string;
   parent_author_display_name?: string;
+  is_pinned?: boolean;
+  pinned_at?: string;
 }
 
 export interface AuthResponse {

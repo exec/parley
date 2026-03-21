@@ -345,3 +345,74 @@ func (h *Handler) ToggleReaction(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// PinMessage handles POST /channels/{channelID}/pins/{messageID}
+func (h *Handler) PinMessage(w http.ResponseWriter, r *http.Request) {
+	channelID := chi.URLParam(r, "channelID")
+	messageID := chi.URLParam(r, "messageID")
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
+		return
+	}
+	if err := h.service.PinMessage(r.Context(), channelID, messageID, userID); err != nil {
+		switch err.Error() {
+		case "forbidden":
+			httputil.JSONError(w, "you do not have permission to pin messages", http.StatusForbidden)
+		case "message not found", "channel not found":
+			httputil.JSONError(w, err.Error(), http.StatusNotFound)
+		default:
+			httputil.InternalError(w, err)
+		}
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// UnpinMessage handles DELETE /channels/{channelID}/pins/{messageID}
+func (h *Handler) UnpinMessage(w http.ResponseWriter, r *http.Request) {
+	channelID := chi.URLParam(r, "channelID")
+	messageID := chi.URLParam(r, "messageID")
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
+		return
+	}
+	if err := h.service.UnpinMessage(r.Context(), channelID, messageID, userID); err != nil {
+		switch err.Error() {
+		case "forbidden":
+			httputil.JSONError(w, "you do not have permission to unpin messages", http.StatusForbidden)
+		case "channel not found":
+			httputil.JSONError(w, err.Error(), http.StatusNotFound)
+		default:
+			httputil.InternalError(w, err)
+		}
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// GetChannelPins handles GET /channels/{channelID}/pins
+func (h *Handler) GetChannelPins(w http.ResponseWriter, r *http.Request) {
+	channelID := chi.URLParam(r, "channelID")
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
+		return
+	}
+	msgs, err := h.service.GetChannelPins(r.Context(), channelID, userID)
+	if err != nil {
+		switch err.Error() {
+		case "forbidden", "channel not found":
+			httputil.JSONError(w, err.Error(), http.StatusForbidden)
+		default:
+			httputil.InternalError(w, err)
+		}
+		return
+	}
+	if msgs == nil {
+		msgs = []*Message{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(msgs)
+}
+

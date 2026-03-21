@@ -12,6 +12,7 @@ import { getParentAuthor, getParentPreview } from './NestedReplies';
 import { EditHistoryPopover } from './EditHistoryPopover';
 import { ThemeLinkEmbed } from '../theme/ThemeLinkEmbed';
 import { BotInviteEmbed } from '../BotInviteEmbed';
+import { PinIcon } from './PinnedPanel';
 import { useTheme } from '../../context/ThemeContext';
 import './Chat.css';
 import './NestedReplies.css';
@@ -64,8 +65,11 @@ interface MessageProps {
   canAddReactions?: boolean;
   canKickMembers?: boolean;
   canBanMembers?: boolean;
+  canPin?: boolean;
   onKickMember?: (userId: string) => void;
   onBanMember?: (userId: string) => void;
+  onPin?: (messageId: string) => void;
+  onUnpin?: (messageId: string) => void;
 }
 
 /** Returns the number of emoji if the text is 1–5 emoji only, else null. */
@@ -186,8 +190,11 @@ export const Message: React.FC<MessageProps> = ({
   canAddReactions = true,
   canKickMembers,
   canBanMembers,
+  canPin,
   onKickMember,
   onBanMember,
+  onPin,
+  onUnpin,
 }) => {
   const [showActions, setShowActions] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -316,6 +323,16 @@ export const Message: React.FC<MessageProps> = ({
 
   const handleCopy = () => {
     navigator.clipboard.writeText(message.content);
+    closeContextMenu();
+  };
+
+  const handlePin = () => {
+    onPin?.(message.id);
+    closeContextMenu();
+  };
+
+  const handleUnpin = () => {
+    onUnpin?.(message.id);
     closeContextMenu();
   };
 
@@ -450,6 +467,12 @@ export const Message: React.FC<MessageProps> = ({
           </div>
         ) : (
           <>
+            {message.is_pinned && (
+              <div className="message-pin-indicator">
+                <PinIcon size={11} />
+                <span>Pinned message</span>
+              </div>
+            )}
             {getEmojiOnlyCount(message.content)
               ? <div className="message-text message-text--jumbo">{message.content}</div>
               : (() => {
@@ -568,6 +591,11 @@ export const Message: React.FC<MessageProps> = ({
           {canAddReactions && (
             <button className="message-action-btn" onClick={(e) => { e.stopPropagation(); setShowEmojiPicker(p => !p); }} title="Add reaction"><SmilePlus size={14} color="currentColor" /></button>
           )}
+          {canPin && (
+            message.is_pinned
+              ? <button className="message-action-btn" onClick={handleUnpin} title="Unpin message"><PinIcon size={14} /></button>
+              : <button className="message-action-btn" onClick={handlePin} title="Pin message"><PinIcon size={14} /></button>
+          )}
           {isOwnMessage && (
             <>
               <button className="message-action-btn" onClick={handleEdit} title="Edit"><Pencil size={14} color="currentColor" /></button>
@@ -593,6 +621,11 @@ export const Message: React.FC<MessageProps> = ({
         >
           <button className="context-menu-item" onClick={handleReply}>Reply</button>
           <button className="context-menu-item" onClick={handleCopy}>Copy Text</button>
+          {canPin && (
+            message.is_pinned
+              ? <button className="context-menu-item" onClick={handleUnpin}>Unpin Message</button>
+              : <button className="context-menu-item" onClick={handlePin}>Pin Message</button>
+          )}
           {message.author_id !== currentUserId && (
             <>
               <div className="context-menu-divider" />

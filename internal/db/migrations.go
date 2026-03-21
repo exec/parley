@@ -754,6 +754,16 @@ UPDATE users SET email_verification_token_expires_at = created_at + INTERVAL '72
 	    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 	);
 	CREATE INDEX IF NOT EXISTS idx_soundboard_sounds_server ON soundboard_sounds(server_id);`,
+
+	`-- Pinned messages
+	CREATE TABLE IF NOT EXISTS pinned_messages (
+	    channel_id  BIGINT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+	    message_id  BIGINT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+	    pinned_by   BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+	    pinned_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+	    PRIMARY KEY (channel_id, message_id)
+	);
+	CREATE INDEX IF NOT EXISTS idx_pinned_messages_channel ON pinned_messages(channel_id);`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string
