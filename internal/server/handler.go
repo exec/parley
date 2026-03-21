@@ -1429,13 +1429,17 @@ func (h *Handler) GetAuditLog(w http.ResponseWriter, r *http.Request) {
 		TargetID      string     `json:"target_id,omitempty"`
 		TargetType    string     `json:"target_type,omitempty"`
 		TargetName    string     `json:"target_name,omitempty"`
-		Changes       []byte     `json:"changes,omitempty"`
+		Changes       json.RawMessage `json:"changes,omitempty"`
 		Reason        string     `json:"reason,omitempty"`
 		CreatedAt     time.Time  `json:"created_at"`
 	}
 
 	out := make([]logEntry, len(logs))
 	for i, l := range logs {
+		var changes json.RawMessage
+		if len(l.Changes) > 0 {
+			changes = json.RawMessage(l.Changes)
+		}
 		out[i] = logEntry{
 			ID:            l.ID,
 			ServerID:      l.ServerID,
@@ -1445,7 +1449,7 @@ func (h *Handler) GetAuditLog(w http.ResponseWriter, r *http.Request) {
 			TargetID:      l.TargetID,
 			TargetType:    l.TargetType,
 			TargetName:    l.TargetName,
-			Changes:       l.Changes,
+			Changes:       changes,
 			Reason:        l.Reason,
 			CreatedAt:     l.CreatedAt,
 		}

@@ -191,6 +191,11 @@ func (s *ServerService) AssignRoleToMember(ctx context.Context, serverID, userID
 		return err
 	}
 	s.broadcastRoleUpdate(ctx, serverID, userID, sID, uID)
+	role, _ := s.repo.GetServerRoleByID(ctx, rID)
+	roleName := roleID
+	if role != nil {
+		roleName = role.Name
+	}
 	s.auditSvc.Log(ctx, audit.Entry{
 		ServerID:      sID,
 		ActorID:       &actorID,
@@ -198,7 +203,7 @@ func (s *ServerService) AssignRoleToMember(ctx context.Context, serverID, userID
 		Action:        "member.role_add",
 		TargetID:      strconv.FormatInt(uID, 10),
 		TargetType:    "user",
-		TargetName:    roleID,
+		TargetName:    roleName,
 	})
 	return nil
 }
@@ -220,6 +225,11 @@ func (s *ServerService) RemoveRoleFromMember(ctx context.Context, serverID, user
 		return err
 	}
 	s.broadcastRoleUpdate(ctx, serverID, userID, sID, uID)
+	role, _ := s.repo.GetServerRoleByID(ctx, rID)
+	roleName := roleID
+	if role != nil {
+		roleName = role.Name
+	}
 	s.auditSvc.Log(ctx, audit.Entry{
 		ServerID:      sID,
 		ActorID:       &actorID,
@@ -227,7 +237,7 @@ func (s *ServerService) RemoveRoleFromMember(ctx context.Context, serverID, user
 		Action:        "member.role_remove",
 		TargetID:      strconv.FormatInt(uID, 10),
 		TargetType:    "user",
-		TargetName:    roleID,
+		TargetName:    roleName,
 	})
 	return nil
 }

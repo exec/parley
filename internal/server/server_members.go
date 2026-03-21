@@ -116,6 +116,7 @@ func (s *ServerService) KickMember(ctx context.Context, serverID, userID string,
 		s.hub.SendToUser(userID, ws.EventMemberKick, payload)
 	}
 
+	targetUsername, _ := s.repo.GetUsernameByID(ctx, userIDInt)
 	s.auditSvc.Log(ctx, audit.Entry{
 		ServerID:      serverIDInt,
 		ActorID:       &actorID,
@@ -123,6 +124,7 @@ func (s *ServerService) KickMember(ctx context.Context, serverID, userID string,
 		Action:        "member.kick",
 		TargetID:      strconv.FormatInt(userIDInt, 10),
 		TargetType:    "user",
+		TargetName:    targetUsername,
 	})
 	return nil
 }
@@ -155,6 +157,7 @@ func (s *ServerService) BanMember(ctx context.Context, serverID, userID string, 
 		s.hub.SendToUser(userID, ws.EventMemberBan, payload)
 	}
 
+	targetUsername, _ := s.repo.GetUsernameByID(ctx, userIDInt)
 	s.auditSvc.Log(ctx, audit.Entry{
 		ServerID:      serverIDInt,
 		ActorID:       &actorID,
@@ -162,6 +165,7 @@ func (s *ServerService) BanMember(ctx context.Context, serverID, userID string, 
 		Action:        "member.ban",
 		TargetID:      strconv.FormatInt(userIDInt, 10),
 		TargetType:    "user",
+		TargetName:    targetUsername,
 		Reason:        reason,
 	})
 	return nil
@@ -187,6 +191,7 @@ func (s *ServerService) UnbanMember(ctx context.Context, serverID, userID string
 	if err := s.repo.RemoveServerBan(ctx, sID, uID); err != nil {
 		return err
 	}
+	targetUsername, _ := s.repo.GetUsernameByID(ctx, uID)
 	s.auditSvc.Log(ctx, audit.Entry{
 		ServerID:      sID,
 		ActorID:       &actorID,
@@ -194,6 +199,7 @@ func (s *ServerService) UnbanMember(ctx context.Context, serverID, userID string
 		Action:        "member.unban",
 		TargetID:      strconv.FormatInt(uID, 10),
 		TargetType:    "user",
+		TargetName:    targetUsername,
 	})
 	return nil
 }
