@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 
+	"parley/internal/audit"
 	ws "parley/internal/websocket"
 )
 
@@ -127,7 +129,7 @@ func (s *ServerService) GetMemberRoles(ctx context.Context, serverID, userID str
 	return roles, nil
 }
 
-func (s *ServerService) AssignRoleToMember(ctx context.Context, serverID, userID, roleID string) error {
+func (s *ServerService) AssignRoleToMember(ctx context.Context, serverID, userID, roleID string, actorID int64, actorUsername string) error {
 	sID, err := idToInt64(serverID)
 	if err != nil {
 		return errors.New("invalid server ID")
@@ -144,10 +146,19 @@ func (s *ServerService) AssignRoleToMember(ctx context.Context, serverID, userID
 		return err
 	}
 	s.broadcastRoleUpdate(ctx, serverID, userID, sID, uID)
+	s.auditSvc.Log(ctx, audit.Entry{
+		ServerID:      sID,
+		ActorID:       &actorID,
+		ActorUsername: actorUsername,
+		Action:        "member.role_add",
+		TargetID:      strconv.FormatInt(uID, 10),
+		TargetType:    "user",
+		TargetName:    roleID,
+	})
 	return nil
 }
 
-func (s *ServerService) RemoveRoleFromMember(ctx context.Context, serverID, userID, roleID string) error {
+func (s *ServerService) RemoveRoleFromMember(ctx context.Context, serverID, userID, roleID string, actorID int64, actorUsername string) error {
 	sID, err := idToInt64(serverID)
 	if err != nil {
 		return errors.New("invalid server ID")
@@ -164,6 +175,15 @@ func (s *ServerService) RemoveRoleFromMember(ctx context.Context, serverID, user
 		return err
 	}
 	s.broadcastRoleUpdate(ctx, serverID, userID, sID, uID)
+	s.auditSvc.Log(ctx, audit.Entry{
+		ServerID:      sID,
+		ActorID:       &actorID,
+		ActorUsername: actorUsername,
+		Action:        "member.role_remove",
+		TargetID:      strconv.FormatInt(uID, 10),
+		TargetType:    "user",
+		TargetName:    roleID,
+	})
 	return nil
 }
 

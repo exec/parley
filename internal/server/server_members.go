@@ -7,6 +7,7 @@ import (
 	"log"
 	"strconv"
 
+	"parley/internal/audit"
 	"parley/internal/db"
 	"parley/internal/permissions"
 	ws "parley/internal/websocket"
@@ -85,7 +86,7 @@ func (s *ServerService) RemoveMember(ctx context.Context, serverID, userID strin
 	return nil
 }
 
-func (s *ServerService) KickMember(ctx context.Context, serverID, userID string) error {
+func (s *ServerService) KickMember(ctx context.Context, serverID, userID string, actorID int64, actorUsername string) error {
 	if serverID == "" {
 		return errors.New("server ID is required")
 	}
@@ -114,10 +115,19 @@ func (s *ServerService) KickMember(ctx context.Context, serverID, userID string)
 		s.hub.BroadcastToChannel("server:"+serverID, ws.EventMemberKick, payload)
 		s.hub.SendToUser(userID, ws.EventMemberKick, payload)
 	}
+
+	s.auditSvc.Log(ctx, audit.Entry{
+		ServerID:      serverIDInt,
+		ActorID:       &actorID,
+		ActorUsername: actorUsername,
+		Action:        "member.kick",
+		TargetID:      strconv.FormatInt(userIDInt, 10),
+		TargetType:    "user",
+	})
 	return nil
 }
 
-func (s *ServerService) BanMember(ctx context.Context, serverID, userID, bannedByID, reason string) error {
+func (s *ServerService) BanMember(ctx context.Context, serverID, userID string, actorID int64, actorUsername, reason string) error {
 	if serverID == "" {
 		return errors.New("server ID is required")
 	}
@@ -133,12 +143,8 @@ func (s *ServerService) BanMember(ctx context.Context, serverID, userID, bannedB
 	if err != nil {
 		return errors.New("invalid user ID format")
 	}
-	bannedByIDInt, err := idToInt64(bannedByID)
-	if err != nil {
-		return errors.New("invalid banned_by ID format")
-	}
 
-	if err := s.repo.AddServerBan(ctx, serverIDInt, userIDInt, bannedByIDInt, reason); err != nil {
+	if err := s.repo.AddServerBan(ctx, serverIDInt, userIDInt, actorID, reason); err != nil {
 		return err
 	}
 	_ = s.repo.RemoveMember(ctx, serverIDInt, userIDInt)
@@ -148,6 +154,16 @@ func (s *ServerService) BanMember(ctx context.Context, serverID, userID, bannedB
 		s.hub.BroadcastToChannel("server:"+serverID, ws.EventMemberBan, payload)
 		s.hub.SendToUser(userID, ws.EventMemberBan, payload)
 	}
+
+	s.auditSvc.Log(ctx, audit.Entry{
+		ServerID:      serverIDInt,
+		ActorID:       &actorID,
+		ActorUsername: actorUsername,
+		Action:        "member.ban",
+		TargetID:      strconv.FormatInt(userIDInt, 10),
+		TargetType:    "user",
+		Reason:        reason,
+	})
 	return nil
 }
 
@@ -159,7 +175,7 @@ func (s *ServerService) ListBans(ctx context.Context, serverID string) ([]db.Ser
 	return s.repo.ListServerBans(ctx, id)
 }
 
-func (s *ServerService) UnbanMember(ctx context.Context, serverID, userID string) error {
+func (s *ServerService) UnbanMember(ctx context.Context, serverID, userID string, actorID int64, actorUsername string) error {
 	sID, err := idToInt64(serverID)
 	if err != nil {
 		return errors.New("invalid server ID")
@@ -168,7 +184,18 @@ func (s *ServerService) UnbanMember(ctx context.Context, serverID, userID string
 	if err != nil {
 		return errors.New("invalid user ID")
 	}
-	return s.repo.RemoveServerBan(ctx, sID, uID)
+	if err := s.repo.RemoveServerBan(ctx, sID, uID); err != nil {
+		return err
+	}
+	s.auditSvc.Log(ctx, audit.Entry{
+		ServerID:      sID,
+		ActorID:       &actorID,
+		ActorUsername: actorUsername,
+		Action:        "member.unban",
+		TargetID:      strconv.FormatInt(uID, 10),
+		TargetType:    "user",
+	})
+	return nil
 }
 
 func (s *ServerService) GetMembers(ctx context.Context, serverID string) ([]*ServerMember, error) {

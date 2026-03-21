@@ -792,7 +792,9 @@ func (h *Handler) AssignRoleToMember(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := h.service.AssignRoleToMember(r.Context(), serverID, targetUserID, req.RoleID); err != nil {
+	actorIDInt, _ := strconv.ParseInt(userID, 10, 64)
+	actorUsername, _ := h.service.Repo().GetUsernameByID(r.Context(), actorIDInt)
+	if err := h.service.AssignRoleToMember(r.Context(), serverID, targetUserID, req.RoleID, actorIDInt, actorUsername); err != nil {
 		httputil.InternalError(w, err)
 		return
 	}
@@ -845,7 +847,9 @@ func (h *Handler) RemoveRoleFromMember(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := h.service.RemoveRoleFromMember(r.Context(), serverID, targetUserID, roleID); err != nil {
+	actorIDInt, _ := strconv.ParseInt(userID, 10, 64)
+	actorUsername, _ := h.service.Repo().GetUsernameByID(r.Context(), actorIDInt)
+	if err := h.service.RemoveRoleFromMember(r.Context(), serverID, targetUserID, roleID, actorIDInt, actorUsername); err != nil {
 		httputil.InternalError(w, err)
 		return
 	}
@@ -946,7 +950,9 @@ func (h *Handler) KickMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.service.KickMember(r.Context(), serverID, targetUserID); err != nil {
+	actorIDInt, _ := strconv.ParseInt(currentUserID, 10, 64)
+	actorUsername, _ := h.service.Repo().GetUsernameByID(r.Context(), actorIDInt)
+	if err := h.service.KickMember(r.Context(), serverID, targetUserID, actorIDInt, actorUsername); err != nil {
 		httputil.InternalError(w, err)
 		return
 	}
@@ -999,7 +1005,9 @@ func (h *Handler) BanMember(w http.ResponseWriter, r *http.Request) {
 	}
 	json.NewDecoder(r.Body).Decode(&req)
 
-	if err := h.service.BanMember(r.Context(), serverID, targetUserID, currentUserID, req.Reason); err != nil {
+	actorIDInt, _ := strconv.ParseInt(currentUserID, 10, 64)
+	actorUsername, _ := h.service.Repo().GetUsernameByID(r.Context(), actorIDInt)
+	if err := h.service.BanMember(r.Context(), serverID, targetUserID, actorIDInt, actorUsername, req.Reason); err != nil {
 		httputil.InternalError(w, err)
 		return
 	}
@@ -1049,7 +1057,9 @@ func (h *Handler) UnbanMember(w http.ResponseWriter, r *http.Request) {
 		httputil.JSONError(w, "you do not have permission to unban members", http.StatusForbidden)
 		return
 	}
-	if err := h.service.UnbanMember(r.Context(), serverID, targetUserID); err != nil {
+	actorIDInt, _ := strconv.ParseInt(currentUserID, 10, 64)
+	actorUsername, _ := h.service.Repo().GetUsernameByID(r.Context(), actorIDInt)
+	if err := h.service.UnbanMember(r.Context(), serverID, targetUserID, actorIDInt, actorUsername); err != nil {
 		httputil.InternalError(w, err)
 		return
 	}
