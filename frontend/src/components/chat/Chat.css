@@ -206,6 +206,48 @@
   letter-spacing: 2px;
 }
 
+.message-text--collapsible {
+  position: relative;
+  overflow: hidden;
+}
+
+.message-text--collapsible::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: linear-gradient(transparent, var(--parley-bg-primary, #36393f));
+  pointer-events: none;
+}
+
+.message-text--expanded {
+  max-height: none !important;
+  overflow: visible;
+}
+
+.message-text--expanded::after {
+  display: none;
+}
+
+.message-see-more {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--parley-accent, #5865f2);
+  font-size: 0.85em;
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.message-see-more:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
 /* Message Hover Actions */
 .message-actions {
   position: absolute;

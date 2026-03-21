@@ -3,7 +3,9 @@
   bottom: 100%;
   right: 0;
   width: 340px;
-  background: var(--parley-bg-tertiary, var(--parley-panel-bg, #1e2124));
+  background: var(--parley-panel-bg, #1e2124);
+  backdrop-filter: blur(var(--parley-panel-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
   border-radius: 8px;
   border: 1px solid var(--parley-border);
   box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.4);

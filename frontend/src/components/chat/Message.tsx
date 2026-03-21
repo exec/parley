@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useViewportAdjust } from '../../hooks/useViewportAdjust';
 import { Reply, SmilePlus, Pencil, Trash2, X, Bot } from 'lucide-react';
 import { Message as MessageType } from '../../api/types';
@@ -202,6 +202,20 @@ export const Message: React.FC<MessageProps> = ({
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const userContextMenuRef = useRef<HTMLDivElement>(null);
   const editedSpanRef = useRef<HTMLSpanElement>(null);
+
+  // Collapse long messages. Seeded from a content heuristic so the message renders
+  // collapsed immediately (no flash) for obviously long content; the DOM check in
+  // useLayoutEffect corrects it for borderline cases.
+  const MSG_COLLAPSE_PX = 480; // ~20 lines at 1.6 line-height × 15px
+  const looksLong = message.content.split('\n').length > 15 || message.content.length > 700;
+  const [isCollapsed, setIsCollapsed] = useState(true);
+  const [showToggle, setShowToggle] = useState(looksLong);
+  const msgContentRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (!msgContentRef.current || !isCollapsed) return;
+    setShowToggle(msgContentRef.current.scrollHeight > msgContentRef.current.clientHeight);
+  }, [message.content, isCollapsed]);
 
   const { compactMode } = useTheme();
   const isOwnMessage = currentUserId && message.author_id === currentUserId;
@@ -444,9 +458,23 @@ export const Message: React.FC<MessageProps> = ({
                   return (
                     <>
                       {cleanContent && (
-                        <div className="message-text">
-                          <MarkdownRenderer content={cleanContent} mode="chat" memberMap={memberMap} channelMap={channelMap} onMiniProfile={onMiniProfile} />
-                        </div>
+                        <>
+                          <div
+                            ref={msgContentRef}
+                            className={`message-text${showToggle ? ' message-text--collapsible' : ''}${showToggle && !isCollapsed ? ' message-text--expanded' : ''}`}
+                            style={showToggle && isCollapsed ? { maxHeight: MSG_COLLAPSE_PX } : undefined}
+                          >
+                            <MarkdownRenderer content={cleanContent} mode="chat" memberMap={memberMap} channelMap={channelMap} onMiniProfile={onMiniProfile} />
+                          </div>
+                          {showToggle && (
+                            <button
+                              className="message-see-more"
+                              onClick={() => setIsCollapsed(c => !c)}
+                            >
+                              {isCollapsed ? '▼ See more' : '▲ See less'}
+                            </button>
+                          )}
+                        </>
                       )}
                       {embeds.map(({ type, token }) =>
                         type === 'theme'
