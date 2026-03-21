@@ -117,7 +117,7 @@ Features ordered roughly by complexity. Grouped by what they touch.
 ### Message features — new backend table + endpoints + frontend (internal/message/, Message.tsx)
 
 - [ ] **Pinned messages** — `PermManageMessages` can pin/unpin. New `pinned_messages` table. `POST/DELETE /channels/{id}/pins/{messageId}`, `GET /channels/{id}/pins`. Pin indicator on messages; "📌 N pinned" button in channel header opens a panel.
-- [ ] **Forward message** — "Forward" in context menu opens a modal to pick a channel/DM and sends the content there (quoted or with a forward embed). No new backend endpoints needed.
+- [x] **Forward message** — "Forward" in context menu opens a modal to pick a channel/DM and sends the content there (quoted or with a forward embed). No new backend endpoints needed.
 
 ### Moderation — touches server + permissions + message/voice middleware
 
