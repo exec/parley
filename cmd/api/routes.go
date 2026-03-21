@@ -154,12 +154,14 @@ func registerRoutes(
 		}
 		aiHandler := theme.NewAIHandler(aiQueue)
 
+		// Server handler — used by both authenticated and public routes
+		serverHandler := server.NewHandler(serverService)
+
 		// Protected routes — require authentication
 		r.Group(func(r chi.Router) {
 			r.Use(auth.AuthMiddlewareWith(authService))
 
 			// Server routes
-			serverHandler := server.NewHandler(serverService)
 			r.Post("/servers", serverHandler.CreateServer)
 			r.Get("/servers", serverHandler.GetUserServers)
 			r.Get("/servers/{id}", serverHandler.GetServer)
@@ -292,6 +294,8 @@ func registerRoutes(
 			r.With(rateLimitMiddleware(inviteLimiter)).Get("/invites/{code}", serverHandler.PreviewInvite)
 			r.With(rateLimitMiddleware(inviteLimiter)).Post("/invites/{code}", serverHandler.JoinInvite)
 			r.Put("/servers/{id}/vanity", serverHandler.SetVanityURL)
+			r.Put("/servers/{id}/categories", serverHandler.SetServerCategories)
+			r.Get("/servers/{id}/categories", serverHandler.GetServerCategoriesForServer)
 
 			// Bot routes
 			r.Get("/servers/{id}/bots", botsHandler.ListBots)
@@ -347,6 +351,10 @@ func registerRoutes(
 
 		// Public bot invite route (no auth required)
 		r.Get("/bots/invite/{token}", botsHandler.ResolveInvite)
+
+		// Public discovery routes — no authentication required
+		r.Get("/discover", serverHandler.Discover)
+		r.Get("/server-categories", serverHandler.ListServerCategories)
 	})
 
 	// WebSocket endpoint — prefers short-lived ticket, falls back to JWT query param

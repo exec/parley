@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -1164,6 +1165,88 @@ func parseDuration(s string) (time.Duration, error) {
 		return 30 * 24 * time.Hour, nil
 	}
 	return 0, errors.New("unknown duration: " + s)
+}
+
+// ListServerCategories handles GET /server-categories (public, no auth)
+func (h *Handler) ListServerCategories(w http.ResponseWriter, r *http.Request) {
+	cats, err := h.service.ListServerCategories(r.Context())
+	if err != nil {
+		httputil.JSONError(w, "failed to load categories", http.StatusInternalServerError)
+		return
+	}
+	render.JSON(w, r, cats)
+}
+
+// Discover handles GET /discover (public, no auth)
+func (h *Handler) Discover(w http.ResponseWriter, r *http.Request) {
+	page := 1
+	if p := r.URL.Query().Get("page"); p != "" {
+		if v, err := strconv.Atoi(p); err == nil && v > 0 {
+			page = v
+		}
+	}
+	q := r.URL.Query().Get("q")
+
+	var categoryID *int64
+	if catStr := r.URL.Query().Get("category_id"); catStr != "" {
+		if v, err := strconv.ParseInt(catStr, 10, 64); err == nil {
+			categoryID = &v
+		}
+	}
+
+	servers, total, err := h.service.Discover(r.Context(), categoryID, q, page)
+	if err != nil {
+		httputil.JSONError(w, "failed to load servers", http.StatusInternalServerError)
+		return
+	}
+	render.JSON(w, r, map[string]interface{}{
+		"servers": servers,
+		"total":   total,
+	})
+}
+
+// SetServerCategories handles PUT /servers/{id}/categories (owner only)
+func (h *Handler) SetServerCategories(w http.ResponseWriter, r *http.Request) {
+	serverID := chi.URLParam(r, "id")
+	userID := auth.GetUserIDFromContext(r)
+	server, err := h.service.GetServer(r.Context(), serverID)
+	if err != nil {
+		httputil.JSONError(w, "server not found", http.StatusNotFound)
+		return
+	}
+	if server.OwnerID != userID {
+		httputil.JSONError(w, "only the server owner can update categories", http.StatusForbidden)
+		return
+	}
+
+	var req struct {
+		CategoryIDs []int64 `json:"category_ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.CategoryIDs == nil {
+		req.CategoryIDs = []int64{}
+	}
+
+	cats, err := h.service.SetServerCategories(r.Context(), serverID, req.CategoryIDs)
+	if err != nil {
+		httputil.JSONError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	render.JSON(w, r, cats)
+}
+
+// GetServerCategoriesForServer handles GET /servers/{id}/categories (auth required)
+func (h *Handler) GetServerCategoriesForServer(w http.ResponseWriter, r *http.Request) {
+	serverID := chi.URLParam(r, "id")
+	cats, err := h.service.GetServerCategoryAssignments(r.Context(), serverID)
+	if err != nil {
+		httputil.JSONError(w, "failed to load categories", http.StatusInternalServerError)
+		return
+	}
+	render.JSON(w, r, cats)
 }
 
 // SetVanityURL handles PUT /servers/:id/vanity
