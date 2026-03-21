@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
+	"parley/internal/audit"
 	"parley/internal/auth"
 	"parley/internal/db"
 	"parley/internal/httputil"
@@ -18,12 +19,13 @@ import (
 
 // Handler handles HTTP requests for server operations
 type Handler struct {
-	service *ServerService
+	service  *ServerService
+	auditSvc *audit.AuditService
 }
 
 // NewHandler creates a new server handler
-func NewHandler(service *ServerService) *Handler {
-	return &Handler{service: service}
+func NewHandler(service *ServerService, auditSvc *audit.AuditService) *Handler {
+	return &Handler{service: service, auditSvc: auditSvc}
 }
 
 // Request/Response types

@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"parley/internal/audit"
 	"parley/internal/db"
 	ws "parley/internal/websocket"
 )
@@ -82,12 +83,13 @@ type Invite struct {
 // ============ Service ============
 
 type ServerService struct {
-	repo *db.Repository
-	hub  *ws.Hub
+	repo     *db.Repository
+	hub      *ws.Hub
+	auditSvc *audit.AuditService
 }
 
-func NewServerService(repo *db.Repository) *ServerService {
-	return &ServerService{repo: repo}
+func NewServerService(repo *db.Repository, auditSvc *audit.AuditService) *ServerService {
+	return &ServerService{repo: repo, auditSvc: auditSvc}
 }
 
 func (s *ServerService) SetHub(hub *ws.Hub) {

@@ -5,18 +5,20 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"parley/internal/audit"
 	"parley/internal/auth"
 	"parley/internal/httputil"
 )
 
 // Handler handles HTTP requests for channels
 type Handler struct {
-	service *ChannelService
+	service  *ChannelService
+	auditSvc *audit.AuditService
 }
 
 // NewHandler creates a new channel handler
-func NewHandler(service *ChannelService) *Handler {
-	return &Handler{service: service}
+func NewHandler(service *ChannelService, auditSvc *audit.AuditService) *Handler {
+	return &Handler{service: service, auditSvc: auditSvc}
 }
 
 // ServerRoutes returns the chi router with channel routes mounted at /servers/:serverID/channels

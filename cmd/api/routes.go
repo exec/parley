@@ -12,6 +12,7 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 
 	"parley/internal/ai"
+	"parley/internal/audit"
 	"parley/internal/auth"
 	"parley/internal/bin"
 	"parley/internal/bots"
@@ -60,6 +61,7 @@ func registerRoutes(
 	cdnHost string,
 	siteURL string,
 	botsHandler *bots.Handler,
+	auditSvc *audit.AuditService,
 ) {
 	// Cap request bodies at 64 KB for all routes except /api/upload,
 	// which applies its own 50 MB limit inside the handler.
@@ -157,7 +159,7 @@ func registerRoutes(
 		aiHandler := theme.NewAIHandler(aiQueue)
 
 		// Server handler — used by both authenticated and public routes
-		serverHandler := server.NewHandler(serverService)
+		serverHandler := server.NewHandler(serverService, auditSvc)
 
 		// Protected routes — require authentication
 		r.Group(func(r chi.Router) {
@@ -190,7 +192,7 @@ func registerRoutes(
 			r.Get("/servers/{id}/my-permissions", serverHandler.GetMyPermissions)
 
 			// Channel routes
-			channelHandler := channel.NewHandler(channelService)
+			channelHandler := channel.NewHandler(channelService, auditSvc)
 			r.Post("/servers/{serverID}/channels", channelHandler.CreateChannel)
 			r.Patch("/servers/{serverID}/channels/reorder", channelHandler.ReorderChannels)
 			r.Get("/servers/{serverID}/channels", channelHandler.GetServerChannels)

@@ -18,6 +18,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	_ "github.com/lib/pq"
 
+	"parley/internal/audit"
 	"parley/internal/auth"
 	"parley/internal/bin"
 	"parley/internal/bots"
@@ -153,7 +154,8 @@ func main() {
 	// Initialize services
 	authService := auth.NewAuthService(repo)
 	authService.SetEmailClient(emailClient, siteURL)
-	serverService := server.NewServerService(repo)
+	auditSvc := audit.NewAuditService(repo)
+	serverService := server.NewServerService(repo, auditSvc)
 	channelService := channel.NewChannelService(repo)
 	messageService := message.NewMessageService(repo)
 
@@ -329,7 +331,7 @@ func main() {
 	}
 
 	// Setup chi router
-	router := setupRouter(config, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, passkeySvc, redisHub, parseCDNHost(spacesCDNURL), siteURL, botsHandler)
+	router := setupRouter(config, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, passkeySvc, redisHub, parseCDNHost(spacesCDNURL), siteURL, botsHandler, auditSvc)
 
 	// Start version purge goroutine
 	go func() {
@@ -415,6 +417,7 @@ func setupRouter(
 	cdnHost string,
 	siteURL string,
 	botsHandler *bots.Handler,
+	auditSvc *audit.AuditService,
 ) *chi.Mux {
 	router := chi.NewRouter()
 
@@ -435,7 +438,7 @@ func setupRouter(
 	} else {
 		tickets = newTicketStore()
 	}
-	registerRoutes(router, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, tickets, passkeySvc, redisHub, config.OllamaAPIURL, config.OllamaAPIKey, config.OllamaModel, cdnHost, siteURL, botsHandler)
+	registerRoutes(router, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, tickets, passkeySvc, redisHub, config.OllamaAPIURL, config.OllamaAPIKey, config.OllamaModel, cdnHost, siteURL, botsHandler, auditSvc)
 
 	return router
 }
