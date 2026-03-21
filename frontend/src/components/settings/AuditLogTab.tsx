@@ -88,7 +88,6 @@ export const AuditLogTab: React.FC<Props> = ({ server, currentUserId }) => {
 
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [total, setTotal] = useState(0);
-  const [offset, setOffset] = useState(0);
   const [action, setAction] = useState('');
   const [actorFilter, setActorFilter] = useState('');
   const [loading, setLoading] = useState(false);
@@ -109,7 +108,6 @@ export const AuditLogTab: React.FC<Props> = ({ server, currentUserId }) => {
         setLogs(prev => [...prev, ...(result.logs ?? [])]);
       }
       setTotal(result.total ?? 0);
-      setOffset(newOffset);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load audit log');
     } finally {
@@ -134,14 +132,12 @@ export const AuditLogTab: React.FC<Props> = ({ server, currentUserId }) => {
   };
 
   const handleLoadMore = () => {
-    fetchLogs(offset + logs.length, action);
+    fetchLogs(logs.length, action);
   };
 
   const visibleLogs = actorFilter
     ? logs.filter(e => e.actor_username.toLowerCase().includes(actorFilter.toLowerCase()))
     : logs;
-
-  const canLoadMore = offset + logs.length < total;
 
   return (
     <div>
@@ -250,7 +246,7 @@ export const AuditLogTab: React.FC<Props> = ({ server, currentUserId }) => {
         ))}
       </div>
 
-      {canLoadMore && (
+      {logs.length < total && (
         <div style={{ marginTop: 12, textAlign: 'center' }}>
           <button
             className="settings-btn settings-btn-secondary"
