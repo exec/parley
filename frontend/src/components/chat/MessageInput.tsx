@@ -73,6 +73,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const { hasPerm: checkPerm, loading: permsLoading } = usePermissions(serverId, channelId);
   const canSend = !serverId || permsLoading || checkPerm(PERM_SEND_MESSAGES);
   const canAttach = !serverId || permsLoading || checkPerm(PERM_ATTACH_FILES);
+  const MAX_LENGTH = 4000;
+
   const [message, setMessage] = useState(initialValue);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -463,12 +465,18 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             onPaste={handlePaste}
             placeholder={isRecording ? 'Recording…' : defaultPlaceholder}
             disabled={isBusy}
+            maxLength={MAX_LENGTH}
             rows={1}
           />
+          {message.length >= MAX_LENGTH * 0.8 && (
+            <span className={`char-counter${message.length >= MAX_LENGTH ? ' char-counter--over' : ''}`}>
+              {MAX_LENGTH - message.length}
+            </span>
+          )}
           <button
             className="send-button"
             onClick={handleSend}
-            disabled={isBusy || (!message.trim() && !pendingFile && !voiceBlob)}
+            disabled={isBusy || message.length > MAX_LENGTH || (!message.trim() && !pendingFile && !voiceBlob)}
           >
             {isUploading ? '...' : 'Send'}
           </button>
