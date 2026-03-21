@@ -124,6 +124,22 @@ type Channel struct {
 	UpdatedAt   time.Time     `json:"updated_at" db:"updated_at"`
 }
 
+// ForwardedMessageData is a JSONB snapshot of a forwarded message stored at forward time.
+// ChannelID/ChannelName/ServerID/ServerName are empty when the source was a DM.
+type ForwardedMessageData struct {
+	MessageID        string    `json:"message_id"`
+	ChannelID        string    `json:"channel_id,omitempty"`
+	ChannelName      string    `json:"channel_name,omitempty"`
+	ServerID         string    `json:"server_id,omitempty"`
+	ServerName       string    `json:"server_name,omitempty"`
+	AuthorUsername   string    `json:"author_username"`
+	AuthorDisplayName string   `json:"author_display_name,omitempty"`
+	AuthorAvatarURL  string    `json:"author_avatar_url,omitempty"`
+	Content          string    `json:"content,omitempty"`
+	AttachmentName   string    `json:"attachment_name,omitempty"`
+	CreatedAt        time.Time `json:"created_at"`
+}
+
 // Message represents a message in a channel
 type Message struct {
 	ID              int64     `json:"id" db:"id"`
@@ -146,6 +162,7 @@ type Message struct {
 	ParentAuthorDisplayName string     `json:"parent_author_display_name,omitempty" db:"-"`
 	IsPinned                bool       `json:"is_pinned,omitempty"`
 	PinnedAt                *time.Time `json:"pinned_at,omitempty"`
+	ForwardedMessage        *ForwardedMessageData `json:"forwarded_message,omitempty"`
 }
 
 // DmChannel represents a direct message channel between two users
@@ -178,6 +195,7 @@ type DmMessage struct {
 	ParentAuthorUsername    string         `json:"parent_author_username,omitempty" db:"-"`
 	ParentAuthorDisplayName string         `json:"parent_author_display_name,omitempty" db:"-"`
 	Reactions               []ReactionGroup `json:"reactions" db:"-"`
+	ForwardedMessage        *ForwardedMessageData `json:"forwarded_message,omitempty"`
 }
 
 // PublicUser represents public user profile info

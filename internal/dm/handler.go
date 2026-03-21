@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -268,6 +269,89 @@ func (h *Handler) SendDmMessage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(msg)
+}
+
+// ForwardDmRequest is the body for POST /dms/{id}/forward
+type ForwardDmRequest struct {
+	MessageID        string `json:"message_id"`
+	ChannelID        string `json:"channel_id,omitempty"`
+	ChannelName      string `json:"channel_name,omitempty"`
+	ServerID         string `json:"server_id,omitempty"`
+	ServerName       string `json:"server_name,omitempty"`
+	AuthorUsername   string `json:"author_username"`
+	AuthorDisplayName string `json:"author_display_name,omitempty"`
+	AuthorAvatarURL  string `json:"author_avatar_url,omitempty"`
+	Content          string `json:"content,omitempty"`
+	AttachmentName   string `json:"attachment_name,omitempty"`
+	CreatedAt        string `json:"created_at"`
+}
+
+// ForwardToDm handles POST /dms/{id}/forward
+func (h *Handler) ForwardToDm(w http.ResponseWriter, r *http.Request) {
+	userIDStr := auth.GetUserIDFromContext(r)
+	if userIDStr == "" {
+		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
+		return
+	}
+	currentUserID, err := strconv.ParseInt(userIDStr, 10, 64)
+	if err != nil {
+		httputil.JSONError(w, "invalid user ID", http.StatusBadRequest)
+		return
+	}
+	dmID := chi.URLParam(r, "id")
+	dmChannelID, err := strconv.ParseInt(dmID, 10, 64)
+	if err != nil {
+		httputil.JSONError(w, "invalid DM channel ID", http.StatusBadRequest)
+		return
+	}
+	channel, err := h.repo.GetDmChannelByID(r.Context(), dmChannelID)
+	if err != nil {
+		httputil.JSONError(w, "DM channel not found", http.StatusNotFound)
+		return
+	}
+	if channel.User1ID != currentUserID && channel.User2ID != currentUserID {
+		httputil.JSONError(w, "not authorized", http.StatusForbidden)
+		return
+	}
+	var req ForwardDmRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.MessageID == "" {
+		httputil.JSONError(w, "message_id is required", http.StatusBadRequest)
+		return
+	}
+	createdAt, err := time.Parse(time.RFC3339Nano, req.CreatedAt)
+	if err != nil {
+		createdAt, _ = time.Parse(time.RFC3339, req.CreatedAt)
+	}
+	fwd := &db.ForwardedMessageData{
+		MessageID:        req.MessageID,
+		ChannelID:        req.ChannelID,
+		ChannelName:      req.ChannelName,
+		ServerID:         req.ServerID,
+		ServerName:       req.ServerName,
+		AuthorUsername:   req.AuthorUsername,
+		AuthorDisplayName: req.AuthorDisplayName,
+		AuthorAvatarURL:  req.AuthorAvatarURL,
+		Content:          req.Content,
+		AttachmentName:   req.AttachmentName,
+		CreatedAt:        createdAt,
+	}
+	msg, err := h.repo.CreateForwardedDmMessage(r.Context(), dmChannelID, currentUserID, fwd)
+	if err != nil {
+		httputil.InternalError(w, err)
+		return
+	}
+	if h.hub != nil {
+		msgJSON, _ := json.Marshal(msg)
+		virtualChannelID := "dm:" + strconv.FormatInt(dmChannelID, 10)
+		h.hub.BroadcastToChannel(virtualChannelID, "dm_message", msgJSON)
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(msg)

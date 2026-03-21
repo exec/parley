@@ -764,6 +764,10 @@ UPDATE users SET email_verification_token_expires_at = created_at + INTERVAL '72
 	    PRIMARY KEY (channel_id, message_id)
 	);
 	CREATE INDEX IF NOT EXISTS idx_pinned_messages_channel ON pinned_messages(channel_id);`,
+
+	`-- Forwarded message data (JSONB snapshot stored at forward time)
+	ALTER TABLE messages ADD COLUMN IF NOT EXISTS forwarded_data JSONB;
+	ALTER TABLE dm_messages ADD COLUMN IF NOT EXISTS forwarded_data JSONB;`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

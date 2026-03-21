@@ -17,6 +17,7 @@ import { useWebSocket, MemberRoleUpdate, UserUpdate, VoiceStateUpdate, VoiceForc
 import { VoiceChannel } from './components/voice/VoiceChannel';
 
 import { DmMessage, Message, BinChannelTag, ServerMember } from './api/types';
+import { ForwardModal } from './components/chat/ForwardModal';
 import * as serversApi from './api/servers';
 import * as channelsApi from './api/channels';
 import * as dmsApi from './api/dms';
@@ -114,6 +115,9 @@ function MainApp() {
     receiveFriendRequest,
     receiveFriendAccept,
     receiveFriendRemove,
+    selectChannelAround,
+    clearJumpTarget,
+    pendingJumpMessageId,
   } = useApp();
 
   const navigate = useNavigate();
@@ -133,6 +137,29 @@ function MainApp() {
   const [showAssignRoles, setShowAssignRoles] = useState(false);
   const [assignRolesUserId, setAssignRolesUserId] = useState('');
   const [assignRolesUsername, setAssignRolesUsername] = useState('');
+
+  // Forward message modal
+  const [forwardMessage, setForwardMessage] = useState<Message | null>(null);
+
+  const handleJumpToMessage = useCallback((channelId: string, messageId: string) => {
+    if (activeChannel?.id === channelId) {
+      // Already in that channel — just scroll to the message
+      setPendingJumpLocal(messageId);
+    } else {
+      // Navigate to channel and load around that message
+      selectChannelAround(channelId, messageId);
+    }
+  }, [activeChannel?.id, selectChannelAround]);
+
+  // Local jump target for same-channel jumps (not stored in AppContext)
+  const [pendingJumpLocal, setPendingJumpLocal] = useState<string | null>(null);
+
+  // Unified jump target: context (cross-channel) or local (same-channel)
+  const effectiveJumpTarget = pendingJumpMessageId ?? pendingJumpLocal;
+  const handleJumpClear = useCallback(() => {
+    clearJumpTarget();
+    setPendingJumpLocal(null);
+  }, [clearJumpTarget]);
 
   // Channel settings modal — snapshot name/parentId at open time so WS events
   // don't cause ChannelPermissions to re-fetch while the modal is open
@@ -911,6 +938,10 @@ function MainApp() {
             onNavigateToChannel={(channelId) => {
               selectChannel(channelId);
             }}
+            onForward={(msg) => setForwardMessage(msg)}
+            onJumpToMessage={handleJumpToMessage}
+            jumpToMessageId={effectiveJumpTarget}
+            onJumpClear={handleJumpClear}
           />
         </div>
       );
@@ -1126,6 +1157,10 @@ function MainApp() {
         onlineUserIds={onlineUsers}
         hideRoles={true}
         onToggleChannelList={() => setShowChannelList(c => !c)}
+        onForward={(msg) => setForwardMessage(msg)}
+        onJumpToMessage={handleJumpToMessage}
+        jumpToMessageId={effectiveJumpTarget}
+        onJumpClear={handleJumpClear}
       />
     );
   } else if (activeChannel) {
@@ -1176,6 +1211,10 @@ function MainApp() {
         onBanMember={activeServer ? (userId) => {
           serversApi.banMember(activeServer.id, userId).catch(console.error);
         } : undefined}
+        onForward={(msg) => setForwardMessage(msg)}
+        onJumpToMessage={handleJumpToMessage}
+        jumpToMessageId={effectiveJumpTarget}
+        onJumpClear={handleJumpClear}
       />
     );
   } else if (activeServer) {
@@ -1327,6 +1366,16 @@ function MainApp() {
             setShowCreatePost(false);
             setActivePostId(postId);
           }}
+        />
+      )}
+
+      {forwardMessage && (
+        <ForwardModal
+          message={forwardMessage}
+          channels={channels}
+          dmChannels={dmChannels}
+          currentChannelId={activeChannel?.id ?? activeDmChannel?.id}
+          onClose={() => setForwardMessage(null)}
         />
       )}
 

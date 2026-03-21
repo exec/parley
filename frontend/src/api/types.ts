@@ -75,6 +75,20 @@ export interface Reaction {
   user_ids: string[];
 }
 
+export interface ForwardedMessage {
+  message_id: string;
+  channel_id?: string;
+  channel_name?: string;
+  server_id?: string;
+  server_name?: string;
+  author_username: string;
+  author_display_name?: string;
+  author_avatar_url?: string;
+  content?: string;
+  attachment_name?: string;
+  created_at: string;
+}
+
 export interface Message {
   id: string;
   channel_id: string;
@@ -98,6 +112,7 @@ export interface Message {
   parent_author_display_name?: string;
   is_pinned?: boolean;
   pinned_at?: string;
+  forwarded_message?: ForwardedMessage;
 }
 
 export interface AuthResponse {
@@ -138,6 +153,7 @@ export interface DmMessage {
   attachment_url?: string;
   attachment_name?: string;
   attachment_type?: string;
+  forwarded_message?: ForwardedMessage;
 }
 
 export interface PublicUser {

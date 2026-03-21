@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -150,6 +151,25 @@ func (h *Handler) GetChannelMessages(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// around param: load messages centered on a specific message ID
+	if aroundStr := r.URL.Query().Get("around"); aroundStr != "" {
+		aroundID, err := strconv.ParseInt(aroundStr, 10, 64)
+		if err == nil && aroundID > 0 {
+			messages, err := h.service.GetChannelMessagesAround(r.Context(), channelID, userID, aroundID)
+			if err != nil {
+				if err.Error() == "channel not found" {
+					httputil.JSONError(w, err.Error(), http.StatusNotFound)
+					return
+				}
+				httputil.InternalError(w, err)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(messages)
+			return
+		}
+	}
+
 	messages, err := h.service.GetChannelMessages(r.Context(), channelID, userID, limit, beforeID)
 	if err != nil {
 		if err.Error() == "channel not found" {
@@ -162,6 +182,77 @@ func (h *Handler) GetChannelMessages(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(messages)
+}
+
+// ForwardRequest is the body for POST /channels/{channelID}/forward
+type ForwardRequest struct {
+	MessageID        string `json:"message_id"`
+	ChannelID        string `json:"channel_id,omitempty"`
+	ChannelName      string `json:"channel_name,omitempty"`
+	ServerID         string `json:"server_id,omitempty"`
+	ServerName       string `json:"server_name,omitempty"`
+	AuthorUsername   string `json:"author_username"`
+	AuthorDisplayName string `json:"author_display_name,omitempty"`
+	AuthorAvatarURL  string `json:"author_avatar_url,omitempty"`
+	Content          string `json:"content,omitempty"`
+	AttachmentName   string `json:"attachment_name,omitempty"`
+	CreatedAt        string `json:"created_at"`
+}
+
+// ForwardToChannel handles POST /channels/{channelID}/forward
+func (h *Handler) ForwardToChannel(w http.ResponseWriter, r *http.Request) {
+	channelID := chi.URLParam(r, "channelID")
+	authorID := auth.GetUserIDFromContext(r)
+	if authorID == "" {
+		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
+		return
+	}
+
+	var req ForwardRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.MessageID == "" {
+		httputil.JSONError(w, "message_id is required", http.StatusBadRequest)
+		return
+	}
+
+	createdAt, err := time.Parse(time.RFC3339Nano, req.CreatedAt)
+	if err != nil {
+		createdAt, _ = time.Parse(time.RFC3339, req.CreatedAt)
+	}
+
+	fwd := &db.ForwardedMessageData{
+		MessageID:        req.MessageID,
+		ChannelID:        req.ChannelID,
+		ChannelName:      req.ChannelName,
+		ServerID:         req.ServerID,
+		ServerName:       req.ServerName,
+		AuthorUsername:   req.AuthorUsername,
+		AuthorDisplayName: req.AuthorDisplayName,
+		AuthorAvatarURL:  req.AuthorAvatarURL,
+		Content:          req.Content,
+		AttachmentName:   req.AttachmentName,
+		CreatedAt:        createdAt,
+	}
+
+	msg, err := h.service.ForwardToChannel(r.Context(), channelID, authorID, fwd)
+	if err != nil {
+		switch err.Error() {
+		case "forbidden":
+			httputil.JSONError(w, "you do not have permission to send messages in this channel", http.StatusForbidden)
+		case "channel not found":
+			httputil.JSONError(w, err.Error(), http.StatusNotFound)
+		default:
+			httputil.InternalError(w, err)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(msg)
 }
 
 // EditMessageRequest represents the request body for editing a message

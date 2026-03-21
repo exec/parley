@@ -13,6 +13,7 @@ import { EditHistoryPopover } from './EditHistoryPopover';
 import { ThemeLinkEmbed } from '../theme/ThemeLinkEmbed';
 import { BotInviteEmbed } from '../BotInviteEmbed';
 import { PinIcon } from './PinnedPanel';
+import { ForwardEmbed } from './ForwardEmbed';
 import { useTheme } from '../../context/ThemeContext';
 import './Chat.css';
 import './NestedReplies.css';
@@ -70,6 +71,8 @@ interface MessageProps {
   onBanMember?: (userId: string) => void;
   onPin?: (messageId: string) => void;
   onUnpin?: (messageId: string) => void;
+  onForward?: (message: MessageType) => void;
+  onJumpToMessage?: (channelId: string, messageId: string) => void;
 }
 
 /** Returns the number of emoji if the text is 1–5 emoji only, else null. */
@@ -195,6 +198,8 @@ export const Message: React.FC<MessageProps> = ({
   onBanMember,
   onPin,
   onUnpin,
+  onForward,
+  onJumpToMessage,
 }) => {
   const [showActions, setShowActions] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -333,6 +338,11 @@ export const Message: React.FC<MessageProps> = ({
 
   const handleUnpin = () => {
     onUnpin?.(message.id);
+    closeContextMenu();
+  };
+
+  const handleForward = () => {
+    onForward?.(message);
     closeContextMenu();
   };
 
@@ -508,6 +518,14 @@ export const Message: React.FC<MessageProps> = ({
                   );
                 })()
             }
+            {message.forwarded_message && (
+              <ForwardEmbed
+                fwd={message.forwarded_message}
+                memberMap={memberMap}
+                channelMap={channelMap}
+                onJump={onJumpToMessage}
+              />
+            )}
             {message.attachment_url && (() => {
               const isVoice = message.attachment_name?.startsWith('voice_message_');
               const isAudio = !isVoice && (
@@ -621,6 +639,9 @@ export const Message: React.FC<MessageProps> = ({
         >
           <button className="context-menu-item" onClick={handleReply}>Reply</button>
           <button className="context-menu-item" onClick={handleCopy}>Copy Text</button>
+          {onForward && !message.forwarded_message && (
+            <button className="context-menu-item" onClick={handleForward}>Forward Message</button>
+          )}
           {canPin && (
             message.is_pinned
               ? <button className="context-menu-item" onClick={handleUnpin}>Unpin Message</button>

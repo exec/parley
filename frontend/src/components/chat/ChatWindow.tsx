@@ -53,6 +53,10 @@ interface ChatWindowProps {
   canBanMembers?: boolean;
   onKickMember?: (userId: string) => void;
   onBanMember?: (userId: string) => void;
+  onForward?: (message: MessageType) => void;
+  onJumpToMessage?: (channelId: string, messageId: string) => void;
+  jumpToMessageId?: string | null;
+  onJumpClear?: () => void;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -92,6 +96,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   canBanMembers,
   onKickMember,
   onBanMember,
+  onForward,
+  onJumpToMessage,
+  jumpToMessageId,
+  onJumpClear,
 }) => {
   const { hasPerm: checkPerm } = usePermissions(channel.server_id || undefined, channel.id || undefined);
   const canManageMessages = !channel.server_id || checkPerm(PERM_MANAGE_MESSAGES);
@@ -272,6 +280,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         onUnpin={async (messageId) => {
           try { await unpinMessage(channel.id, messageId); } catch { /* ignore */ }
         }}
+        onForward={onForward}
+        onJumpToMessage={onJumpToMessage}
+        jumpToMessageId={jumpToMessageId}
+        onJumpClear={onJumpClear}
       />
       <TypingIndicator typingUsers={typingUsers} />
       <MessageInput

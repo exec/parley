@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { Message } from './types';
+import { Message, ForwardedMessage } from './types';
 
 export interface MessageVersion {
   id: string;
@@ -21,6 +21,7 @@ export interface GetMessagesParams {
   offset?: number;
   before?: string;
   after?: string;
+  around?: string;
 }
 
 export async function getMessages(
@@ -40,6 +41,9 @@ export async function getMessages(
   }
   if (params?.after) {
     queryParams.append('after', params.after);
+  }
+  if (params?.around) {
+    queryParams.append('around', params.around);
   }
 
   const queryString = queryParams.toString();
@@ -87,4 +91,12 @@ export async function pinMessage(channelId: string, messageId: string): Promise<
 
 export async function unpinMessage(channelId: string, messageId: string): Promise<void> {
   return apiClient.delete<void>(`/channels/${channelId}/pins/${messageId}`);
+}
+
+export async function forwardToChannel(channelId: string, fwd: ForwardedMessage): Promise<Message> {
+  return apiClient.post<Message>(`/channels/${channelId}/forward`, fwd);
+}
+
+export async function forwardToDm(dmChannelId: string, fwd: ForwardedMessage): Promise<unknown> {
+  return apiClient.post<unknown>(`/dms/${dmChannelId}/forward`, fwd);
 }

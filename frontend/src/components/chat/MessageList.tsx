@@ -31,6 +31,10 @@ interface MessageListProps {
   onScrollToMessage?: (messageId: string) => void;
   onPin?: (messageId: string) => void;
   onUnpin?: (messageId: string) => void;
+  onForward?: (message: MessageType) => void;
+  onJumpToMessage?: (channelId: string, messageId: string) => void;
+  jumpToMessageId?: string | null;
+  onJumpClear?: () => void;
 }
 
 export const MessageList: React.FC<MessageListProps> = ({
@@ -60,6 +64,10 @@ export const MessageList: React.FC<MessageListProps> = ({
   onScrollToMessage: onScrollToMessageProp,
   onPin,
   onUnpin,
+  onForward,
+  onJumpToMessage,
+  jumpToMessageId,
+  onJumpClear,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -93,6 +101,17 @@ export const MessageList: React.FC<MessageListProps> = ({
     el.classList.add('message-highlight');
     setTimeout(() => el.classList.remove('message-highlight'), 1500);
   }, []);
+
+  // Jump to a specific message when jumpToMessageId changes
+  useEffect(() => {
+    if (!jumpToMessageId) return;
+    // Wait a tick for the DOM to settle after messages load
+    const timer = setTimeout(() => {
+      handleScrollToMessage(jumpToMessageId);
+      onJumpClear?.();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [jumpToMessageId, handleScrollToMessage, onJumpClear]);
 
   // Group messages by date
   const groupMessagesByDate = useCallback(
@@ -319,6 +338,8 @@ export const MessageList: React.FC<MessageListProps> = ({
                   onBanMember={onBanMember}
                   onPin={onPin}
                   onUnpin={onUnpin}
+                  onForward={onForward}
+                  onJumpToMessage={onJumpToMessage}
                 />
               ))}
             </div>

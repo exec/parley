@@ -44,8 +44,9 @@ type Message struct {
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
 	Reactions       []Reaction `json:"reactions"`
-	IsPinned        bool       `json:"is_pinned,omitempty"`
-	PinnedAt        *time.Time `json:"pinned_at,omitempty"`
+	IsPinned         bool                   `json:"is_pinned,omitempty"`
+	PinnedAt         *time.Time             `json:"pinned_at,omitempty"`
+	ForwardedMessage *db.ForwardedMessageData `json:"forwarded_message,omitempty"`
 }
 
 // BotTriggerFunc is called after a message is created. All args are strings for
@@ -361,6 +362,7 @@ func (s *MessageService) GetChannelMessages(ctx context.Context, channelID, user
 			Reactions:               reactions,
 			IsPinned:                dbMsg.IsPinned,
 			PinnedAt:                dbMsg.PinnedAt,
+			ForwardedMessage:        dbMsg.ForwardedMessage,
 		})
 	}
 
@@ -841,4 +843,146 @@ func (s *MessageService) GetChannelPins(ctx context.Context, channelID, userID s
 		})
 	}
 	return msgs, nil
+}
+
+// ForwardToChannel creates a forwarded-message card in a target channel.
+// authorID must have SendMessages in the target channel.
+func (s *MessageService) ForwardToChannel(ctx context.Context, targetChannelID, authorID string, fwd *db.ForwardedMessageData) (*Message, error) {
+	channelIDInt, err := strconv.ParseInt(targetChannelID, 10, 64)
+	if err != nil {
+		return nil, errors.New("invalid channel ID")
+	}
+	authorIDInt, err := strconv.ParseInt(authorID, 10, 64)
+	if err != nil {
+		return nil, errors.New("invalid author ID")
+	}
+
+	ch, err := s.repo.GetChannelByID(ctx, channelIDInt)
+	if err != nil {
+		return nil, errors.New("channel not found")
+	}
+	srv, err := s.repo.GetServerByID(ctx, ch.ServerID)
+	if err != nil {
+		return nil, errors.New("server not found")
+	}
+	var canSend bool
+	if s.memberCache != nil {
+		canSend, err = permissions.HasChannelPermissionCached(ctx, s.repo, s.memberCache, srv.ID, authorIDInt, srv.OwnerID, channelIDInt, permissions.PermSendMessages)
+	} else {
+		canSend, err = permissions.HasChannelPermission(ctx, s.repo, srv.ID, authorIDInt, srv.OwnerID, channelIDInt, permissions.PermSendMessages)
+	}
+	if err != nil || !canSend {
+		return nil, errors.New("forbidden")
+	}
+
+	var authorUsername, authorDisplayName, authorAvatarURL string
+	var authorIsBot bool
+	s.repo.DB().QueryRowContext(ctx,
+		"SELECT username, COALESCE(display_name,''), COALESCE(avatar_url,''), is_bot FROM users WHERE id = $1", authorIDInt,
+	).Scan(&authorUsername, &authorDisplayName, &authorAvatarURL, &authorIsBot)
+
+	dbMsg, err := s.repo.CreateForwardedChannelMessage(ctx, channelIDInt, authorIDInt, fwd)
+	if err != nil {
+		return nil, err
+	}
+
+	msg := &Message{
+		ID:               strconv.FormatInt(dbMsg.ID, 10),
+		ChannelID:        targetChannelID,
+		AuthorID:         authorID,
+		AuthorUsername:   authorUsername,
+		AuthorDisplayName: authorDisplayName,
+		AuthorAvatarURL:  authorAvatarURL,
+		AuthorIsBot:      authorIsBot,
+		CreatedAt:        dbMsg.CreatedAt,
+		UpdatedAt:        dbMsg.UpdatedAt,
+		Reactions:        []Reaction{},
+		ForwardedMessage: fwd,
+	}
+
+	s.mu.RLock()
+	if s.broadcaster != nil {
+		s.broadcaster.BroadcastToChannel(targetChannelID, "MESSAGE_CREATE", msg)
+	}
+	s.mu.RUnlock()
+
+	return msg, nil
+}
+
+// GetChannelMessagesAround returns messages centered around aroundID for jump-to navigation.
+func (s *MessageService) GetChannelMessagesAround(ctx context.Context, channelID, userID string, aroundID int64) ([]*Message, error) {
+	channelIDInt, err := strconv.ParseInt(channelID, 10, 64)
+	if err != nil {
+		return nil, errors.New("invalid channel ID")
+	}
+	if userID == "" {
+		return nil, errors.New("forbidden")
+	}
+	userIDInt, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		return nil, errors.New("invalid user ID")
+	}
+	ch, err := s.repo.GetChannelByID(ctx, channelIDInt)
+	if err != nil {
+		return nil, errors.New("channel not found")
+	}
+	srv, err := s.repo.GetServerByID(ctx, ch.ServerID)
+	if err != nil {
+		return nil, errors.New("server not found")
+	}
+	var canView bool
+	if s.memberCache != nil {
+		canView, err = permissions.HasChannelPermissionCached(ctx, s.repo, s.memberCache, srv.ID, userIDInt, srv.OwnerID, channelIDInt, permissions.PermViewChannel)
+	} else {
+		canView, err = permissions.HasChannelPermission(ctx, s.repo, srv.ID, userIDInt, srv.OwnerID, channelIDInt, permissions.PermViewChannel)
+	}
+	if err != nil || !canView {
+		return nil, errors.New("channel not found")
+	}
+
+	dbMessages, err := s.repo.GetChannelMessagesAround(ctx, channelIDInt, aroundID, 50)
+	if err != nil {
+		return nil, err
+	}
+
+	messageIDs := make([]int64, len(dbMessages))
+	for i, m := range dbMessages {
+		messageIDs[i] = m.ID
+	}
+	reactionMap, _ := s.repo.GetReactionsForMessages(ctx, messageIDs)
+
+	out := make([]*Message, 0, len(dbMessages))
+	for _, dbMsg := range dbMessages {
+		reactions := []Reaction{}
+		if groups, ok := reactionMap[dbMsg.ID]; ok {
+			for _, g := range groups {
+				reactions = append(reactions, Reaction{Emoji: g.Emoji, Count: g.Count, UserIDs: g.UserIDs})
+			}
+		}
+		out = append(out, &Message{
+			ID:                      strconv.FormatInt(dbMsg.ID, 10),
+			ChannelID:               channelID,
+			AuthorID:                strconv.FormatInt(dbMsg.AuthorID, 10),
+			AuthorUsername:          dbMsg.AuthorUsername,
+			AuthorDisplayName:       dbMsg.AuthorDisplayName,
+			AuthorAvatarURL:         dbMsg.AuthorAvatarURL,
+			AuthorIsBot:             dbMsg.AuthorIsBot,
+			ViaApi:                  dbMsg.ViaApi,
+			Content:                 dbMsg.Content,
+			Nonce:                   dbMsg.Nonce,
+			ParentID:                dbMsg.ParentID,
+			ParentAuthorUsername:    dbMsg.ParentAuthorUsername,
+			ParentAuthorDisplayName: dbMsg.ParentAuthorDisplayName,
+			AttachmentURL:           dbMsg.AttachmentURL,
+			AttachmentName:          dbMsg.AttachmentName,
+			AttachmentType:          dbMsg.AttachmentType,
+			CreatedAt:               dbMsg.CreatedAt,
+			UpdatedAt:               dbMsg.UpdatedAt,
+			Reactions:               reactions,
+			IsPinned:                dbMsg.IsPinned,
+			PinnedAt:                dbMsg.PinnedAt,
+			ForwardedMessage:        dbMsg.ForwardedMessage,
+		})
+	}
+	return out, nil
 }

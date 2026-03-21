@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -105,7 +106,8 @@ func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, li
 				       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
 				       u.username, COALESCE(u.avatar_url, ''), u.is_bot, COALESCE(u.display_name, ''), m.parent_id,
 				       COALESCE(pu.username, ''), COALESCE(pu.display_name, ''), m.via_api,
-				       (pin.message_id IS NOT NULL) AS is_pinned, pin.pinned_at
+				       (pin.message_id IS NOT NULL) AS is_pinned, pin.pinned_at,
+				       m.forwarded_data
 				FROM messages m
 				JOIN users u ON u.id = m.author_id
 				LEFT JOIN messages pm ON pm.id = m.parent_id
@@ -125,7 +127,8 @@ func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, li
 				       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
 				       u.username, COALESCE(u.avatar_url, ''), u.is_bot, COALESCE(u.display_name, ''), m.parent_id,
 				       COALESCE(pu.username, ''), COALESCE(pu.display_name, ''), m.via_api,
-				       (pin.message_id IS NOT NULL) AS is_pinned, pin.pinned_at
+				       (pin.message_id IS NOT NULL) AS is_pinned, pin.pinned_at,
+				       m.forwarded_data
 				FROM messages m
 				JOIN users u ON u.id = m.author_id
 				LEFT JOIN messages pm ON pm.id = m.parent_id
@@ -147,6 +150,7 @@ func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, li
 	var messages []*Message
 	for rows.Next() {
 		var message Message
+		var fwdJSON []byte
 		err := rows.Scan(
 			&message.ID,
 			&message.ChannelID,
@@ -168,9 +172,16 @@ func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, li
 			&message.ViaApi,
 			&message.IsPinned,
 			&message.PinnedAt,
+			&fwdJSON,
 		)
 		if err != nil {
 			return nil, err
+		}
+		if len(fwdJSON) > 0 {
+			var fwd ForwardedMessageData
+			if err := json.Unmarshal(fwdJSON, &fwd); err == nil {
+				message.ForwardedMessage = &fwd
+			}
 		}
 		messages = append(messages, &message)
 	}
@@ -178,6 +189,87 @@ func (r *Repository) GetChannelMessages(ctx context.Context, channelID int64, li
 		return nil, err
 	}
 	return messages, nil
+}
+
+// GetChannelMessagesAround returns up to limit messages centered around aroundID.
+// Returns ~half before (inclusive) and ~half after aroundID, in ascending order.
+func (r *Repository) GetChannelMessagesAround(ctx context.Context, channelID, aroundID int64, limit int) ([]*Message, error) {
+	half := limit / 2
+	cols := `m.id, m.channel_id, m.author_id, m.content, COALESCE(m.nonce, ''), m.created_at, m.updated_at,
+		COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
+		u.username, COALESCE(u.avatar_url, ''), u.is_bot, COALESCE(u.display_name, ''), m.parent_id,
+		COALESCE(pu.username, ''), COALESCE(pu.display_name, ''), m.via_api,
+		(pin.message_id IS NOT NULL) AS is_pinned, pin.pinned_at,
+		m.forwarded_data`
+	joins := `FROM messages m
+		JOIN users u ON u.id = m.author_id
+		LEFT JOIN messages pm ON pm.id = m.parent_id
+		LEFT JOIN users pu ON pu.id = pm.author_id
+		LEFT JOIN pinned_messages pin ON pin.message_id = m.id AND pin.channel_id = m.channel_id`
+
+	query := fmt.Sprintf(`
+		SELECT * FROM (
+			(SELECT %s %s WHERE m.channel_id = $1 AND m.id <= $2 ORDER BY m.id DESC LIMIT $3)
+			UNION ALL
+			(SELECT %s %s WHERE m.channel_id = $1 AND m.id > $2 ORDER BY m.id ASC LIMIT $4)
+		) combined ORDER BY id ASC
+	`, cols, joins, cols, joins)
+
+	rows, err := r.db.QueryContext(ctx, query, channelID, aroundID, half, limit-half)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var messages []*Message
+	for rows.Next() {
+		var message Message
+		var fwdJSON []byte
+		err := rows.Scan(
+			&message.ID, &message.ChannelID, &message.AuthorID, &message.Content, &message.Nonce,
+			&message.CreatedAt, &message.UpdatedAt,
+			&message.AttachmentURL, &message.AttachmentName, &message.AttachmentType,
+			&message.AuthorUsername, &message.AuthorAvatarURL, &message.AuthorIsBot, &message.AuthorDisplayName,
+			&message.ParentID, &message.ParentAuthorUsername, &message.ParentAuthorDisplayName,
+			&message.ViaApi, &message.IsPinned, &message.PinnedAt, &fwdJSON,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if len(fwdJSON) > 0 {
+			var fwd ForwardedMessageData
+			if err := json.Unmarshal(fwdJSON, &fwd); err == nil {
+				message.ForwardedMessage = &fwd
+			}
+		}
+		messages = append(messages, &message)
+	}
+	return messages, rows.Err()
+}
+
+// CreateForwardedChannelMessage inserts a forwarded-message card into a channel.
+func (r *Repository) CreateForwardedChannelMessage(ctx context.Context, channelID, authorID int64, fwd *ForwardedMessageData) (*Message, error) {
+	fwdJSON, err := json.Marshal(fwd)
+	if err != nil {
+		return nil, err
+	}
+
+	query := `
+		INSERT INTO messages (channel_id, author_id, content, forwarded_data, created_at, updated_at)
+		VALUES ($1, $2, '', $3, NOW(), NOW())
+		RETURNING id, created_at, updated_at
+	`
+	var msg Message
+	msg.ChannelID = channelID
+	msg.AuthorID = authorID
+	msg.ForwardedMessage = fwd
+	err = r.db.QueryRowContext(ctx, query, channelID, authorID, fwdJSON).Scan(
+		&msg.ID, &msg.CreatedAt, &msg.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &msg, nil
 }
 
 // PinMessage pins a message in a channel. Idempotent (ON CONFLICT DO NOTHING).

@@ -209,6 +209,7 @@ func registerRoutes(
 			r.Get("/channels/{channelID}/pins", messageHandler.GetChannelPins)
 			r.Post("/channels/{channelID}/pins/{messageID}", messageHandler.PinMessage)
 			r.Delete("/channels/{channelID}/pins/{messageID}", messageHandler.UnpinMessage)
+			r.With(userRateLimitMiddleware(msgWriteLimiter)).Post("/channels/{channelID}/forward", messageHandler.ForwardToChannel)
 
 			// Typing indicator
 			r.Post("/channels/{channelId}/typing", handleChannelTyping(repo, hub))
@@ -230,6 +231,7 @@ func registerRoutes(
 			r.Post("/dms/{id}/messages", dmHandler.SendDmMessage)
 			r.Delete("/dms/{id}/messages/{messageId}", dmHandler.DeleteDmMessage)
 			r.Post("/dms/{id}/messages/{messageId}/reactions", dmHandler.ToggleDmReaction)
+			r.With(userRateLimitMiddleware(msgWriteLimiter)).Post("/dms/{id}/forward", dmHandler.ForwardToDm)
 
 			// Friend routes
 			friendSvc := friend.NewService(repo, hub)

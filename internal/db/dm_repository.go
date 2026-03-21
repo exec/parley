@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -195,7 +196,8 @@ func (r *Repository) GetDmMessages(ctx context.Context, dmChannelID int64, limit
 			SELECT * FROM (
 				SELECT m.id, m.dm_channel_id, m.author_id, m.content, m.parent_id,
 				       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
-				       m.created_at, m.updated_at, u.username, COALESCE(u.avatar_url, ''), COALESCE(u.display_name, '')
+				       m.created_at, m.updated_at, u.username, COALESCE(u.avatar_url, ''), COALESCE(u.display_name, ''),
+				       m.forwarded_data
 				FROM dm_messages m
 				JOIN users u ON u.id = m.author_id
 				WHERE m.dm_channel_id = $1 AND m.id < $3
@@ -210,7 +212,8 @@ func (r *Repository) GetDmMessages(ctx context.Context, dmChannelID int64, limit
 			SELECT * FROM (
 				SELECT m.id, m.dm_channel_id, m.author_id, m.content, m.parent_id,
 				       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
-				       m.created_at, m.updated_at, u.username, COALESCE(u.avatar_url, ''), COALESCE(u.display_name, '')
+				       m.created_at, m.updated_at, u.username, COALESCE(u.avatar_url, ''), COALESCE(u.display_name, ''),
+				       m.forwarded_data
 				FROM dm_messages m
 				JOIN users u ON u.id = m.author_id
 				WHERE m.dm_channel_id = $1
@@ -229,6 +232,7 @@ func (r *Repository) GetDmMessages(ctx context.Context, dmChannelID int64, limit
 	var messages []DmMessage
 	for rows.Next() {
 		var msg DmMessage
+		var fwdJSON []byte
 		err := rows.Scan(
 			&msg.ID,
 			&msg.DmChannelID,
@@ -243,9 +247,16 @@ func (r *Repository) GetDmMessages(ctx context.Context, dmChannelID int64, limit
 			&msg.AuthorUsername,
 			&msg.AuthorAvatarURL,
 			&msg.AuthorDisplayName,
+			&fwdJSON,
 		)
 		if err != nil {
 			return nil, err
+		}
+		if len(fwdJSON) > 0 {
+			var fwd ForwardedMessageData
+			if err := json.Unmarshal(fwdJSON, &fwd); err == nil {
+				msg.ForwardedMessage = &fwd
+			}
 		}
 		messages = append(messages, msg)
 	}
@@ -287,6 +298,33 @@ func (r *Repository) GetDmMessages(ctx context.Context, dmChannelID int64, limit
 	}
 
 	return messages, nil
+}
+
+// CreateForwardedDmMessage inserts a forwarded-message card into a DM channel.
+func (r *Repository) CreateForwardedDmMessage(ctx context.Context, dmChannelID, authorID int64, fwd *ForwardedMessageData) (*DmMessage, error) {
+	fwdJSON, err := json.Marshal(fwd)
+	if err != nil {
+		return nil, err
+	}
+	query := `
+		INSERT INTO dm_messages (dm_channel_id, author_id, content, forwarded_data, created_at, updated_at)
+		VALUES ($1, $2, '', $3, NOW(), NOW())
+		RETURNING id, dm_channel_id, author_id, content, parent_id, created_at, updated_at
+	`
+	var msg DmMessage
+	err = r.db.QueryRowContext(ctx, query, dmChannelID, authorID, fwdJSON).Scan(
+		&msg.ID, &msg.DmChannelID, &msg.AuthorID, &msg.Content, &msg.ParentID,
+		&msg.CreatedAt, &msg.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	r.db.QueryRowContext(ctx,
+		"SELECT username, COALESCE(avatar_url,''), COALESCE(display_name,'') FROM users WHERE id = $1", authorID,
+	).Scan(&msg.AuthorUsername, &msg.AuthorAvatarURL, &msg.AuthorDisplayName)
+	msg.ForwardedMessage = fwd
+	msg.Reactions = []ReactionGroup{}
+	return &msg, nil
 }
 
 // DeleteDmMessage deletes a DM message. Only the author may delete.

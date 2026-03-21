@@ -63,11 +63,14 @@ interface AppState {
   friends: FriendUser[];
   friendRequests: FriendRequestsResponse;
   pendingRequestCount: number;
+  pendingJumpMessageId: string | null;
 }
 
 interface AppActions {
   selectServer: (serverId: string, channelId?: string) => Promise<void>;
   selectChannel: (channelId: string) => Promise<void>;
+  selectChannelAround: (channelId: string, aroundId: string) => Promise<void>;
+  clearJumpTarget: () => void;
   createServer: (name: string) => Promise<void>;
   updateServer: (server: Server) => void;
   deleteServer: (serverId: string) => void;
@@ -164,6 +167,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [friendRequests, setFriendRequests] = useState<FriendRequestsResponse>({ incoming: [], outgoing: [] });
 
   const pendingRequestCount = friendRequests.incoming.length;
+  const [pendingJumpMessageId, setPendingJumpMessageId] = useState<string | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -282,6 +286,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setIsLoadingMessages(false);
     }
   }, [channels, activeServer]);
+
+  const selectChannelAround = useCallback(async (channelId: string, aroundId: string) => {
+    setActiveDmChannel(null);
+    setDmMessages([]);
+
+    const ch = channels.find(c => c.id === channelId);
+    if (!ch) return;
+    setActiveChannel(ch);
+    if (activeServer) localStorage.setItem(`parley_last_channel_${activeServer.id}`, channelId);
+    setHasMoreMessages(false);
+    setIsLoadingMessages(true);
+    try {
+      const msgs = await messagesApi.getMessages(channelId, { limit: 50, around: aroundId });
+      setMessages(msgs ?? []);
+      setHasMoreMessages(false); // around-loaded pages don't support load-more for now
+      setPendingJumpMessageId(aroundId);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoadingMessages(false);
+    }
+  }, [channels, activeServer]);
+
+  const clearJumpTarget = useCallback(() => {
+    setPendingJumpMessageId(null);
+  }, []);
 
   const createServer = useCallback(async (name: string) => {
     const srv = await serversApi.createServer(name);
@@ -803,6 +833,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isLoadingDms,
       selectServer,
       selectChannel,
+      selectChannelAround,
+      clearJumpTarget,
       createServer,
       updateServer,
       deleteServer,
@@ -845,6 +877,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       friends,
       friendRequests,
       pendingRequestCount,
+      pendingJumpMessageId,
       loadFriends,
       sendFriendRequest,
       acceptFriendRequest,
