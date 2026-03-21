@@ -154,7 +154,14 @@ func (h *Handler) UpdateServer(w http.ResponseWriter, r *http.Request) {
 
 	updatedServer, err := h.service.UpdateServer(r.Context(), id, req.Name, req.IconURL, req.Description, req.IsPublic)
 	if err != nil {
-		httputil.InternalError(w, err)
+		msg := err.Error()
+		switch msg {
+		case "server name is required", "description must be 200 characters or fewer",
+			"a vanity URL is required to list your server publicly", "server not found":
+			httputil.JSONError(w, msg, http.StatusBadRequest)
+		default:
+			httputil.InternalError(w, err)
+		}
 		return
 	}
 

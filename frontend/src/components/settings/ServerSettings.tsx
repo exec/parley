@@ -224,7 +224,9 @@ export const ServerSettings: React.FC<Props> = ({
     setOverviewLoading(true);
     setOverviewError('');
     try {
-      const updated = await updateServer(server.id, name.trim(), iconUrl || undefined, description, isPublic);
+      // is_public requires a vanity URL — guard client-side in case state drifted
+      const effectiveIsPublic = isPublic && !!vanityUrl.trim();
+      const updated = await updateServer(server.id, name.trim(), iconUrl || undefined, description, effectiveIsPublic);
       let finalServer = updated;
       if (vanityUrl.trim() !== (server.vanity_url || '')) {
         finalServer = await setVanityURL(server.id, vanityUrl.trim());
