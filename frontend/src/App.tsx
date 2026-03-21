@@ -1400,6 +1400,7 @@ function MainApp() {
         onDelete={() => deleteServer(activeServer?.id ?? '')}
         onCreateInvite={() => {}}
         initialTab={serverSettingsInitialTab}
+        currentUserId={currentUser?.id ?? ''}
       />
 
       <NotificationSettingsModal

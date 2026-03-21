@@ -16,10 +16,12 @@ import {
   PERM_ALL,
   PERM_ADMINISTRATOR,
   PERM_MANAGE_SERVER,
+  PERM_VIEW_AUDIT_LOG,
   hasPerm,
   permFromNumber,
   permToNumber,
 } from '../../lib/permissions';
+import { AuditLogTab } from './AuditLogTab';
 import { BotsTab } from './BotsTab';
 import { InvitesTab } from './InvitesTab';
 import { MembersTab } from './MembersTab';
@@ -33,7 +35,7 @@ function arrayEquals(a: number[], b: number[]): boolean {
   return sa.every((v, i) => v === sb[i]);
 }
 
-type Tab = 'overview' | 'roles' | 'invites' | 'members' | 'bots' | 'soundboard' | 'danger';
+type Tab = 'overview' | 'roles' | 'invites' | 'members' | 'bots' | 'soundboard' | 'auditlog' | 'danger';
 
 interface Props {
   isOpen: boolean;
@@ -44,12 +46,14 @@ interface Props {
   onDelete: () => void;
   onCreateInvite: (code: string) => void;
   initialTab?: Tab;
+  currentUserId: string;
 }
 
 export const ServerSettings: React.FC<Props> = ({
-  isOpen, onClose, server, members, onUpdate, onDelete, initialTab,
+  isOpen, onClose, server, members, onUpdate, onDelete, initialTab, currentUserId,
 }) => {
   const [activeTab, setActiveTab] = useState<Tab>(initialTab ?? 'overview');
+  const isOwner = server?.owner_id === currentUserId;
 
   // Overview fields
   const [name, setName] = useState('');
@@ -335,6 +339,11 @@ export const ServerSettings: React.FC<Props> = ({
           {hasPerm(myPerms, PERM_MANAGE_SERVER) && (
             <button className={`settings-nav-item${activeTab === 'soundboard' ? ' active' : ''}`} onClick={() => setActiveTab('soundboard')}>
               Soundboard
+            </button>
+          )}
+          {(hasPerm(myPerms, PERM_VIEW_AUDIT_LOG) || isOwner) && (
+            <button className={`settings-nav-item${activeTab === 'auditlog' ? ' active' : ''}`} onClick={() => setActiveTab('auditlog')}>
+              Audit Log
             </button>
           )}
         </div>
@@ -695,6 +704,10 @@ export const ServerSettings: React.FC<Props> = ({
 
           {activeTab === 'soundboard' && server && (
             <SoundboardTab serverId={Number(server.id)} />
+          )}
+
+          {activeTab === 'auditlog' && server && (
+            <AuditLogTab server={server} currentUserId={currentUserId} />
           )}
 
           {activeTab === 'danger' && (
