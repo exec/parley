@@ -561,7 +561,9 @@ func (h *Handler) CreateServerRole(w http.ResponseWriter, r *http.Request) {
 		_ = actorHighest // position is assigned by DB; we can't enforce pre-creation without knowing final position
 	}
 
-	role, err := h.service.CreateServerRole(r.Context(), serverID, req.Name, req.Color, req.Permissions)
+	actorIDInt, _ := strconv.ParseInt(userID, 10, 64)
+	actorUsername, _ := h.service.Repo().GetUsernameByID(r.Context(), actorIDInt)
+	role, err := h.service.CreateServerRole(r.Context(), serverID, req.Name, req.Color, req.Permissions, actorIDInt, actorUsername)
 	if err != nil {
 		httputil.JSONError(w, err.Error(), http.StatusBadRequest)
 		return
@@ -625,7 +627,9 @@ func (h *Handler) DeleteServerRole(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := h.service.DeleteServerRole(r.Context(), serverID, roleID); err != nil {
+	actorIDInt, _ := strconv.ParseInt(userID, 10, 64)
+	actorUsername, _ := h.service.Repo().GetUsernameByID(r.Context(), actorIDInt)
+	if err := h.service.DeleteServerRole(r.Context(), serverID, roleID, actorIDInt, actorUsername); err != nil {
 		httputil.InternalError(w, err)
 		return
 	}
@@ -715,7 +719,9 @@ func (h *Handler) UpdateServerRole(w http.ResponseWriter, r *http.Request) {
 		req.Permissions &= actorPerms
 	}
 
-	role, err := h.service.UpdateServerRole(r.Context(), serverID, roleID, req.Name, req.Color, req.Permissions, req.Hoist, req.Position)
+	actorIDInt, _ := strconv.ParseInt(userID, 10, 64)
+	actorUsername, _ := h.service.Repo().GetUsernameByID(r.Context(), actorIDInt)
+	role, err := h.service.UpdateServerRole(r.Context(), serverID, roleID, req.Name, req.Color, req.Permissions, req.Hoist, req.Position, actorIDInt, actorUsername)
 	if err != nil {
 		httputil.InternalError(w, err)
 		return

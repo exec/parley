@@ -26,8 +26,8 @@ func (s *ServerService) GetServerRoles(ctx context.Context, serverID string) ([]
 	return roles, nil
 }
 
-func (s *ServerService) CreateServerRole(ctx context.Context, serverID, name, color string, permissions int64) (*Role, error) {
-	id, err := idToInt64(serverID)
+func (s *ServerService) CreateServerRole(ctx context.Context, serverID, name, color string, permissions int64, actorID int64, actorUsername string) (*Role, error) {
+	serverIDInt, err := idToInt64(serverID)
 	if err != nil {
 		return nil, errors.New("invalid server ID")
 	}
@@ -37,15 +37,24 @@ func (s *ServerService) CreateServerRole(ctx context.Context, serverID, name, co
 	if color == "" {
 		color = "#99aab5"
 	}
-	dbRole, err := s.repo.CreateServerRole(ctx, id, name, color, permissions)
+	dbRole, err := s.repo.CreateServerRole(ctx, serverIDInt, name, color, permissions)
 	if err != nil {
 		return nil, err
 	}
 	r := dbRoleToRole(*dbRole)
+	s.auditSvc.Log(ctx, audit.Entry{
+		ServerID:      serverIDInt,
+		ActorID:       &actorID,
+		ActorUsername: actorUsername,
+		Action:        "role.create",
+		TargetID:      r.ID,
+		TargetType:    "role",
+		TargetName:    name,
+	})
 	return &r, nil
 }
 
-func (s *ServerService) DeleteServerRole(ctx context.Context, serverID, roleID string) error {
+func (s *ServerService) DeleteServerRole(ctx context.Context, serverID, roleID string, actorID int64, actorUsername string) error {
 	sID, err := idToInt64(serverID)
 	if err != nil {
 		return errors.New("invalid server ID")
@@ -73,19 +82,28 @@ func (s *ServerService) DeleteServerRole(ctx context.Context, serverID, roleID s
 			s.hub.BroadcastToChannel("server:"+serverID, ws.EventRoleDelete, payload)
 		}
 	}
+	s.auditSvc.Log(ctx, audit.Entry{
+		ServerID:      sID,
+		ActorID:       &actorID,
+		ActorUsername: actorUsername,
+		Action:        "role.delete",
+		TargetID:      roleID,
+		TargetType:    "role",
+	})
 	return nil
 }
 
-func (s *ServerService) UpdateServerRole(ctx context.Context, serverID, roleID, name, color string, permissions int64, hoist bool, position int) (*Role, error) {
-	sID, err := idToInt64(serverID)
+func (s *ServerService) UpdateServerRole(ctx context.Context, serverID, roleID, name, color string, permissions int64, hoist bool, position int, actorID int64, actorUsername string) (*Role, error) {
+	serverIDInt, err := idToInt64(serverID)
 	if err != nil {
 		return nil, errors.New("invalid server ID")
 	}
-	rID, err := idToInt64(roleID)
+	roleIDInt, err := idToInt64(roleID)
 	if err != nil {
 		return nil, errors.New("invalid role ID")
 	}
-	dbRole, err := s.repo.UpdateServerRole(ctx, sID, rID, name, color, permissions, hoist, position)
+	beforeRole, _ := s.repo.GetServerRoleByID(ctx, roleIDInt)
+	dbRole, err := s.repo.UpdateServerRole(ctx, serverIDInt, roleIDInt, name, color, permissions, hoist, position)
 	if err != nil {
 		return nil, err
 	}
@@ -99,12 +117,39 @@ func (s *ServerService) UpdateServerRole(ctx context.Context, serverID, roleID, 
 	}
 	// Broadcast MEMBER_ROLE_UPDATE to each member who has this role so their
 	// frontend re-fetches channel permissions with the updated role data.
-	members, err := s.repo.GetMembersByRole(ctx, sID, rID)
+	members, err := s.repo.GetMembersByRole(ctx, serverIDInt, roleIDInt)
 	if err == nil {
 		for _, m := range members {
 			uIDStr := int64ToID(m.UserID)
-			s.broadcastRoleUpdate(ctx, serverID, uIDStr, sID, m.UserID)
+			s.broadcastRoleUpdate(ctx, serverID, uIDStr, serverIDInt, m.UserID)
 		}
+	}
+	if beforeRole != nil {
+		s.auditSvc.Log(ctx, audit.Entry{
+			ServerID:      serverIDInt,
+			ActorID:       &actorID,
+			ActorUsername: actorUsername,
+			Action:        "role.update",
+			TargetID:      strconv.FormatInt(roleIDInt, 10),
+			TargetType:    "role",
+			TargetName:    name,
+			Changes: map[string]any{
+				"before": map[string]any{
+					"name":        beforeRole.Name,
+					"color":       beforeRole.Color,
+					"permissions": beforeRole.Permissions,
+					"hoist":       beforeRole.Hoist,
+					"position":    beforeRole.Position,
+				},
+				"after": map[string]any{
+					"name":        name,
+					"color":       color,
+					"permissions": permissions,
+					"hoist":       hoist,
+					"position":    position,
+				},
+			},
+		})
 	}
 	return &r, nil
 }
