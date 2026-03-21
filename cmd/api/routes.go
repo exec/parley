@@ -95,6 +95,8 @@ func registerRoutes(
 	// Rate limiter for message writes: 5 messages/second per authenticated user (burst 10).
 	// Keyed on user ID, not IP, to prevent cross-IP bypasses by the same account.
 	msgWriteLimiter := newRateLimiterFor(rdb, 10, 2*time.Second)
+	// Rate limiter for public discovery endpoints: 30 per IP per minute.
+	discoverLimiter := newRateLimiterFor(rdb, 30, time.Minute)
 	// Rate limiter for message search: 20 per authenticated user per minute.
 	// Search uses ILIKE sequential scans — expensive without a full-text index.
 	msgSearchLimiter := newRateLimiterFor(rdb, 20, time.Minute)
@@ -353,8 +355,8 @@ func registerRoutes(
 		r.Get("/bots/invite/{token}", botsHandler.ResolveInvite)
 
 		// Public discovery routes — no authentication required
-		r.Get("/discover", serverHandler.Discover)
-		r.Get("/server-categories", serverHandler.ListServerCategories)
+		r.With(rateLimitMiddleware(discoverLimiter)).Get("/discover", serverHandler.Discover)
+		r.With(rateLimitMiddleware(discoverLimiter)).Get("/server-categories", serverHandler.ListServerCategories)
 	})
 
 	// WebSocket endpoint — prefers short-lived ticket, falls back to JWT query param

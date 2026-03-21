@@ -1208,6 +1208,10 @@ func (h *Handler) Discover(w http.ResponseWriter, r *http.Request) {
 // SetServerCategories handles PUT /servers/{id}/categories (owner only)
 func (h *Handler) SetServerCategories(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "id")
+	if serverID == "" {
+		httputil.JSONError(w, "server ID is required", http.StatusBadRequest)
+		return
+	}
 	userID := auth.GetUserIDFromContext(r)
 	server, err := h.service.GetServer(r.Context(), serverID)
 	if err != nil {
@@ -1232,7 +1236,12 @@ func (h *Handler) SetServerCategories(w http.ResponseWriter, r *http.Request) {
 
 	cats, err := h.service.SetServerCategories(r.Context(), serverID, req.CategoryIDs)
 	if err != nil {
-		httputil.JSONError(w, err.Error(), http.StatusBadRequest)
+		msg := err.Error()
+		if msg == "maximum 3 categories allowed" || msg == "invalid category" {
+			httputil.JSONError(w, msg, http.StatusBadRequest)
+		} else {
+			httputil.InternalError(w, err)
+		}
 		return
 	}
 	render.JSON(w, r, cats)
@@ -1241,6 +1250,10 @@ func (h *Handler) SetServerCategories(w http.ResponseWriter, r *http.Request) {
 // GetServerCategoriesForServer handles GET /servers/{id}/categories (auth required)
 func (h *Handler) GetServerCategoriesForServer(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "id")
+	if serverID == "" {
+		httputil.JSONError(w, "server ID is required", http.StatusBadRequest)
+		return
+	}
 	cats, err := h.service.GetServerCategoryAssignments(r.Context(), serverID)
 	if err != nil {
 		httputil.JSONError(w, "failed to load categories", http.StatusInternalServerError)
