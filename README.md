@@ -46,32 +46,32 @@ Parley is a self-hosted community platform. It provides servers with text, voice
 
 ```
                          ┌─────────────────────────────────────────┐
-                         │             Cloudflare CDN               │
+                         │             Cloudflare CDN              │
                          │   (TLS termination, DDoS, DNS, cache)   │
                          └──────────────────┬──────────────────────┘
                                             │
                          ┌──────────────────▼──────────────────────┐
-                         │         DigitalOcean Load Balancer       │
+                         │         DigitalOcean Load Balancer      │
                          └────┬──────────────┬──────────────────┬──┘
                               │              │                  │
-                   ┌──────────▼──┐  ┌────────▼────┐  ┌─────────▼───┐
-                   │  API node 1  │  │  API node 2  │  │  API node 3  │
-                   │  Go binary   │  │  Go binary   │  │  Go binary   │
-                   │  + nginx     │  │  + nginx     │  │  + nginx     │
-                   └──────┬───┬──┘  └──────┬───┬──┘  └──────┬───┬──┘
-                          │   └────────────┼───┘────────────┘   │
-                          │          Redis pub/sub               │
-                          │        (cross-node broadcast)        │
-                          │                                      │
-                   ┌──────▼──────────────────────────────────────▼───┐
-                   │          PostgreSQL + PgBouncer (DB node)         │
+                   ┌──────────▼──┐  ┌────────▼────┐  ┌──────────▼──┐
+                   │  API node 1 │  │  API node 2 │  │  API node 3 │
+                   │  Go binary  │  │  Go binary  │  │  Go binary  │
+                   │  + nginx    │  │  + nginx    │  │  + nginx    │
+                   └──────┬───┬──┘  └───────┬─────┘  └──────┬───┬──┘
+                          │   └─────────────╋───────────────┘   │
+                          │             Redis pub/sub           │
+                          │        (cross-node broadcast)       │
+                          │                                     │
+                   ┌──────▼─────────────────────────────────────▼─────┐
+                   │          PostgreSQL + PgBouncer (DB node)        │
                    └──────────────────────────────────────────────────┘
 
   Separate services:
   ┌─────────────────┐   ┌──────────────────┐   ┌──────────────────┐
-  │   Admin panel    │   │  LiveKit Cloud   │   │  DO Spaces / S3  │
-  │ (own JWT, own DB │   │  (voice channels)│   │  (file uploads + │
-  │  admin_users)    │   │                  │   │   TF state)      │
+  │   Admin panel   │   │  LiveKit Cloud   │   │  DO Spaces / S3  │
+  │ (own JWT, own DB│   │  (voice channels)│   │  (file uploads + │
+  │  admin_users)   │   │                  │   │   TF state)      │
   └─────────────────┘   └──────────────────┘   └──────────────────┘
 ```
 
