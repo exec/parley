@@ -213,19 +213,22 @@ jobs:
             terraform import digitalocean_project.parley_project "$PROJ_ID" || true
           fi
 
-          # Cloudflare DNS record
-          CF_ZONE_ID=$(curl -sf -H "Authorization: Bearer $CF_TOKEN" \
+          # Cloudflare DNS record — uses CLOUDFLARE_API_TOKEN (set at job level)
+          CF_ZONE_ID=$(curl -sf -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             "https://api.cloudflare.com/client/v4/zones?per_page=100" \
             | jq -r --arg z "$TF_VAR_cf_zone" '.result[] | select(.name == $z) | .id')
           if [ -n "$CF_ZONE_ID" ]; then
-            SUBDOMAIN=$(echo "$DOMAIN" | sed "s/\.$TF_VAR_cf_zone$//")
-            REC_ID=$(curl -sf -H "Authorization: Bearer $CF_TOKEN" \
-              "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records?name=$DOMAIN&type=A" \
+            REC_ID=$(curl -sf -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records?name=${TF_VAR_domain_name}&type=A" \
               | jq -r '.result[0].id // empty')
             if [ -n "$REC_ID" ]; then
               echo "Importing Cloudflare DNS record: $CF_ZONE_ID/$REC_ID"
               terraform import cloudflare_record.parley_a "$CF_ZONE_ID/$REC_ID" || true
+            else
+              echo "No A record found for ${TF_VAR_domain_name}"
             fi
+          else
+            echo "Could not resolve Cloudflare zone ID for $TF_VAR_cf_zone"
           fi
 
           # Droplets (tagged 'parley')
