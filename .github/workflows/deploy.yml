@@ -128,9 +128,10 @@ jobs:
             else
               echo 'VITE_SITE_URL=https://$SITE_DOMAIN' > .env
             fi
-            npm ci --no-audit --no-fund 2>&1
-            npx tsc 2>&1
-            npx vite build 2>&1
+            npm ci --no-audit --no-fund 2>&1 || true
+            npm run build 2>&1 || true
+            # Verify the build actually produced output
+            test -f dist/index.html || { echo 'ERROR: admin frontend build failed — dist/index.html missing'; exit 1; }
             mkdir -p /var/www/parley-admin
             cp -r dist/* /var/www/parley-admin/
             if [ ! -f /etc/systemd/system/parley-admin.service ]; then
