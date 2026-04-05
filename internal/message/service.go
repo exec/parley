@@ -53,6 +53,14 @@ type Message struct {
 // loose coupling (no import of the bots package).
 type BotTriggerFunc func(ctx context.Context, msgID, channelID, serverID, authorID, content, parentID string)
 
+// Sentinel errors returned by MessageService methods.
+var (
+	ErrForbidden       = errors.New("forbidden")
+	ErrChannelNotFound = errors.New("channel not found")
+	ErrMessageNotFound = errors.New("message not found")
+	ErrServerNotFound  = errors.New("server not found")
+)
+
 // MentionNotifyFunc is called after a message is created to fire mention notifications.
 type MentionNotifyFunc func(ctx context.Context, authorID int64, authorUsername, authorAvatarURL, content, channelName string, serverID, channelID, messageID int64)
 
@@ -153,11 +161,11 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 	// Check SendMessages permission at channel level.
 	ch, err := s.repo.GetChannelByID(ctx, channelIDInt)
 	if err != nil {
-		return nil, errors.New("channel not found")
+		return nil, ErrChannelNotFound
 	}
 	srv, err := s.repo.GetServerByID(ctx, ch.ServerID)
 	if err != nil {
-		return nil, errors.New("server not found")
+		return nil, ErrServerNotFound
 	}
 	var canSend bool
 	if s.memberCache != nil {
@@ -169,7 +177,7 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 		return nil, err
 	}
 	if !canSend {
-		return nil, errors.New("forbidden")
+		return nil, ErrForbidden
 	}
 
 	viaAPI, _ := ctx.Value(auth.IsAPIKeyAuthKey).(bool)
@@ -257,7 +265,7 @@ func (s *MessageService) GetMessage(ctx context.Context, id string) (*Message, e
 	dbMsg, err := s.repo.GetMessageByID(ctx, idInt)
 	if err != nil {
 		if err == db.ErrNotFound {
-			return nil, errors.New("message not found")
+			return nil, ErrMessageNotFound
 		}
 		return nil, err
 	}
@@ -299,7 +307,7 @@ func (s *MessageService) GetChannelMessages(ctx context.Context, channelID, user
 
 	// Check ViewChannel permission. Fail-closed: unauthenticated callers are denied.
 	if userID == "" {
-		return nil, errors.New("forbidden")
+		return nil, ErrForbidden
 	}
 	userIDInt, err := strconv.ParseInt(userID, 10, 64)
 	if err != nil {
@@ -307,11 +315,11 @@ func (s *MessageService) GetChannelMessages(ctx context.Context, channelID, user
 	}
 	ch, err := s.repo.GetChannelByID(ctx, channelIDInt)
 	if err != nil {
-		return nil, errors.New("channel not found")
+		return nil, ErrChannelNotFound
 	}
 	srv, err := s.repo.GetServerByID(ctx, ch.ServerID)
 	if err != nil {
-		return nil, errors.New("server not found")
+		return nil, ErrServerNotFound
 	}
 	var canView bool
 	if s.memberCache != nil {
@@ -323,7 +331,7 @@ func (s *MessageService) GetChannelMessages(ctx context.Context, channelID, user
 		return nil, err
 	}
 	if !canView {
-		return nil, errors.New("channel not found")
+		return nil, ErrChannelNotFound
 	}
 
 	dbMessages, err := s.repo.GetChannelMessages(ctx, channelIDInt, limit, beforeID)
@@ -397,7 +405,7 @@ func (s *MessageService) SearchMessages(ctx context.Context, serverID, userID, q
 		return nil, errors.New("invalid user ID")
 	}
 	if _, err := s.repo.GetMember(ctx, srvIDInt, userIDInt); err != nil {
-		return nil, errors.New("forbidden")
+		return nil, ErrForbidden
 	}
 
 	var fromInt, inChInt int64
@@ -416,15 +424,15 @@ func (s *MessageService) SearchMessages(ctx context.Context, serverID, userID, q
 	if inChInt > 0 {
 		inCh, err := s.repo.GetChannelByID(ctx, inChInt)
 		if err != nil || inCh.ServerID != srvIDInt {
-			return nil, errors.New("forbidden")
+			return nil, ErrForbidden
 		}
 		srv, err := s.repo.GetServerByID(ctx, srvIDInt)
 		if err != nil {
-			return nil, errors.New("forbidden")
+			return nil, ErrForbidden
 		}
 		canView, err := permissions.HasChannelPermission(ctx, s.repo, srvIDInt, userIDInt, srv.OwnerID, inChInt, permissions.PermViewChannel)
 		if err != nil || !canView {
-			return nil, errors.New("forbidden")
+			return nil, ErrForbidden
 		}
 	}
 
@@ -498,7 +506,7 @@ func (s *MessageService) EditMessage(ctx context.Context, id, content string) (*
 	dbMsg, err := s.repo.EditMessage(ctx, idInt, content)
 	if err != nil {
 		if err == db.ErrNotFound {
-			return nil, errors.New("message not found")
+			return nil, ErrMessageNotFound
 		}
 		return nil, err
 	}
@@ -555,7 +563,7 @@ func (s *MessageService) DeleteMessage(ctx context.Context, id string) error {
 	dbMsg, err := s.repo.GetMessageByID(ctx, idInt)
 	if err != nil {
 		if err == db.ErrNotFound {
-			return errors.New("message not found")
+			return ErrMessageNotFound
 		}
 		return err
 	}
@@ -565,7 +573,7 @@ func (s *MessageService) DeleteMessage(ctx context.Context, id string) error {
 	err = s.repo.DeleteMessage(ctx, idInt)
 	if err != nil {
 		if err == db.ErrNotFound {
-			return errors.New("message not found")
+			return ErrMessageNotFound
 		}
 		return err
 	}
@@ -611,7 +619,7 @@ func (s *MessageService) ToggleReaction(ctx context.Context, messageID, userID, 
 	dbMsg, err := s.repo.GetMessageByID(ctx, msgIDInt)
 	if err != nil {
 		if err == db.ErrNotFound {
-			return errors.New("message not found")
+			return ErrMessageNotFound
 		}
 		return err
 	}
@@ -619,16 +627,16 @@ func (s *MessageService) ToggleReaction(ctx context.Context, messageID, userID, 
 	// Verify the user has ViewChannel permission on the message's channel.
 	ch, err := s.repo.GetChannelByID(ctx, dbMsg.ChannelID)
 	if err != nil {
-		return errors.New("channel not found")
+		return ErrChannelNotFound
 	}
 	if ch.ServerID != 0 {
 		srv, err := s.repo.GetServerByID(ctx, ch.ServerID)
 		if err != nil {
-			return errors.New("server not found")
+			return ErrServerNotFound
 		}
 		canView, err := permissions.HasChannelPermission(ctx, s.repo, ch.ServerID, userIDInt, srv.OwnerID, dbMsg.ChannelID, permissions.PermViewChannel)
 		if err != nil || !canView {
-			return errors.New("forbidden")
+			return ErrForbidden
 		}
 	}
 
@@ -716,11 +724,11 @@ func (s *MessageService) PinMessage(ctx context.Context, channelID, messageID, u
 
 	ch, err := s.repo.GetChannelByID(ctx, chIDInt)
 	if err != nil {
-		return errors.New("channel not found")
+		return ErrChannelNotFound
 	}
 	srv, err := s.repo.GetServerByID(ctx, ch.ServerID)
 	if err != nil {
-		return errors.New("server not found")
+		return ErrServerNotFound
 	}
 
 	canPin, err := permissions.HasChannelPermission(ctx, s.repo, srv.ID, userIDInt, srv.OwnerID, chIDInt,
@@ -729,19 +737,19 @@ func (s *MessageService) PinMessage(ctx context.Context, channelID, messageID, u
 		return err
 	}
 	if !canPin {
-		return errors.New("forbidden")
+		return ErrForbidden
 	}
 
 	// Verify the message belongs to this channel
 	msg, err := s.repo.GetMessageByID(ctx, msgIDInt)
 	if err != nil {
 		if err == db.ErrNotFound {
-			return errors.New("message not found")
+			return ErrMessageNotFound
 		}
 		return err
 	}
 	if msg.ChannelID != chIDInt {
-		return errors.New("message not found")
+		return ErrMessageNotFound
 	}
 
 	if err := s.repo.PinMessage(ctx, chIDInt, msgIDInt, userIDInt); err != nil {
@@ -776,11 +784,11 @@ func (s *MessageService) UnpinMessage(ctx context.Context, channelID, messageID,
 
 	ch, err := s.repo.GetChannelByID(ctx, chIDInt)
 	if err != nil {
-		return errors.New("channel not found")
+		return ErrChannelNotFound
 	}
 	srv, err := s.repo.GetServerByID(ctx, ch.ServerID)
 	if err != nil {
-		return errors.New("server not found")
+		return ErrServerNotFound
 	}
 
 	canPin, err := permissions.HasChannelPermission(ctx, s.repo, srv.ID, userIDInt, srv.OwnerID, chIDInt,
@@ -789,7 +797,7 @@ func (s *MessageService) UnpinMessage(ctx context.Context, channelID, messageID,
 		return err
 	}
 	if !canPin {
-		return errors.New("forbidden")
+		return ErrForbidden
 	}
 
 	if err := s.repo.UnpinMessage(ctx, chIDInt, msgIDInt); err != nil {
@@ -820,15 +828,15 @@ func (s *MessageService) GetChannelPins(ctx context.Context, channelID, userID s
 
 	ch, err := s.repo.GetChannelByID(ctx, chIDInt)
 	if err != nil {
-		return nil, errors.New("channel not found")
+		return nil, ErrChannelNotFound
 	}
 	srv, err := s.repo.GetServerByID(ctx, ch.ServerID)
 	if err != nil {
-		return nil, errors.New("server not found")
+		return nil, ErrServerNotFound
 	}
 	canView, err := permissions.HasChannelPermission(ctx, s.repo, srv.ID, userIDInt, srv.OwnerID, chIDInt, permissions.PermViewChannel)
 	if err != nil || !canView {
-		return nil, errors.New("forbidden")
+		return nil, ErrForbidden
 	}
 
 	dbMsgs, err := s.repo.GetPinnedMessages(ctx, chIDInt)
@@ -874,11 +882,11 @@ func (s *MessageService) ForwardToChannel(ctx context.Context, targetChannelID, 
 
 	ch, err := s.repo.GetChannelByID(ctx, channelIDInt)
 	if err != nil {
-		return nil, errors.New("channel not found")
+		return nil, ErrChannelNotFound
 	}
 	srv, err := s.repo.GetServerByID(ctx, ch.ServerID)
 	if err != nil {
-		return nil, errors.New("server not found")
+		return nil, ErrServerNotFound
 	}
 	var canSend bool
 	if s.memberCache != nil {
@@ -887,7 +895,7 @@ func (s *MessageService) ForwardToChannel(ctx context.Context, targetChannelID, 
 		canSend, err = permissions.HasChannelPermission(ctx, s.repo, srv.ID, authorIDInt, srv.OwnerID, channelIDInt, permissions.PermSendMessages)
 	}
 	if err != nil || !canSend {
-		return nil, errors.New("forbidden")
+		return nil, ErrForbidden
 	}
 
 	var authorUsername, authorDisplayName, authorAvatarURL string
@@ -931,7 +939,7 @@ func (s *MessageService) GetChannelMessagesAround(ctx context.Context, channelID
 		return nil, errors.New("invalid channel ID")
 	}
 	if userID == "" {
-		return nil, errors.New("forbidden")
+		return nil, ErrForbidden
 	}
 	userIDInt, err := strconv.ParseInt(userID, 10, 64)
 	if err != nil {
@@ -939,11 +947,11 @@ func (s *MessageService) GetChannelMessagesAround(ctx context.Context, channelID
 	}
 	ch, err := s.repo.GetChannelByID(ctx, channelIDInt)
 	if err != nil {
-		return nil, errors.New("channel not found")
+		return nil, ErrChannelNotFound
 	}
 	srv, err := s.repo.GetServerByID(ctx, ch.ServerID)
 	if err != nil {
-		return nil, errors.New("server not found")
+		return nil, ErrServerNotFound
 	}
 	var canView bool
 	if s.memberCache != nil {
@@ -952,7 +960,7 @@ func (s *MessageService) GetChannelMessagesAround(ctx context.Context, channelID
 		canView, err = permissions.HasChannelPermission(ctx, s.repo, srv.ID, userIDInt, srv.OwnerID, channelIDInt, permissions.PermViewChannel)
 	}
 	if err != nil || !canView {
-		return nil, errors.New("channel not found")
+		return nil, ErrChannelNotFound
 	}
 
 	dbMessages, err := s.repo.GetChannelMessagesAround(ctx, channelIDInt, aroundID, 50)

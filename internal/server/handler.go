@@ -89,7 +89,7 @@ func (h *Handler) GetServer(w http.ResponseWriter, r *http.Request) {
 
 	server, err := h.service.GetServer(r.Context(), id)
 	if err != nil {
-		if err.Error() == "server not found" {
+		if errors.Is(err, ErrServerNotFound) {
 			httputil.JSONError(w, "server not found", http.StatusNotFound)
 			return
 		}
@@ -327,7 +327,7 @@ func (h *Handler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 
 	err = h.service.RemoveMember(r.Context(), serverID, userID)
 	if err != nil {
-		if err.Error() == "member not found" {
+		if errors.Is(err, ErrMemberNotFound) {
 			httputil.JSONError(w, "member not found", http.StatusNotFound)
 			return
 		}
@@ -480,14 +480,14 @@ func (h *Handler) JoinInvite(w http.ResponseWriter, r *http.Request) {
 	// First try as a regular invite code, then fall back to vanity URL
 	server, err := h.service.JoinServerByInvite(r.Context(), code, userID)
 	if err != nil {
-		if err.Error() == "you are banned from this server" {
+		if errors.Is(err, ErrBanned) {
 			httputil.JSONError(w, err.Error(), http.StatusForbidden)
 			return
 		}
 		// Try as vanity URL
 		server, err = h.service.JoinServerByVanityURL(r.Context(), code, userID)
 		if err != nil {
-			if err.Error() == "you are banned from this server" {
+			if errors.Is(err, ErrBanned) {
 				httputil.JSONError(w, err.Error(), http.StatusForbidden)
 				return
 			}
@@ -1176,11 +1176,11 @@ func (h *Handler) RevokeInvite(w http.ResponseWriter, r *http.Request) {
 	revokeActorUsername, _ := h.service.Repo().GetUsernameByID(r.Context(), revokeActorIDInt)
 	err := h.service.RevokeInvite(r.Context(), serverID, code, userID, revokeActorUsername)
 	if err != nil {
-		if errors.Is(err, db.ErrNotFound) || err.Error() == "invite not found" {
+		if errors.Is(err, db.ErrNotFound) || errors.Is(err, ErrInviteNotFound) {
 			httputil.JSONError(w, "invite not found", http.StatusNotFound)
 			return
 		}
-		if err.Error() == "not a member of this server" {
+		if errors.Is(err, ErrNotMember) {
 			httputil.JSONError(w, err.Error(), http.StatusForbidden)
 			return
 		}
@@ -1201,7 +1201,7 @@ func (h *Handler) GetInviteMembers(w http.ResponseWriter, r *http.Request) {
 	}
 	members, err := h.service.GetInviteMembers(r.Context(), serverID, code, userID)
 	if err != nil {
-		if err.Error() == "not a member of this server" {
+		if errors.Is(err, ErrNotMember) {
 			httputil.JSONError(w, err.Error(), http.StatusForbidden)
 			return
 		}
@@ -1357,9 +1357,9 @@ func (h *Handler) SetVanityURL(w http.ResponseWriter, r *http.Request) {
 	server, err := h.service.SetVanityURL(r.Context(), serverID, req.VanityURL, vanityActorIDInt, vanityActorUsername)
 	if err != nil {
 		status := http.StatusInternalServerError
-		if err.Error() == "only the server owner can set the vanity URL" {
+		if errors.Is(err, ErrOwnerOnly) {
 			status = http.StatusForbidden
-		} else if err.Error() == "server not found" {
+		} else if errors.Is(err, ErrServerNotFound) {
 			status = http.StatusNotFound
 		}
 		if status == http.StatusInternalServerError {

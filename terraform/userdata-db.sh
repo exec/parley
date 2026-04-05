@@ -195,6 +195,15 @@ systemctl enable pgbouncer
 systemctl restart pgbouncer
 echo "PgBouncer listening on port 6432"
 
+# Daily database backup to /var/backups/parley
+# Retention policy: pg_dump runs at 03:00 UTC daily; backups older than 7 days
+# are automatically deleted. Dumps use custom format (-Fc) for selective restore.
+mkdir -p /var/backups/parley
+cat > /etc/cron.d/parley-backup <<'CRON'
+0 3 * * * postgres pg_dump -Fc parley > /var/backups/parley/parley-$(date +\%Y\%m\%d).dump && find /var/backups/parley -name "*.dump" -mtime +7 -delete
+CRON
+chmod 644 /etc/cron.d/parley-backup
+
 echo "=== Database setup complete ==="
 echo "Database can be reached at: $DB_PRIVATE_IP:5432"
 echo "PgBouncer pooler available at: $DB_PRIVATE_IP:6432"

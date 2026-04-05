@@ -85,6 +85,7 @@ type rateLimiter struct {
 	shards [numShards]rateShard
 	rate   float64 // tokens per second
 	burst  float64 // maximum token capacity
+	done   chan struct{}
 }
 
 // newRateLimiter creates a token bucket rate limiter equivalent to limit requests
@@ -93,6 +94,7 @@ func newRateLimiter(limit int, window time.Duration) *rateLimiter {
 	rl := &rateLimiter{
 		rate:  float64(limit) / window.Seconds(),
 		burst: float64(limit),
+		done:  make(chan struct{}),
 	}
 	for i := range rl.shards {
 		rl.shards[i].buckets = make(map[string]*tokenBucket)
@@ -139,23 +141,33 @@ func (rl *rateLimiter) Allow(key string) bool {
 	return false
 }
 
-// cleanup removes stale buckets every 5 minutes.
+// cleanup removes stale buckets every 5 minutes. It exits when rl.done is closed.
 func (rl *rateLimiter) cleanup() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
-	for range ticker.C {
-		threshold := time.Now().Add(-10 * time.Minute)
-		for i := range rl.shards {
-			s := &rl.shards[i]
-			s.mu.Lock()
-			for key, b := range s.buckets {
-				if b.lastSeen.Before(threshold) {
-					delete(s.buckets, key)
+	for {
+		select {
+		case <-rl.done:
+			return
+		case <-ticker.C:
+			threshold := time.Now().Add(-10 * time.Minute)
+			for i := range rl.shards {
+				s := &rl.shards[i]
+				s.mu.Lock()
+				for key, b := range s.buckets {
+					if b.lastSeen.Before(threshold) {
+						delete(s.buckets, key)
+					}
 				}
+				s.mu.Unlock()
 			}
-			s.mu.Unlock()
 		}
 	}
+}
+
+// Stop signals the cleanup goroutine to exit.
+func (rl *rateLimiter) Stop() {
+	close(rl.done)
 }
 
 // ----- Middleware helpers -----

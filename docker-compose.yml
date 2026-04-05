@@ -32,8 +32,9 @@ services:
       - "8081:8081"
     environment:
       DATABASE_URL: postgres://parley:parley@postgres:5432/parley?sslmode=disable
-      JWT_SECRET: dev
-      BOT_KEY_SECRET: dev
+      # Development only — override via .env or real secrets in production
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      BOT_KEY_SECRET: ${BOT_KEY_SECRET:-change-me-in-production}
       SITE_URL: http://localhost:5173
       REDIS_URL: redis://:parley@redis:6379
       PORT: "8081"

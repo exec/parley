@@ -30,12 +30,17 @@ class ApiClient {
     return headers;
   }
 
+  private static isRedirecting = false;
+
   private async handleResponse<T>(response: Response): Promise<T> {
     if (response.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       this.token = null;
-      window.location.href = '/login';
+      if (!ApiClient.isRedirecting) {
+        ApiClient.isRedirecting = true;
+        window.location.href = '/login';
+      }
       throw new Error('Session expired');
     }
 

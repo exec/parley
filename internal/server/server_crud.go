@@ -62,7 +62,7 @@ func (s *ServerService) GetServer(ctx context.Context, id string) (*Server, erro
 	server, err := s.repo.GetServerByID(ctx, serverID)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
-			return nil, errors.New("server not found")
+			return nil, ErrServerNotFound
 		}
 		return nil, err
 	}
@@ -111,7 +111,7 @@ func (s *ServerService) UpdateServer(ctx context.Context, id, name, iconURL, des
 	server, err := s.repo.GetServerByID(ctx, serverID)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
-			return nil, errors.New("server not found")
+			return nil, ErrServerNotFound
 		}
 		return nil, err
 	}
@@ -128,7 +128,7 @@ func (s *ServerService) UpdateServer(ctx context.Context, id, name, iconURL, des
 
 	if err = s.repo.UpdateServer(ctx, server); err != nil {
 		if errors.Is(err, db.ErrNotFound) {
-			return nil, errors.New("server not found")
+			return nil, ErrServerNotFound
 		}
 		return nil, err
 	}
@@ -152,16 +152,16 @@ func (s *ServerService) DeleteServer(ctx context.Context, id string) error {
 		return errors.New("invalid server ID format")
 	}
 
+	if err = s.repo.DeleteServer(ctx, serverID); err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return ErrServerNotFound
+		}
+		return err
+	}
+
 	if s.hub != nil {
 		payload, _ := json.Marshal(map[string]string{"server_id": id})
 		s.hub.BroadcastToChannel("server:"+id, ws.EventServerDelete, payload)
-	}
-
-	if err = s.repo.DeleteServer(ctx, serverID); err != nil {
-		if errors.Is(err, db.ErrNotFound) {
-			return errors.New("server not found")
-		}
-		return err
 	}
 	return nil
 }
@@ -170,7 +170,7 @@ func (s *ServerService) GetServerByVanityURL(ctx context.Context, vanityURL stri
 	srv, err := s.repo.GetServerByVanityURL(ctx, vanityURL)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
-			return nil, errors.New("server not found")
+			return nil, ErrServerNotFound
 		}
 		return nil, err
 	}
@@ -245,10 +245,19 @@ func (s *ServerService) Discover(ctx context.Context, categoryID *int64, q strin
 		return nil, 0, err
 	}
 
+	serverIDs := make([]int64, len(rows))
+	for i, row := range rows {
+		serverIDs[i] = row.ID
+	}
+	catsByServer, err := s.repo.GetBulkServerCategoryAssignments(ctx, serverIDs)
+	if err != nil {
+		return nil, 0, err
+	}
+
 	servers := make([]PublicServer, 0, len(rows))
 	for _, row := range rows {
 		id := strconv.FormatInt(row.ID, 10)
-		cats, _ := s.repo.GetServerCategoryAssignments(ctx, row.ID)
+		cats := catsByServer[row.ID]
 		if cats == nil {
 			cats = []db.ServerCategory{}
 		}

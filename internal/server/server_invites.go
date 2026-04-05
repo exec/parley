@@ -89,7 +89,7 @@ func (s *ServerService) GetInviteByCode(ctx context.Context, code string) (*Invi
 	invite, err := s.repo.GetInviteByCode(ctx, code)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
-			return nil, errors.New("invite not found")
+			return nil, ErrInviteNotFound
 		}
 		return nil, err
 	}
@@ -119,7 +119,7 @@ func (s *ServerService) GetServerByInviteCode(ctx context.Context, code string) 
 	server, err := s.repo.GetServerByInviteCode(ctx, code)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
-			return nil, errors.New("invite not found")
+			return nil, ErrInviteNotFound
 		}
 		return nil, err
 	}
@@ -138,7 +138,7 @@ func (s *ServerService) JoinServerByInvite(ctx context.Context, code, userID str
 	server, err := s.repo.GetServerByInviteCode(ctx, code)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
-			return nil, errors.New("invite not found")
+			return nil, ErrInviteNotFound
 		}
 		return nil, err
 	}
@@ -151,7 +151,7 @@ func (s *ServerService) JoinServerByInvite(ctx context.Context, code, userID str
 	if banned, err := s.repo.IsServerBanned(ctx, server.ID, userIDInt); err != nil {
 		return nil, err
 	} else if banned {
-		return nil, errors.New("you are banned from this server")
+		return nil, ErrBanned
 	}
 
 	member := &db.ServerMember{
@@ -182,7 +182,7 @@ func (s *ServerService) JoinServerByVanityURL(ctx context.Context, vanityURL, us
 	server, err := s.repo.GetServerByVanityURL(ctx, vanityURL)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
-			return nil, errors.New("server not found")
+			return nil, ErrServerNotFound
 		}
 		return nil, err
 	}
@@ -195,7 +195,7 @@ func (s *ServerService) JoinServerByVanityURL(ctx context.Context, vanityURL, us
 	if banned, err := s.repo.IsServerBanned(ctx, server.ID, userIDInt); err != nil {
 		return nil, err
 	} else if banned {
-		return nil, errors.New("you are banned from this server")
+		return nil, ErrBanned
 	}
 
 	member := &db.ServerMember{
@@ -259,7 +259,7 @@ func (s *ServerService) RevokeInvite(ctx context.Context, serverID, code, reques
 	}
 	_, err = s.repo.GetMember(ctx, serverIDInt, userIDInt)
 	if err != nil {
-		return errors.New("not a member of this server")
+		return ErrNotMember
 	}
 
 	if err := s.repo.RevokeInvite(ctx, code, serverIDInt); err != nil {
@@ -291,7 +291,7 @@ func (s *ServerService) GetInviteMembers(ctx context.Context, serverID, code, re
 	}
 	_, err = s.repo.GetMember(ctx, serverIDInt, userIDInt)
 	if err != nil {
-		return nil, errors.New("not a member of this server")
+		return nil, ErrNotMember
 	}
 
 	return s.repo.GetMembersByInviteCode(ctx, code, serverIDInt)
@@ -308,10 +308,10 @@ func (s *ServerService) SetVanityURL(ctx context.Context, serverID, vanityURL st
 
 	srv, err := s.repo.GetServerByID(ctx, serverIDInt)
 	if err != nil {
-		return nil, errors.New("server not found")
+		return nil, ErrServerNotFound
 	}
 	if srv.OwnerID != actorID {
-		return nil, errors.New("only the server owner can set the vanity URL")
+		return nil, ErrOwnerOnly
 	}
 
 	slug := sql.NullString{}

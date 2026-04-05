@@ -22,6 +22,11 @@ const presenceSnapshotMax = 500
 // allowed per user. Connections beyond this limit are rejected immediately.
 const maxConnectionsPerUser = 10
 
+// maxSubscriptionsPerClient is the maximum number of channel subscriptions a
+// single WebSocket client may hold. Prevents a misbehaving client from consuming
+// unbounded memory in the channelSubs/clientChannels maps.
+const maxSubscriptionsPerClient = 500
+
 // Publisher is implemented by RedisHub to cross-publish events to other nodes.
 // Hub holds an optional reference to it.
 type Publisher interface {
@@ -174,6 +179,7 @@ func (h *Hub) RegisterClient(client *Client) {
 	if h.userToClient[client.userID] != nil && len(h.userToClient[client.userID]) >= maxConnectionsPerUser {
 		h.mu.Unlock()
 		client.closeSend()
+		client.conn.Close()
 		log.Printf("RegisterClient: user %s exceeded max connections (%d), rejecting", client.userID, maxConnectionsPerUser)
 		return
 	}
@@ -328,6 +334,12 @@ func (h *Hub) UnregisterClient(client *Client) {
 // Presence events are now handled globally (on connect/disconnect), not per-channel.
 func (h *Hub) SubscribeToChannel(channelID string, client *Client) {
 	h.mu.Lock()
+
+	if len(h.clientChannels[client]) >= maxSubscriptionsPerClient {
+		h.mu.Unlock()
+		log.Printf("SubscribeToChannel: client (user %s) at subscription limit (%d), ignoring channel %s", client.userID, maxSubscriptionsPerClient, channelID)
+		return
+	}
 
 	if h.channelSubs[channelID] == nil {
 		h.channelSubs[channelID] = make(map[*Client]bool)

@@ -21,32 +21,45 @@ type typingRateLimiter struct {
 	mu      sync.Mutex
 	lastAt  map[string]time.Time
 	lastDur map[string]time.Duration
+	done    chan struct{}
 }
 
 func newTypingRateLimiter() *typingRateLimiter {
 	rl := &typingRateLimiter{
 		lastAt:  make(map[string]time.Time),
 		lastDur: make(map[string]time.Duration),
+		done:    make(chan struct{}),
 	}
 	go rl.cleanup()
 	return rl
 }
 
 // cleanup removes stale entries every 5 minutes to prevent unbounded map growth.
+// It exits when t.done is closed.
 func (t *typingRateLimiter) cleanup() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
-	for range ticker.C {
-		t.mu.Lock()
-		now := time.Now()
-		for key, last := range t.lastAt {
-			if cooldown, ok := t.lastDur[key]; ok && now.Sub(last) > cooldown+5*time.Minute {
-				delete(t.lastAt, key)
-				delete(t.lastDur, key)
+	for {
+		select {
+		case <-t.done:
+			return
+		case <-ticker.C:
+			t.mu.Lock()
+			now := time.Now()
+			for key, last := range t.lastAt {
+				if cooldown, ok := t.lastDur[key]; ok && now.Sub(last) > cooldown+5*time.Minute {
+					delete(t.lastAt, key)
+					delete(t.lastDur, key)
+				}
 			}
+			t.mu.Unlock()
 		}
-		t.mu.Unlock()
 	}
+}
+
+// Stop signals the cleanup goroutine to exit.
+func (t *typingRateLimiter) Stop() {
+	close(t.done)
 }
 
 // allow returns true if the request is outside the cooldown window for the given key.

@@ -14,6 +14,17 @@ import (
 	ws "parley/internal/websocket"
 )
 
+// Sentinel errors returned by bin Service methods.
+var (
+	ErrPostNotFound    = errors.New("post not found")
+	ErrForbidden       = errors.New("forbidden")
+	ErrChannelNotFound = errors.New("channel not found")
+	ErrNotBinChannel   = errors.New("channel is not a bin channel")
+	ErrVersionNotFound = errors.New("version not found")
+	ErrCommentNotFound = errors.New("comment not found")
+	ErrTagNotFound     = errors.New("tag not found")
+)
+
 // Service provides bin post management operations.
 type Service struct {
 	mu   sync.RWMutex
@@ -78,12 +89,12 @@ func (s *Service) CreatePost(ctx context.Context, channelID, userID string, titl
 	ch, err := s.repo.GetChannelByID(ctx, chID)
 	if err != nil {
 		if err == db.ErrNotFound {
-			return nil, errors.New("channel not found")
+			return nil, ErrChannelNotFound
 		}
 		return nil, err
 	}
 	if ch.ChannelType != db.ChannelTypeBin {
-		return nil, errors.New("channel is not a bin channel")
+		return nil, ErrNotBinChannel
 	}
 
 	// Permission checks: ViewChannel (404 if denied) and CreatePosts.
@@ -96,14 +107,14 @@ func (s *Service) CreatePost(ctx context.Context, channelID, userID string, titl
 		return nil, err
 	}
 	if !canView {
-		return nil, errors.New("channel not found")
+		return nil, ErrChannelNotFound
 	}
 	canCreate, err := permissions.HasChannelPermission(ctx, s.repo, serverID, uID, ownerID, chID, permissions.PermCreatePosts)
 	if err != nil {
 		return nil, err
 	}
 	if !canCreate {
-		return nil, errors.New("forbidden")
+		return nil, ErrForbidden
 	}
 
 	// CreateBinPost also creates the thread channel and initial version 1.
@@ -160,7 +171,7 @@ func (s *Service) GetPost(ctx context.Context, postID, userID string) (*db.BinPo
 	post, err := s.repo.GetBinPost(ctx, id)
 	if err != nil {
 		if err == db.ErrNotFound {
-			return nil, errors.New("post not found")
+			return nil, ErrPostNotFound
 		}
 		return nil, err
 	}
@@ -178,7 +189,7 @@ func (s *Service) GetPost(ctx context.Context, postID, userID string) (*db.BinPo
 				return nil, err
 			}
 			if !canView {
-				return nil, errors.New("post not found")
+				return nil, ErrPostNotFound
 			}
 		}
 	}
@@ -204,12 +215,12 @@ func (s *Service) ListPosts(ctx context.Context, channelID, userID string, tag, 
 	ch, err := s.repo.GetChannelByID(ctx, chID)
 	if err != nil {
 		if err == db.ErrNotFound {
-			return nil, errors.New("channel not found")
+			return nil, ErrChannelNotFound
 		}
 		return nil, err
 	}
 	if ch.ChannelType != db.ChannelTypeBin {
-		return nil, errors.New("channel is not a bin channel")
+		return nil, ErrNotBinChannel
 	}
 
 	// ViewChannel check.
@@ -225,7 +236,7 @@ func (s *Service) ListPosts(ctx context.Context, channelID, userID string, tag, 
 				return nil, err
 			}
 			if !canView {
-				return nil, errors.New("channel not found")
+				return nil, ErrChannelNotFound
 			}
 		}
 	}
@@ -263,7 +274,7 @@ func (s *Service) EditPost(ctx context.Context, postID, userID string, title, de
 	postAuthorID, err := s.repo.GetBinPostAuthorID(ctx, id)
 	if err != nil {
 		if err == db.ErrNotFound {
-			return nil, errors.New("post not found")
+			return nil, ErrPostNotFound
 		}
 		return nil, err
 	}
@@ -282,7 +293,7 @@ func (s *Service) EditPost(ctx context.Context, postID, userID string, title, de
 			return nil, err
 		}
 		if !canManage {
-			return nil, errors.New("forbidden")
+			return nil, ErrForbidden
 		}
 	}
 
@@ -314,7 +325,7 @@ func (s *Service) EditPost(ctx context.Context, postID, userID string, title, de
 	// Update post metadata.
 	if _, err := s.repo.UpdateBinPost(ctx, id, title, description, tags); err != nil {
 		if err == db.ErrNotFound {
-			return nil, errors.New("post not found")
+			return nil, ErrPostNotFound
 		}
 		return nil, err
 	}
@@ -351,7 +362,7 @@ func (s *Service) DeletePost(ctx context.Context, postID, userID string) error {
 	postAuthorID, err := s.repo.GetBinPostAuthorID(ctx, id)
 	if err != nil {
 		if err == db.ErrNotFound {
-			return errors.New("post not found")
+			return ErrPostNotFound
 		}
 		return err
 	}
@@ -370,7 +381,7 @@ func (s *Service) DeletePost(ctx context.Context, postID, userID string) error {
 			return err
 		}
 		if !canManage {
-			return errors.New("forbidden")
+			return ErrForbidden
 		}
 	}
 
@@ -406,7 +417,7 @@ func (s *Service) GetVersions(ctx context.Context, postID, userID string) ([]db.
 		post, err := s.repo.GetBinPost(ctx, id)
 		if err != nil {
 			if err == db.ErrNotFound {
-				return nil, errors.New("post not found")
+				return nil, ErrPostNotFound
 			}
 			return nil, err
 		}
@@ -421,7 +432,7 @@ func (s *Service) GetVersions(ctx context.Context, postID, userID string) ([]db.
 				return nil, err
 			}
 			if !canView {
-				return nil, errors.New("forbidden")
+				return nil, ErrForbidden
 			}
 		}
 	}
@@ -446,7 +457,7 @@ func (s *Service) GetVersion(ctx context.Context, versionID, userID string) (*db
 	version, err := s.repo.GetBinPostVersion(ctx, id)
 	if err != nil {
 		if err == db.ErrNotFound {
-			return nil, errors.New("version not found")
+			return nil, ErrVersionNotFound
 		}
 		return nil, err
 	}
@@ -456,7 +467,7 @@ func (s *Service) GetVersion(ctx context.Context, versionID, userID string) (*db
 		post, err := s.repo.GetBinPost(ctx, version.PostID)
 		if err != nil {
 			if err == db.ErrNotFound {
-				return nil, errors.New("version not found")
+				return nil, ErrVersionNotFound
 			}
 			return nil, err
 		}
@@ -471,7 +482,7 @@ func (s *Service) GetVersion(ctx context.Context, versionID, userID string) (*db
 				return nil, err
 			}
 			if !canView {
-				return nil, errors.New("forbidden")
+				return nil, ErrForbidden
 			}
 		}
 	}

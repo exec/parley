@@ -74,7 +74,7 @@ func (s *ServerService) RemoveMember(ctx context.Context, serverID, userID strin
 
 	if err = s.repo.RemoveMember(ctx, serverIDInt, userIDInt); err != nil {
 		if errors.Is(err, db.ErrNotFound) {
-			return errors.New("member not found")
+			return ErrMemberNotFound
 		}
 		return err
 	}
@@ -105,7 +105,7 @@ func (s *ServerService) KickMember(ctx context.Context, serverID, userID string,
 
 	if err = s.repo.RemoveMember(ctx, serverIDInt, userIDInt); err != nil {
 		if errors.Is(err, db.ErrNotFound) {
-			return errors.New("member not found")
+			return ErrMemberNotFound
 		}
 		return err
 	}

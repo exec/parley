@@ -8,6 +8,9 @@ jobs:
   deploy:
     name: Deploy to production
     runs-on: ubuntu-latest
+    # Requires manual approval before deploying. Configure the "production"
+    # environment in GitHub repo Settings > Environments with required reviewers.
+    environment: production
     env:
       DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
       DO_TOKEN: ${{ secrets.DO_TOKEN }}

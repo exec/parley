@@ -291,14 +291,10 @@ func (s *AuthService) Login(ctx context.Context, emailOrPhone, password, ip stri
 
 // UpdateProfile updates a user's profile fields
 func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername, currentPassword, newPassword, avatarURL, bannerURL string, bio, displayName *string) (User, error) {
-	id, err := fmt.Sscanf(userID, "%d", new(int64))
-	_ = id
+	userIDInt, err := strconv.ParseInt(userID, 10, 64)
 	if err != nil {
 		return User{}, errors.New("invalid user ID")
 	}
-
-	var userIDInt int64
-	fmt.Sscan(userID, &userIDInt)
 
 	dbUser, err := s.repo.GetUserByID(ctx, userIDInt)
 	if err != nil {
@@ -519,7 +515,7 @@ func (s *AuthService) RequestPasswordReset(ctx context.Context, email string) er
 		log.Printf("RequestPasswordReset: failed to generate token: %v", err)
 		return nil
 	}
-	expiresAt := time.Now().Add(24 * time.Hour)
+	expiresAt := time.Now().Add(1 * time.Hour)
 	if err := s.repo.SetPasswordResetToken(ctx, dbUser.ID, token, expiresAt); err != nil {
 		log.Printf("RequestPasswordReset: failed to set token: %v", err)
 		return nil
@@ -648,10 +644,12 @@ func (s *AuthService) ValidateToken(tokenString string) (string, error) {
 
 // IsForceLoggedOut checks if a token issued at issuedAt should be invalidated due to a force logout.
 func (s *AuthService) IsForceLoggedOut(ctx context.Context, userID string, issuedAt int64) (bool, error) {
-	var id int64
-	fmt.Sscan(userID, &id)
+	id, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		return false, errors.New("invalid user ID")
+	}
 	var forceLogoutAt sql.NullTime
-	err := s.repo.DB().QueryRowContext(ctx,
+	err = s.repo.DB().QueryRowContext(ctx,
 		`SELECT force_logout_at FROM users WHERE id = $1`, id,
 	).Scan(&forceLogoutAt)
 	if err == sql.ErrNoRows {

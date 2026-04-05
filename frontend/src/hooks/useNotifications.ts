@@ -1,6 +1,8 @@
 import { useRef, useEffect, useCallback } from 'react';
 
-const SOUND_URL = 'https://parley-prod.nyc3.cdn.digitaloceanspaces.com/audio/noti.mp3';
+const SOUND_URL = import.meta.env.VITE_CDN_HOST
+  ? `${import.meta.env.VITE_CDN_HOST}/audio/noti.mp3`
+  : 'https://parley-prod.nyc3.cdn.digitaloceanspaces.com/audio/noti.mp3';
 
 export function useNotifications() {
   const audioRef = useRef<HTMLAudioElement | null>(null);

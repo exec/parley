@@ -35,7 +35,7 @@ func (s *Service) CreateTag(ctx context.Context, channelID, userID, name, color 
 			return nil, err
 		}
 		if !canManage {
-			return nil, errors.New("forbidden")
+			return nil, ErrForbidden
 		}
 	}
 
@@ -79,7 +79,7 @@ func (s *Service) DeleteTag(ctx context.Context, tagID, userID string) error {
 		tag, err := s.repo.GetBinChannelTagByID(ctx, id)
 		if err != nil {
 			if err == db.ErrNotFound {
-				return errors.New("tag not found")
+				return ErrTagNotFound
 			}
 			return err
 		}
@@ -92,13 +92,13 @@ func (s *Service) DeleteTag(ctx context.Context, tagID, userID string) error {
 			return err
 		}
 		if !canManage {
-			return errors.New("forbidden")
+			return ErrForbidden
 		}
 	}
 
 	if err := s.repo.DeleteBinChannelTag(ctx, id); err != nil {
 		if err == db.ErrNotFound {
-			return errors.New("tag not found")
+			return ErrTagNotFound
 		}
 		return err
 	}

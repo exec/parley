@@ -11,14 +11,18 @@ import (
 
 	"parley/internal/auth"
 	"parley/internal/db"
+	"parley/internal/validation"
 	ws "parley/internal/websocket"
 )
 
 func handleGetMe(repo *db.Repository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userIDStr := auth.GetUserIDFromContext(r)
-		var id int64
-		fmt.Sscan(userIDStr, &id)
+		id, err := strconv.ParseInt(userIDStr, 10, 64)
+		if err != nil {
+			jsonError(w, "invalid user ID", http.StatusBadRequest)
+			return
+		}
 		user, err := repo.GetUserByID(r.Context(), id)
 		if err != nil {
 			jsonError(w, "not found", http.StatusNotFound)
@@ -44,8 +48,11 @@ func handleGetMe(repo *db.Repository) http.HandlerFunc {
 func handleGetMePhone(repo *db.Repository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userIDStr := auth.GetUserIDFromContext(r)
-		var id int64
-		fmt.Sscan(userIDStr, &id)
+		id, err := strconv.ParseInt(userIDStr, 10, 64)
+		if err != nil {
+			jsonError(w, "invalid user ID", http.StatusBadRequest)
+			return
+		}
 		user, err := repo.GetUserByID(r.Context(), id)
 		if err != nil {
 			jsonError(w, "not found", http.StatusNotFound)
@@ -215,8 +222,11 @@ func handleGetMeSelf(repo *db.Repository) http.HandlerFunc {
 			jsonError(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		var id int64
-		fmt.Sscan(userIDStr, &id)
+		id, err := strconv.ParseInt(userIDStr, 10, 64)
+		if err != nil {
+			jsonError(w, "invalid user ID", http.StatusBadRequest)
+			return
+		}
 		user, err := repo.GetUserByID(r.Context(), id)
 		if err != nil {
 			jsonError(w, "not found", http.StatusNotFound)
@@ -253,8 +263,11 @@ func handlePatchMe(repo *db.Repository, hub *ws.Hub, cdnHost string) http.Handle
 			}
 		}
 
-		var userID int64
-		fmt.Sscan(userIDStr, &userID)
+		userID, err := strconv.ParseInt(userIDStr, 10, 64)
+		if err != nil {
+			jsonError(w, "invalid user ID", http.StatusBadRequest)
+			return
+		}
 
 		user, err := repo.GetUserByID(r.Context(), userID)
 		if err != nil {
@@ -263,6 +276,10 @@ func handlePatchMe(repo *db.Repository, hub *ws.Hub, cdnHost string) http.Handle
 		}
 
 		if req.Username != nil && *req.Username != "" {
+			if !validation.ValidUsername(*req.Username) {
+				jsonError(w, "username may only contain letters, numbers, underscores, hyphens and dots", http.StatusBadRequest)
+				return
+			}
 			user.Username = *req.Username
 		}
 		if req.DisplayName != nil {

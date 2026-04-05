@@ -2,6 +2,7 @@ package bin
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -57,14 +58,13 @@ func (h *Handler) CreatePost(w http.ResponseWriter, r *http.Request) {
 
 	post, err := h.service.CreatePost(r.Context(), channelID, userID, req.Title, req.Description, req.Tags, req.Files)
 	if err != nil {
-		switch err.Error() {
-		case "channel not found":
+		if errors.Is(err, ErrChannelNotFound) {
 			httputil.JSONError(w, err.Error(), http.StatusNotFound)
-		case "channel is not a bin channel":
+		} else if errors.Is(err, ErrNotBinChannel) {
 			httputil.JSONError(w, err.Error(), http.StatusBadRequest)
-		case "forbidden":
+		} else if errors.Is(err, ErrForbidden) {
 			httputil.JSONError(w, "you do not have permission to create posts in this channel", http.StatusForbidden)
-		default:
+		} else {
 			httputil.InternalError(w, err)
 		}
 		return
@@ -108,12 +108,11 @@ func (h *Handler) ListPosts(w http.ResponseWriter, r *http.Request) {
 	userID := auth.GetUserIDFromContext(r)
 	posts, err := h.service.ListPosts(r.Context(), channelID, userID, tag, language, authorID, sort, limit, offset)
 	if err != nil {
-		switch err.Error() {
-		case "channel not found":
+		if errors.Is(err, ErrChannelNotFound) {
 			httputil.JSONError(w, err.Error(), http.StatusNotFound)
-		case "channel is not a bin channel":
+		} else if errors.Is(err, ErrNotBinChannel) {
 			httputil.JSONError(w, err.Error(), http.StatusBadRequest)
-		default:
+		} else {
 			httputil.InternalError(w, err)
 		}
 		return
@@ -134,7 +133,7 @@ func (h *Handler) GetPost(w http.ResponseWriter, r *http.Request) {
 	userID := auth.GetUserIDFromContext(r)
 	post, err := h.service.GetPost(r.Context(), postID, userID)
 	if err != nil {
-		if err.Error() == "post not found" {
+		if errors.Is(err, ErrPostNotFound) {
 			httputil.JSONError(w, err.Error(), http.StatusNotFound)
 			return
 		}
@@ -179,12 +178,11 @@ func (h *Handler) EditPost(w http.ResponseWriter, r *http.Request) {
 
 	post, err := h.service.EditPost(r.Context(), postID, userID, req.Title, req.Description, req.Tags, req.Files)
 	if err != nil {
-		switch err.Error() {
-		case "post not found":
+		if errors.Is(err, ErrPostNotFound) {
 			httputil.JSONError(w, err.Error(), http.StatusNotFound)
-		case "forbidden":
+		} else if errors.Is(err, ErrForbidden) {
 			httputil.JSONError(w, err.Error(), http.StatusForbidden)
-		default:
+		} else {
 			httputil.InternalError(w, err)
 		}
 		return
@@ -209,12 +207,11 @@ func (h *Handler) DeletePost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.DeletePost(r.Context(), postID, userID); err != nil {
-		switch err.Error() {
-		case "post not found":
+		if errors.Is(err, ErrPostNotFound) {
 			httputil.JSONError(w, err.Error(), http.StatusNotFound)
-		case "forbidden":
+		} else if errors.Is(err, ErrForbidden) {
 			httputil.JSONError(w, err.Error(), http.StatusForbidden)
-		default:
+		} else {
 			httputil.InternalError(w, err)
 		}
 		return
@@ -236,12 +233,11 @@ func (h *Handler) GetVersions(w http.ResponseWriter, r *http.Request) {
 	userID := auth.GetUserIDFromContext(r)
 	versions, err := h.service.GetVersions(r.Context(), postID, userID)
 	if err != nil {
-		switch err.Error() {
-		case "post not found":
+		if errors.Is(err, ErrPostNotFound) {
 			httputil.JSONError(w, err.Error(), http.StatusNotFound)
-		case "forbidden":
+		} else if errors.Is(err, ErrForbidden) {
 			httputil.JSONError(w, "you do not have permission to view this channel", http.StatusForbidden)
-		default:
+		} else {
 			httputil.InternalError(w, err)
 		}
 		return
@@ -262,12 +258,11 @@ func (h *Handler) GetVersion(w http.ResponseWriter, r *http.Request) {
 	userID := auth.GetUserIDFromContext(r)
 	version, err := h.service.GetVersion(r.Context(), versionID, userID)
 	if err != nil {
-		switch err.Error() {
-		case "version not found":
+		if errors.Is(err, ErrVersionNotFound) {
 			httputil.JSONError(w, err.Error(), http.StatusNotFound)
-		case "forbidden":
+		} else if errors.Is(err, ErrForbidden) {
 			httputil.JSONError(w, "you do not have permission to view this channel", http.StatusForbidden)
-		default:
+		} else {
 			httputil.InternalError(w, err)
 		}
 		return
@@ -323,12 +318,11 @@ func (h *Handler) CreateLineComment(w http.ResponseWriter, r *http.Request) {
 		strconv.FormatInt(req.VersionID, 10), strconv.FormatInt(req.FileID, 10),
 		req.LineNumber, req.Content, req.ParentID)
 	if err != nil {
-		switch err.Error() {
-		case "post not found":
+		if errors.Is(err, ErrPostNotFound) {
 			httputil.JSONError(w, err.Error(), http.StatusNotFound)
-		case "forbidden":
+		} else if errors.Is(err, ErrForbidden) {
 			httputil.JSONError(w, err.Error(), http.StatusForbidden)
-		default:
+		} else {
 			httputil.InternalError(w, err)
 		}
 		return
@@ -396,12 +390,11 @@ func (h *Handler) UpdateLineComment(w http.ResponseWriter, r *http.Request) {
 
 	comment, err := h.service.UpdateLineComment(r.Context(), commentID, userID, req.Content)
 	if err != nil {
-		switch err.Error() {
-		case "comment not found":
+		if errors.Is(err, ErrCommentNotFound) {
 			httputil.JSONError(w, err.Error(), http.StatusNotFound)
-		case "forbidden":
+		} else if errors.Is(err, ErrForbidden) {
 			httputil.JSONError(w, err.Error(), http.StatusForbidden)
-		default:
+		} else {
 			httputil.InternalError(w, err)
 		}
 		return
@@ -426,12 +419,11 @@ func (h *Handler) DeleteLineComment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.DeleteLineComment(r.Context(), commentID, userID); err != nil {
-		switch err.Error() {
-		case "comment not found":
+		if errors.Is(err, ErrCommentNotFound) {
 			httputil.JSONError(w, err.Error(), http.StatusNotFound)
-		case "forbidden":
+		} else if errors.Is(err, ErrForbidden) {
 			httputil.JSONError(w, err.Error(), http.StatusForbidden)
-		default:
+		} else {
 			httputil.InternalError(w, err)
 		}
 		return
@@ -473,7 +465,7 @@ func (h *Handler) CreateTag(w http.ResponseWriter, r *http.Request) {
 
 	tag, err := h.service.CreateTag(r.Context(), channelID, tagUserID, req.Name, req.Color)
 	if err != nil {
-		if err.Error() == "forbidden" {
+		if errors.Is(err, ErrForbidden) {
 			httputil.JSONError(w, err.Error(), http.StatusForbidden)
 			return
 		}
@@ -519,12 +511,11 @@ func (h *Handler) DeleteTag(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.DeleteTag(r.Context(), tagID, deleteTagUserID); err != nil {
-		switch err.Error() {
-		case "tag not found":
+		if errors.Is(err, ErrTagNotFound) {
 			httputil.JSONError(w, err.Error(), http.StatusNotFound)
-		case "forbidden":
+		} else if errors.Is(err, ErrForbidden) {
 			httputil.JSONError(w, err.Error(), http.StatusForbidden)
-		default:
+		} else {
 			httputil.InternalError(w, err)
 		}
 		return

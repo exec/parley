@@ -46,7 +46,7 @@ func (s *Service) CreateLineComment(ctx context.Context, postID, userID string, 
 	post, err := s.repo.GetBinPost(ctx, pID)
 	if err != nil {
 		if err == db.ErrNotFound {
-			return nil, errors.New("post not found")
+			return nil, ErrPostNotFound
 		}
 		return nil, err
 	}
@@ -60,14 +60,14 @@ func (s *Service) CreateLineComment(ctx context.Context, postID, userID string, 
 		return nil, err
 	}
 	if !canView {
-		return nil, errors.New("post not found")
+		return nil, ErrPostNotFound
 	}
 	canSend, err := permissions.HasChannelPermission(ctx, s.repo, serverID, uID, ownerID, post.ChannelID, permissions.PermSendMessages)
 	if err != nil {
 		return nil, err
 	}
 	if !canSend {
-		return nil, errors.New("forbidden")
+		return nil, ErrForbidden
 	}
 
 	comment, err := s.repo.CreateBinLineComment(ctx, pID, vID, fID, lineNumber, uID, content, parentIDPtr)
@@ -99,7 +99,7 @@ func (s *Service) GetLineComments(ctx context.Context, postID, userID string, ve
 		post, err := s.repo.GetBinPost(ctx, pID)
 		if err != nil {
 			if err == db.ErrNotFound {
-				return nil, errors.New("post not found")
+				return nil, ErrPostNotFound
 			}
 			return nil, err
 		}
@@ -110,7 +110,7 @@ func (s *Service) GetLineComments(ctx context.Context, postID, userID string, ve
 				return nil, err
 			}
 			if !canView {
-				return nil, errors.New("post not found")
+				return nil, ErrPostNotFound
 			}
 		}
 	}
@@ -160,18 +160,18 @@ func (s *Service) UpdateLineComment(ctx context.Context, commentID, userID, cont
 	authorID, err := s.repo.GetBinLineCommentAuthorID(ctx, cID)
 	if err != nil {
 		if err == db.ErrNotFound {
-			return nil, errors.New("comment not found")
+			return nil, ErrCommentNotFound
 		}
 		return nil, err
 	}
 	if authorID != uID {
-		return nil, errors.New("forbidden")
+		return nil, ErrForbidden
 	}
 
 	comment, err := s.repo.UpdateBinLineComment(ctx, cID, content)
 	if err != nil {
 		if err == db.ErrNotFound {
-			return nil, errors.New("comment not found")
+			return nil, ErrCommentNotFound
 		}
 		return nil, err
 	}
@@ -201,12 +201,12 @@ func (s *Service) DeleteLineComment(ctx context.Context, commentID, userID strin
 	authorID, err := s.repo.GetBinLineCommentAuthorID(ctx, cID)
 	if err != nil {
 		if err == db.ErrNotFound {
-			return errors.New("comment not found")
+			return ErrCommentNotFound
 		}
 		return err
 	}
 	if authorID != uID {
-		return errors.New("forbidden")
+		return ErrForbidden
 	}
 
 	// Fetch comment for broadcast before deleting.

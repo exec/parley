@@ -2,6 +2,7 @@ package channel
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -75,7 +76,7 @@ func (h *Handler) CreateChannel(w http.ResponseWriter, r *http.Request) {
 
 	ch, err := h.service.CreateChannel(r.Context(), serverID, req.Name, req.Type, req.ParentID, req.Topic, userID)
 	if err != nil {
-		if err.Error() == "forbidden" {
+		if errors.Is(err, ErrForbidden) {
 			httputil.JSONError(w, "you do not have permission to create channels", http.StatusForbidden)
 			return
 		}
@@ -161,7 +162,7 @@ func (h *Handler) GetServerChannels(w http.ResponseWriter, r *http.Request) {
 
 	channels, err := h.service.GetServerChannels(r.Context(), serverID, userID, ownerID)
 	if err != nil {
-		if err.Error() == "server not found" {
+		if errors.Is(err, ErrServerNotFound) {
 			httputil.JSONError(w, "server not found", http.StatusNotFound)
 			return
 		}
@@ -203,7 +204,7 @@ func (h *Handler) UpdateChannel(w http.ResponseWriter, r *http.Request) {
 
 	ch, err := h.service.UpdateChannel(r.Context(), id, req.Name, req.Topic, userID)
 	if err != nil {
-		if err.Error() == "forbidden" {
+		if errors.Is(err, ErrForbidden) {
 			httputil.JSONError(w, "you do not have permission to update channels", http.StatusForbidden)
 			return
 		}
@@ -251,12 +252,11 @@ func (h *Handler) DeleteChannel(w http.ResponseWriter, r *http.Request) {
 	chToDelete, _ := h.service.GetChannel(r.Context(), id)
 
 	if err := h.service.DeleteChannel(r.Context(), id, userID); err != nil {
-		switch err.Error() {
-		case "channel not found":
+		if errors.Is(err, ErrChannelNotFound) {
 			httputil.JSONError(w, err.Error(), http.StatusNotFound)
-		case "forbidden":
+		} else if errors.Is(err, ErrForbidden) {
 			httputil.JSONError(w, "only the server owner can delete channels", http.StatusForbidden)
-		default:
+		} else {
 			httputil.InternalError(w, err)
 		}
 		return
@@ -297,7 +297,7 @@ func (h *Handler) ReorderChannels(w http.ResponseWriter, r *http.Request) {
 
 	channels, err := h.service.ReorderChannels(r.Context(), serverID, orders, userID)
 	if err != nil {
-		if err.Error() == "forbidden" {
+		if errors.Is(err, ErrForbidden) {
 			httputil.JSONError(w, "forbidden", http.StatusForbidden)
 			return
 		}

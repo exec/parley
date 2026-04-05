@@ -68,6 +68,7 @@ func (s *redisTicketStore) Consume(ticket string) (string, bool) {
 type ticketStore struct {
 	mu      sync.Mutex
 	tickets map[string]ticketEntry
+	done    chan struct{}
 }
 
 type ticketEntry struct {
@@ -76,7 +77,10 @@ type ticketEntry struct {
 }
 
 func newTicketStore() *ticketStore {
-	ts := &ticketStore{tickets: make(map[string]ticketEntry)}
+	ts := &ticketStore{
+		tickets: make(map[string]ticketEntry),
+		done:    make(chan struct{}),
+	}
 	go ts.cleanup()
 	return ts
 }
@@ -106,17 +110,28 @@ func (ts *ticketStore) Consume(ticket string) (string, bool) {
 }
 
 func (ts *ticketStore) cleanup() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
 	for {
-		time.Sleep(5 * time.Minute)
-		now := time.Now()
-		ts.mu.Lock()
-		for k, v := range ts.tickets {
-			if now.After(v.expiresAt) {
-				delete(ts.tickets, k)
+		select {
+		case <-ts.done:
+			return
+		case <-ticker.C:
+			now := time.Now()
+			ts.mu.Lock()
+			for k, v := range ts.tickets {
+				if now.After(v.expiresAt) {
+					delete(ts.tickets, k)
+				}
 			}
+			ts.mu.Unlock()
 		}
-		ts.mu.Unlock()
 	}
+}
+
+// Stop signals the cleanup goroutine to exit.
+func (ts *ticketStore) Stop() {
+	close(ts.done)
 }
 
 // handleWsTicket handles POST /api/ws-ticket.

@@ -40,7 +40,7 @@ func handleUpload(spacesClient *spaces.Client, db *sql.DB) http.HandlerFunc {
 			return
 		}
 
-		if err := r.ParseMultipartForm(10 << 20); err != nil {
+		if err := r.ParseMultipartForm(50 << 20); err != nil {
 			http.Error(w, "request too large", http.StatusRequestEntityTooLarge)
 			return
 		}
@@ -52,9 +52,13 @@ func handleUpload(spacesClient *spaces.Client, db *sql.DB) http.HandlerFunc {
 		}
 		defer file.Close()
 
-		data, err := io.ReadAll(file)
+		data, err := io.ReadAll(io.LimitReader(file, 50<<20+1))
 		if err != nil {
 			http.Error(w, "failed to read file", http.StatusInternalServerError)
+			return
+		}
+		if int64(len(data)) > 50<<20 {
+			http.Error(w, "file too large", http.StatusRequestEntityTooLarge)
 			return
 		}
 

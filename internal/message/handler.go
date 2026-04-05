@@ -109,7 +109,7 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 
 	msg, err := h.service.SendMessage(r.Context(), channelID, authorID, req.Content, req.Nonce, req.AttachmentURL, req.AttachmentName, req.AttachmentType, req.ParentID)
 	if err != nil {
-		if err.Error() == "forbidden" {
+		if errors.Is(err, ErrForbidden) {
 			httputil.JSONError(w, "you do not have permission to send messages in this channel", http.StatusForbidden)
 			return
 		}
@@ -158,7 +158,7 @@ func (h *Handler) GetChannelMessages(w http.ResponseWriter, r *http.Request) {
 		if err == nil && aroundID > 0 {
 			messages, err := h.service.GetChannelMessagesAround(r.Context(), channelID, userID, aroundID)
 			if err != nil {
-				if err.Error() == "channel not found" {
+				if errors.Is(err, ErrChannelNotFound) {
 					httputil.JSONError(w, err.Error(), http.StatusNotFound)
 					return
 				}
@@ -173,7 +173,7 @@ func (h *Handler) GetChannelMessages(w http.ResponseWriter, r *http.Request) {
 
 	messages, err := h.service.GetChannelMessages(r.Context(), channelID, userID, limit, beforeID)
 	if err != nil {
-		if err.Error() == "channel not found" {
+		if errors.Is(err, ErrChannelNotFound) {
 			httputil.JSONError(w, err.Error(), http.StatusNotFound)
 			return
 		}
@@ -240,12 +240,11 @@ func (h *Handler) ForwardToChannel(w http.ResponseWriter, r *http.Request) {
 
 	msg, err := h.service.ForwardToChannel(r.Context(), channelID, authorID, fwd)
 	if err != nil {
-		switch err.Error() {
-		case "forbidden":
+		if errors.Is(err, ErrForbidden) {
 			httputil.JSONError(w, "you do not have permission to send messages in this channel", http.StatusForbidden)
-		case "channel not found":
+		} else if errors.Is(err, ErrChannelNotFound) {
 			httputil.JSONError(w, err.Error(), http.StatusNotFound)
-		default:
+		} else {
 			httputil.InternalError(w, err)
 		}
 		return
@@ -322,7 +321,7 @@ func (h *Handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 	// Check if the user has permission to delete the message (author or MANAGE_MESSAGES)
 	canManage, err := h.service.CanManageMessage(r.Context(), id, authorID)
 	if err != nil {
-		if err.Error() == "message not found" {
+		if errors.Is(err, ErrMessageNotFound) {
 			httputil.JSONError(w, err.Error(), http.StatusNotFound)
 		} else {
 			httputil.InternalError(w, err)
@@ -420,7 +419,7 @@ func (h *Handler) SearchMessages(w http.ResponseWriter, r *http.Request) {
 
 	messages, err := h.service.SearchMessages(r.Context(), serverID, userID, q, fromUserID, inChannelID, limit, beforeID)
 	if err != nil {
-		if err.Error() == "forbidden" {
+		if errors.Is(err, ErrForbidden) {
 			httputil.JSONError(w, "forbidden", http.StatusForbidden)
 			return
 		}
@@ -495,7 +494,7 @@ func (h *Handler) ToggleReaction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.ToggleReaction(r.Context(), messageID, userID, req.Emoji); err != nil {
-		if err.Error() == "message not found" {
+		if errors.Is(err, ErrMessageNotFound) {
 			httputil.JSONError(w, err.Error(), http.StatusNotFound)
 			return
 		}
@@ -516,12 +515,11 @@ func (h *Handler) PinMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.service.PinMessage(r.Context(), channelID, messageID, userID); err != nil {
-		switch err.Error() {
-		case "forbidden":
+		if errors.Is(err, ErrForbidden) {
 			httputil.JSONError(w, "you do not have permission to pin messages", http.StatusForbidden)
-		case "message not found", "channel not found":
+		} else if errors.Is(err, ErrMessageNotFound) || errors.Is(err, ErrChannelNotFound) {
 			httputil.JSONError(w, err.Error(), http.StatusNotFound)
-		default:
+		} else {
 			httputil.InternalError(w, err)
 		}
 		return
@@ -539,12 +537,11 @@ func (h *Handler) UnpinMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.service.UnpinMessage(r.Context(), channelID, messageID, userID); err != nil {
-		switch err.Error() {
-		case "forbidden":
+		if errors.Is(err, ErrForbidden) {
 			httputil.JSONError(w, "you do not have permission to unpin messages", http.StatusForbidden)
-		case "channel not found":
+		} else if errors.Is(err, ErrChannelNotFound) {
 			httputil.JSONError(w, err.Error(), http.StatusNotFound)
-		default:
+		} else {
 			httputil.InternalError(w, err)
 		}
 		return
@@ -562,10 +559,9 @@ func (h *Handler) GetChannelPins(w http.ResponseWriter, r *http.Request) {
 	}
 	msgs, err := h.service.GetChannelPins(r.Context(), channelID, userID)
 	if err != nil {
-		switch err.Error() {
-		case "forbidden", "channel not found":
+		if errors.Is(err, ErrForbidden) || errors.Is(err, ErrChannelNotFound) {
 			httputil.JSONError(w, err.Error(), http.StatusForbidden)
-		default:
+		} else {
 			httputil.InternalError(w, err)
 		}
 		return

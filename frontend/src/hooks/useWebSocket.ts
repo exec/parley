@@ -201,18 +201,23 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
     if (!token) return;
 
     // Exchange the long-lived JWT for a short-lived single-use ticket so the
-    // JWT never appears in nginx access logs. Falls back to the token param
-    // (e.g. during the deploy window before the backend is updated).
-    let wsParam: string;
+    // JWT never appears in nginx access logs. If the ticket fetch fails, bail
+    // out and let the reconnection logic retry — never put the JWT in the URL.
+    let ticket: string;
     try {
-      const ticket = await getWsTicket();
-      wsParam = `ticket=${encodeURIComponent(ticket)}`;
+      ticket = await getWsTicket();
     } catch {
-      wsParam = `token=${encodeURIComponent(token)}`;
+      console.warn('[WebSocket] Failed to fetch WS ticket, will retry on reconnect');
+      // Trigger reconnection via onclose by simulating a failed attempt
+      reconnectAttemptsRef.current += 1;
+      const base = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
+      const delay = base + Math.random() * 1000;
+      reconnectTimeoutRef.current = setTimeout(connect, delay);
+      return;
     }
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws?${wsParam}`;
+    const wsUrl = `${protocol}//${window.location.host}/ws?ticket=${encodeURIComponent(ticket)}`;
 
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;

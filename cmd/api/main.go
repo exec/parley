@@ -454,6 +454,7 @@ func setupRouter(
 	if redisHub != nil {
 		tickets = newRedisTicketStore(redisHub.Client())
 	} else {
+		log.Println("WARNING: using in-memory ticket store — WebSocket tickets will NOT work across multiple API nodes")
 		tickets = newTicketStore()
 	}
 	registerRoutes(router, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, tickets, passkeySvc, redisHub, config.OllamaAPIURL, config.OllamaAPIKey, config.OllamaModel, cdnHost, siteURL, botsHandler, auditSvc)

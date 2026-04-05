@@ -4,12 +4,24 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"strconv"
 	"time"
 
 	"parley/internal/audit"
 	"parley/internal/db"
 	ws "parley/internal/websocket"
+)
+
+// Sentinel errors returned by ServerService methods.
+var (
+	ErrServerNotFound  = errors.New("server not found")
+	ErrMemberNotFound  = errors.New("member not found")
+	ErrInviteNotFound  = errors.New("invite not found")
+	ErrBanned          = errors.New("you are banned from this server")
+	ErrNotMember       = errors.New("not a member of this server")
+	ErrOwnerOnly       = errors.New("only the server owner can set the vanity URL")
+	ErrForbidden       = errors.New("forbidden")
 )
 
 // ============ API layer types ============

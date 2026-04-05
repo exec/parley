@@ -56,6 +56,13 @@ func (s *ChannelService) SetHub(hub *ws.Hub) {
 	s.hub = hub
 }
 
+// Sentinel errors returned by ChannelService methods.
+var (
+	ErrForbidden       = errors.New("forbidden")
+	ErrServerNotFound  = errors.New("server not found")
+	ErrChannelNotFound = errors.New("channel not found")
+)
+
 const maxChannelNameLen = 100
 
 // CreateChannel creates a new channel. userID must be the server owner or have MANAGE_CHANNELS.
@@ -78,14 +85,14 @@ func (s *ChannelService) CreateChannel(ctx context.Context, serverID, name strin
 
 	srv, err := s.repo.GetServerByID(ctx, serverIDInt)
 	if err != nil {
-		return nil, errors.New("server not found")
+		return nil, ErrServerNotFound
 	}
 	allowed, err := permissions.HasPermission(ctx, s.repo, serverIDInt, userIDInt, srv.OwnerID, permissions.PermManageChannels)
 	if err != nil {
 		return nil, err
 	}
 	if !allowed {
-		return nil, errors.New("forbidden")
+		return nil, ErrForbidden
 	}
 
 	var parentIDInt *int64
@@ -138,7 +145,7 @@ func (s *ChannelService) GetChannel(ctx context.Context, id string) (*Channel, e
 	channel, err := s.repo.GetChannelByID(ctx, idInt)
 	if err != nil {
 		if err == db.ErrNotFound {
-			return nil, errors.New("channel not found")
+			return nil, ErrChannelNotFound
 		}
 		return nil, err
 	}
@@ -244,21 +251,21 @@ func (s *ChannelService) UpdateChannel(ctx context.Context, id, name, topic, use
 	channel, err := s.repo.GetChannelByID(ctx, idInt)
 	if err != nil {
 		if err == db.ErrNotFound {
-			return nil, errors.New("channel not found")
+			return nil, ErrChannelNotFound
 		}
 		return nil, err
 	}
 
 	srv, err := s.repo.GetServerByID(ctx, channel.ServerID)
 	if err != nil {
-		return nil, errors.New("server not found")
+		return nil, ErrServerNotFound
 	}
 	allowed, err := permissions.HasPermission(ctx, s.repo, channel.ServerID, userIDInt, srv.OwnerID, permissions.PermManageChannels)
 	if err != nil {
 		return nil, err
 	}
 	if !allowed {
-		return nil, errors.New("forbidden")
+		return nil, ErrForbidden
 	}
 
 	channel.Name = name
@@ -290,7 +297,7 @@ func (s *ChannelService) DeleteChannel(ctx context.Context, id string, userID st
 	ch, err := s.repo.GetChannelByID(ctx, idInt)
 	if err != nil {
 		if err == db.ErrNotFound {
-			return errors.New("channel not found")
+			return ErrChannelNotFound
 		}
 		return err
 	}
@@ -309,7 +316,7 @@ func (s *ChannelService) DeleteChannel(ctx context.Context, id string, userID st
 		return err
 	}
 	if !allowed {
-		return errors.New("forbidden")
+		return ErrForbidden
 	}
 
 	serverID := strconv.FormatInt(ch.ServerID, 10)
@@ -317,7 +324,7 @@ func (s *ChannelService) DeleteChannel(ctx context.Context, id string, userID st
 	err = s.repo.DeleteChannel(ctx, idInt)
 	if err != nil {
 		if err == db.ErrNotFound {
-			return errors.New("channel not found")
+			return ErrChannelNotFound
 		}
 		return err
 	}
@@ -371,14 +378,14 @@ func (s *ChannelService) ReorderChannels(ctx context.Context, serverID string, o
 
 	srv, err := s.repo.GetServerByID(ctx, serverIDInt)
 	if err != nil {
-		return nil, errors.New("server not found")
+		return nil, ErrServerNotFound
 	}
 	allowed, err := permissions.HasPermission(ctx, s.repo, serverIDInt, userIDInt, srv.OwnerID, permissions.PermManageChannels)
 	if err != nil {
 		return nil, err
 	}
 	if !allowed {
-		return nil, errors.New("forbidden")
+		return nil, ErrForbidden
 	}
 
 	for _, o := range orders {

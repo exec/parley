@@ -3,6 +3,8 @@ package db
 import (
 	"context"
 	"fmt"
+
+	"github.com/lib/pq"
 )
 
 // GetServerCategories returns all server categories ordered by name.
@@ -66,6 +68,36 @@ func (r *Repository) GetServerCategoryAssignments(ctx context.Context, serverID 
 		cats = append(cats, c)
 	}
 	return cats, rows.Err()
+}
+
+// GetBulkServerCategoryAssignments returns the categories assigned to each of the given server IDs.
+// The result is keyed by server ID.
+func (r *Repository) GetBulkServerCategoryAssignments(ctx context.Context, serverIDs []int64) (map[int64][]ServerCategory, error) {
+	if len(serverIDs) == 0 {
+		return map[int64][]ServerCategory{}, nil
+	}
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT sca.server_id, sc.id, sc.name, sc.created_at
+		FROM server_category_assignments sca
+		JOIN server_categories sc ON sc.id = sca.category_id
+		WHERE sca.server_id = ANY($1)
+		ORDER BY sc.name`,
+		pq.Array(serverIDs),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make(map[int64][]ServerCategory, len(serverIDs))
+	for rows.Next() {
+		var serverID int64
+		var c ServerCategory
+		if err := rows.Scan(&serverID, &c.ID, &c.Name, &c.CreatedAt); err != nil {
+			return nil, err
+		}
+		result[serverID] = append(result[serverID], c)
+	}
+	return result, rows.Err()
 }
 
 // SetServerCategories replaces all category assignments for a server in a transaction.
