@@ -70,37 +70,29 @@ jobs:
       - name: Run tests
         run: JWT_SECRET=test-secret go test ./...
 
+      - name: Cross-compile binaries for Linux
+        run: |
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o parley-api-linux ./cmd/api
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o parley-admin-linux ./cmd/admin
+
       - name: Deploy API servers
         env:
           SITE_DOMAIN: ${{ vars.DOMAIN }}
         run: |
           for IP in $API_HOSTS; do
-            ssh -i ~/.ssh/deploy_key root@$IP "
-              set -e
-              # Ensure Go version matches go.mod
-              GO_VERSION=1.25.0
-              if ! /usr/local/go/bin/go version 2>/dev/null | grep -q go\${GO_VERSION}; then
-                rm -rf /usr/local/go
-                curl -sLO https://go.dev/dl/go\${GO_VERSION}.linux-amd64.tar.gz
-                tar -C /usr/local -xzf go\${GO_VERSION}.linux-amd64.tar.gz
-                rm go\${GO_VERSION}.linux-amd64.tar.gz
-              fi
-              export PATH=/usr/local/go/bin:\$PATH
-              cd /parley && git pull origin main
-              go build -mod=mod -o /usr/local/bin/parley-api ./cmd/api
-              cd frontend
-              if [ -f .env ]; then
-                grep -q '^VITE_SITE_URL=' .env \
-                  && sed -i 's|^VITE_SITE_URL=.*|VITE_SITE_URL=https://$SITE_DOMAIN|' .env \
-                  || echo 'VITE_SITE_URL=https://$SITE_DOMAIN' >> .env
-              else
+            (
+              scp -i ~/.ssh/deploy_key parley-api-linux "root@$IP:/usr/local/bin/parley-api"
+              ssh -i ~/.ssh/deploy_key root@$IP "
+                set -e
+                cd /parley && git pull origin main
+                cd frontend
                 echo 'VITE_SITE_URL=https://$SITE_DOMAIN' > .env
-              fi
-              npm ci && npm run build && cp -r dist/* /var/www/parley/
-              systemctl restart parley-api
-              for i in \$(seq 10); do curl -sf http://localhost:8080/health && break; sleep 2; done || { echo 'Health check failed'; exit 1; }
-              echo OK
-            " &
+                npm ci --no-audit --no-fund && npm run build && cp -r dist/* /var/www/parley/
+                systemctl restart parley-api
+                for i in \$(seq 10); do curl -sf http://localhost:8080/health && break; sleep 2; done || { echo 'Health check failed'; exit 1; }
+                echo OK
+              "
+            ) &
           done
           wait
 
@@ -108,22 +100,11 @@ jobs:
         env:
           SITE_DOMAIN: ${{ vars.DOMAIN }}
         run: |
+          scp -i ~/.ssh/deploy_key parley-admin-linux "root@$ADMIN_HOST:/usr/local/bin/parley-admin"
           ssh -i ~/.ssh/deploy_key root@$ADMIN_HOST "bash -s" <<'REMOTE_SCRIPT'
             set -e
-            # Ensure Go version matches go.mod
-            GO_VERSION=1.25.0
-            if ! /usr/local/go/bin/go version 2>/dev/null | grep -q go${GO_VERSION}; then
-              rm -rf /usr/local/go
-              curl -sLO https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz
-              tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz
-              rm go${GO_VERSION}.linux-amd64.tar.gz
-            fi
-            export PATH=/usr/local/go/bin:$PATH
             cd /parley && git pull origin main
-            go build -mod=mod -o /usr/local/bin/parley-admin ./cmd/admin
             cd /parley/admin-frontend
-            # npm has a known bug where it exits non-zero with
-            # "invalid version location" even when the build succeeds.
             set +e
             npm ci --no-audit --no-fund 2>&1
             npm run build 2>&1
