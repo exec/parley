@@ -235,10 +235,11 @@ jobs:
           DROPLETS=$(curl -sf -H "Authorization: Bearer $DO_TOKEN" \
             "https://api.digitalocean.com/v2/droplets?tag_name=parley&per_page=50")
 
-          # DB droplet
-          DB_ID=$(echo "$DROPLETS" | jq -r '.droplets[] | select(.tags | contains(["db"])) | .id')
+          # DB droplet (tag is "database" not "db")
+          DB_ID=$(echo "$DROPLETS" | jq -r '.droplets[] | select(.tags | contains(["database"])) | .id' | head -1)
           if [ -n "$DB_ID" ]; then
             echo "Importing DB droplet: $DB_ID"
+            terraform state rm digitalocean_droplet.parley_db 2>/dev/null || true
             terraform import digitalocean_droplet.parley_db "$DB_ID" || true
           fi
 
