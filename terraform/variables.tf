@@ -13,7 +13,7 @@ variable "region" {
 variable "api_droplet_size" {
   description = "Droplet size for API servers"
   type        = string
-  default     = "s-1vcpu-1gb"
+  default     = "s-1vcpu-2gb"
 }
 
 variable "db_droplet_size" {

@@ -104,9 +104,40 @@ jobs:
               # Wait for cloud-init to finish on fresh droplets (no-op on subsequent deploys)
               ssh -i ~/.ssh/deploy_key root@$IP "cloud-init status --wait 2>/dev/null || true"
               scp -i ~/.ssh/deploy_key parley-api-linux "root@$IP:/usr/local/bin/parley-api"
+              ssh -i ~/.ssh/deploy_key root@$IP "mkdir -p /var/www/parley"
               scp -r -i ~/.ssh/deploy_key frontend/dist/* "root@$IP:/var/www/parley/"
               ssh -i ~/.ssh/deploy_key root@$IP "
                 set -e
+                # Ensure systemd service exists (cloud-init may have failed on small instances)
+                if [ ! -f /etc/systemd/system/parley-api.service ]; then
+                  cat > /etc/systemd/system/parley-api.service <<SVCEOF
+[Unit]
+Description=Parley API
+After=network.target
+
+[Service]
+Type=simple
+User=root
+EnvironmentFile=/etc/parley/env
+ExecStart=/usr/local/bin/parley-api
+Restart=always
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+                  systemctl daemon-reload
+                  systemctl enable parley-api
+                fi
+                # Ensure nginx proxies port 80 -> 8080
+                if [ ! -f /etc/nginx/sites-available/parley ]; then
+                  apt-get install -y nginx > /dev/null 2>&1 || true
+                  printf 'server {\n  listen 80 default_server;\n  root /var/www/parley;\n  index index.html;\n  location /api/ { proxy_pass http://127.0.0.1:8080; proxy_set_header Host \$host; proxy_set_header X-Real-IP \$remote_addr; proxy_http_version 1.1; }\n  location /ws { proxy_pass http://127.0.0.1:8080; proxy_http_version 1.1; proxy_set_header Upgrade \$http_upgrade; proxy_set_header Connection \"upgrade\"; proxy_set_header Host \$host; }\n  location / { try_files \$uri \$uri/ /index.html; }\n}\n' > /etc/nginx/sites-available/parley
+                  ln -sf /etc/nginx/sites-available/parley /etc/nginx/sites-enabled/parley
+                  rm -f /etc/nginx/sites-enabled/default
+                  nginx -t && systemctl reload nginx
+                fi
                 systemctl restart parley-api
                 for i in \$(seq 10); do curl -sf http://localhost:8080/health && break; sleep 2; done || { echo 'Health check failed'; exit 1; }
                 echo OK
