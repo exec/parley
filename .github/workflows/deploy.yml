@@ -101,6 +101,8 @@ jobs:
         run: |
           for IP in $API_HOSTS; do
             (
+              # Wait for cloud-init to finish on fresh droplets (no-op on subsequent deploys)
+              ssh -i ~/.ssh/deploy_key root@$IP "cloud-init status --wait 2>/dev/null || true"
               scp -i ~/.ssh/deploy_key parley-api-linux "root@$IP:/usr/local/bin/parley-api"
               scp -r -i ~/.ssh/deploy_key frontend/dist/* "root@$IP:/var/www/parley/"
               ssh -i ~/.ssh/deploy_key root@$IP "
@@ -117,6 +119,7 @@ jobs:
         env:
           SITE_DOMAIN: ${{ vars.DOMAIN }}
         run: |
+          ssh -i ~/.ssh/deploy_key root@$ADMIN_HOST "cloud-init status --wait 2>/dev/null || true"
           scp -i ~/.ssh/deploy_key parley-admin-linux "root@$ADMIN_HOST:/usr/local/bin/parley-admin"
           ssh -i ~/.ssh/deploy_key root@$ADMIN_HOST "mkdir -p /var/www/parley-admin"
           scp -r -i ~/.ssh/deploy_key admin-frontend/dist/* "root@$ADMIN_HOST:/var/www/parley-admin/"
