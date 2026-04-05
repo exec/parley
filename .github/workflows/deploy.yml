@@ -25,7 +25,7 @@ jobs:
             "https://api.digitalocean.com/v2/droplets?tag_name=parley&per_page=50" \
             | jq -r '.droplets[] | {tags: .tags, ip: (.networks.v4[] | select(.type=="public") | .ip_address)}')
           API_HOSTS=$(echo "$ALL" | jq -r 'select(.tags | contains(["api"])) | .ip' | tr '\n' ' ')
-          ADMIN_HOST=$(echo "$ALL" | jq -r 'select(.tags | contains(["admin"])) | .ip' | tr '\n' ' ')
+          ADMIN_HOST=$(echo "$ALL" | jq -r 'select(.tags | contains(["admin"])) | .ip' | head -1 | tr -d '[:space:]')
           echo "API_HOSTS=$API_HOSTS" >> "$GITHUB_ENV"
           echo "ADMIN_HOST=$ADMIN_HOST" >> "$GITHUB_ENV"
 
