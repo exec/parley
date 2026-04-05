@@ -364,6 +364,6 @@ resource "cloudflare_record" "parley_a" {
 }
 
 output "dns_record" {
-  description = "Cloudflare DNS record for ${var.domain_name}"
+  description = "Cloudflare DNS record for the configured domain"
   value       = "${cloudflare_record.parley_a.name}.${data.cloudflare_zone.parley.name} → ${digitalocean_loadbalancer.parley_lb.ip}"
 }
