@@ -195,22 +195,37 @@ jobs:
             terraform import digitalocean_vpc.parley_vpc "$VPC_ID" || true
           fi
 
-          # SSH Key
+          # SSH Key (match any name containing "parley")
           KEY_ID=$(curl -sf -H "Authorization: Bearer $DO_TOKEN" \
             "https://api.digitalocean.com/v2/account/keys?per_page=50" \
-            | jq -r '.ssh_keys[] | select(.name == "parley-deploy") | .id')
+            | jq -r '.ssh_keys[] | select(.name | test("parley"; "i")) | .id' | head -1)
           if [ -n "$KEY_ID" ]; then
             echo "Importing SSH key: $KEY_ID"
             terraform import digitalocean_ssh_key.parley_key "$KEY_ID" || true
           fi
 
-          # Project
+          # Project (match any name containing "parley")
           PROJ_ID=$(curl -sf -H "Authorization: Bearer $DO_TOKEN" \
             "https://api.digitalocean.com/v2/projects?per_page=50" \
-            | jq -r '.projects[] | select(.name == "Parley") | .id')
+            | jq -r '.projects[] | select(.name | test("parley"; "i")) | .id' | head -1)
           if [ -n "$PROJ_ID" ]; then
             echo "Importing project: $PROJ_ID"
             terraform import digitalocean_project.parley_project "$PROJ_ID" || true
+          fi
+
+          # Cloudflare DNS record
+          CF_ZONE_ID=$(curl -sf -H "Authorization: Bearer $CF_TOKEN" \
+            "https://api.cloudflare.com/client/v4/zones?per_page=100" \
+            | jq -r --arg z "$TF_VAR_cf_zone" '.result[] | select(.name == $z) | .id')
+          if [ -n "$CF_ZONE_ID" ]; then
+            SUBDOMAIN=$(echo "$DOMAIN" | sed "s/\.$TF_VAR_cf_zone$//")
+            REC_ID=$(curl -sf -H "Authorization: Bearer $CF_TOKEN" \
+              "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records?name=$DOMAIN&type=A" \
+              | jq -r '.result[0].id // empty')
+            if [ -n "$REC_ID" ]; then
+              echo "Importing Cloudflare DNS record: $CF_ZONE_ID/$REC_ID"
+              terraform import cloudflare_record.parley_a "$CF_ZONE_ID/$REC_ID" || true
+            fi
           fi
 
           # Droplets (tagged 'parley')
