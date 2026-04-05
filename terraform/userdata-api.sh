@@ -108,11 +108,11 @@ run_with_retry "apt-get install -y nodejs"
 # Install Go from go.dev (must match go.mod toolchain version)
 echo "=== Installing Go ==="
 GO_VERSION="1.25.0"
-if ! go version 2>/dev/null | grep -q "go${GO_VERSION}"; then
+if ! go version 2>/dev/null | grep -q "go$${GO_VERSION}"; then
     rm -rf /usr/local/go
-    curl -sLO "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz"
-    tar -C /usr/local -xzf "go${GO_VERSION}.linux-amd64.tar.gz"
-    rm "go${GO_VERSION}.linux-amd64.tar.gz"
+    curl -sLO "https://go.dev/dl/go$${GO_VERSION}.linux-amd64.tar.gz"
+    tar -C /usr/local -xzf "go$${GO_VERSION}.linux-amd64.tar.gz"
+    rm "go$${GO_VERSION}.linux-amd64.tar.gz"
 fi
 
 # Redis runs on the DB node - skip local install
