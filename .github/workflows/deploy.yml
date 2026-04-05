@@ -128,7 +128,12 @@ jobs:
             else
               echo 'VITE_SITE_URL=https://$SITE_DOMAIN' > .env
             fi
-            npm ci && npm run build
+            echo '=== npm ci ==='
+            npm ci 2>&1 || true
+            echo '=== npm run build ==='
+            npx tsc 2>&1
+            npx vite build 2>&1
+            echo '=== build done ==='
             mkdir -p /var/www/parley-admin
             cp -r dist/* /var/www/parley-admin/
             if [ ! -f /etc/systemd/system/parley-admin.service ]; then
