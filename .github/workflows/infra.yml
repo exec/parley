@@ -11,6 +11,8 @@ on:
         options:
           - plan
           - apply
+          - destroy
+          - import
   push:
     branches: [main]
     paths:
@@ -158,10 +160,104 @@ jobs:
         run: terraform validate
 
       - name: Terraform Plan
+        if: github.event.inputs.action != 'destroy' && github.event.inputs.action != 'import'
         run: terraform plan -no-color -out=tfplan
 
       - name: Terraform Apply
         if: >
-          github.event.inputs.action == 'apply' ||
-          (github.event_name == 'push' && github.ref == 'refs/heads/main')
+          github.event.inputs.action != 'destroy' &&
+          github.event.inputs.action != 'import' &&
+          (github.event.inputs.action == 'apply' ||
+           (github.event_name == 'push' && github.ref == 'refs/heads/main'))
         run: terraform apply -auto-approve tfplan
+
+      - name: Terraform Destroy
+        if: github.event.inputs.action == 'destroy'
+        run: |
+          echo "⚠️  DESTROYING ALL PARLEY INFRASTRUCTURE"
+          terraform plan -destroy -no-color -out=tfplan
+          terraform apply -auto-approve tfplan
+
+      - name: Terraform Import (sync state with existing resources)
+        if: github.event.inputs.action == 'import'
+        env:
+          DO_TOKEN: ${{ secrets.DO_TOKEN }}
+        run: |
+          echo "=== Discovering existing DigitalOcean resources ==="
+
+          # VPC
+          VPC_ID=$(curl -sf -H "Authorization: Bearer $DO_TOKEN" \
+            "https://api.digitalocean.com/v2/vpcs?per_page=50" \
+            | jq -r '.vpcs[] | select(.name == "parley-vpc") | .id')
+          if [ -n "$VPC_ID" ]; then
+            echo "Importing VPC: $VPC_ID"
+            terraform import digitalocean_vpc.parley_vpc "$VPC_ID" || true
+          fi
+
+          # SSH Key
+          KEY_ID=$(curl -sf -H "Authorization: Bearer $DO_TOKEN" \
+            "https://api.digitalocean.com/v2/account/keys?per_page=50" \
+            | jq -r '.ssh_keys[] | select(.name == "parley-deploy") | .id')
+          if [ -n "$KEY_ID" ]; then
+            echo "Importing SSH key: $KEY_ID"
+            terraform import digitalocean_ssh_key.parley_key "$KEY_ID" || true
+          fi
+
+          # Project
+          PROJ_ID=$(curl -sf -H "Authorization: Bearer $DO_TOKEN" \
+            "https://api.digitalocean.com/v2/projects?per_page=50" \
+            | jq -r '.projects[] | select(.name == "Parley") | .id')
+          if [ -n "$PROJ_ID" ]; then
+            echo "Importing project: $PROJ_ID"
+            terraform import digitalocean_project.parley_project "$PROJ_ID" || true
+          fi
+
+          # Droplets (tagged 'parley')
+          DROPLETS=$(curl -sf -H "Authorization: Bearer $DO_TOKEN" \
+            "https://api.digitalocean.com/v2/droplets?tag_name=parley&per_page=50")
+
+          # DB droplet
+          DB_ID=$(echo "$DROPLETS" | jq -r '.droplets[] | select(.tags | contains(["db"])) | .id')
+          if [ -n "$DB_ID" ]; then
+            echo "Importing DB droplet: $DB_ID"
+            terraform import digitalocean_droplet.parley_db "$DB_ID" || true
+          fi
+
+          # API droplets
+          API_IDS=$(echo "$DROPLETS" | jq -r '.droplets[] | select(.tags | contains(["api"])) | .id')
+          IDX=0
+          for ID in $API_IDS; do
+            echo "Importing API droplet[$IDX]: $ID"
+            terraform import "digitalocean_droplet.parley_api[$IDX]" "$ID" || true
+            IDX=$((IDX + 1))
+          done
+
+          # Admin droplet
+          ADMIN_ID=$(echo "$DROPLETS" | jq -r '.droplets[] | select(.tags | contains(["admin"])) | .id')
+          if [ -n "$ADMIN_ID" ]; then
+            echo "Importing admin droplet: $ADMIN_ID"
+            terraform import digitalocean_droplet.parley_admin "$ADMIN_ID" || true
+          fi
+
+          # Load Balancer
+          LB_ID=$(curl -sf -H "Authorization: Bearer $DO_TOKEN" \
+            "https://api.digitalocean.com/v2/load_balancers?per_page=50" \
+            | jq -r '.load_balancers[] | select(.name == "parley-lb") | .id')
+          if [ -n "$LB_ID" ]; then
+            echo "Importing load balancer: $LB_ID"
+            terraform import digitalocean_loadbalancer.parley_lb "$LB_ID" || true
+          fi
+
+          # Firewalls
+          FW_LIST=$(curl -sf -H "Authorization: Bearer $DO_TOKEN" \
+            "https://api.digitalocean.com/v2/firewalls?per_page=50")
+          for FW_NAME in parley-api-fw parley-db-fw parley-admin-fw; do
+            FW_ID=$(echo "$FW_LIST" | jq -r --arg n "$FW_NAME" '.firewalls[] | select(.name == $n) | .id')
+            if [ -n "$FW_ID" ]; then
+              TF_NAME=$(echo "$FW_NAME" | sed 's/-/_/g')
+              echo "Importing firewall $FW_NAME: $FW_ID"
+              terraform import "digitalocean_firewall.${TF_NAME}" "$FW_ID" || true
+            fi
+          done
+
+          echo "=== Import complete. Run 'plan' to see drift. ==="
