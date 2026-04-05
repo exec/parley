@@ -456,7 +456,6 @@ describe('computeChannelPermissions', () => {
     });
 
     it('implicit denial cascade: no VIEW_CHANNEL strips everything including voice', () => {
-      const base = PERM_SEND_MESSAGES | PERM_CONNECT | PERM_SPEAK | PERM_ADMINISTRATOR & 0n;
       // No VIEW_CHANNEL, no server perms — just channel bits
       const allChannel = PERM_SEND_MESSAGES | PERM_CONNECT | PERM_SPEAK;
       const result = computeChannelPermissions(
