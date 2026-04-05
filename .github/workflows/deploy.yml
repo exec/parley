@@ -78,19 +78,19 @@ jobs:
       - name: Build frontends on runner
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Build main frontend
         working-directory: frontend
         run: |
           echo "VITE_SITE_URL=https://${{ vars.DOMAIN }}" > .env
-          npm ci
+          npm install
           npm run build
 
       - name: Build admin frontend
         working-directory: admin-frontend
         run: |
-          npm ci
+          npm install
           npm run build
 
       - name: Deploy API servers
