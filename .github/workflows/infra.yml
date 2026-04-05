@@ -81,7 +81,7 @@ jobs:
       # Terraform variables — non-sensitive
       TF_VAR_region: "nyc3"
       TF_VAR_api_droplet_size: "s-1vcpu-1gb"
-      TF_VAR_db_droplet_size: "s-1vcpu-2gb"
+      TF_VAR_db_droplet_size: "s-2vcpu-4gb"
       TF_VAR_api_count: "2"
       TF_VAR_domain_name: ${{ vars.DOMAIN }}
       TF_VAR_spaces_bucket: "parley-prod"

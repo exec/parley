@@ -19,7 +19,7 @@ variable "api_droplet_size" {
 variable "db_droplet_size" {
   description = "Droplet size for database server"
   type        = string
-  default     = "s-1vcpu-2gb"
+  default     = "s-2vcpu-4gb" # Can't downsize — DO disk is 80GB, locked to this tier minimum
 }
 
 variable "domain_name" {
