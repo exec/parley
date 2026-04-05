@@ -132,7 +132,7 @@ jobs:
           fi
 
           CF_ZONE=$(jq -r --arg d "$DOMAIN" \
-            '.result[] | select($d == .name or ($d | endswith("." + .name))) | .name' \
+            '.result[] | . as $z | select(($d == $z.name) or ($d | endswith("." + $z.name))) | .name' \
             /tmp/cf_zones.json | head -1)
 
           if [ -z "$CF_ZONE" ]; then
