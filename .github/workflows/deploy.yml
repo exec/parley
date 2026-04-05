@@ -107,31 +107,27 @@ jobs:
         env:
           SITE_DOMAIN: ${{ vars.DOMAIN }}
         run: |
-          ssh -i ~/.ssh/deploy_key root@$ADMIN_HOST "
+          ssh -i ~/.ssh/deploy_key root@$ADMIN_HOST "bash -s" <<'REMOTE_SCRIPT'
             set -e
             # Ensure Go version matches go.mod
             GO_VERSION=1.25.0
-            if ! /usr/local/go/bin/go version 2>/dev/null | grep -q go\${GO_VERSION}; then
+            if ! /usr/local/go/bin/go version 2>/dev/null | grep -q go${GO_VERSION}; then
               rm -rf /usr/local/go
-              curl -sLO https://go.dev/dl/go\${GO_VERSION}.linux-amd64.tar.gz
-              tar -C /usr/local -xzf go\${GO_VERSION}.linux-amd64.tar.gz
-              rm go\${GO_VERSION}.linux-amd64.tar.gz
+              curl -sLO https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz
+              tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz
+              rm go${GO_VERSION}.linux-amd64.tar.gz
             fi
-            export PATH=/usr/local/go/bin:\$PATH
+            export PATH=/usr/local/go/bin:$PATH
             cd /parley && git pull origin main
             go build -mod=mod -o /usr/local/bin/parley-admin ./cmd/admin
             cd /parley/admin-frontend
-            if [ -f .env ]; then
-              grep -q '^VITE_SITE_URL=' .env \
-                && sed -i 's|^VITE_SITE_URL=.*|VITE_SITE_URL=https://$SITE_DOMAIN|' .env \
-                || echo 'VITE_SITE_URL=https://$SITE_DOMAIN' >> .env
-            else
-              echo 'VITE_SITE_URL=https://$SITE_DOMAIN' > .env
-            fi
-            (npm ci --no-audit --no-fund 2>&1; npm run build 2>&1) || true
-            # Verify the build actually produced output (npm may exit non-zero
-            # due to 'invalid version location' bug even when build succeeds)
-            test -f dist/index.html || { echo 'ERROR: admin frontend build failed — dist/index.html missing'; exit 1; }
+            # npm has a known bug where it exits non-zero with
+            # "invalid version location" even when the build succeeds.
+            set +e
+            npm ci --no-audit --no-fund 2>&1
+            npm run build 2>&1
+            set -e
+            test -f dist/index.html || { echo "ERROR: admin frontend build failed"; exit 1; }
             mkdir -p /var/www/parley-admin
             cp -r dist/* /var/www/parley-admin/
             if [ ! -f /etc/systemd/system/parley-admin.service ]; then
@@ -145,7 +141,7 @@ jobs:
             rm -f /etc/nginx/sites-enabled/default
             nginx -t && systemctl reload nginx
             echo OK
-          "
+          REMOTE_SCRIPT
 
       - name: Remove runner IP from DO firewalls
         if: always()
