@@ -105,6 +105,43 @@ function IconServer() {
   );
 }
 
+function IconHeadset() {
+  return (
+    <svg className="landing-feature-icon" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M8 22 V18 A12 12 0 0 1 32 18 V22" stroke="#00b4d8" strokeWidth="1.5"/>
+      <rect x="4" y="22" width="6" height="10" rx="2" stroke="#00b4d8" strokeWidth="1.5"/>
+      <rect x="30" y="22" width="6" height="10" rx="2" stroke="#00b4d8" strokeWidth="1.5"/>
+      <path d="M10 32 V34 A4 4 0 0 0 14 38 H20" stroke="#00b4d8" strokeWidth="1.5"/>
+      <circle cx="22" cy="38" r="2" fill="#00b4d8"/>
+      {/* Sound waves */}
+      <path d="M20 14 Q20 10 24 10" stroke="#00b4d8" strokeWidth="1" opacity="0.4"/>
+      <path d="M20 14 Q20 8 26 8" stroke="#00b4d8" strokeWidth="1" opacity="0.3"/>
+    </svg>
+  );
+}
+
+function IconBin() {
+  return (
+    <svg className="landing-feature-icon" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Terminal window */}
+      <rect x="4" y="6" width="32" height="28" rx="3" stroke="#00b4d8" strokeWidth="1.5"/>
+      <line x1="4" y1="12" x2="36" y2="12" stroke="#00b4d8" strokeWidth="1.2"/>
+      {/* Title bar dots */}
+      <circle cx="9" cy="9" r="1.2" fill="#00b4d8"/>
+      <circle cx="14" cy="9" r="1.2" fill="#00b4d8"/>
+      <circle cx="19" cy="9" r="1.2" fill="#00b4d8"/>
+      {/* Code lines */}
+      <line x1="8" y1="17" x2="18" y2="17" stroke="#00b4d8" strokeWidth="1.2" opacity="0.7"/>
+      <line x1="8" y1="21" x2="28" y2="21" stroke="#00b4d8" strokeWidth="1.2" opacity="0.5"/>
+      <line x1="12" y1="25" x2="24" y2="25" stroke="#00b4d8" strokeWidth="1.2" opacity="0.6"/>
+      <line x1="8" y1="29" x2="16" y2="29" stroke="#00b4d8" strokeWidth="1.2" opacity="0.4"/>
+      {/* Share arrow */}
+      <path d="M30 28 L34 24 L30 20" stroke="#00b4d8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      <line x1="34" y1="24" x2="26" y2="24" stroke="#00b4d8" strokeWidth="1.5" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
 /* ── Landing Page ────────────────────────────────────────────────────────── */
 export const Landing: React.FC = () => {
   const navigate = useNavigate();
@@ -133,7 +170,7 @@ export const Landing: React.FC = () => {
             Where your community connects
           </div>
           <div className="landing-tagline-sub">
-            Real-time messaging, voice, and collaboration — built for every team
+            real-time comms for developers, hackers, and security teams
           </div>
 
           <div className="landing-ctas">
@@ -158,7 +195,7 @@ export const Landing: React.FC = () => {
               <IconServer />
               <div className="landing-feature-title">Servers &amp; Channels</div>
               <div className="landing-feature-desc">
-                Organize your community into servers with dedicated channels for every topic. Text, voice, and everything in between.
+                Organize your crew into servers and channels. Text, voice, bins — structure your ops however you need.
               </div>
             </div>
             <div className="landing-feature">
@@ -166,6 +203,20 @@ export const Landing: React.FC = () => {
               <div className="landing-feature-title">Secure by Default</div>
               <div className="landing-feature-desc">
                 TLS on every connection. Role-based permissions let you control exactly who sees what, down to the channel level.
+              </div>
+            </div>
+            <div className="landing-feature">
+              <IconHeadset />
+              <div className="landing-feature-title">Voice &amp; Video</div>
+              <div className="landing-feature-desc">
+                Drop into voice or video channels for live pair programming, incident response, or war rooms. Screen share included.
+              </div>
+            </div>
+            <div className="landing-feature">
+              <IconBin />
+              <div className="landing-feature-title">Bins</div>
+              <div className="landing-feature-desc">
+                Paste and share code with syntax highlighting. Bins live inside channels — no context switching, no external links.
               </div>
             </div>
             <div className="landing-feature">
@@ -180,7 +231,7 @@ export const Landing: React.FC = () => {
 
         {/* Footer */}
         <footer className="landing-footer">
-          <span>© 2026 Parley</span>
+          <span>built by <a href="https://byexec.com" className="landing-footer-link">exec</a> with <a href="https://claude.ai/code" className="landing-footer-link">Claude Code</a></span>
           <span>Built for real-time communication</span>
         </footer>
       </div>

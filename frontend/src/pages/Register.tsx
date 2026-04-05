@@ -22,6 +22,7 @@ export const Register: React.FC = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [smsConsent, setSmsConsent] = useState(false);
+  const [preReleaseAck, setPreReleaseAck] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   // Set to true after account creation when no password was provided
@@ -51,6 +52,7 @@ export const Register: React.FC = () => {
       if (!confirmPassword) e.confirmPassword = 'Please confirm your password';
       else if (password !== confirmPassword) e.confirmPassword = 'Passwords do not match';
     }
+    if (!preReleaseAck) e.preReleaseAck = 'You must acknowledge the pre-release disclaimer to continue';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -262,6 +264,21 @@ export const Register: React.FC = () => {
                 {errors.confirmPassword && <span className="input-error-message">{errors.confirmPassword}</span>}
               </div>
             )}
+
+            <div className="input-wrapper">
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={preReleaseAck}
+                  onChange={e => setPreReleaseAck(e.target.checked)}
+                  style={{ marginTop: 2, flexShrink: 0, accentColor: '#00b4d8' }}
+                />
+                <span style={{ fontSize: 11, color: '#888', lineHeight: 1.5 }}>
+                  I understand that Parley is <strong style={{ color: '#ccc' }}>pre-release software</strong> provided "as is" with no warranty of any kind. This service may contain bugs, experience data loss, or be discontinued at any time. <strong style={{ color: '#ccc' }}>Do not upload sensitive, confidential, or personally identifying information.</strong> Data stored here is not guaranteed to be secure or persistent. By creating an account you accept all risk associated with using pre-release software.
+                </span>
+              </label>
+              {errors.preReleaseAck && <span className="input-error-message">{errors.preReleaseAck}</span>}
+            </div>
 
             <Button type="submit" variant="primary" size="lg" loading={loading}>
               {passkeyOnly ? 'Continue' : 'Register'}
