@@ -590,12 +590,16 @@ func (h *Handler) CreateServerRole(w http.ResponseWriter, r *http.Request) {
 		req.Permissions &= actorPerms
 	}
 
-	// Hierarchy: new role position must be below actor's highest role (unless owner).
+	// Hierarchy: non-owners cannot grant Administrator (bit 0).
 	if !isOwner {
 		sID, _ := permissions.ParseInt64(serverID)
 		aID, _ := permissions.ParseInt64(userID)
 		actorHighest, _ := h.service.Repo().GetHighestRolePosition(r.Context(), sID, aID)
-		_ = actorHighest // position is assigned by DB; we can't enforce pre-creation without knowing final position
+		_ = actorHighest
+		if req.Permissions&permissions.PermAdministrator != 0 {
+			httputil.JSONError(w, "only the server owner can grant Administrator", http.StatusForbidden)
+			return
+		}
 	}
 
 	actorIDInt, _ := strconv.ParseInt(userID, 10, 64)

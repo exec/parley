@@ -165,6 +165,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const [dmChannels, setDmChannels] = useState<DmChannel[]>([]);
   const [activeDmChannel, setActiveDmChannel] = useState<DmChannel | null>(null);
+  const activeChannelRef = useRef<Channel | null>(null);
+  useEffect(() => { activeChannelRef.current = activeChannel; }, [activeChannel]);
   const activeDmChannelRef = useRef<DmChannel | null>(null);
   useEffect(() => { activeDmChannelRef.current = activeDmChannel; }, [activeDmChannel]);
   const [dmMessages, setDmMessages] = useState<DmMessage[]>([]);
@@ -462,7 +464,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const receiveMessage = useCallback((msg: Message) => {
-    const ch = activeChannel;
+    const ch = activeChannelRef.current;
     if (ch !== null && msg.channel_id === ch.id) {
       setMessages(prev => {
         // If we have an optimistic entry for this nonce, replace it.
@@ -479,7 +481,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return [...prev, msg];
       });
     }
-  }, [activeChannel]);
+  }, []);
 
   const loadDmChannels = useCallback(async () => {
     setIsLoadingDms(true);

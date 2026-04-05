@@ -14,6 +14,7 @@ import (
 	"parley/internal/auth"
 	"parley/internal/db"
 	"parley/internal/httputil"
+	"parley/internal/permissions"
 )
 
 // Handler handles HTTP requests for messages
@@ -344,6 +345,41 @@ func (h *Handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 // GetMessageVersions handles GET /messages/:id/versions
 func (h *Handler) GetMessageVersions(w http.ResponseWriter, r *http.Request) {
 	messageID := chi.URLParam(r, "id")
+
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Look up the message to find its channel, then verify access.
+	msg, err := h.service.GetMessage(r.Context(), messageID)
+	if err != nil {
+		httputil.JSONError(w, "message not found", http.StatusNotFound)
+		return
+	}
+
+	channelIDInt, _ := strconv.ParseInt(msg.ChannelID, 10, 64)
+	userIDInt, _ := strconv.ParseInt(userID, 10, 64)
+
+	ch, err := h.service.Repo().GetChannelByID(r.Context(), channelIDInt)
+	if err != nil {
+		httputil.JSONError(w, "channel not found", http.StatusNotFound)
+		return
+	}
+
+	srv, err := h.service.Repo().GetServerByID(r.Context(), ch.ServerID)
+	if err != nil {
+		httputil.JSONError(w, "server not found", http.StatusNotFound)
+		return
+	}
+
+	canView, err := permissions.HasChannelPermission(r.Context(), h.service.Repo(), ch.ServerID, userIDInt, srv.OwnerID, channelIDInt, permissions.PermViewChannel)
+	if err != nil || !canView {
+		httputil.JSONError(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
 	versions, err := h.service.GetMessageVersions(r.Context(), messageID)
 	if err != nil {
 		httputil.InternalError(w, err)
@@ -421,6 +457,40 @@ func (h *Handler) ToggleReaction(w http.ResponseWriter, r *http.Request) {
 	var req ToggleReactionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Emoji == "" {
 		httputil.JSONError(w, "emoji is required", http.StatusBadRequest)
+		return
+	}
+
+	// Look up message to find its channel, then verify ViewChannel + AddReactions.
+	msg, err := h.service.GetMessage(r.Context(), messageID)
+	if err != nil {
+		httputil.JSONError(w, "message not found", http.StatusNotFound)
+		return
+	}
+
+	channelIDInt, _ := strconv.ParseInt(msg.ChannelID, 10, 64)
+	userIDInt, _ := strconv.ParseInt(userID, 10, 64)
+
+	ch, err := h.service.Repo().GetChannelByID(r.Context(), channelIDInt)
+	if err != nil {
+		httputil.JSONError(w, "channel not found", http.StatusNotFound)
+		return
+	}
+
+	srv, err := h.service.Repo().GetServerByID(r.Context(), ch.ServerID)
+	if err != nil {
+		httputil.JSONError(w, "server not found", http.StatusNotFound)
+		return
+	}
+
+	canView, err := permissions.HasChannelPermission(r.Context(), h.service.Repo(), ch.ServerID, userIDInt, srv.OwnerID, channelIDInt, permissions.PermViewChannel)
+	if err != nil || !canView {
+		httputil.JSONError(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	canReact, err := permissions.HasChannelPermission(r.Context(), h.service.Repo(), ch.ServerID, userIDInt, srv.OwnerID, channelIDInt, permissions.PermAddReactions)
+	if err != nil || !canReact {
+		httputil.JSONError(w, "forbidden", http.StatusForbidden)
 		return
 	}
 

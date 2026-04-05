@@ -180,9 +180,9 @@ func (r *Repository) AdminSearchUsers(ctx context.Context, query string, limit, 
 			       banned_at, COALESCE(ban_reason,''), force_logout_at, is_system,
 			       COALESCE(registration_ip,''), COALESCE(last_seen_ip,''),
 			       created_at, updated_at
-			FROM users WHERE (username ILIKE $1 OR CAST(id AS TEXT) = $2) AND is_system = FALSE
+			FROM users WHERE (username ILIKE $1 ESCAPE '\' OR CAST(id AS TEXT) = $2) AND is_system = FALSE
 			ORDER BY created_at DESC LIMIT $3 OFFSET $4
-		`, "%"+query+"%", query, limit, offset)
+		`, "%"+escapeLike(query)+"%", query, limit, offset)
 	} else {
 		rows, err = r.db.QueryContext(ctx, `
 			SELECT id, username, COALESCE(email,''), password_hash, COALESCE(avatar_url,''), COALESCE(banner_url,''),
@@ -242,9 +242,9 @@ func (r *Repository) AdminGetBots(ctx context.Context, query string, limit, offs
 		LEFT JOIN users o ON o.id = b.bot_owner_id
 		WHERE b.is_bot = TRUE AND b.is_system = FALSE`
 	if query != "" {
-		rows, err = r.db.QueryContext(ctx, base+` AND (b.username ILIKE $1 OR CAST(b.id AS TEXT) = $2)
+		rows, err = r.db.QueryContext(ctx, base+` AND (b.username ILIKE $1 ESCAPE '\' OR CAST(b.id AS TEXT) = $2)
 			ORDER BY b.created_at DESC LIMIT $3 OFFSET $4`,
-			"%"+query+"%", query, limit, offset)
+			"%"+escapeLike(query)+"%", query, limit, offset)
 	} else {
 		rows, err = r.db.QueryContext(ctx, base+` ORDER BY b.created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
 	}
@@ -318,7 +318,7 @@ func (r *Repository) AdminGetServers(ctx context.Context, query string, limit, o
 	var rows *sql.Rows
 	var err error
 	if query != "" {
-		rows, err = r.db.QueryContext(ctx, `SELECT id, name, icon_url, owner_id, vanity_url, created_at, updated_at FROM servers WHERE name ILIKE $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`, "%"+query+"%", limit, offset)
+		rows, err = r.db.QueryContext(ctx, `SELECT id, name, icon_url, owner_id, vanity_url, created_at, updated_at FROM servers WHERE name ILIKE $1 ESCAPE '\' ORDER BY created_at DESC LIMIT $2 OFFSET $3`, "%"+escapeLike(query)+"%", limit, offset)
 	} else {
 		rows, err = r.db.QueryContext(ctx, `SELECT id, name, icon_url, owner_id, vanity_url, created_at, updated_at FROM servers ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
 	}

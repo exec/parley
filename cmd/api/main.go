@@ -28,6 +28,7 @@ import (
 	"parley/internal/email"
 	"parley/internal/message"
 	"parley/internal/passkey"
+	"parley/internal/permissions"
 	"parley/internal/server"
 	"parley/internal/spaces"
 	"parley/internal/voice"
@@ -219,12 +220,29 @@ func main() {
 		}
 
 		if isMember, ok := memberCache.GetMember(serverID, uID); ok {
-			return isMember
+			if !isMember {
+				return false
+			}
+		} else {
+			member, err := repo.GetMember(ctx, serverID, uID)
+			result := err == nil && member != nil
+			memberCache.SetMember(serverID, uID, result)
+			if !result {
+				return false
+			}
 		}
-		member, err := repo.GetMember(ctx, serverID, uID)
-		result := err == nil && member != nil
-		memberCache.SetMember(serverID, uID, result)
-		return result
+
+		// Verify ViewChannel permission — permission overwrites that deny
+		// ViewChannel must be enforced on the real-time path too.
+		srv, err := repo.GetServerByID(ctx, serverID)
+		if err != nil {
+			return false
+		}
+		canView, err := permissions.HasChannelPermission(ctx, repo, serverID, uID, srv.OwnerID, chID, permissions.PermViewChannel)
+		if err != nil || !canView {
+			return false
+		}
+		return true
 	})
 
 	// Set up Redis pub/sub for cross-node broadcasting (graceful fallback if unavailable)

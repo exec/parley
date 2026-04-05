@@ -9,6 +9,7 @@ import (
 	"parley/internal/audit"
 	"parley/internal/auth"
 	"parley/internal/httputil"
+	"parley/internal/permissions"
 )
 
 // Handler handles HTTP requests for channels
@@ -108,9 +109,32 @@ func (h *Handler) GetChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	ch, err := h.service.GetChannel(r.Context(), id)
 	if err != nil {
 		httputil.JSONError(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	// Verify server membership + ViewChannel permission
+	channelIDInt, _ := strconv.ParseInt(id, 10, 64)
+	serverIDInt, _ := strconv.ParseInt(ch.ServerID, 10, 64)
+	userIDInt, _ := strconv.ParseInt(userID, 10, 64)
+
+	srv, err := h.service.Repo().GetServerByID(r.Context(), serverIDInt)
+	if err != nil {
+		httputil.JSONError(w, "server not found", http.StatusNotFound)
+		return
+	}
+
+	canView, err := permissions.HasChannelPermission(r.Context(), h.service.Repo(), serverIDInt, userIDInt, srv.OwnerID, channelIDInt, permissions.PermViewChannel)
+	if err != nil || !canView {
+		httputil.JSONError(w, "forbidden", http.StatusForbidden)
 		return
 	}
 

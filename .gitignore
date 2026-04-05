@@ -50,3 +50,9 @@ terraform/proxmox/.terraform/
 terraform/proxmox/terraform.tfstate
 terraform/proxmox/terraform.tfstate.backup
 bench/parley-bench
+
+# Build artifacts / state that should never be committed
+/parley-bin
+/terraform.tfstate
+docs/node_modules/
+docs/.vitepress/dist/

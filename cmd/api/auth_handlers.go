@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"net"
 	"net/http"
@@ -232,7 +233,7 @@ func handleImpersonateToken(authService *auth.AuthService) http.HandlerFunc {
 		adminSecret := r.Header.Get("X-Admin-Secret")
 
 		expectedSecret := os.Getenv("ADMIN_IMPERSONATE_SECRET")
-		if expectedSecret == "" || adminSecret != expectedSecret {
+		if expectedSecret == "" || subtle.ConstantTimeCompare([]byte(adminSecret), []byte(expectedSecret)) != 1 {
 			jsonError(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}

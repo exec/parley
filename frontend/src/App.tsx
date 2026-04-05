@@ -285,15 +285,15 @@ function MainApp() {
   const isServerOwner = currentUser?.id === activeServer?.owner_id;
   const currentMember = members.find(m => m.user_id === currentUser?.id);
   const effectivePermissions = isServerOwner
-    ? ~0 // all bits set
-    : (currentMember?.roles ?? []).reduce((acc, role) => acc | (role.permissions ?? 0), 0);
+    ? ~0n // all bits set
+    : (currentMember?.roles ?? []).reduce((acc, role) => acc | BigInt(role.permissions ?? 0), 0n);
   // Bit 0 = Administrator, Bit 3 = ManageChannels, Bit 4 = KickMembers, Bit 5 = BanMembers
-  const canManageChannels = isServerOwner || (effectivePermissions & (1 | 8)) !== 0;
-  const canKickMembers = isServerOwner || (effectivePermissions & (1 | 16)) !== 0;
-  const canBanMembers = isServerOwner || (effectivePermissions & (1 | 32)) !== 0;
-  // PermMuteMembers = 1 << 34 — too large for bitwise int32, use BigInt comparison
-  const canMuteMembers = isServerOwner || (BigInt(effectivePermissions) & (BigInt(1) << BigInt(34))) !== BigInt(0);
-  const canKickFromVoice = isServerOwner || (BigInt(effectivePermissions) & (BigInt(1) << BigInt(36))) !== BigInt(0);
+  const canManageChannels = isServerOwner || (effectivePermissions & (1n | 8n)) !== 0n;
+  const canKickMembers = isServerOwner || (effectivePermissions & (1n | 16n)) !== 0n;
+  const canBanMembers = isServerOwner || (effectivePermissions & (1n | 32n)) !== 0n;
+  // PermMuteMembers = 1 << 34, PermKickFromVoice = 1 << 36
+  const canMuteMembers = isServerOwner || (effectivePermissions & (1n | (1n << 34n))) !== 0n;
+  const canKickFromVoice = isServerOwner || (effectivePermissions & (1n | (1n << 36n))) !== 0n;
 
   // Restore state from URL once servers are loaded
   useEffect(() => {

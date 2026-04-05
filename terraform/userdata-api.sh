@@ -167,6 +167,10 @@ cp -r dist/* /var/www/parley/
 
 # NSFW moderation sidecar is disabled — moved to dedicated box (TODO)
 
+# Create service user
+echo "=== Creating parley service user ==="
+useradd -r -s /bin/false parley
+
 # Create environment file
 echo "=== Creating environment configuration ==="
 mkdir -p /etc/parley
@@ -202,6 +206,7 @@ GIPHY_API_KEY=${GIPHY_API_KEY}
 EOF
 
 # Set proper permissions
+chown parley:parley /etc/parley/env
 chmod 600 /etc/parley/env
 
 # Create systemd service
@@ -213,7 +218,7 @@ After=network.target
 
 [Service]
 Type=simple
-User=root
+User=parley
 WorkingDirectory=/parley
 EnvironmentFile=/etc/parley/env
 ExecStartPre=/bin/sh -c 'until redis-cli -h ${REDIS_HOST} -a ${REDIS_PASSWORD} ping 2>/dev/null | grep -q PONG; do echo "Waiting for Redis..."; sleep 2; done'

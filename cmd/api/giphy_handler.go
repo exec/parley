@@ -35,7 +35,7 @@ func handleGiphySearch(w http.ResponseWriter, r *http.Request) {
 		"limit":   {limit},
 		"rating":  {rating},
 	}.Encode()
-	proxyGiphy(w, giphyURL)
+	proxyGiphy(w, r, giphyURL)
 }
 
 func handleGiphyTrending(w http.ResponseWriter, r *http.Request) {
@@ -50,11 +50,16 @@ func handleGiphyTrending(w http.ResponseWriter, r *http.Request) {
 		"limit":   {limit},
 		"rating":  {rating},
 	}.Encode()
-	proxyGiphy(w, giphyURL)
+	proxyGiphy(w, r, giphyURL)
 }
 
-func proxyGiphy(w http.ResponseWriter, giphyURL string) {
-	resp, err := http.Get(giphyURL) //nolint:noctx
+func proxyGiphy(w http.ResponseWriter, r *http.Request, giphyURL string) {
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, giphyURL, nil)
+	if err != nil {
+		http.Error(w, "giphy request failed", http.StatusBadGateway)
+		return
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		http.Error(w, "giphy request failed", http.StatusBadGateway)
 		return
@@ -62,5 +67,5 @@ func proxyGiphy(w http.ResponseWriter, giphyURL string) {
 	defer resp.Body.Close()
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(resp.StatusCode)
-	io.Copy(w, resp.Body) //nolint:errcheck
+	io.Copy(w, io.LimitReader(resp.Body, 2<<20)) //nolint:errcheck
 }

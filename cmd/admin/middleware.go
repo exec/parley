@@ -37,8 +37,17 @@ func adminAuthMiddleware(next http.Handler) http.Handler {
 			jsonError(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		adminID := int64(claims["admin_id"].(float64))
-		adminUsername := claims["username"].(string)
+		adminIDFloat, ok := claims["admin_id"].(float64)
+		if !ok {
+			jsonError(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		adminID := int64(adminIDFloat)
+		adminUsername, ok := claims["username"].(string)
+		if !ok {
+			jsonError(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
 		ctx := r.Context()
 		ctx = context.WithValue(ctx, adminIDKey, adminID)
 		ctx = context.WithValue(ctx, adminUsernameKey, adminUsername)

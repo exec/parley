@@ -1001,3 +1001,6 @@ func (s *MessageService) GetChannelMessagesAround(ctx context.Context, channelID
 	}
 	return out, nil
 }
+
+// Repo returns the underlying repository for direct DB access in handlers.
+func (s *MessageService) Repo() *db.Repository { return s.repo }

@@ -55,6 +55,9 @@ cp -r dist/* /var/www/parley-admin/
 DB_PASSWORD_ENCODED=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$${DB_PASSWORD}")
 DATABASE_URL="postgres://parley:$${DB_PASSWORD_ENCODED}@$${DB_HOST}:5432/parley?sslmode=disable"
 
+# Create service user
+useradd -r -s /bin/false parley
+
 # Environment file
 mkdir -p /etc/parley
 cat > /etc/parley/admin-env <<EOF
@@ -65,6 +68,7 @@ PARLEY_JWT_SECRET=$${PARLEY_JWT_SECRET}
 ADMIN_IMPERSONATE_SECRET=$${ADMIN_IMPERSONATE_SECRET}
 ADMIN_PORT=$${ADMIN_PORT}
 EOF
+chown parley:parley /etc/parley/admin-env
 chmod 600 /etc/parley/admin-env
 
 # Systemd service
@@ -75,7 +79,7 @@ After=network.target
 
 [Service]
 Type=simple
-User=root
+User=parley
 WorkingDirectory=/parley
 EnvironmentFile=/etc/parley/admin-env
 ExecStart=/usr/local/bin/parley-admin serve

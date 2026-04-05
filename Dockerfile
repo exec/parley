@@ -1,12 +1,14 @@
-FROM golang:1.25-alpine
+FROM golang:1.25-alpine AS builder
 WORKDIR /app
-
-# Cache module downloads as a separate layer
 COPY go.mod go.sum ./
 RUN go mod download
-
-# Source is bind-mounted at runtime; this COPY is only used when building
-# without a volume mount (e.g. docker build + docker run without -v)
 COPY . .
+RUN CGO_ENABLED=0 go build -o /parley-api ./cmd/api
 
-CMD ["go", "run", "./cmd/api"]
+FROM alpine:3.21
+RUN adduser -D -h /app parley
+WORKDIR /app
+COPY --from=builder /parley-api .
+USER parley
+EXPOSE 8080
+CMD ["./parley-api"]
