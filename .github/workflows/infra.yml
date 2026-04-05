@@ -248,15 +248,16 @@ jobs:
             terraform import digitalocean_loadbalancer.parley_lb "$LB_ID" || true
           fi
 
-          # Firewalls
+          # Firewalls — DO names map to TF resource names
           FW_LIST=$(curl -sf -H "Authorization: Bearer $DO_TOKEN" \
             "https://api.digitalocean.com/v2/firewalls?per_page=50")
-          for FW_NAME in parley-api-fw parley-db-fw parley-admin-fw; do
-            FW_ID=$(echo "$FW_LIST" | jq -r --arg n "$FW_NAME" '.firewalls[] | select(.name == $n) | .id')
+          for pair in "parley-api-fw:parley_api" "parley-db-fw:parley_db" "parley-admin-fw:parley_admin"; do
+            FW_DO_NAME="${pair%%:*}"
+            FW_TF_NAME="${pair##*:}"
+            FW_ID=$(echo "$FW_LIST" | jq -r --arg n "$FW_DO_NAME" '.firewalls[] | select(.name == $n) | .id')
             if [ -n "$FW_ID" ]; then
-              TF_NAME=$(echo "$FW_NAME" | sed 's/-/_/g')
-              echo "Importing firewall $FW_NAME: $FW_ID"
-              terraform import "digitalocean_firewall.${TF_NAME}" "$FW_ID" || true
+              echo "Importing firewall $FW_DO_NAME -> $FW_TF_NAME: $FW_ID"
+              terraform import "digitalocean_firewall.${FW_TF_NAME}" "$FW_ID" || true
             fi
           done
 
