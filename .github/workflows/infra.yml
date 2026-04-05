@@ -117,18 +117,33 @@ jobs:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_API_KEY }}
           DOMAIN: ${{ vars.DOMAIN }}
         run: |
-          CF_ZONE=$(curl -sf \
+          # Fetch zones — capture HTTP status for debugging
+          HTTP_CODE=$(curl -s -o /tmp/cf_zones.json -w "%{http_code}" \
             -H "Authorization: Bearer $CF_TOKEN" \
-            "https://api.cloudflare.com/client/v4/zones?per_page=100" \
-            | jq -r --arg d "$DOMAIN" \
-              '.result[] | select($d == .name or ($d | endswith("." + .name))) | .name' \
-            | head -1)
+            "https://api.cloudflare.com/client/v4/zones?per_page=100")
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "ERROR: Cloudflare API returned HTTP $HTTP_CODE"
+            echo "Response:"
+            jq '.errors // .messages // "unknown error"' /tmp/cf_zones.json 2>/dev/null || cat /tmp/cf_zones.json
+            echo ""
+            echo "Check that CLOUDFLARE_API_KEY is a valid API Token with Zone:Read permission."
+            exit 1
+          fi
+
+          CF_ZONE=$(jq -r --arg d "$DOMAIN" \
+            '.result[] | select($d == .name or ($d | endswith("." + .name))) | .name' \
+            /tmp/cf_zones.json | head -1)
+
           if [ -z "$CF_ZONE" ]; then
-            echo "ERROR: No Cloudflare zone found for $DOMAIN — ensure the domain is in your CF account"
+            echo "ERROR: No Cloudflare zone found matching $DOMAIN"
+            echo "Available zones:"
+            jq -r '.result[].name' /tmp/cf_zones.json 2>/dev/null || echo "(none)"
             exit 1
           fi
           echo "Resolved zone: $CF_ZONE"
           echo "TF_VAR_cf_zone=$CF_ZONE" >> "$GITHUB_ENV"
+          rm -f /tmp/cf_zones.json
 
       - name: Terraform Init
         env:

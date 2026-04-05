@@ -105,12 +105,14 @@ echo "=== Installing Node.js ==="
 curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
 run_with_retry "apt-get install -y nodejs"
 
-# Install Go from go.dev (same version as userdata-admin.sh — apt golang-go is too old)
+# Install Go from go.dev (must match go.mod toolchain version)
 echo "=== Installing Go ==="
-if ! command -v go &>/dev/null; then
-    curl -sLO https://go.dev/dl/go1.23.4.linux-amd64.tar.gz
-    tar -C /usr/local -xzf go1.23.4.linux-amd64.tar.gz
-    rm go1.23.4.linux-amd64.tar.gz
+GO_VERSION="1.25.0"
+if ! go version 2>/dev/null | grep -q "go${GO_VERSION}"; then
+    rm -rf /usr/local/go
+    curl -sLO "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz"
+    tar -C /usr/local -xzf "go${GO_VERSION}.linux-amd64.tar.gz"
+    rm "go${GO_VERSION}.linux-amd64.tar.gz"
 fi
 
 # Redis runs on the DB node - skip local install

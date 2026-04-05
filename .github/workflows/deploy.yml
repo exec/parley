@@ -76,6 +76,15 @@ jobs:
           for IP in $API_HOSTS; do
             ssh -i ~/.ssh/deploy_key root@$IP "
               set -e
+              # Ensure Go version matches go.mod
+              GO_VERSION=1.25.0
+              if ! /usr/local/go/bin/go version 2>/dev/null | grep -q go\${GO_VERSION}; then
+                rm -rf /usr/local/go
+                curl -sLO https://go.dev/dl/go\${GO_VERSION}.linux-amd64.tar.gz
+                tar -C /usr/local -xzf go\${GO_VERSION}.linux-amd64.tar.gz
+                rm go\${GO_VERSION}.linux-amd64.tar.gz
+              fi
+              export PATH=/usr/local/go/bin:\$PATH
               cd /parley && git pull origin main
               go build -mod=mod -o /usr/local/bin/parley-api ./cmd/api
               cd frontend
@@ -100,7 +109,15 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key root@$ADMIN_HOST "
             set -e
-            export PATH=\$PATH:/usr/local/go/bin
+            # Ensure Go version matches go.mod
+            GO_VERSION=1.25.0
+            if ! /usr/local/go/bin/go version 2>/dev/null | grep -q go\${GO_VERSION}; then
+              rm -rf /usr/local/go
+              curl -sLO https://go.dev/dl/go\${GO_VERSION}.linux-amd64.tar.gz
+              tar -C /usr/local -xzf go\${GO_VERSION}.linux-amd64.tar.gz
+              rm go\${GO_VERSION}.linux-amd64.tar.gz
+            fi
+            export PATH=/usr/local/go/bin:\$PATH
             cd /parley && git pull origin main
             go build -mod=mod -o /usr/local/bin/parley-admin ./cmd/admin
             cd /parley/admin-frontend

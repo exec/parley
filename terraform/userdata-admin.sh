@@ -17,11 +17,13 @@ echo "=== Starting Parley Admin setup ==="
 apt-get update -y
 apt-get install -y git curl nginx
 
-# Install Go
-if ! command -v go &>/dev/null; then
-  curl -sLO https://go.dev/dl/go1.23.4.linux-amd64.tar.gz
-  tar -C /usr/local -xzf go1.23.4.linux-amd64.tar.gz
-  rm go1.23.4.linux-amd64.tar.gz
+# Install Go (must match go.mod toolchain version)
+GO_VERSION="1.25.0"
+if ! go version 2>/dev/null | grep -q "go${GO_VERSION}"; then
+  rm -rf /usr/local/go
+  curl -sLO "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz"
+  tar -C /usr/local -xzf "go${GO_VERSION}.linux-amd64.tar.gz"
+  rm "go${GO_VERSION}.linux-amd64.tar.gz"
 fi
 export PATH=$PATH:/usr/local/go/bin
 export HOME=/root
