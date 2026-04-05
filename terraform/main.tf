@@ -30,6 +30,15 @@ provider "digitalocean" {
   token = var.do_token
 }
 
+# AWS provider is implicitly loaded by the S3 backend (DO Spaces).
+# DO Spaces keys are not real AWS credentials, so skip all AWS validation.
+provider "aws" {
+  region                      = "us-east-1"
+  skip_credentials_validation = true
+  skip_metadata_api_check     = true
+  skip_requesting_account_id  = true
+}
+
 # Get the existing project if it exists, or create a new one
 resource "digitalocean_project" "parley_project" {
   name        = "parley-infrastructure"
