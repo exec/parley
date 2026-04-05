@@ -84,13 +84,13 @@ jobs:
         working-directory: frontend
         run: |
           echo "VITE_SITE_URL=https://${{ vars.DOMAIN }}" > .env
-          npm ci --no-audit --no-fund
+          npm ci
           npm run build
 
       - name: Build admin frontend
         working-directory: admin-frontend
         run: |
-          npm ci --no-audit --no-fund
+          npm ci
           npm run build
 
       - name: Deploy API servers
