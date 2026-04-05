@@ -13,6 +13,7 @@ on:
           - apply
           - destroy
           - import
+          - backup-db
   push:
     branches: [main]
     paths:
@@ -79,9 +80,9 @@ jobs:
 
       # Terraform variables — non-sensitive
       TF_VAR_region: "nyc3"
-      TF_VAR_api_droplet_size: "s-2vcpu-2gb"
-      TF_VAR_db_droplet_size: "s-2vcpu-4gb"
-      TF_VAR_api_count: "3"
+      TF_VAR_api_droplet_size: "s-1vcpu-1gb"
+      TF_VAR_db_droplet_size: "s-1vcpu-2gb"
+      TF_VAR_api_count: "2"
       TF_VAR_domain_name: ${{ vars.DOMAIN }}
       TF_VAR_spaces_bucket: "parley-prod"
       TF_VAR_spaces_endpoint: "https://nyc3.digitaloceanspaces.com"
@@ -262,3 +263,61 @@ jobs:
           done
 
           echo "=== Import complete. Run 'plan' to see drift. ==="
+
+      - name: Backup database
+        if: github.event.inputs.action == 'backup-db'
+        env:
+          DO_TOKEN: ${{ secrets.DO_TOKEN }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          # Find DB server IP
+          DB_IP=$(curl -sf -H "Authorization: Bearer $DO_TOKEN" \
+            "https://api.digitalocean.com/v2/droplets?tag_name=parley&per_page=50" \
+            | jq -r '.droplets[] | select(.tags | contains(["database"])) | .networks.v4[] | select(.type=="public") | .ip_address')
+
+          if [ -z "$DB_IP" ]; then
+            echo "ERROR: Could not find DB droplet"
+            exit 1
+          fi
+          echo "DB server: $DB_IP"
+
+          # Allowlist runner IP in DB firewall
+          RUNNER_IP=$(curl -sf https://ifconfig.me)/32
+          FW_DB_ID=$(curl -sf -H "Authorization: Bearer $DO_TOKEN" \
+            "https://api.digitalocean.com/v2/firewalls?per_page=50" \
+            | jq -r '.firewalls[] | select(.name == "parley-db-fw") | .id')
+
+          RULE=$(jq -n --arg ip "$RUNNER_IP" '{
+            "inbound_rules": [{"protocol": "tcp", "ports": "22", "sources": {"addresses": [$ip]}}]
+          }')
+          curl -sf -X POST -H "Authorization: Bearer $DO_TOKEN" \
+            -H "Content-Type: application/json" -d "$RULE" \
+            "https://api.digitalocean.com/v2/firewalls/$FW_DB_ID/rules"
+          sleep 5
+
+          # SSH in and dump
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$DB_IP" >> ~/.ssh/known_hosts
+
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          echo "=== Running pg_dump ==="
+          ssh -i ~/.ssh/deploy_key "root@$DB_IP" \
+            "sudo -u postgres pg_dump -Fc parley" > "parley-${TIMESTAMP}.dump"
+
+          SIZE=$(du -h "parley-${TIMESTAMP}.dump" | cut -f1)
+          echo "Backup complete: parley-${TIMESTAMP}.dump ($SIZE)"
+
+          # Upload to Spaces
+          echo "=== Uploading to DO Spaces ==="
+          aws s3 cp "parley-${TIMESTAMP}.dump" \
+            "s3://parley-prod/backups/parley-${TIMESTAMP}.dump" \
+            --endpoint-url https://nyc3.digitaloceanspaces.com
+          echo "Uploaded to s3://parley-prod/backups/parley-${TIMESTAMP}.dump"
+
+          # Clean up firewall rule
+          curl -sf -X DELETE -H "Authorization: Bearer $DO_TOKEN" \
+            -H "Content-Type: application/json" -d "$RULE" \
+            "https://api.digitalocean.com/v2/firewalls/$FW_DB_ID/rules" || true
+          rm -f ~/.ssh/deploy_key

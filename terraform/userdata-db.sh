@@ -75,25 +75,25 @@ if [ -n "$PG_CONF" ]; then
     fi
 
     echo "=== Tuning PostgreSQL max_connections ==="
-    sed -i "s/^#*max_connections.*/max_connections = 150/" "$PG_CONF"
-    # Shared buffers: 25% of RAM (4GB droplet → 1GB)
-    sed -i "s/^#*shared_buffers.*/shared_buffers = 1GB/" "$PG_CONF"
+    sed -i "s/^#*max_connections.*/max_connections = 100/" "$PG_CONF"
+    # Shared buffers: 25% of RAM (2GB droplet → 512MB)
+    sed -i "s/^#*shared_buffers.*/shared_buffers = 512MB/" "$PG_CONF"
     # Effective cache size: 75% of RAM
-    sed -i "s/^#*effective_cache_size.*/effective_cache_size = 3GB/" "$PG_CONF"
+    sed -i "s/^#*effective_cache_size.*/effective_cache_size = 1500MB/" "$PG_CONF"
     # Work memory for sort operations
     sed -i "s/^#*work_mem.*/work_mem = 4MB/" "$PG_CONF"
     # Huge pages: let Postgres use them if the kernel has them available.
-    # With 1GB shared_buffers, huge pages save ~500 TLB entries and reduce
+    # With 512MB shared_buffers, huge pages save TLB entries and reduce
     # kernel memory overhead. "try" falls back gracefully if unavailable.
     sed -i "s/^#*huge_pages.*/huge_pages = try/" "$PG_CONF"
 fi
 
-# Enable huge pages in the kernel (2MB pages; 512 pages covers 1GB shared_buffers).
+# Enable huge pages in the kernel (2MB pages; 256 pages covers 512MB shared_buffers).
 # Guard with || true: if the kernel lacks huge pages support (e.g. cloud kernels),
 # sysctl -w returns non-zero and would abort this set -e script unnecessarily.
 # PostgreSQL's huge_pages=try already falls back gracefully.
-echo "vm.nr_hugepages=512" >> /etc/sysctl.conf
-sysctl -w vm.nr_hugepages=512 || true
+echo "vm.nr_hugepages=256" >> /etc/sysctl.conf
+sysctl -w vm.nr_hugepages=256 || true
 
 # Install Redis for cross-node WebSocket broadcasting
 echo "=== Installing Redis ==="
@@ -167,8 +167,8 @@ auth_file = /etc/pgbouncer/userlist.txt
 # lib/pq uses extended query protocol (prepared statements) which causes
 # "bind message supplies N parameters but prepared statement requires M" errors
 # in transaction mode when connections are reused across different clients.
-# 3 API nodes × 25 Go pool connections = 75 server connections; well under
-# PostgreSQL's max_connections = 150.
+# 2 API nodes × 25 Go pool connections = 50 server connections; well under
+# PostgreSQL's max_connections = 100.
 pool_mode = session
 # lib/pq sends extra_float_digits as a startup parameter; PgBouncer rejects
 # unknown startup params unless explicitly ignored.

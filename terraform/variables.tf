@@ -13,13 +13,13 @@ variable "region" {
 variable "api_droplet_size" {
   description = "Droplet size for API servers"
   type        = string
-  default     = "s-2vcpu-2gb"
+  default     = "s-1vcpu-1gb"
 }
 
 variable "db_droplet_size" {
   description = "Droplet size for database server"
   type        = string
-  default     = "s-2vcpu-4gb"
+  default     = "s-1vcpu-2gb"
 }
 
 variable "domain_name" {
@@ -35,7 +35,7 @@ variable "cf_zone" {
 variable "api_count" {
   description = "Number of API droplets"
   type        = number
-  default     = 3
+  default     = 2
 }
 
 variable "ssh_private_key" {
