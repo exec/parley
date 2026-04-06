@@ -50,8 +50,12 @@ EOF
 # Configure PostgreSQL to accept connections from API droplets
 echo "=== Configuring PostgreSQL for remote connections ==="
 
-# Get the private IP of this database server
-DB_PRIVATE_IP=$(hostname -I | awk '{print $1}')
+# Get the VPC private IP of this database server (10.x.x.x on DO, 192.168.x.x on Proxmox)
+DB_PRIVATE_IP=$(hostname -I | tr ' ' '\n' | grep -E '^10\.|^192\.168\.' | head -1)
+if [ -z "$DB_PRIVATE_IP" ]; then
+  DB_PRIVATE_IP=$(hostname -I | awk '{print $1}')
+  echo "WARNING: Could not find VPC IP, falling back to $DB_PRIVATE_IP"
+fi
 echo "Database private IP: $DB_PRIVATE_IP"
 
 # Update pg_hba.conf to allow connections from the local subnet
