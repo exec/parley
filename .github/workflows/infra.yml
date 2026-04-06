@@ -14,6 +14,7 @@ on:
           - destroy
           - import
           - backup-db
+          - restore-db
           - diagnose
   push:
     branches: [main]
@@ -340,4 +341,62 @@ jobs:
           curl -sf -X DELETE -H "Authorization: Bearer $DO_TOKEN" \
             -H "Content-Type: application/json" -d "$RULE" \
             "https://api.digitalocean.com/v2/firewalls/$FW_DB_ID/rules" || true
+          rm -f ~/.ssh/deploy_key
+
+      - name: Restore database from latest backup
+        if: github.event.inputs.action == 'restore-db'
+        env:
+          DO_TOKEN: ${{ secrets.DO_TOKEN }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          SPACES_ACCESS_KEY: ${{ secrets.SPACES_ACCESS_KEY }}
+          SPACES_SECRET_KEY: ${{ secrets.SPACES_SECRET_KEY }}
+        run: |
+          # Find an API server to use as jump host (has Spaces creds + DB access)
+          API_IP=$(curl -sf -H "Authorization: Bearer $DO_TOKEN" \
+            "https://api.digitalocean.com/v2/droplets?tag_name=parley&per_page=50" \
+            | jq -r '.droplets[] | select(.tags | contains(["api"])) | .networks.v4[] | select(.type=="public") | .ip_address' | head -1)
+          echo "Using API server: $API_IP"
+
+          # Allowlist runner
+          RUNNER_IP=$(curl -sf https://ifconfig.me)/32
+          FW_API_ID=$(curl -sf -H "Authorization: Bearer $DO_TOKEN" \
+            "https://api.digitalocean.com/v2/firewalls?per_page=50" \
+            | jq -r '.firewalls[] | select(.name == "parley-api-fw") | .id')
+          RULE=$(jq -n --arg ip "$RUNNER_IP" '{"inbound_rules": [{"protocol": "tcp", "ports": "22", "sources": {"addresses": [$ip]}}]}')
+          curl -sf -X POST -H "Authorization: Bearer $DO_TOKEN" -H "Content-Type: application/json" -d "$RULE" "https://api.digitalocean.com/v2/firewalls/$FW_API_ID/rules"
+          sleep 5
+
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "StrictHostKeyChecking accept-new" >> ~/.ssh/config
+          ssh-keyscan -H "$API_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+          # Find latest backup
+          LATEST=$(AWS_ACCESS_KEY_ID=$SPACES_ACCESS_KEY AWS_SECRET_ACCESS_KEY=$SPACES_SECRET_KEY \
+            aws s3 ls s3://parley-prod/backups/ --endpoint-url https://nyc3.digitaloceanspaces.com \
+            | sort | tail -1 | awk '{print $4}')
+          echo "Restoring: $LATEST"
+
+          # SSH to API server, download backup, restore to DB
+          ssh -i ~/.ssh/deploy_key root@$API_IP "bash -s" <<RESTORESCRIPT
+            set -e
+            export AWS_ACCESS_KEY_ID=$SPACES_ACCESS_KEY
+            export AWS_SECRET_ACCESS_KEY=$SPACES_SECRET_KEY
+            echo "=== Downloading $LATEST ==="
+            aws s3 cp "s3://parley-prod/backups/$LATEST" /tmp/parley-restore.dump \
+              --endpoint-url https://nyc3.digitaloceanspaces.com
+            echo "=== Installing pg tools ==="
+            which pg_restore > /dev/null 2>&1 || apt-get install -y postgresql-client > /dev/null 2>&1
+            echo "=== Restoring ==="
+            DB_URL=\$(grep ^DATABASE_URL= /etc/parley/env | cut -d= -f2-)
+            pg_restore --clean --if-exists -d "\$DB_URL" /tmp/parley-restore.dump 2>&1 | tail -10 || true
+            echo "=== Verifying ==="
+            psql "\$DB_URL" -c "SELECT count(*) AS user_count FROM users;" 2>&1
+            rm -f /tmp/parley-restore.dump
+            echo "=== Restore complete ==="
+          RESTORESCRIPT
+
+          # Cleanup
+          curl -sf -X DELETE -H "Authorization: Bearer $DO_TOKEN" -H "Content-Type: application/json" -d "$RULE" "https://api.digitalocean.com/v2/firewalls/$FW_API_ID/rules" || true
           rm -f ~/.ssh/deploy_key
