@@ -110,23 +110,7 @@ jobs:
                 set -e
                 # Ensure systemd service exists (cloud-init may have failed on small instances)
                 if [ ! -f /etc/systemd/system/parley-api.service ]; then
-                  cat > /etc/systemd/system/parley-api.service <<SVCEOF
-[Unit]
-Description=Parley API
-After=network.target
-
-[Service]
-Type=simple
-User=root
-EnvironmentFile=/etc/parley/env
-ExecStart=/usr/local/bin/parley-api
-Restart=always
-RestartSec=5
-LimitNOFILE=65536
-
-[Install]
-WantedBy=multi-user.target
-SVCEOF
+                  printf '[Unit]\nDescription=Parley API\nAfter=network.target\n\n[Service]\nType=simple\nUser=root\nEnvironmentFile=/etc/parley/env\nExecStart=/usr/local/bin/parley-api\nRestart=always\nRestartSec=5\nLimitNOFILE=65536\n\n[Install]\nWantedBy=multi-user.target\n' > /etc/systemd/system/parley-api.service
                   systemctl daemon-reload
                   systemctl enable parley-api
                 fi
