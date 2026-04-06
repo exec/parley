@@ -372,10 +372,10 @@ jobs:
           echo "StrictHostKeyChecking accept-new" >> ~/.ssh/config
           ssh-keyscan -H "$API_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
 
-          # Find latest backup
+          # Find largest backup (most likely the one with real data)
           LATEST=$(AWS_ACCESS_KEY_ID=$SPACES_ACCESS_KEY AWS_SECRET_ACCESS_KEY=$SPACES_SECRET_KEY \
             aws s3 ls s3://parley-prod/backups/ --endpoint-url https://nyc3.digitaloceanspaces.com \
-            | sort | tail -1 | awk '{print $4}')
+            | sort -k3 -n -r | head -1 | awk '{print $4}')
           echo "Restoring: $LATEST"
 
           # SSH to API server, download backup, restore to DB
