@@ -16,10 +16,11 @@ on:
           - backup-db
           - restore-db
           - diagnose
-  push:
-    branches: [main]
-    paths:
-      - "terraform/**"
+  # Disabled auto-apply on push — use manual triggers only
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - "terraform/**"
 
 # Required GitHub secrets (set via gh secret set or the Actions UI):
 #
