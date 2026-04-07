@@ -19,6 +19,7 @@ interface ServerMember {
   nickname?: string;
   avatar_url?: string;
   banner_url?: string;
+  badges?: number;
   roles?: Role[];
   is_bot?: boolean;
   bot_degraded?: boolean;
@@ -314,7 +315,7 @@ const UserSidebar: React.FC<UserSidebarProps> = ({
         <UserContextMenu
           member={contextMenu.member}
           isCurrentUser={contextMenu.member.user_id === currentUserId}
-          isOwner={contextMenu.member.user_id === ownerId}
+          isOwner={contextMenu.member.user_id === ownerId || ((contextMenu.member.badges ?? 0) & 2) !== 0}
           canManageRoles={currentUserIsOwner === true || canKickMembers === true}
           canKickMembers={canKickMembers}
           canBanMembers={canBanMembers}

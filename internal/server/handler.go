@@ -976,6 +976,12 @@ func (h *Handler) KickMember(w http.ResponseWriter, r *http.Request) {
 		httputil.JSONError(w, "cannot kick the server owner", http.StatusForbidden)
 		return
 	}
+	if targetIDInt, err := strconv.ParseInt(targetUserID, 10, 64); err == nil {
+		if badges, err := h.service.Repo().GetUserBadges(r.Context(), targetIDInt); err == nil && badges&db.BadgeAdmin != 0 {
+			httputil.JSONError(w, "cannot kick a Parley Admin", http.StatusForbidden)
+			return
+		}
+	}
 	_, allowed, err := h.service.CanKick(r.Context(), serverID, currentUserID)
 	if err != nil {
 		httputil.InternalError(w, err)
@@ -1025,6 +1031,12 @@ func (h *Handler) BanMember(w http.ResponseWriter, r *http.Request) {
 	if targetUserID == server.OwnerID {
 		httputil.JSONError(w, "cannot ban the server owner", http.StatusForbidden)
 		return
+	}
+	if targetIDInt, err := strconv.ParseInt(targetUserID, 10, 64); err == nil {
+		if badges, err := h.service.Repo().GetUserBadges(r.Context(), targetIDInt); err == nil && badges&db.BadgeAdmin != 0 {
+			httputil.JSONError(w, "cannot ban a Parley Admin", http.StatusForbidden)
+			return
+		}
 	}
 	_, allowed, err := h.service.CanBan(r.Context(), serverID, currentUserID)
 	if err != nil {

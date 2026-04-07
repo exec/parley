@@ -283,8 +283,9 @@ function MainApp() {
 
   // Compute effective permissions from the current user's roles in the active server
   const isServerOwner = currentUser?.id === activeServer?.owner_id;
+  const isParleyAdmin = ((currentUser?.badges ?? 0) & 2) !== 0;
   const currentMember = members.find(m => m.user_id === currentUser?.id);
-  const effectivePermissions = isServerOwner
+  const effectivePermissions = (isServerOwner || isParleyAdmin)
     ? ~0n // all bits set
     : (currentMember?.roles ?? []).reduce((acc, role) => acc | BigInt(role.permissions ?? 0), 0n);
   // Bit 0 = Administrator, Bit 3 = ManageChannels, Bit 4 = KickMembers, Bit 5 = BanMembers

@@ -135,6 +135,14 @@ func (r *Repository) GetUsernameByID(ctx context.Context, userID int64) (string,
 	return username, nil
 }
 
+// GetUserBadges returns the badges bitmask for a user.
+func (r *Repository) GetUserBadges(ctx context.Context, userID int64) (int, error) {
+	var badges int
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COALESCE(badges, 0) FROM users WHERE id=$1`, userID).Scan(&badges)
+	return badges, err
+}
+
 // GetServerRoleByID fetches a single role by ID (used for role.update before-snapshot).
 func (r *Repository) GetServerRoleByID(ctx context.Context, roleID int64) (*ServerRole, error) {
 	row := r.db.QueryRowContext(ctx,

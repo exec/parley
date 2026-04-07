@@ -150,9 +150,16 @@ func HasPerm(perms int64, perm int64) bool {
 }
 
 // GetEffectivePermissions returns computed base permissions for a user in a server.
-// If the user is the server owner or has PermAdministrator, all bits are set.
+// If the user is the server owner, a Parley Admin, or has PermAdministrator, all bits are set.
 func GetEffectivePermissions(ctx context.Context, repo *db.Repository, serverID, userID, ownerID int64) (int64, error) {
 	isOwner := userID == ownerID
+
+	// Parley Admins get full permissions in every server.
+	if !isOwner {
+		if badges, err := repo.GetUserBadges(ctx, userID); err == nil && badges&db.BadgeAdmin != 0 {
+			return PermAllPermissions, nil
+		}
+	}
 
 	everyoneRole, err := repo.GetEveryoneRole(ctx, serverID)
 	if err != nil {

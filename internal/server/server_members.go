@@ -366,11 +366,15 @@ func (s *ServerService) GetMyPermissions(ctx context.Context, serverID, userID s
 	if isOwner {
 		return ^int64(0), true, nil
 	}
-	sID, _ := idToInt64(serverID)
 	uID, err := idToInt64(userID)
 	if err != nil {
 		return 0, false, errors.New("invalid user ID")
 	}
+	// Parley Admins get full permissions in every server.
+	if badges, err := s.repo.GetUserBadges(ctx, uID); err == nil && badges&db.BadgeAdmin != 0 {
+		return ^int64(0), false, nil
+	}
+	sID, _ := idToInt64(serverID)
 	ownerID, _ := idToInt64(srv.OwnerID)
 	perms, err := permissions.GetEffectivePermissions(ctx, s.repo, sID, uID, ownerID)
 	if err != nil {
