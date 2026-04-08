@@ -63,8 +63,18 @@ func (s *ServerService) DeleteServerRole(ctx context.Context, serverID, roleID s
 	if err != nil {
 		return errors.New("invalid role ID")
 	}
+	// Fetch members with this role BEFORE deleting, so we can invalidate their
+	// cached permissions after the role is removed.
+	affectedMembers, _ := s.repo.GetMembersByRole(ctx, sID, rID)
+
 	if err := s.repo.DeleteServerRole(ctx, sID, rID); err != nil {
 		return err
+	}
+	// Invalidate cached permission entries for all members who had this role.
+	if s.memberCache != nil {
+		for _, m := range affectedMembers {
+			s.memberCache.InvalidatePermsForUser(sID, m.UserID)
+		}
 	}
 	// Clean up all permission overwrites that reference this role.
 	// target_type 0 = role overwrite.
@@ -117,11 +127,16 @@ func (s *ServerService) UpdateServerRole(ctx context.Context, serverID, roleID, 
 	}
 	// Broadcast MEMBER_ROLE_UPDATE to each member who has this role so their
 	// frontend re-fetches channel permissions with the updated role data.
+	// Also invalidate cached permission entries so that subsequent server-side
+	// checks reflect the updated role permissions immediately.
 	members, err := s.repo.GetMembersByRole(ctx, serverIDInt, roleIDInt)
 	if err == nil {
 		for _, m := range members {
 			uIDStr := int64ToID(m.UserID)
 			s.broadcastRoleUpdate(ctx, serverID, uIDStr, serverIDInt, m.UserID)
+			if s.memberCache != nil {
+				s.memberCache.InvalidatePermsForUser(serverIDInt, m.UserID)
+			}
 		}
 	}
 	if beforeRole != nil {
