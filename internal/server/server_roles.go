@@ -66,7 +66,10 @@ func (s *ServerService) DeleteServerRole(ctx context.Context, serverID, roleID s
 	}
 	// Fetch members with this role BEFORE deleting, so we can invalidate their
 	// cached permissions after the role is removed.
-	affectedMembers, _ := s.repo.GetMembersByRole(ctx, sID, rID)
+	affectedMembers, err := s.repo.GetMembersByRole(ctx, sID, rID)
+	if err != nil {
+		log.Printf("warning: failed to fetch members for cache invalidation on role %d: %v", rID, err)
+	}
 
 	if err := s.repo.DeleteServerRole(ctx, sID, rID); err != nil {
 		return err
