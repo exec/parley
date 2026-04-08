@@ -614,10 +614,10 @@ func (h *Handler) CreateServerRole(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, role)
 }
 
-// DeleteServerRole handles DELETE /servers/:id/roles/:roleId
+// DeleteServerRole handles DELETE /servers/:id/roles/:roleID
 func (h *Handler) DeleteServerRole(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "id")
-	roleID := chi.URLParam(r, "roleId")
+	roleID := chi.URLParam(r, "roleID")
 
 	userID := auth.GetUserIDFromContext(r)
 	if userID == "" {
@@ -678,10 +678,10 @@ func (h *Handler) DeleteServerRole(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// UpdateServerRole handles PATCH /servers/:id/roles/:roleId
+// UpdateServerRole handles PATCH /servers/:id/roles/:roleID
 func (h *Handler) UpdateServerRole(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "id")
-	roleID := chi.URLParam(r, "roleId")
+	roleID := chi.URLParam(r, "roleID")
 
 	userID := auth.GetUserIDFromContext(r)
 	if userID == "" {
@@ -849,11 +849,11 @@ func (h *Handler) AssignRoleToMember(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// RemoveRoleFromMember handles DELETE /servers/:id/members/:userId/roles/:roleId
+// RemoveRoleFromMember handles DELETE /servers/:id/members/:userID/roles/:roleID
 func (h *Handler) RemoveRoleFromMember(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "id")
 	targetUserID := chi.URLParam(r, "userID")
-	roleID := chi.URLParam(r, "roleId")
+	roleID := chi.URLParam(r, "roleID")
 
 	userID := auth.GetUserIDFromContext(r)
 	if userID == "" {
@@ -976,11 +976,19 @@ func (h *Handler) KickMember(w http.ResponseWriter, r *http.Request) {
 		httputil.JSONError(w, "cannot kick the server owner", http.StatusForbidden)
 		return
 	}
-	if targetIDInt, err := strconv.ParseInt(targetUserID, 10, 64); err == nil {
-		if badges, err := h.service.Repo().GetUserBadges(r.Context(), targetIDInt); err == nil && badges&db.BadgeAdmin != 0 {
-			httputil.JSONError(w, "cannot kick a Parley Admin", http.StatusForbidden)
-			return
-		}
+	targetIDInt, err := strconv.ParseInt(targetUserID, 10, 64)
+	if err != nil {
+		httputil.JSONError(w, "invalid user ID", http.StatusBadRequest)
+		return
+	}
+	badges, err := h.service.Repo().GetUserBadges(r.Context(), targetIDInt)
+	if err != nil {
+		httputil.InternalError(w, err)
+		return
+	}
+	if badges&db.BadgeAdmin != 0 {
+		httputil.JSONError(w, "cannot kick a Parley Admin", http.StatusForbidden)
+		return
 	}
 	_, allowed, err := h.service.CanKick(r.Context(), serverID, currentUserID)
 	if err != nil {
@@ -1032,11 +1040,19 @@ func (h *Handler) BanMember(w http.ResponseWriter, r *http.Request) {
 		httputil.JSONError(w, "cannot ban the server owner", http.StatusForbidden)
 		return
 	}
-	if targetIDInt, err := strconv.ParseInt(targetUserID, 10, 64); err == nil {
-		if badges, err := h.service.Repo().GetUserBadges(r.Context(), targetIDInt); err == nil && badges&db.BadgeAdmin != 0 {
-			httputil.JSONError(w, "cannot ban a Parley Admin", http.StatusForbidden)
-			return
-		}
+	targetIDInt, err := strconv.ParseInt(targetUserID, 10, 64)
+	if err != nil {
+		httputil.JSONError(w, "invalid user ID", http.StatusBadRequest)
+		return
+	}
+	badges, err := h.service.Repo().GetUserBadges(r.Context(), targetIDInt)
+	if err != nil {
+		httputil.InternalError(w, err)
+		return
+	}
+	if badges&db.BadgeAdmin != 0 {
+		httputil.JSONError(w, "cannot ban a Parley Admin", http.StatusForbidden)
+		return
 	}
 	_, allowed, err := h.service.CanBan(r.Context(), serverID, currentUserID)
 	if err != nil {

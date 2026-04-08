@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"parley/internal/audit"
+	"parley/internal/cache"
 	"parley/internal/db"
 	ws "parley/internal/websocket"
 )
@@ -95,9 +96,10 @@ type Invite struct {
 // ============ Service ============
 
 type ServerService struct {
-	repo     *db.Repository
-	hub      *ws.Hub
-	auditSvc *audit.AuditService
+	repo        *db.Repository
+	hub         *ws.Hub
+	auditSvc    *audit.AuditService
+	memberCache *cache.MembershipCache
 }
 
 func NewServerService(repo *db.Repository, auditSvc *audit.AuditService) *ServerService {
@@ -106,6 +108,12 @@ func NewServerService(repo *db.Repository, auditSvc *audit.AuditService) *Server
 
 func (s *ServerService) SetHub(hub *ws.Hub) {
 	s.hub = hub
+}
+
+// SetMemberCache sets the membership cache so that permission entries can be
+// invalidated when roles are updated or deleted.
+func (s *ServerService) SetMemberCache(mc *cache.MembershipCache) {
+	s.memberCache = mc
 }
 
 // Repo exposes the repository for permission checks in handlers.

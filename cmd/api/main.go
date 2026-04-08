@@ -265,6 +265,7 @@ func main() {
 	}
 
 	messageService.SetMemberCache(memberCache)
+	serverService.SetMemberCache(memberCache)
 
 	// Set up hub broadcasting for message service
 	hubBroadcaster := &HubBroadcaster{hub: hub}

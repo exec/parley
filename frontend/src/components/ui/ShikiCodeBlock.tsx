@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import DOMPurify from 'dompurify';
 import type { Components } from 'react-markdown';
 import { highlight } from '../../lib/shiki';
 import './CodeBlock.css';
@@ -58,12 +59,8 @@ const ShikiCodeBlock: Components['code'] = ({ className, children, ...props }) =
   );
 };
 
-/**
- * Renders Shiki-generated HTML. Shiki produces sanitized markup from
- * parsed AST tokens — this is not user-supplied raw HTML.
- */
 function ShikiOutput({ html }: { html: string }) {
-  return <div dangerouslySetInnerHTML={{ __html: html }} />;
+  return <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />;
 }
 
 export default ShikiCodeBlock;

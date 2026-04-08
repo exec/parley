@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import DOMPurify from 'dompurify';
 import { highlight, highlightLines, type ThemedToken } from '../../lib/shiki';
 import './CodeBlock.css';
 
@@ -127,15 +128,12 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
     );
   }
 
-  // Safe: Shiki generates sanitized HTML from parsed code tokens, not raw user HTML.
-  // nosemgrep: react-dangerouslysetinnerhtml
   return (
     <div className={blockClass}>
       {header}
       <div className="code-block-body">
         {html !== null ? (
-          // eslint-disable-next-line react/no-danger
-          <div dangerouslySetInnerHTML={{ __html: html }} />
+          <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />
         ) : (
           <pre className="code-block-plain">{content}</pre>
         )}

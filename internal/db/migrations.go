@@ -825,6 +825,9 @@ CREATE TABLE IF NOT EXISTS server_audit_logs (
 CREATE INDEX IF NOT EXISTS idx_sal_server_time ON server_audit_logs(server_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sal_actor       ON server_audit_logs(server_id, actor_id) WHERE actor_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_sal_action      ON server_audit_logs(server_id, action);`,
+
+	`-- Add unique constraint on server role positions to prevent duplicate positions during concurrent reorders
+CREATE UNIQUE INDEX IF NOT EXISTS idx_server_roles_unique_position ON server_roles(server_id, position);`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

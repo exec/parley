@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log"
 	"strconv"
 
 	"parley/internal/db"
@@ -160,8 +161,12 @@ func (s *ServerService) DeleteServer(ctx context.Context, id string) error {
 	}
 
 	if s.hub != nil {
-		payload, _ := json.Marshal(map[string]string{"server_id": id})
-		s.hub.BroadcastToChannel("server:"+id, ws.EventServerDelete, payload)
+		payload, err := json.Marshal(map[string]string{"server_id": id})
+		if err != nil {
+			log.Printf("Failed to marshal server delete event: %v", err)
+		} else {
+			s.hub.BroadcastToChannel("server:"+id, ws.EventServerDelete, payload)
+		}
 	}
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"strconv"
 
 	"parley/internal/audit"
@@ -63,14 +64,27 @@ func (s *ServerService) DeleteServerRole(ctx context.Context, serverID, roleID s
 	if err != nil {
 		return errors.New("invalid role ID")
 	}
+	// Fetch members with this role BEFORE deleting, so we can invalidate their
+	// cached permissions after the role is removed.
+	affectedMembers, err := s.repo.GetMembersByRole(ctx, sID, rID)
+	if err != nil {
+		log.Printf("warning: failed to fetch members for cache invalidation on role %d: %v", rID, err)
+	}
+
 	if err := s.repo.DeleteServerRole(ctx, sID, rID); err != nil {
 		return err
+	}
+	// Invalidate cached permission entries for all members who had this role.
+	if s.memberCache != nil {
+		for _, m := range affectedMembers {
+			s.memberCache.InvalidatePermsForUser(sID, m.UserID)
+		}
 	}
 	// Clean up all permission overwrites that reference this role.
 	// target_type 0 = role overwrite.
 	if err := s.repo.DeleteOverwritesByTarget(ctx, 0, rID); err != nil {
 		// Log but don't fail the deletion.
-		_ = err
+		log.Printf("Failed to delete permission overwrites for role %d: %v", rID, err)
 	}
 	// Broadcast ROLE_DELETE to server subscribers.
 	if s.hub != nil {
@@ -78,7 +92,9 @@ func (s *ServerService) DeleteServerRole(ctx context.Context, serverID, roleID s
 			"role_id":   roleID,
 			"server_id": serverID,
 		})
-		if err == nil {
+		if err != nil {
+			log.Printf("Failed to marshal role delete event: %v", err)
+		} else {
 			s.hub.BroadcastToChannel("server:"+serverID, ws.EventRoleDelete, payload)
 		}
 	}
@@ -102,7 +118,10 @@ func (s *ServerService) UpdateServerRole(ctx context.Context, serverID, roleID, 
 	if err != nil {
 		return nil, errors.New("invalid role ID")
 	}
-	beforeRole, _ := s.repo.GetServerRoleByID(ctx, roleIDInt)
+	beforeRole, err := s.repo.GetServerRoleByID(ctx, roleIDInt)
+	if err != nil {
+		log.Printf("Failed to fetch role %d before update for audit log: %v", roleIDInt, err)
+	}
 	dbRole, err := s.repo.UpdateServerRole(ctx, serverIDInt, roleIDInt, name, color, permissions, hoist, position)
 	if err != nil {
 		return nil, err
@@ -111,17 +130,26 @@ func (s *ServerService) UpdateServerRole(ctx context.Context, serverID, roleID, 
 	// Broadcast ROLE_UPDATE to server subscribers.
 	if s.hub != nil {
 		payload, err := json.Marshal(r)
-		if err == nil {
+		if err != nil {
+			log.Printf("Failed to marshal role update event: %v", err)
+		} else {
 			s.hub.BroadcastToChannel("server:"+serverID, ws.EventRoleUpdate, payload)
 		}
 	}
 	// Broadcast MEMBER_ROLE_UPDATE to each member who has this role so their
 	// frontend re-fetches channel permissions with the updated role data.
+	// Also invalidate cached permission entries so that subsequent server-side
+	// checks reflect the updated role permissions immediately.
 	members, err := s.repo.GetMembersByRole(ctx, serverIDInt, roleIDInt)
-	if err == nil {
+	if err != nil {
+		log.Printf("Failed to get members for role %d during update broadcast: %v", roleIDInt, err)
+	} else {
 		for _, m := range members {
 			uIDStr := int64ToID(m.UserID)
 			s.broadcastRoleUpdate(ctx, serverID, uIDStr, serverIDInt, m.UserID)
+			if s.memberCache != nil {
+				s.memberCache.InvalidatePermsForUser(serverIDInt, m.UserID)
+			}
 		}
 	}
 	if beforeRole != nil {
@@ -191,7 +219,10 @@ func (s *ServerService) AssignRoleToMember(ctx context.Context, serverID, userID
 		return err
 	}
 	s.broadcastRoleUpdate(ctx, serverID, userID, sID, uID)
-	role, _ := s.repo.GetServerRoleByID(ctx, rID)
+	role, err := s.repo.GetServerRoleByID(ctx, rID)
+	if err != nil {
+		log.Printf("Failed to fetch role %d name for audit log: %v", rID, err)
+	}
 	roleName := roleID
 	if role != nil {
 		roleName = role.Name
@@ -225,7 +256,10 @@ func (s *ServerService) RemoveRoleFromMember(ctx context.Context, serverID, user
 		return err
 	}
 	s.broadcastRoleUpdate(ctx, serverID, userID, sID, uID)
-	role, _ := s.repo.GetServerRoleByID(ctx, rID)
+	role, err := s.repo.GetServerRoleByID(ctx, rID)
+	if err != nil {
+		log.Printf("Failed to fetch role %d name for audit log: %v", rID, err)
+	}
 	roleName := roleID
 	if role != nil {
 		roleName = role.Name
@@ -248,6 +282,7 @@ func (s *ServerService) broadcastRoleUpdate(ctx context.Context, serverID, userI
 	}
 	dbRoles, err := s.repo.GetMemberRoles(ctx, sID, uID)
 	if err != nil {
+		log.Printf("Failed to fetch member roles for broadcast (server=%d, user=%d): %v", sID, uID, err)
 		return
 	}
 	roles := make([]Role, len(dbRoles))
@@ -260,6 +295,7 @@ func (s *ServerService) broadcastRoleUpdate(ctx context.Context, serverID, userI
 		"roles":     roles,
 	})
 	if err != nil {
+		log.Printf("Failed to marshal member role update event: %v", err)
 		return
 	}
 	s.hub.BroadcastToChannel("server:"+serverID, ws.EventMemberRoleUpdate, payload)

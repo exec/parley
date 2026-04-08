@@ -80,8 +80,12 @@ func (s *ServerService) RemoveMember(ctx context.Context, serverID, userID strin
 	}
 
 	if s.hub != nil {
-		payload, _ := json.Marshal(map[string]string{"server_id": serverID, "user_id": userID})
-		s.hub.BroadcastToChannel("server:"+serverID, ws.EventMemberLeave, payload)
+		payload, err := json.Marshal(map[string]string{"server_id": serverID, "user_id": userID})
+		if err != nil {
+			log.Printf("Failed to marshal member leave event: %v", err)
+		} else {
+			s.hub.BroadcastToChannel("server:"+serverID, ws.EventMemberLeave, payload)
+		}
 	}
 	return nil
 }
@@ -111,12 +115,19 @@ func (s *ServerService) KickMember(ctx context.Context, serverID, userID string,
 	}
 
 	if s.hub != nil {
-		payload, _ := json.Marshal(map[string]string{"server_id": serverID, "user_id": userID})
-		s.hub.BroadcastToChannel("server:"+serverID, ws.EventMemberKick, payload)
-		s.hub.SendToUser(userID, ws.EventMemberKick, payload)
+		payload, err := json.Marshal(map[string]string{"server_id": serverID, "user_id": userID})
+		if err != nil {
+			log.Printf("Failed to marshal member kick event: %v", err)
+		} else {
+			s.hub.BroadcastToChannel("server:"+serverID, ws.EventMemberKick, payload)
+			s.hub.SendToUser(userID, ws.EventMemberKick, payload)
+		}
 	}
 
-	targetUsername, _ := s.repo.GetUsernameByID(ctx, userIDInt)
+	targetUsername, err := s.repo.GetUsernameByID(ctx, userIDInt)
+	if err != nil {
+		log.Printf("Failed to fetch username for user %d in kick audit log: %v", userIDInt, err)
+	}
 	s.auditSvc.Log(ctx, audit.Entry{
 		ServerID:      serverIDInt,
 		ActorID:       &actorID,
@@ -149,15 +160,24 @@ func (s *ServerService) BanMember(ctx context.Context, serverID, userID string, 
 	if err := s.repo.AddServerBan(ctx, serverIDInt, userIDInt, actorID, reason); err != nil {
 		return err
 	}
-	_ = s.repo.RemoveMember(ctx, serverIDInt, userIDInt)
-
-	if s.hub != nil {
-		payload, _ := json.Marshal(map[string]string{"server_id": serverID, "user_id": userID})
-		s.hub.BroadcastToChannel("server:"+serverID, ws.EventMemberBan, payload)
-		s.hub.SendToUser(userID, ws.EventMemberBan, payload)
+	if err := s.repo.RemoveMember(ctx, serverIDInt, userIDInt); err != nil {
+		log.Printf("Failed to remove member %d from server %d after ban: %v", userIDInt, serverIDInt, err)
 	}
 
-	targetUsername, _ := s.repo.GetUsernameByID(ctx, userIDInt)
+	if s.hub != nil {
+		payload, err := json.Marshal(map[string]string{"server_id": serverID, "user_id": userID})
+		if err != nil {
+			log.Printf("Failed to marshal member ban event: %v", err)
+		} else {
+			s.hub.BroadcastToChannel("server:"+serverID, ws.EventMemberBan, payload)
+			s.hub.SendToUser(userID, ws.EventMemberBan, payload)
+		}
+	}
+
+	targetUsername, err := s.repo.GetUsernameByID(ctx, userIDInt)
+	if err != nil {
+		log.Printf("Failed to fetch username for user %d in ban audit log: %v", userIDInt, err)
+	}
 	s.auditSvc.Log(ctx, audit.Entry{
 		ServerID:      serverIDInt,
 		ActorID:       &actorID,
@@ -191,7 +211,10 @@ func (s *ServerService) UnbanMember(ctx context.Context, serverID, userID string
 	if err := s.repo.RemoveServerBan(ctx, sID, uID); err != nil {
 		return err
 	}
-	targetUsername, _ := s.repo.GetUsernameByID(ctx, uID)
+	targetUsername, err := s.repo.GetUsernameByID(ctx, uID)
+	if err != nil {
+		log.Printf("Failed to fetch username for user %d in unban audit log: %v", uID, err)
+	}
 	s.auditSvc.Log(ctx, audit.Entry{
 		ServerID:      sID,
 		ActorID:       &actorID,
