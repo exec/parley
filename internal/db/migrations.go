@@ -826,7 +826,17 @@ CREATE INDEX IF NOT EXISTS idx_sal_server_time ON server_audit_logs(server_id, c
 CREATE INDEX IF NOT EXISTS idx_sal_actor       ON server_audit_logs(server_id, actor_id) WHERE actor_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_sal_action      ON server_audit_logs(server_id, action);`,
 
-	`-- Add unique constraint on server role positions to prevent duplicate positions during concurrent reorders
+	`-- Fix duplicate positions before adding unique constraint: assign sequential
+-- positions within each server based on creation order.
+WITH numbered AS (
+    SELECT id, server_id,
+           ROW_NUMBER() OVER (PARTITION BY server_id ORDER BY created_at, id) - 1 AS new_pos
+    FROM server_roles
+)
+UPDATE server_roles SET position = numbered.new_pos
+FROM numbered WHERE server_roles.id = numbered.id AND server_roles.position != numbered.new_pos;
+
+-- Add unique constraint on server role positions to prevent duplicate positions during concurrent reorders
 CREATE UNIQUE INDEX IF NOT EXISTS idx_server_roles_unique_position ON server_roles(server_id, position);`,
 }
 
