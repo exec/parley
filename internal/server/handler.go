@@ -614,10 +614,10 @@ func (h *Handler) CreateServerRole(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, role)
 }
 
-// DeleteServerRole handles DELETE /servers/:id/roles/:roleId
+// DeleteServerRole handles DELETE /servers/:id/roles/:roleID
 func (h *Handler) DeleteServerRole(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "id")
-	roleID := chi.URLParam(r, "roleId")
+	roleID := chi.URLParam(r, "roleID")
 
 	userID := auth.GetUserIDFromContext(r)
 	if userID == "" {
@@ -678,10 +678,10 @@ func (h *Handler) DeleteServerRole(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// UpdateServerRole handles PATCH /servers/:id/roles/:roleId
+// UpdateServerRole handles PATCH /servers/:id/roles/:roleID
 func (h *Handler) UpdateServerRole(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "id")
-	roleID := chi.URLParam(r, "roleId")
+	roleID := chi.URLParam(r, "roleID")
 
 	userID := auth.GetUserIDFromContext(r)
 	if userID == "" {
@@ -849,11 +849,11 @@ func (h *Handler) AssignRoleToMember(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// RemoveRoleFromMember handles DELETE /servers/:id/members/:userId/roles/:roleId
+// RemoveRoleFromMember handles DELETE /servers/:id/members/:userID/roles/:roleID
 func (h *Handler) RemoveRoleFromMember(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "id")
 	targetUserID := chi.URLParam(r, "userID")
-	roleID := chi.URLParam(r, "roleId")
+	roleID := chi.URLParam(r, "roleID")
 
 	userID := auth.GetUserIDFromContext(r)
 	if userID == "" {
