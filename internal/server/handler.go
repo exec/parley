@@ -991,14 +991,22 @@ func (h *Handler) KickMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, allowed, err := h.service.CanKick(r.Context(), serverID, currentUserID)
-	if err != nil || !allowed {
+	if err != nil {
+		httputil.InternalError(w, err)
+		return
+	}
+	if !allowed {
 		httputil.JSONError(w, "you do not have permission to kick members", http.StatusForbidden)
 		return
 	}
 
 	// Role hierarchy check: actor must outrank target.
 	_, hierarchyOK, err := h.service.RoleHierarchyCheck(r.Context(), serverID, currentUserID, targetUserID)
-	if err != nil || !hierarchyOK {
+	if err != nil {
+		httputil.InternalError(w, err)
+		return
+	}
+	if !hierarchyOK {
 		httputil.JSONError(w, "your role is not high enough to kick this member", http.StatusForbidden)
 		return
 	}
@@ -1047,14 +1055,22 @@ func (h *Handler) BanMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, allowed, err := h.service.CanBan(r.Context(), serverID, currentUserID)
-	if err != nil || !allowed {
+	if err != nil {
+		httputil.InternalError(w, err)
+		return
+	}
+	if !allowed {
 		httputil.JSONError(w, "you do not have permission to ban members", http.StatusForbidden)
 		return
 	}
 
 	// Role hierarchy check: actor must outrank target.
 	_, hierarchyOK, err := h.service.RoleHierarchyCheck(r.Context(), serverID, currentUserID, targetUserID)
-	if err != nil || !hierarchyOK {
+	if err != nil {
+		httputil.InternalError(w, err)
+		return
+	}
+	if !hierarchyOK {
 		httputil.JSONError(w, "your role is not high enough to ban this member", http.StatusForbidden)
 		return
 	}
@@ -1082,7 +1098,11 @@ func (h *Handler) ListBans(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, allowed, err := h.service.CanBan(r.Context(), serverID, currentUserID)
-	if err != nil || !allowed {
+	if err != nil {
+		httputil.InternalError(w, err)
+		return
+	}
+	if !allowed {
 		httputil.JSONError(w, "you do not have permission to view bans", http.StatusForbidden)
 		return
 	}
@@ -1104,7 +1124,11 @@ func (h *Handler) UnbanMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, allowed, err := h.service.CanBan(r.Context(), serverID, currentUserID)
-	if err != nil || !allowed {
+	if err != nil {
+		httputil.InternalError(w, err)
+		return
+	}
+	if !allowed {
 		httputil.JSONError(w, "you do not have permission to unban members", http.StatusForbidden)
 		return
 	}
