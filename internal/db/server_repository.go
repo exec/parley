@@ -276,8 +276,8 @@ func (r *Repository) GetMembersByRole(ctx context.Context, serverID, roleID int6
 	query := `
 		SELECT sm.id, sm.server_id, sm.user_id, sm.nickname, sm.joined_at
 		FROM server_members sm
-		JOIN member_roles mr ON mr.server_id = sm.server_id AND mr.user_id = sm.user_id
-		WHERE mr.server_id = $1 AND mr.role_id = $2
+		JOIN server_member_roles smr ON smr.server_id = sm.server_id AND smr.user_id = sm.user_id
+		WHERE smr.server_id = $1 AND smr.role_id = $2
 	`
 
 	rows, err := r.db.QueryContext(ctx, query, serverID, roleID)
