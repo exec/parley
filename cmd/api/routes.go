@@ -15,6 +15,7 @@ import (
 	"parley/internal/audit"
 	"parley/internal/auth"
 	"parley/internal/bin"
+	"parley/internal/botcommands"
 	"parley/internal/bots"
 	"parley/internal/channel"
 	"parley/internal/db"
@@ -62,6 +63,7 @@ func registerRoutes(
 	siteURL string,
 	botsHandler *bots.Handler,
 	auditSvc *audit.AuditService,
+	botCommandsHandler *botcommands.Handler,
 ) {
 	// Cap request bodies at 64 KB for all routes except /api/upload,
 	// which applies its own 50 MB limit inside the handler.
@@ -102,6 +104,10 @@ func registerRoutes(
 	// Rate limiter for message search: 20 per authenticated user per minute.
 	// Search uses ILIKE sequential scans — expensive without a full-text index.
 	msgSearchLimiter := newRateLimiterFor(rdb, 20, time.Minute)
+	// Rate limiter for bot slash-command registration (PUT/POST/DELETE): 50 per
+	// authenticated bot per hour. Keyed on the authenticated user ID (bot user)
+	// via userRateLimitMiddleware.
+	botCmdRegLimiter := newRateLimiterFor(rdb, 50, time.Hour)
 
 	router.Route("/api", func(r chi.Router) {
 		// Auth routes
@@ -310,6 +316,18 @@ func registerRoutes(
 			r.Put("/servers/{id}/ai-config", botsHandler.SetAIConfig)
 			r.Get("/servers/{id}/ai-usage", botsHandler.GetAIUsage)
 
+			// Slash commands — bot-authenticated (api_key via plk_ prefix hits
+			// the same AuthMiddlewareWith path). Writes (PUT/POST/DELETE) are
+			// rate-limited to 50/hour per authenticated bot user.
+			r.Get("/bots/@me/servers/{id}/commands", botCommandsHandler.ListMyCommands)
+			r.With(userRateLimitMiddleware(botCmdRegLimiter)).Put("/bots/@me/servers/{id}/commands", botCommandsHandler.BulkReplaceMyCommands)
+			r.With(userRateLimitMiddleware(botCmdRegLimiter)).Post("/bots/@me/servers/{id}/commands", botCommandsHandler.UpsertMyCommand)
+			r.With(userRateLimitMiddleware(botCmdRegLimiter)).Delete("/bots/@me/servers/{id}/commands/{name}", botCommandsHandler.DeleteMyCommand)
+
+			// Slash commands — user-authenticated list + invoke.
+			r.Get("/servers/{id}/commands", botCommandsHandler.ListServerCommands)
+			r.With(userRateLimitMiddleware(msgWriteLimiter)).Post("/channels/{channelID}/interactions", botCommandsHandler.Invoke)
+
 			// Authenticated bot invite accept
 			r.Post("/bots/invite/{token}/accept", botsHandler.AcceptInvite)
 
@@ -349,6 +367,10 @@ func registerRoutes(
 			r.Post("/me/themes/generate", aiHandler.Generate)
 			r.Put("/themes/{id}/feature", themeHandler.ToggleFeature)
 		})
+
+		// Interaction-token auth — bearer credential is the token in the URL,
+		// no JWT or API key required.
+		r.With(botCommandsHandler.InteractionTokenAuth).Post("/interactions/{token}/respond", botCommandsHandler.Respond)
 
 		// Public theme routes — no authentication required
 		r.Get("/themes/repo", themeHandler.GetThemeRepo)

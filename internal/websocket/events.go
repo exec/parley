@@ -69,4 +69,7 @@ const (
 
 	// Notification events
 	EventNotificationCreate = "NOTIFICATION_CREATE"
+
+	// Slash command / interaction events
+	EventInteractionCreate = "INTERACTION_CREATE"
 )

@@ -401,9 +401,9 @@ func TestParseInt64_Invalid(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestPermMasks(t *testing.T) {
-	// PermAllPermissions should have bits 0-41 set.
-	if PermAllPermissions != (1<<42)-1 {
-		t.Errorf("PermAllPermissions = %d, want (1<<42)-1", PermAllPermissions)
+	// PermAllPermissions should have bits 0-42 set.
+	if PermAllPermissions != (1<<43)-1 {
+		t.Errorf("PermAllPermissions = %d, want (1<<43)-1", PermAllPermissions)
 	}
 
 	// PermChannelMask should have no bits in the server-only range (0-15).

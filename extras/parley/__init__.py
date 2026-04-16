@@ -106,6 +106,9 @@ from .ext.commands.cog import Cog
 from .ext.commands.context import Context
 from .ext.commands.core import Command, Group, check, command, group
 
+# -- Slash-command framework -------------------------------------------------
+from .slash import InteractionContext, SlashCommand, SlashOption
+
 # -- Utils -------------------------------------------------------------------
 from .utils import MISSING, format_mention, parse_mentions, snowflake_time, strip_mention
 
@@ -163,6 +166,10 @@ __all__ = [
     "command",
     "group",
     "check",
+    # Slash-command framework
+    "SlashOption",
+    "SlashCommand",
+    "InteractionContext",
     # Utils
     "MISSING",
     "snowflake_time",

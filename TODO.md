@@ -1,15 +1,21 @@
 # TODO
 
-## Slash commands — v1 scope (locked)
+## Slash commands — Phase 1 (shipped)
 
-Phases to ship first; detailed design in conversation history.
+- Go backend: `internal/botcommands/` package (models, repository, service, handler, tests); migrations for `bot_commands`, `bot_interactions`, and `messages.kind`; `PermUseBotCommands` at bit 42; `INTERACTION_CREATE` WS event; in-process per-server command cache with write-invalidation; 50-upserts/hr rate limit on registration; background sweeper that expires pending interactions after 15min.
+- HTTP API: bot CRUD (`GET/PUT/POST /api/bots/@me/servers/{id}/commands`, `DELETE .../{name}`), user list (`GET /api/servers/{id}/commands`, joined with user table so each command carries `bot_username/display_name/avatar_url`), user invoke (`POST /api/channels/{channelID}/interactions`), and bot respond (`POST /api/interactions/{token}/respond`) gated by an `InteractionTokenAuth` middleware.
+- Frontend: `/` autocomplete in `MessageInput.tsx` modeled on the existing mention/channel/emoji pattern; new `SlashCommandDropdown`, `useSlashCommands` hook (module-scope cache, 30s stale-while-revalidate), `api/slashCommands.ts` client, in-place option picker supporting STRING/INTEGER/BOOLEAN (choices render as `<select>`, required options show an asterisk).
+- Python SDK: `@bot.slash_command(name, description, options)` decorator + `SlashOption` + `InteractionContext.respond()` (blanks `Authorization` header so the token-auth route isn't overridden); auto-registers commands on `READY` per joined server; dispatches `INTERACTION_CREATE` to the registered handler with options spread as kwargs.
 
-- **Interaction delivery**: WebSocket push to the bot's live connection (via the existing gateway). Interactions persist server-side with a 15min token so a brief WS blip doesn't lose the ACK — the bot can reconnect and respond against the token from a new session.
-- **Offline / degraded bot UX**: in the `/` autocomplete dropdown, an offline bot's commands render disabled with "Bot is offline"; a degraded bot's commands render with an amber dot + tooltip but stay selectable. Uses the existing bot status + `set_degraded(True)` SDK hook.
-- **Command cap**: 100 commands per bot per server (matches Discord). Phase 1 must include a simple in-process per-server command cache with invalidation on register/update/delete — the `/` autocomplete hits "list commands for this channel" on every keystroke.
-- **Registration rate limit**: 50 upserts/hour per bot.
-- **Deviations from Discord** locked: single permission layer, one-level subcommands only, per-server registration only (no global scope), tighter embed limits (2000 desc / 10 fields / 4 embeds / 3000 char sum), no `ATTACHMENT` option type, no autocomplete on options, no modals, no context-menu commands, **native user-lock primitive** (backend-enforced `locked_to_user_id` on components — the main developer-ergonomics win over Discord).
-- **Phases**: (1) DB + registration API + plain-text invocation; (2) embeds; (3) components + native user-lock + ephemeral; (4) Python SDK decorators + `docs/bots.md` rewrite.
+## Slash commands — Phase 2+ (not yet shipped)
+
+- **Embeds** (Phase 2): `message_embeds` table + `<Embed>` renderer, bot API for attaching embeds, `attachment://name` scheme, tighter limits than Discord (2000 desc / 10 fields / 4 embeds / 3000 char sum).
+- **Components + native user-lock + ephemeral** (Phase 3): `message_components` table with `locked_to_user_id`, button + string/user/role/channel select renderers, `COMPONENT_INTERACTION_CREATE` WS event, backend-enforced user-lock that rejects non-invoker clicks with a canned ephemeral response (the main developer-ergonomics win over Discord), `flags.ephemeral` on responses with invoker-only fanout.
+- **Defer + follow-up** (Phase 2.5): `POST /api/interactions/:token/respond` currently only supports synchronous reply. Add `type:"defer"` ACK that marks state=`deferred`, a `PATCH /api/interactions/:token/response` for editing the deferred reply, and `POST/PATCH/DELETE /api/interactions/:token/followups` for additional messages. Discord's 3s deadline is the hard cap for the initial ACK.
+- **Offline / degraded bot UX in the dropdown**: commands from an offline bot render disabled with "Bot is offline"; degraded bots render with an amber dot + tooltip but stay selectable. Hook into bot status + the existing `set_degraded(True)` SDK method.
+- **Docs rewrite** (Phase 4): expand `docs/bots.md` with a slash-commands section covering registration, option types, the respond endpoint, and a full Python example. Mirror the contract table from the design doc.
+
+## Slash commands — v2
 
 ## Slash commands — v2
 

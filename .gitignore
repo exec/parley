@@ -56,3 +56,4 @@ bench/parley-bench
 /terraform.tfstate
 docs/node_modules/
 docs/.vitepress/dist/
+extras/parley/__pycache__/
