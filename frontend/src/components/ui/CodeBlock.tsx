@@ -27,6 +27,18 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
   const [html, setHtml] = useState<string | null>(null);
   const [lineTokens, setLineTokens] = useState<ThemedToken[][] | null>(null);
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard API unavailable; silently ignore
+    }
+  };
 
   const lang = language || 'plaintext';
   const displayLang = language || (filename ? '' : 'plaintext');
@@ -76,6 +88,17 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
     collapsed ? 'code-block-collapsed' : '',
   ].filter(Boolean).join(' ');
 
+  const copyButton = (
+    <button
+      className={`code-block-copy${copied ? ' code-block-copy--copied' : ''}`}
+      onClick={handleCopy}
+      title="Copy code to clipboard"
+      type="button"
+    >
+      {copied ? 'Copied!' : 'Copy'}
+    </button>
+  );
+
   if (showLineNumbers) {
     // Use shiki token lines when ready, fall back to plain text while loading
     const tokenLines: (ThemedToken[] | null)[] = lineTokens
@@ -84,6 +107,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
 
     return (
       <div className={blockClass}>
+        {copyButton}
         {header}
         <div className="code-block-body">
           <div className="code-block-lines">
@@ -130,6 +154,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
 
   return (
     <div className={blockClass}>
+      {copyButton}
       {header}
       <div className="code-block-body">
         {html !== null ? (

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Users, Inbox } from 'lucide-react';
 import { FriendUser, FriendRequestsResponse } from '../../api/types';
 import './FriendsView.css';
 
@@ -93,7 +94,11 @@ const FriendsView: React.FC<FriendsViewProps> = ({
         {tab === 'all' && (
           <>
             {sortedFriends.length === 0 ? (
-              <div className="friends-empty">No friends yet. Add some using the Add Friend tab!</div>
+              <div className="friends-empty">
+                <Users className="friends-empty-icon" size={48} strokeWidth={1.5} aria-hidden="true" />
+                <div className="friends-empty-title">No friends yet</div>
+                <div className="friends-empty-hint">Send a friend request from the Add Friend tab.</div>
+              </div>
             ) : (
               <>
                 <div className="friends-section-label">All Friends — {sortedFriends.length}</div>
@@ -115,7 +120,11 @@ const FriendsView: React.FC<FriendsViewProps> = ({
         {tab === 'pending' && (
           <>
             {friendRequests.incoming.length === 0 && friendRequests.outgoing.length === 0 && (
-              <div className="friends-empty">No pending friend requests.</div>
+              <div className="friends-empty">
+                <Inbox className="friends-empty-icon" size={48} strokeWidth={1.5} aria-hidden="true" />
+                <div className="friends-empty-title">No pending requests</div>
+                <div className="friends-empty-hint">Incoming and outgoing friend requests will appear here.</div>
+              </div>
             )}
 
             {friendRequests.incoming.length > 0 && (

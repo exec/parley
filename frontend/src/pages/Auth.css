@@ -239,6 +239,46 @@
   line-height: 1.55;
 }
 
+/* ── Password show/hide toggle ───────────────────────────── */
+
+.auth-password-wrapper {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.auth-password-wrapper .input {
+  flex: 1;
+  padding-right: 42px;
+}
+
+.auth-password-toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--parley-text-muted);
+  border-radius: 4px;
+  transition: color 0.15s ease;
+}
+
+.auth-password-toggle:hover {
+  color: var(--parley-text-normal);
+}
+
+.auth-password-toggle:focus-visible {
+  outline: 2px solid var(--parley-accent);
+  outline-offset: 2px;
+}
+
 /* ── Responsive ──────────────────────────────────────────── */
 
 @media (max-width: 480px) {

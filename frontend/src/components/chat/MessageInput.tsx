@@ -8,7 +8,10 @@ import { detectMention, useMentionSuggestions, insertMentionText, resolveMention
 import { detectChannelTag, useChannelSuggestions, insertChannelTag, resolveChannelTags } from '../../hooks/useChannelAutocomplete';
 import { detectEmojiTrigger, useEmojiSuggestions, insertEmoji, resolveEmojis, EmojiSuggestion } from '../../hooks/useEmojiAutocomplete';
 import { EmojiDropdown } from './EmojiDropdown';
-import { Channel, Message as MessageType, ServerMember } from '../../api/types';
+import { SlashCommandDropdown } from './SlashCommandDropdown';
+import { detectSlashCommand, useSlashCommands } from '../../hooks/useSlashCommands';
+import { invokeCommand } from '../../api/slashCommands';
+import { BotCommand, Channel, Message as MessageType, ServerMember, SlashCommandOption } from '../../api/types';
 import { usePermissions } from '../../hooks/usePermissions';
 import { PERM_SEND_MESSAGES, PERM_ATTACH_FILES } from '../../lib/permissions';
 import './Chat.css';
@@ -23,8 +26,14 @@ interface MessageInputProps {
   members?: ServerMember[];
   channels?: Channel[];
   replyTo?: MessageType | null;
+  onCancelReply?: () => void;
   serverId?: string;
   channelId?: string;
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 const PaperclipIcon = () => (
@@ -67,6 +76,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   members = [],
   channels = [],
   replyTo,
+  onCancelReply,
   serverId,
   channelId,
 }) => {
@@ -79,7 +89,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [showGifPicker, setShowGifPicker] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
+  const dragCounterRef = useRef(0);
 
+  // When the option-picker is active we suppress all textarea-based autocompletes
+  // (we check pickerCommand inside the detection memos below).
   // Mention autocomplete state
   const [cursorPos, setCursorPos] = useState(0);
   const [mentionSelIdx, setMentionSelIdx] = useState(0);
@@ -94,6 +109,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   );
   const channelSuggestions = useChannelSuggestions(channelMatch, channels);
 
+
   // Emoji autocomplete state (mutually exclusive with mention and channel dropdowns)
   const [emojiSelIdx, setEmojiSelIdx] = useState(0);
   const emojiMatch = useMemo(
@@ -101,6 +117,39 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     [message, cursorPos, mentionSuggestions.length, channelSuggestions.length],
   );
   const emojiSuggestions = useEmojiSuggestions(emojiMatch);
+
+  // Slash-command autocomplete / option-picker state.
+  const [slashSelIdx, setSlashSelIdx] = useState(0);
+  const [pickerCommand, setPickerCommand] = useState<BotCommand | null>(null);
+  const [pickerValues, setPickerValues] = useState<Record<string, unknown>>({});
+  const [invoking, setInvoking] = useState(false);
+  const [invokeError, setInvokeError] = useState<string | null>(null);
+  const pickerInputRefs = useRef<Array<HTMLInputElement | HTMLSelectElement | null>>([]);
+  const { commands: allCommands, loading: commandsLoading } = useSlashCommands(serverId);
+
+  // Only run slash detection when no other autocomplete is active AND we're not
+  // already in option-picker mode.
+  const slashMatch = useMemo(() => {
+    if (pickerCommand) return null;
+    if (mentionSuggestions.length > 0) return null;
+    if (channelSuggestions.length > 0) return null;
+    if (emojiSuggestions.length > 0) return null;
+    return detectSlashCommand(message, cursorPos);
+  }, [message, cursorPos, pickerCommand, mentionSuggestions.length, channelSuggestions.length, emojiSuggestions.length]);
+
+  const slashFiltered = useMemo<BotCommand[]>(() => {
+    if (!slashMatch) return [];
+    const q = slashMatch.query.toLowerCase();
+    return allCommands
+      .filter(c => c.name.toLowerCase().startsWith(q))
+      .slice(0, 8);
+  }, [slashMatch, allCommands]);
+
+  // Show the dropdown whenever the user's typing a '/' query. Distinguish three
+  // states so the dropdown can render a hint for each: loading, zero-registered,
+  // filtered matches.
+  const showSlashDropdown = slashMatch !== null;
+  const serverHasNoCommands = !commandsLoading && allCommands.length === 0;
 
   const [isRecording, setIsRecording] = useState(false);
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
@@ -141,6 +190,100 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   useEffect(() => {
     return () => { if (imagePrevUrl) URL.revokeObjectURL(imagePrevUrl); };
   }, [imagePrevUrl]);
+
+  const exitPicker = useCallback((restoreText?: string) => {
+    setPickerCommand(null);
+    setPickerValues({});
+    setInvokeError(null);
+    setInvoking(false);
+    pickerInputRefs.current = [];
+    if (restoreText !== undefined) {
+      setMessage(restoreText);
+      requestAnimationFrame(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+          const pos = restoreText.length;
+          textareaRef.current.selectionStart = pos;
+          textareaRef.current.selectionEnd = pos;
+          setCursorPos(pos);
+        }
+      });
+    }
+  }, []);
+
+  const handleSlashCommandSelect = useCallback((cmd: BotCommand) => {
+    setPickerCommand(cmd);
+    // Seed defaults: BOOLEANs default to false so the toggle always has a value;
+    // STRING/INTEGER start empty and must be filled (if required).
+    const seed: Record<string, unknown> = {};
+    for (const opt of cmd.options ?? []) {
+      if (opt.type === 'BOOLEAN') seed[opt.name] = false;
+    }
+    setPickerValues(seed);
+    setInvokeError(null);
+    setSlashSelIdx(0);
+    // Clear the raw "/cmd" text now that we've captured the command.
+    setMessage('');
+    // Focus the first option input on the next frame (once refs are wired).
+    requestAnimationFrame(() => {
+      const first = pickerInputRefs.current[0];
+      if (first) first.focus();
+    });
+  }, []);
+
+  const pickerValid = useMemo(() => {
+    if (!pickerCommand) return false;
+    for (const opt of pickerCommand.options ?? []) {
+      if (!opt.required) continue;
+      const v = pickerValues[opt.name];
+      if (opt.type === 'BOOLEAN') {
+        // BOOLEAN is always considered filled (false is a legitimate value).
+        continue;
+      }
+      if (v === undefined || v === null || v === '') return false;
+    }
+    return true;
+  }, [pickerCommand, pickerValues]);
+
+  const runInvoke = useCallback(async () => {
+    if (!pickerCommand || !channelId || !pickerValid || invoking) return;
+    setInvoking(true);
+    setInvokeError(null);
+    try {
+      // Coerce values to the backend-expected shape.
+      const payload: Record<string, unknown> = {};
+      for (const opt of pickerCommand.options ?? []) {
+        const raw = pickerValues[opt.name];
+        if (opt.type === 'BOOLEAN') {
+          payload[opt.name] = Boolean(raw);
+          continue;
+        }
+        if (raw === undefined || raw === '') continue; // optional + empty
+        if (opt.type === 'INTEGER') {
+          const n = typeof raw === 'number' ? raw : parseInt(String(raw), 10);
+          if (Number.isNaN(n)) {
+            setInvokeError(`"${opt.name}" must be a whole number.`);
+            setInvoking(false);
+            return;
+          }
+          payload[opt.name] = n;
+          continue;
+        }
+        // STRING (or STRING with choices)
+        payload[opt.name] = String(raw);
+      }
+      await invokeCommand(channelId, pickerCommand.id, payload);
+      // Success: the response message arrives via the normal MESSAGE_CREATE WS.
+      exitPicker('');
+    } catch (err: unknown) {
+      const msg =
+        (err && typeof err === 'object' && 'message' in err && typeof (err as { message?: unknown }).message === 'string')
+          ? (err as { message: string }).message
+          : 'Command failed';
+      setInvokeError(msg);
+      setInvoking(false);
+    }
+  }, [pickerCommand, channelId, pickerValid, pickerValues, invoking, exitPicker]);
 
   const handleEmojiSelect = useCallback((suggestion: EmojiSuggestion) => {
     if (!emojiMatch) return;
@@ -185,10 +328,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       onSendMessage(trimmedMessage, attachmentUrl, attachmentName, attachmentType, replyTo?.id);
       setMessage('');
       setPendingFile(null);
+      setUploadError(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       if (textareaRef.current) textareaRef.current.style.height = 'auto';
     } catch (err) {
       console.error('Failed to send message:', err);
+      setUploadError("Couldn't upload file — try again?");
     } finally {
       setIsUploading(false);
     }
@@ -231,6 +376,27 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
+      // Slash command dropdown navigation (checked first; it takes priority over
+      // the reply-cancel Escape since the user is clearly mid-selection).
+      if (showSlashDropdown) {
+        if (slashFiltered.length > 0) {
+          if (e.key === 'ArrowDown') { e.preventDefault(); setSlashSelIdx(i => (i + 1) % slashFiltered.length); return; }
+          if (e.key === 'ArrowUp') { e.preventDefault(); setSlashSelIdx(i => (i - 1 + slashFiltered.length) % slashFiltered.length); return; }
+          if (e.key === 'Tab' || e.key === 'Enter') {
+            e.preventDefault();
+            handleSlashCommandSelect(slashFiltered[slashSelIdx]);
+            return;
+          }
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          // Dropping the leading '/' dismisses the dropdown while preserving the user's other text.
+          // In start-only mode there is no other text, so just clear.
+          setMessage('');
+          setCursorPos(0);
+          return;
+        }
+      }
       // Mention dropdown navigation
       if (mentionSuggestions.length > 0) {
         if (e.key === 'ArrowDown') { e.preventDefault(); setMentionSelIdx(i => (i + 1) % mentionSuggestions.length); return; }
@@ -252,9 +418,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         if (e.key === 'Tab' || e.key === 'Enter') { e.preventDefault(); handleEmojiSelect(emojiSuggestions[emojiSelIdx]); return; }
         if (e.key === 'Escape') { setCursorPos(message.length); return; }
       }
+      if (e.key === 'Escape' && replyTo && onCancelReply) {
+        e.preventDefault();
+        onCancelReply();
+        return;
+      }
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
     },
-    [handleSend, mentionSuggestions, mentionSelIdx, handleMentionSelect, channelSuggestions, channelSelIdx, handleChannelSelect, emojiSuggestions, emojiSelIdx, handleEmojiSelect, message.length],
+    [handleSend, mentionSuggestions, mentionSelIdx, handleMentionSelect, channelSuggestions, channelSelIdx, handleChannelSelect, emojiSuggestions, emojiSelIdx, handleEmojiSelect, message.length, replyTo, onCancelReply, showSlashDropdown, slashFiltered, slashSelIdx, handleSlashCommandSelect],
   );
 
   const handleChange = useCallback(
@@ -264,6 +435,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       setMentionSelIdx(0);
       setChannelSelIdx(0);
       setEmojiSelIdx(0);
+      setSlashSelIdx(0);
       const ta = e.target;
       ta.style.height = 'auto';
       ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
@@ -274,7 +446,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   const handleFileChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) { setPendingFile(file); setVoiceBlob(null); }
+    if (file) { setPendingFile(file); setVoiceBlob(null); setUploadError(null); }
   }, []);
 
   const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -286,14 +458,65 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     e.preventDefault();
     setPendingFile(file);
     setVoiceBlob(null);
+    setUploadError(null);
   }, []);
 
   const handleAttachClick = useCallback(() => { fileInputRef.current?.click(); }, []);
 
   const handleRemoveFile = useCallback(() => {
     setPendingFile(null);
+    setUploadError(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, []);
+
+  // Drag and drop handlers
+  const hasFileDrag = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    const types = e.dataTransfer?.types;
+    if (!types) return false;
+    for (let i = 0; i < types.length; i++) {
+      if (types[i] === 'Files') return true;
+    }
+    return false;
+  }, []);
+
+  const handleDragEnter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    if (!hasFileDrag(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current += 1;
+    setDragActive(true);
+  }, [hasFileDrag]);
+
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    if (!hasFileDrag(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+  }, [hasFileDrag]);
+
+  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    if (!hasFileDrag(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current -= 1;
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0;
+      setDragActive(false);
+    }
+  }, [hasFileDrag]);
+
+  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    if (!hasFileDrag(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current = 0;
+    setDragActive(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      setPendingFile(file);
+      setVoiceBlob(null);
+      setUploadError(null);
+    }
+  }, [hasFileDrag]);
 
   const cancelVoice = useCallback(() => {
     setVoiceBlob(null);
@@ -371,11 +594,29 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   }
 
   return (
-    <div className="message-input-container">
+    <div
+      className="message-input-container"
+      onDragOver={(e) => { if (hasFileDrag(e)) e.preventDefault(); }}
+      onDrop={(e) => { if (hasFileDrag(e)) e.preventDefault(); }}
+    >
       {voiceBlob && voiceBlobUrl && (
         <div className="attachment-preview attachment-preview--voice">
           <AudioPlayer url={voiceBlobUrl} isVoiceMessage />
           <button type="button" className="attachment-preview-remove" onClick={cancelVoice} title="Discard">✕</button>
+        </div>
+      )}
+
+      {uploadError && (
+        <div className="upload-error" role="alert">
+          <span className="upload-error-text">{uploadError}</span>
+          <button
+            type="button"
+            className="upload-error-retry"
+            onClick={handleSend}
+            disabled={isUploading}
+          >
+            Retry
+          </button>
         </div>
       )}
 
@@ -387,6 +628,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             <span className="attachment-preview-icon"><PaperclipIcon /></span>
           )}
           <span className="attachment-preview-name">{pendingFile.name}</span>
+          <span className="attachment-preview-size">• {formatFileSize(pendingFile.size)}</span>
           <button type="button" className="attachment-preview-remove" onClick={handleRemoveFile} title="Remove">✕</button>
         </div>
       )}
@@ -424,6 +666,15 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             onSelect={handleEmojiSelect}
           />
         )}
+        {showSlashDropdown && (
+          <SlashCommandDropdown
+            suggestions={slashFiltered}
+            selectedIdx={slashSelIdx}
+            onSelect={handleSlashCommandSelect}
+            empty={serverHasNoCommands}
+            loading={commandsLoading && allCommands.length === 0}
+          />
+        )}
 
         <input
           ref={fileInputRef}
@@ -433,8 +684,18 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           disabled={isBusy}
         />
 
-        <div className="message-input-wrapper">
-          {canAttach && (
+        <div
+          className={`message-input-wrapper${dragActive ? ' drag-active' : ''}`}
+          style={{ position: 'relative' }}
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          {dragActive && (
+            <div className="drag-overlay">Drop to attach</div>
+          )}
+          {!pickerCommand && canAttach && (
           <button
             type="button"
             className="input-icon-btn attach-btn"
@@ -445,6 +706,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             <PaperclipIcon />
           </button>
           )}
+          {!pickerCommand && (
           <button
             type="button"
             className={`input-icon-btn gif-btn${showGifPicker ? ' gif-btn--active' : ''}`}
@@ -454,44 +716,264 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           >
             <GifIcon />
           </button>
-          <textarea
-            ref={textareaRef}
-            className="message-textarea"
-            value={message}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            onSelect={e => setCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? 0)}
-            onClick={e => setCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? 0)}
-            onPaste={handlePaste}
-            placeholder={isRecording ? 'Recording…' : defaultPlaceholder}
-            disabled={isBusy}
-            maxLength={MAX_LENGTH}
-            rows={1}
-          />
-          {message.length >= MAX_LENGTH * 0.8 && (
-            <span className={`char-counter${message.length >= MAX_LENGTH ? ' char-counter--over' : ''}`}>
-              {MAX_LENGTH - message.length}
-            </span>
           )}
-          <button
-            className="send-button"
-            onClick={handleSend}
-            disabled={isBusy || message.length > MAX_LENGTH || (!message.trim() && !pendingFile && !voiceBlob)}
-          >
-            {isUploading ? '...' : 'Send'}
-          </button>
+          {pickerCommand ? (
+            <SlashOptionPicker
+              command={pickerCommand}
+              values={pickerValues}
+              onChangeValue={(name, v) => setPickerValues(prev => ({ ...prev, [name]: v }))}
+              inputRefs={pickerInputRefs}
+              invoking={invoking}
+              error={invokeError}
+              onCancel={() => exitPicker(`/${pickerCommand.name}`)}
+              onSubmit={runInvoke}
+              canSubmit={pickerValid && !invoking}
+            />
+          ) : (
+            <>
+              <textarea
+                ref={textareaRef}
+                className="message-textarea"
+                value={message}
+                onChange={handleChange}
+                onKeyDown={handleKeyDown}
+                onSelect={e => setCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? 0)}
+                onClick={e => setCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? 0)}
+                onPaste={handlePaste}
+                placeholder={isRecording ? 'Recording…' : defaultPlaceholder}
+                disabled={isBusy}
+                maxLength={MAX_LENGTH}
+                rows={1}
+              />
+              {message.length > MAX_LENGTH * 0.9 && (
+                <span
+                  className={`char-counter${message.length > MAX_LENGTH ? ' char-counter--over' : ''}`}
+                  aria-live="polite"
+                >
+                  {message.length} / {MAX_LENGTH}
+                </span>
+              )}
+            </>
+          )}
+          {(() => {
+            if (pickerCommand) {
+              const disabled = !pickerValid || invoking;
+              return (
+                <button
+                  className="send-button"
+                  onClick={runInvoke}
+                  disabled={disabled}
+                  aria-disabled={disabled}
+                >
+                  {invoking ? '...' : 'Run'}
+                </button>
+              );
+            }
+            const sendDisabled = isBusy || message.length > MAX_LENGTH || (!message.trim() && !pendingFile && !voiceBlob);
+            return (
+              <button
+                className="send-button"
+                onClick={handleSend}
+                disabled={sendDisabled}
+                aria-disabled={sendDisabled}
+              >
+                {isUploading ? '...' : 'Send'}
+              </button>
+            );
+          })()}
         </div>
 
-        <button
-          type="button"
-          className={`input-icon-btn mic-btn${isRecording ? ' mic-btn--recording' : ''}`}
-          onClick={handleMicClick}
-          disabled={isBusy && !isRecording}
-          title={isRecording ? 'Stop recording' : 'Voice message'}
-        >
-          <MicIcon active={isRecording} />
-        </button>
+        {!pickerCommand && (
+          <button
+            type="button"
+            className={`input-icon-btn mic-btn${isRecording ? ' mic-btn--recording' : ''}`}
+            onClick={handleMicClick}
+            disabled={isBusy && !isRecording}
+            title={isRecording ? 'Stop recording' : 'Voice message'}
+          >
+            <MicIcon active={isRecording} />
+          </button>
+        )}
       </div>
+    </div>
+  );
+};
+
+// -------------------- Slash option-picker sub-component --------------------
+
+interface SlashOptionPickerProps {
+  command: BotCommand;
+  values: Record<string, unknown>;
+  onChangeValue: (name: string, value: unknown) => void;
+  inputRefs: React.MutableRefObject<Array<HTMLInputElement | HTMLSelectElement | null>>;
+  invoking: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onSubmit: () => void;
+  canSubmit: boolean;
+}
+
+const SlashOptionPicker: React.FC<SlashOptionPickerProps> = ({
+  command,
+  values,
+  onChangeValue,
+  inputRefs,
+  invoking,
+  error,
+  onCancel,
+  onSubmit,
+  canSubmit,
+}) => {
+  const options = command.options ?? [];
+
+  // Make sure the refs array is sized to the option count.
+  if (inputRefs.current.length !== options.length) {
+    inputRefs.current = new Array(options.length).fill(null);
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>, idx: number) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      onCancel();
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (canSubmit) onSubmit();
+      return;
+    }
+    if (e.key === 'Tab') {
+      // Cycle focus through picker inputs. If we fall off the end we let the
+      // browser take over (so the Cancel/Run buttons remain reachable).
+      const next = e.shiftKey ? idx - 1 : idx + 1;
+      if (next >= 0 && next < options.length) {
+        e.preventDefault();
+        inputRefs.current[next]?.focus();
+      }
+    }
+  };
+
+  const renderOption = (opt: SlashCommandOption, idx: number) => {
+    const raw = values[opt.name];
+    const label = (
+      <span className="slash-picker-option-label">
+        {opt.name}
+        {opt.required && <span className="slash-picker-option-required" aria-label="required">*</span>}
+      </span>
+    );
+
+    // STRING with choices → <select>
+    if (opt.type === 'STRING' && opt.choices && opt.choices.length > 0) {
+      return (
+        <span key={opt.name} className="slash-picker-option">
+          {label}
+          <select
+            className="slash-picker-select"
+            ref={el => { inputRefs.current[idx] = el; }}
+            value={raw === undefined ? '' : String(raw)}
+            onChange={e => onChangeValue(opt.name, e.target.value)}
+            onKeyDown={e => handleKeyDown(e, idx)}
+            disabled={invoking}
+            title={opt.description}
+          >
+            <option value="" disabled={opt.required}>
+              {opt.required ? 'Choose…' : '—'}
+            </option>
+            {opt.choices.map(ch => (
+              <option key={String(ch.value)} value={String(ch.value)}>{ch.name}</option>
+            ))}
+          </select>
+        </span>
+      );
+    }
+
+    // BOOLEAN → two-button pill
+    if (opt.type === 'BOOLEAN') {
+      const current = Boolean(raw);
+      return (
+        <span key={opt.name} className="slash-picker-option">
+          {label}
+          <span className="slash-picker-toggle" title={opt.description}>
+            <button
+              type="button"
+              className={current ? 'active' : ''}
+              onClick={() => onChangeValue(opt.name, true)}
+              disabled={invoking}
+            >Yes</button>
+            <button
+              type="button"
+              className={!current ? 'active' : ''}
+              onClick={() => onChangeValue(opt.name, false)}
+              disabled={invoking}
+            >No</button>
+          </span>
+          {/* Hidden focus-proxy so Tab cycling can hop over BOOLEAN inputs
+              without breaking the indexed ref array. */}
+          <input
+            ref={el => { inputRefs.current[idx] = el; }}
+            type="text"
+            readOnly
+            style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }}
+            tabIndex={-1}
+            aria-hidden="true"
+            defaultValue={current ? 'yes' : 'no'}
+            onKeyDown={e => handleKeyDown(e, idx)}
+          />
+        </span>
+      );
+    }
+
+    // STRING / INTEGER (plain input)
+    const isInt = opt.type === 'INTEGER';
+    return (
+      <span key={opt.name} className="slash-picker-option">
+        {label}
+        <input
+          className="slash-picker-input"
+          ref={el => { inputRefs.current[idx] = el; }}
+          type={isInt ? 'number' : 'text'}
+          step={isInt ? 1 : undefined}
+          min={opt.min_value}
+          max={opt.max_value}
+          minLength={opt.min_length}
+          maxLength={opt.max_length}
+          placeholder={opt.description || opt.name}
+          value={raw === undefined || raw === null ? '' : String(raw)}
+          onChange={e => onChangeValue(opt.name, e.target.value)}
+          onKeyDown={e => handleKeyDown(e, idx)}
+          disabled={invoking}
+          title={opt.description}
+        />
+      </span>
+    );
+  };
+
+  return (
+    <div className="slash-picker" role="group" aria-label={`Options for /${command.name}`}>
+      <span className="slash-picker-chip">/{command.name}</span>
+      {options.map((opt, i) => renderOption(opt, i))}
+      {invoking && <span className="slash-picker-running">Running…</span>}
+      <button
+        type="button"
+        className="slash-picker-cancel"
+        onClick={onCancel}
+        disabled={invoking}
+      >
+        Cancel
+      </button>
+      {error && (
+        <div className="slash-picker-error" role="alert">
+          <span>Command failed: {error}</span>
+          <button
+            type="button"
+            className="slash-picker-error-retry"
+            onClick={onSubmit}
+            disabled={!canSubmit}
+          >
+            Retry
+          </button>
+        </div>
+      )}
     </div>
   );
 };

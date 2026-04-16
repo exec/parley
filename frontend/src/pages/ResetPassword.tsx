@@ -1,5 +1,6 @@
 import React, { useState, FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import './Auth.css';
 
@@ -13,6 +14,8 @@ export const ResetPassword: React.FC = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   if (!token) {
     return (
@@ -99,30 +102,54 @@ export const ResetPassword: React.FC = () => {
               <label htmlFor="password" className="input-label">
                 New Password
               </label>
-              <input
-                id="password"
-                type="password"
-                className="input"
-                value={password}
-                onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                placeholder="Enter new password"
-                autoComplete="new-password"
-              />
+              <div className="auth-password-wrapper">
+                <input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  className="input"
+                  value={password}
+                  onChange={(e) => { setPassword(e.target.value); setError(''); }}
+                  placeholder="Enter new password"
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  className="auth-password-toggle"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-pressed={showPassword}
+                  tabIndex={0}
+                >
+                  {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+                </button>
+              </div>
             </div>
 
             <div className="input-wrapper">
               <label htmlFor="confirm" className="input-label">
                 Confirm Password
               </label>
-              <input
-                id="confirm"
-                type="password"
-                className="input"
-                value={confirm}
-                onChange={(e) => { setConfirm(e.target.value); setError(''); }}
-                placeholder="Confirm new password"
-                autoComplete="new-password"
-              />
+              <div className="auth-password-wrapper">
+                <input
+                  id="confirm"
+                  type={showConfirm ? 'text' : 'password'}
+                  className="input"
+                  value={confirm}
+                  onChange={(e) => { setConfirm(e.target.value); setError(''); }}
+                  placeholder="Confirm new password"
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  className="auth-password-toggle"
+                  onClick={() => setShowConfirm((v) => !v)}
+                  aria-label={showConfirm ? 'Hide password' : 'Show password'}
+                  aria-pressed={showConfirm}
+                  tabIndex={0}
+                >
+                  {showConfirm ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+                </button>
+              </div>
             </div>
 
             <Button type="submit" variant="primary" size="lg" loading={loading}>

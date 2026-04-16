@@ -137,7 +137,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const [showSearch, setShowSearch] = useState(false);
   const [showPins, setShowPins] = useState(false);
 
-  const replyValue = replyTo ? `@${replyTo.author_username} ` : '';
+  const replySnippet = replyTo
+    ? (() => {
+        const raw = (replyTo.content ?? '').replace(/\s+/g, ' ').trim();
+        if (!raw) return replyTo.attachment_name ? `[${replyTo.attachment_name}]` : '[attachment]';
+        return raw.length > 80 ? `${raw.slice(0, 80)}…` : raw;
+      })()
+    : '';
   const [editingTopic, setEditingTopic] = useState(false);
   const [topicValue, setTopicValue] = useState(channel.topic ?? '');
   const topicInputRef = useRef<HTMLInputElement>(null);
@@ -285,15 +291,35 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         jumpToMessageId={jumpToMessageId}
         onJumpClear={onJumpClear}
       />
-      <TypingIndicator typingUsers={typingUsers} />
+      <TypingIndicator typingUsers={typingUsers} members={members} />
+      {replyTo && (
+        <div className="reply-reference">
+          <div className="reply-reference-body">
+            <span className="reply-reference-label">
+              Replying to{' '}
+              <span className="reply-reference-label-user">@{replyTo.author_username}</span>
+            </span>
+            <span className="reply-reference-snippet">{replySnippet}</span>
+          </div>
+          <button
+            type="button"
+            className="reply-reference-cancel"
+            onClick={onClearReply}
+            title="Cancel reply"
+            aria-label="Cancel reply"
+          >
+            ×
+          </button>
+        </div>
+      )}
       <MessageInput
         channelName={channel.name}
         onSendMessage={handleSendMessage}
         onTyping={onTyping}
-        initialValue={replyValue}
         members={members}
         channels={channels}
         replyTo={replyTo}
+        onCancelReply={onClearReply}
         serverId={channel.server_id || undefined}
         channelId={channel.id || undefined}
       />

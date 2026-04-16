@@ -1,6 +1,7 @@
 import React, { useState, FormEvent } from 'react';
 import { SITE_URL } from '../config';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { apiClient } from '../api/client';
 import { registerPasskey } from '../api/passkeys';
@@ -29,6 +30,8 @@ export const Register: React.FC = () => {
   const [passkeySetupRequired, setPasskeySetupRequired] = useState(false);
   const [passkeyError, setPasskeyError] = useState('');
   const [passkeyLoading, setPasskeyLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const passkeyOnly = passkeySupported && password === '';
 
@@ -234,14 +237,26 @@ export const Register: React.FC = () => {
 
             <div className="input-wrapper">
               <label className="input-label">Password</label>
-              <input
-                type="password"
-                className={`input ${errors.password ? 'input-error' : ''}`}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder={passkeySupported ? 'Leave empty to set up passkey authentication' : 'Create a password'}
-                autoComplete="new-password"
-              />
+              <div className="auth-password-wrapper">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  className={`input ${errors.password ? 'input-error' : ''}`}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder={passkeySupported ? 'Leave empty to set up passkey authentication' : 'Create a password'}
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  className="auth-password-toggle"
+                  onClick={() => setShowPassword(v => !v)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-pressed={showPassword}
+                  tabIndex={0}
+                >
+                  {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+                </button>
+              </div>
               {errors.password && <span className="input-error-message">{errors.password}</span>}
               {passkeyOnly && (
                 <span className="input-hint">
@@ -253,14 +268,26 @@ export const Register: React.FC = () => {
             {password && (
               <div className="input-wrapper">
                 <label className="input-label">Confirm Password</label>
-                <input
-                  type="password"
-                  className={`input ${errors.confirmPassword ? 'input-error' : ''}`}
-                  value={confirmPassword}
-                  onChange={e => setConfirmPassword(e.target.value)}
-                  placeholder="Confirm your password"
-                  autoComplete="new-password"
-                />
+                <div className="auth-password-wrapper">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    className={`input ${errors.confirmPassword ? 'input-error' : ''}`}
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm your password"
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    className="auth-password-toggle"
+                    onClick={() => setShowConfirmPassword(v => !v)}
+                    aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                    aria-pressed={showConfirmPassword}
+                    tabIndex={0}
+                  >
+                    {showConfirmPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+                  </button>
+                </div>
                 {errors.confirmPassword && <span className="input-error-message">{errors.confirmPassword}</span>}
               </div>
             )}

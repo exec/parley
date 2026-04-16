@@ -21,6 +21,7 @@ import (
 	"parley/internal/audit"
 	"parley/internal/auth"
 	"parley/internal/bin"
+	"parley/internal/botcommands"
 	"parley/internal/bots"
 	"parley/internal/cache"
 	"parley/internal/channel"
@@ -290,6 +291,26 @@ func main() {
 	// Must happen after hub is initialized (above) and before requests are served.
 	botsHandler.SetHub(hub)
 
+	// Initialize slash-command (bot_commands) service.
+	botCmdRepo := botcommands.NewRepository(repo.DB())
+	botCmdSvc := botcommands.NewService(botCmdRepo, repo)
+	botCmdSvc.SetNotifier(botCommandsHubNotifier{hub: hub})
+	botCmdSvc.SetBroadcaster(hubBroadcaster)
+	botCommandsHandler := botcommands.NewHandler(botCmdSvc)
+
+	// Background sweeper: transition timed-out pending interactions to 'expired'.
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			if _, err := botCmdRepo.ExpirePastInteractions(ctx, time.Now().UTC()); err != nil {
+				log.Printf("bot interaction expire sweep: %v", err)
+			}
+			cancel()
+		}
+	}()
+
 	// Cache bot user ID at startup (fatal if not found — migration must have run)
 	botUserID, err := botsRepo.GetBotUserID(context.Background(), "polly")
 	if err != nil {
@@ -350,7 +371,7 @@ func main() {
 	}
 
 	// Setup chi router
-	router := setupRouter(config, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, passkeySvc, redisHub, parseCDNHost(spacesCDNURL), siteURL, botsHandler, auditSvc)
+	router := setupRouter(config, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, passkeySvc, redisHub, parseCDNHost(spacesCDNURL), siteURL, botsHandler, auditSvc, botCommandsHandler)
 
 	// Start version purge goroutine
 	go func() {
@@ -437,6 +458,7 @@ func setupRouter(
 	siteURL string,
 	botsHandler *bots.Handler,
 	auditSvc *audit.AuditService,
+	botCommandsHandler *botcommands.Handler,
 ) *chi.Mux {
 	router := chi.NewRouter()
 
@@ -458,7 +480,7 @@ func setupRouter(
 		log.Println("WARNING: using in-memory ticket store — WebSocket tickets will NOT work across multiple API nodes")
 		tickets = newTicketStore()
 	}
-	registerRoutes(router, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, tickets, passkeySvc, redisHub, config.OllamaAPIURL, config.OllamaAPIKey, config.OllamaModel, cdnHost, siteURL, botsHandler, auditSvc)
+	registerRoutes(router, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, tickets, passkeySvc, redisHub, config.OllamaAPIURL, config.OllamaAPIKey, config.OllamaModel, cdnHost, siteURL, botsHandler, auditSvc, botCommandsHandler)
 
 	return router
 }
@@ -515,4 +537,25 @@ func (h *HubBroadcaster) BroadcastToUser(userID string, event string, data inter
 		return
 	}
 	h.hub.SendToUser(userID, event, payload)
+}
+
+// botCommandsHubNotifier adapts the WebSocket hub to the narrower
+// botcommands.Notifier interface. Used to push INTERACTION_CREATE to the bot
+// user's connection(s). Hub.SendToUser already cross-publishes to Redis so bots
+// connected to a different API node receive the event too.
+type botCommandsHubNotifier struct {
+	hub *websocket.Hub
+}
+
+// PublishToUser marshals data to JSON and sends it to every active connection
+// of the target user. Marshal errors are logged and dropped.
+func (n botCommandsHubNotifier) PublishToUser(userID int64, event string, data interface{}) {
+	payload, err := json.Marshal(data)
+	if err != nil {
+		log.Printf("botcommands: marshal %s payload: %v", event, err)
+		return
+	}
+	if err := n.hub.SendToUser(strconv.FormatInt(userID, 10), event, payload); err != nil {
+		log.Printf("botcommands: send %s to user %d: %v", event, userID, err)
+	}
 }

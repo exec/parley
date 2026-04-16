@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type MouseEvent } from 'react';
 import DOMPurify from 'dompurify';
 import type { Components } from 'react-markdown';
 import { highlight } from '../../lib/shiki';
@@ -20,6 +20,7 @@ const ShikiCodeBlock: Components['code'] = ({ className, children, ...props }) =
   const code = String(children ?? '').replace(/\n$/, '');
 
   const [html, setHtml] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!lang) return;
@@ -29,6 +30,28 @@ const ShikiCodeBlock: Components['code'] = ({ className, children, ...props }) =
     });
     return () => { cancelled = true; };
   }, [code, lang]);
+
+  const handleCopy = async (e: MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard API unavailable; silently ignore
+    }
+  };
+
+  const copyButton = (
+    <button
+      className={`code-block-copy${copied ? ' code-block-copy--copied' : ''}`}
+      onClick={handleCopy}
+      title="Copy code to clipboard"
+      type="button"
+    >
+      {copied ? 'Copied!' : 'Copy'}
+    </button>
+  );
 
   if (!isBlock || !lang) {
     return (
@@ -42,6 +65,7 @@ const ShikiCodeBlock: Components['code'] = ({ className, children, ...props }) =
     const shikiHtml = html;
     return (
       <div className="code-block" style={{ margin: '8px 0' }}>
+        {copyButton}
         <div className="code-block-body">
           <ShikiOutput html={shikiHtml} />
         </div>
@@ -52,6 +76,7 @@ const ShikiCodeBlock: Components['code'] = ({ className, children, ...props }) =
   // Fallback while loading
   return (
     <div className="code-block" style={{ margin: '8px 0' }}>
+      {copyButton}
       <div className="code-block-body">
         <pre className="code-block-plain">{code}</pre>
       </div>

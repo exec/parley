@@ -45,24 +45,36 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
         </div>
       </div>
       <div className="voice-widget-controls">
-        <button
-          className={`vw-btn ${muted ? 'vw-btn--off' : ''}`}
-          onClick={onToggleMute}
-          title={muted ? 'Unmute' : 'Mute'}
-        >
-          {muted ? <MicOff size={16} color="var(--parley-danger)" /> : <Mic size={16} color="var(--parley-accent)" />}
-        </button>
-        <button
-          className={`vw-btn ${deafened ? 'vw-btn--off' : ''}`}
-          onClick={onToggleDeafen}
-          title={deafened ? 'Undeafen' : 'Deafen'}
-        >
-          {deafened ? <HeadphoneOff size={16} color="var(--parley-danger)" /> : <Headphones size={16} color="var(--parley-accent)" />}
-        </button>
+        <div className="vw-btn-wrap">
+          <button
+            className={`vw-btn ${muted ? 'vw-btn--off' : ''}`}
+            onClick={onToggleMute}
+            title={muted ? 'Unmute' : 'Mute'}
+            aria-label={muted ? 'Unmute' : 'Mute'}
+            aria-pressed={muted}
+          >
+            {muted ? <MicOff size={16} color="var(--parley-danger)" /> : <Mic size={16} color="var(--parley-accent)" />}
+          </button>
+          {muted && <span className="vw-btn-status">Muted</span>}
+        </div>
+        <div className="vw-btn-wrap">
+          <button
+            className={`vw-btn ${deafened ? 'vw-btn--off' : ''}`}
+            onClick={onToggleDeafen}
+            title={deafened ? 'Undeafen' : 'Deafen'}
+            aria-label={deafened ? 'Undeafen' : 'Deafen'}
+            aria-pressed={deafened}
+          >
+            {deafened ? <HeadphoneOff size={16} color="var(--parley-danger)" /> : <Headphones size={16} color="var(--parley-accent)" />}
+          </button>
+          {deafened && <span className="vw-btn-status">Deafened</span>}
+        </div>
         <button
           className={`vw-btn ${!videoEnabled ? 'vw-btn--off' : ''}`}
           onClick={onToggleVideo}
           title={videoEnabled ? 'Camera off' : 'Camera on'}
+          aria-label={videoEnabled ? 'Turn camera off' : 'Turn camera on'}
+          aria-pressed={videoEnabled}
         >
           {videoEnabled ? <Video size={16} color="var(--parley-accent)" /> : <VideoOff size={16} color="var(--parley-text-muted)" />}
         </button>
@@ -70,10 +82,12 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
           className={`vw-btn ${!screenSharing ? 'vw-btn--off' : ''}`}
           onClick={onToggleScreenShare}
           title={screenSharing ? 'Stop sharing' : 'Share screen'}
+          aria-label={screenSharing ? 'Stop sharing screen' : 'Share screen'}
+          aria-pressed={screenSharing}
         >
           {screenSharing ? <Monitor size={16} color="var(--parley-accent)" /> : <MonitorOff size={16} color="var(--parley-text-muted)" />}
         </button>
-        <button className="vw-btn vw-btn--leave" onClick={onDisconnect} title="Disconnect">
+        <button className="vw-btn vw-btn--leave" onClick={onDisconnect} title="Disconnect" aria-label="Disconnect from voice">
           <PhoneOff size={16} color="var(--parley-danger)" />
         </button>
       </div>

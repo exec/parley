@@ -198,3 +198,10 @@
   color: var(--parley-gray);
   font-size: 12px;
 }
+
+.search-highlight {
+  background: rgba(var(--accent-rgb), 0.25);
+  color: inherit;
+  padding: 0 2px;
+  border-radius: 3px;
+}

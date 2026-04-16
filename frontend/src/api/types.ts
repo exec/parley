@@ -259,3 +259,42 @@ export interface FriendRequestsResponse {
   incoming: FriendRequest[];
   outgoing: FriendRequest[];
 }
+
+// ----- Slash commands (Phase 1) -----
+
+export type SlashOptionType = 'STRING' | 'INTEGER' | 'BOOLEAN';
+
+export interface SlashOptionChoice {
+  name: string;
+  value: string | number;
+}
+
+export interface SlashCommandOption {
+  name: string;
+  description: string;
+  type: SlashOptionType;
+  required?: boolean;
+  choices?: SlashOptionChoice[];
+  min_value?: number;
+  max_value?: number;
+  min_length?: number;
+  max_length?: number;
+}
+
+export interface BotCommand {
+  id: number;
+  bot_id: number;
+  server_id: number;
+  name: string;
+  description: string;
+  options: SlashCommandOption[];
+  bot_username?: string;
+  bot_display_name?: string;
+  bot_avatar_url?: string;
+}
+
+export interface InteractionInvokeResponse {
+  interaction_id: string;
+  status: 'pending' | 'responded' | 'expired';
+  expires_at: string;
+}

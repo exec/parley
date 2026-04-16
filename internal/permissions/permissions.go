@@ -58,11 +58,13 @@ const (
 	PermStream             int64 = 1 << 39
 	PermUseSoundboard      int64 = 1 << 40
 	PermSendVoiceMessages  int64 = 1 << 41
+	// PermUseBotCommands allows a user to invoke bot slash commands in a channel.
+	PermUseBotCommands     int64 = 1 << 42
 )
 
 // Masks
 const (
-	PermAllPermissions int64 = (1 << 42) - 1
+	PermAllPermissions int64 = (1 << 43) - 1
 	PermChannelMask    int64 = PermAllPermissions &^ ((1 << 16) - 1)
 	PermServerOnlyMask int64 = (1 << 14) - 1
 )
@@ -70,7 +72,7 @@ const (
 // Default @everyone permissions
 const PermDefaultEveryone int64 = PermViewChannel | PermSendMessages | PermReadMessageHistory |
 	PermAddReactions | PermEmbedLinks | PermAttachFiles | PermConnect | PermSpeak |
-	PermUseVAD | PermChangeNickname | PermCreateInvite | PermCreatePosts
+	PermUseVAD | PermChangeNickname | PermCreateInvite | PermCreatePosts | PermUseBotCommands
 
 // Overwrite is an alias for db.Overwrite for backward compatibility.
 type Overwrite = db.Overwrite

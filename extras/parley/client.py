@@ -31,6 +31,7 @@ import httpx
 from .errors import AuthError
 from .gateway import GatewayClient
 from .http import HTTPClient
+from .slash import InteractionContext, SlashCommand, SlashOption
 from .models.channel import Channel, TextChannel, channel_from_data
 from .models.dm import DmChannel
 from .models.invite import Invite
@@ -494,6 +495,154 @@ class Bot(Client):
                 api_key[:8] + "…",
             )
         super().__init__(base_url, api_key, timeout=timeout)
+
+        # Slash-command registry: name → SlashCommand
+        self._slash_commands: dict[str, SlashCommand] = {}
+
+        # Hook READY to register commands and INTERACTION_CREATE to dispatch.
+        self.add_listener(self._slash_on_ready, "ready")
+        self.add_listener(self._slash_on_interaction, "interaction_create")
+
+    # ------------------------------------------------------------------
+    # Slash-command registration
+    # ------------------------------------------------------------------
+
+    def slash_command(
+        self,
+        *,
+        name: str,
+        description: str,
+        options: Optional[list] = None,
+    ) -> Callable[[_CoroFunc], SlashCommand]:
+        """Decorator registering a slash command on this bot.
+
+        Example::
+
+            @bot.slash_command(
+                name="weather",
+                description="Current weather",
+                options=[SlashOption("city", "City name", type="STRING", required=True)],
+            )
+            async def weather(ctx, city: str):
+                await ctx.respond(f"Weather in {city}: sunny")
+
+        The wrapped handler must be an ``async def`` accepting an
+        :class:`~parley.slash.InteractionContext` followed by option kwargs.
+
+        Parameters
+        ----------
+        name:
+            Command name (1-32 chars, lowercase).
+        description:
+            Short description shown to users (1-100 chars).
+        options:
+            Optional list of :class:`~parley.slash.SlashOption`.
+        """
+
+        def decorator(fn: _CoroFunc) -> SlashCommand:
+            if not asyncio.iscoroutinefunction(fn):
+                raise TypeError(
+                    f"slash_command handler {fn.__name__!r} must be a coroutine function"
+                )
+            cmd = SlashCommand(
+                name=name,
+                description=description,
+                options=list(options or []),
+                handler=fn,
+            )
+            self.add_slash_command(cmd)
+            return cmd
+
+        return decorator
+
+    def add_slash_command(self, cmd: SlashCommand) -> None:
+        """Register a :class:`~parley.slash.SlashCommand` on this bot."""
+        if cmd.name in self._slash_commands:
+            log.warning("Overwriting existing slash command %r", cmd.name)
+        self._slash_commands[cmd.name] = cmd
+
+    def remove_slash_command(self, name: str) -> Optional[SlashCommand]:
+        """Remove a slash command by name."""
+        return self._slash_commands.pop(name, None)
+
+    def get_slash_command(self, name: str) -> Optional[SlashCommand]:
+        """Retrieve a registered slash command by name."""
+        return self._slash_commands.get(name)
+
+    @property
+    def slash_commands(self) -> dict[str, SlashCommand]:
+        """Read-only view of the registered slash-command mapping."""
+        return dict(self._slash_commands)
+
+    # ------------------------------------------------------------------
+    # Slash-command lifecycle hooks
+    # ------------------------------------------------------------------
+
+    async def _slash_on_ready(self, _payload: dict) -> None:
+        """Push the slash-command registry to every server the bot is in."""
+        if not self._slash_commands:
+            return
+
+        body = [c.to_api() for c in self._slash_commands.values()]
+        server_ids = list(self._state.servers.keys())
+        if not server_ids:
+            log.debug(
+                "Bot is in no servers; skipping slash-command registration"
+            )
+            return
+
+        for server_id in server_ids:
+            path = f"/api/bots/@me/servers/{server_id}/commands"
+            try:
+                await self.http.request("PUT", path, json=body)
+                log.info(
+                    "Registered %d slash command(s) on server %d",
+                    len(body),
+                    server_id,
+                )
+            except Exception:
+                log.warning(
+                    "Failed to register slash commands on server %d",
+                    server_id,
+                    exc_info=True,
+                )
+
+    async def _slash_on_interaction(self, payload: dict) -> None:
+        """Route INTERACTION_CREATE to the registered handler by command name."""
+        try:
+            cmd_info = payload.get("command") or {}
+            cmd_name = str(cmd_info.get("name", ""))
+        except Exception:
+            log.warning("Malformed INTERACTION_CREATE payload: %r", payload)
+            return
+
+        cmd = self._slash_commands.get(cmd_name)
+        if cmd is None or cmd.handler is None:
+            log.warning(
+                "Received interaction for unregistered command %r", cmd_name
+            )
+            return
+
+        ctx = InteractionContext(self, payload)
+        kwargs = dict(ctx.options)
+
+        try:
+            await cmd.handler(ctx, **kwargs)
+        except Exception:
+            log.exception(
+                "Slash command %r raised an exception", cmd_name
+            )
+            # Best-effort error notification. If the handler already
+            # responded (or the interaction is gone), silently swallow.
+            if not ctx.responded:
+                try:
+                    await ctx.respond("An error occurred.")
+                except Exception:
+                    log.debug(
+                        "Failed to send fallback error response for %r",
+                        cmd_name,
+                        exc_info=True,
+                    )
 
 
 # ---------------------------------------------------------------------------

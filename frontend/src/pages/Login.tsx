@@ -1,5 +1,6 @@
 import React, { useState, FormEvent } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { loginWithPasskey } from '../api/passkeys';
 import { apiClient } from '../api/client';
@@ -30,6 +31,7 @@ export const Login: React.FC = () => {
   const [errors, setErrors] = useState<LoginErrors>({});
   const [loading, setLoading] = useState(false);
   const [passkeyLoading, setPasskeyLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const validate = (): boolean => {
     const newErrors: LoginErrors = {};
@@ -162,16 +164,28 @@ export const Login: React.FC = () => {
                   Forgot password?
                 </Link>
               </div>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                className={`input ${errors.password ? 'input-error' : ''}`}
-                value={formData.password}
-                onChange={handleChange}
-                placeholder="Enter your password"
-                autoComplete="current-password"
-              />
+              <div className="auth-password-wrapper">
+                <input
+                  id="password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  className={`input ${errors.password ? 'input-error' : ''}`}
+                  value={formData.password}
+                  onChange={handleChange}
+                  placeholder="Enter your password"
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  className="auth-password-toggle"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-pressed={showPassword}
+                  tabIndex={0}
+                >
+                  {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+                </button>
+              </div>
               {errors.password && (
                 <span className="input-error-message">{errors.password}</span>
               )}

@@ -838,6 +838,48 @@ FROM numbered WHERE server_roles.id = numbered.id AND server_roles.position != n
 
 -- Add unique constraint on server role positions to prevent duplicate positions during concurrent reorders
 CREATE UNIQUE INDEX IF NOT EXISTS idx_server_roles_unique_position ON server_roles(server_id, position);`,
+
+	`-- Slash commands Phase 1: bot_commands table stores command definitions
+-- registered by a bot for a particular server. (bot_id, server_id, name) is
+-- unique so re-registering the same name is an upsert.
+CREATE TABLE IF NOT EXISTS bot_commands (
+    id          BIGSERIAL PRIMARY KEY,
+    bot_id      BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    server_id   BIGINT NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
+    name        VARCHAR(32) NOT NULL,
+    description VARCHAR(100) NOT NULL,
+    options     JSONB NOT NULL DEFAULT '[]'::jsonb,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (bot_id, server_id, name)
+);
+CREATE INDEX IF NOT EXISTS idx_bot_commands_server ON bot_commands(server_id);
+CREATE INDEX IF NOT EXISTS idx_bot_commands_bot ON bot_commands(bot_id);`,
+
+	`-- Slash commands Phase 1: bot_interactions table stores one invocation of a
+-- slash command. token is a 64-char random string used as a bearer credential
+-- for POST /api/interactions/{token}/respond. Rows live at most 15 minutes.
+CREATE TABLE IF NOT EXISTS bot_interactions (
+    token               VARCHAR(64) PRIMARY KEY,
+    bot_id              BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    command_id          BIGINT NOT NULL REFERENCES bot_commands(id) ON DELETE CASCADE,
+    invoker_user_id     BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    channel_id          BIGINT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+    server_id           BIGINT NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
+    options             JSONB NOT NULL DEFAULT '{}'::jsonb,
+    state               VARCHAR(16) NOT NULL DEFAULT 'pending',
+    response_message_id BIGINT REFERENCES messages(id) ON DELETE SET NULL,
+    expires_at          TIMESTAMPTZ NOT NULL,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_bot_interactions_expires ON bot_interactions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_bot_interactions_bot ON bot_interactions(bot_id);`,
+
+	`-- Slash commands Phase 1: messages.kind tags a message's origin. Values used
+-- this phase: 'normal', 'interaction_response', 'system'. No CHECK constraint
+-- so new kinds can be added by later migrations without a column rewrite.
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS kind VARCHAR(16) NOT NULL DEFAULT 'normal';`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

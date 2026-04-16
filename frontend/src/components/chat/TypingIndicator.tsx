@@ -1,4 +1,6 @@
 import React from 'react';
+import { ServerMember } from '../../api/types';
+import { Avatar } from '../ui/Avatar';
 
 interface TypingUser {
   userId: string;
@@ -7,6 +9,7 @@ interface TypingUser {
 
 interface TypingIndicatorProps {
   typingUsers: TypingUser[];
+  members?: ServerMember[];
 }
 
 function formatTypingText(users: TypingUser[]): string {
@@ -16,11 +19,29 @@ function formatTypingText(users: TypingUser[]): string {
   return `${users[0].username}, ${users[1].username}, and ${users.length - 2} others are typing`;
 }
 
-export const TypingIndicator: React.FC<TypingIndicatorProps> = ({ typingUsers }) => {
+export const TypingIndicator: React.FC<TypingIndicatorProps> = ({ typingUsers, members }) => {
   if (typingUsers.length === 0) return null;
+
+  const showAvatars = typingUsers.length <= 2;
 
   return (
     <div className="typing-indicator">
+      {showAvatars && (
+        <span className="typing-avatars">
+          {typingUsers.map(tu => {
+            const m = members?.find(mm => mm.user_id === tu.userId);
+            return (
+              <Avatar
+                key={tu.userId}
+                size="sm"
+                src={m?.avatar_url}
+                alt={tu.username}
+                fallback={m?.display_name || tu.username}
+              />
+            );
+          })}
+        </span>
+      )}
       <span className="typing-dots">
         <span className="typing-dot" />
         <span className="typing-dot" />

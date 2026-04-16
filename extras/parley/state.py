@@ -350,6 +350,15 @@ class ConnectionState:
             member.bot_degraded = is_degraded
         await self._dispatch_event("BOT_STATUS_UPDATE", payload)
 
+    async def _handle_interaction_create(self, payload: dict) -> None:
+        """Slash-command invocation from the gateway.
+
+        Dispatched as ``on_interaction_create`` with the raw payload so
+        advanced users can inspect it.  :class:`~parley.client.Bot` also
+        hooks this internally to route to the registered slash handler.
+        """
+        self._dispatch("interaction_create", payload)
+
 
 # ------------------------------------------------------------------
 # Event handler dispatch table
@@ -380,4 +389,5 @@ _EVENT_HANDLERS: dict[str, Any] = {
     "REACTION_REMOVE": ConnectionState._handle_reaction_remove,
     "VOICE_STATE_UPDATE": ConnectionState._handle_voice_state_update,
     "BOT_STATUS_UPDATE": ConnectionState._handle_bot_status_update,
+    "INTERACTION_CREATE": ConnectionState._handle_interaction_create,
 }
