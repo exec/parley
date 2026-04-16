@@ -31,7 +31,9 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [showInvite, setShowInvite] = useState(false);
+  const [copied, setCopied] = useState(false);
   const iconFileInputRef = useRef<HTMLInputElement>(null);
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   React.useEffect(() => {
     if (server) {
@@ -124,8 +126,17 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
   const copyInviteLink = () => {
     if (inviteCode) {
       navigator.clipboard.writeText(`${window.location.origin}/invite/${inviteCode}`);
+      setCopied(true);
+      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+      copiedTimerRef.current = setTimeout(() => setCopied(false), 1500);
     }
   };
+
+  React.useEffect(() => {
+    return () => {
+      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+    };
+  }, []);
 
   if (!server) return null;
 
@@ -205,7 +216,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                 value={`${window.location.origin}/invite/${inviteCode}`}
               />
               <Button variant="secondary" onClick={copyInviteLink}>
-                Copy
+                {copied ? 'Copied!' : 'Copy'}
               </Button>
             </div>
           ) : (

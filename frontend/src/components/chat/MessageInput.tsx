@@ -468,18 +468,27 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             maxLength={MAX_LENGTH}
             rows={1}
           />
-          {message.length >= MAX_LENGTH * 0.8 && (
-            <span className={`char-counter${message.length >= MAX_LENGTH ? ' char-counter--over' : ''}`}>
-              {MAX_LENGTH - message.length}
+          {message.length > MAX_LENGTH * 0.9 && (
+            <span
+              className={`char-counter${message.length > MAX_LENGTH ? ' char-counter--over' : ''}`}
+              aria-live="polite"
+            >
+              {message.length} / {MAX_LENGTH}
             </span>
           )}
-          <button
-            className="send-button"
-            onClick={handleSend}
-            disabled={isBusy || message.length > MAX_LENGTH || (!message.trim() && !pendingFile && !voiceBlob)}
-          >
-            {isUploading ? '...' : 'Send'}
-          </button>
+          {(() => {
+            const sendDisabled = isBusy || message.length > MAX_LENGTH || (!message.trim() && !pendingFile && !voiceBlob);
+            return (
+              <button
+                className="send-button"
+                onClick={handleSend}
+                disabled={sendDisabled}
+                aria-disabled={sendDisabled}
+              >
+                {isUploading ? '...' : 'Send'}
+              </button>
+            );
+          })()}
         </div>
 
         <button

@@ -209,6 +209,7 @@ export const Message: React.FC<MessageProps> = ({
   const [editValue, setEditValue] = useState(message.content);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [showEditHistory, setShowEditHistory] = useState(false);
+  const [copied, setCopied] = useState(false);
   const editRef = useRef<HTMLTextAreaElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
@@ -298,6 +299,7 @@ export const Message: React.FC<MessageProps> = ({
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     setUserContextMenu(null);
+    setCopied(false);
     setContextMenu({ x: e.clientX, y: e.clientY });
   };
 
@@ -326,9 +328,16 @@ export const Message: React.FC<MessageProps> = ({
     return () => document.removeEventListener('click', handleClick);
   }, [userContextMenu]);
 
-  const handleCopy = () => {
+  const handleCopy = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
     navigator.clipboard.writeText(message.content);
-    closeContextMenu();
+    setCopied(true);
+    // Keep menu open briefly so the user sees the "Copied!" feedback,
+    // then auto-close and reset the label.
+    setTimeout(() => {
+      closeContextMenu();
+      setCopied(false);
+    }, 1200);
   };
 
   const handlePin = () => {
@@ -638,7 +647,9 @@ export const Message: React.FC<MessageProps> = ({
           onClick={e => e.stopPropagation()}
         >
           <button className="context-menu-item" onClick={handleReply}>Reply</button>
-          <button className="context-menu-item" onClick={handleCopy}>Copy Text</button>
+          <button className="context-menu-item" onClick={handleCopy} disabled={copied}>
+            {copied ? 'Copied!' : 'Copy Text'}
+          </button>
           {onForward && !message.forwarded_message && (
             <button className="context-menu-item" onClick={handleForward}>Forward Message</button>
           )}

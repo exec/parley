@@ -105,7 +105,9 @@ export const DiscoveryPage: React.FC<Props> = ({ currentUserId: _currentUserId, 
       {loading ? (
         <div className="discovery-loading">Loading...</div>
       ) : servers.length === 0 ? (
-        <div className="discovery-empty">No servers found.</div>
+        <div className="discovery-empty">
+          {query.trim() ? 'No servers match your search.' : 'No servers found.'}
+        </div>
       ) : (
         <div className="discovery-grid">
           {servers.map(server => {
@@ -125,7 +127,9 @@ export const DiscoveryPage: React.FC<Props> = ({ currentUserId: _currentUserId, 
                     <div className="discovery-card-desc">{server.description}</div>
                   )}
                   <div className="discovery-card-meta">
-                    <span>{server.member_count.toLocaleString()} members</span>
+                    <span title="Total members in this server">
+                      {server.member_count.toLocaleString()} {server.member_count === 1 ? 'member' : 'members'}
+                    </span>
                     {server.categories.map(c => (
                       <span key={c.id} className="discovery-card-cat">{c.name}</span>
                     ))}

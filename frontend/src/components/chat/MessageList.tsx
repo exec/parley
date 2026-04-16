@@ -347,9 +347,8 @@ export const MessageList: React.FC<MessageListProps> = ({
         })}
 
         {messages.length === 0 && !isLoading && (
-          <div className="message-empty">
-            <h3>No messages yet</h3>
-            <p>Be the first to send a message in this channel!</p>
+          <div className="message-empty" role="status" aria-live="polite">
+            <p className="message-empty-title">No messages yet — say hi!</p>
           </div>
         )}
       </div>

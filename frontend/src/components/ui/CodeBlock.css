@@ -4,6 +4,7 @@
    ========================================================= */
 
 .code-block {
+  position: relative;
   background: var(--parley-panel-bg, var(--parley-bg-secondary));
   border: 1px solid var(--parley-border);
   border-radius: 6px;
@@ -12,6 +13,40 @@
   line-height: 1.5;
   overflow: hidden;
   margin: 6px 0;
+}
+
+/* ---- Copy button ---- */
+
+.code-block-copy {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  z-index: 2;
+  background: var(--parley-bg-tertiary, rgba(0, 0, 0, 0.35));
+  border: 1px solid var(--parley-border);
+  color: var(--parley-text-muted);
+  cursor: pointer;
+  font-size: 11px;
+  font-family: inherit;
+  padding: 2px 8px;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+}
+
+.code-block:hover .code-block-copy,
+.code-block-copy:focus,
+.code-block-copy--copied {
+  opacity: 1;
+}
+
+.code-block-copy:hover {
+  color: var(--parley-accent);
+  background: rgba(var(--accent-rgb), 0.12);
+}
+
+.code-block-copy--copied {
+  color: var(--parley-accent);
 }
 
 /* ---- Header ---- */

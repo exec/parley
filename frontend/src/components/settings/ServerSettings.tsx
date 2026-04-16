@@ -90,6 +90,7 @@ export const ServerSettings: React.FC<Props> = ({
 
   // Danger
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmName, setDeleteConfirmName] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState('');
 
@@ -117,6 +118,7 @@ export const ServerSettings: React.FC<Props> = ({
         setInitialCategoryIds(ids);
       }).catch(() => {});
       setShowDeleteConfirm(false);
+      setDeleteConfirmName('');
       setDeleteError('');
       setCreatingRole(false);
       setSelectedRoleId(null);
@@ -298,6 +300,10 @@ export const ServerSettings: React.FC<Props> = ({
 
   const handleDeleteServer = async () => {
     if (!server) return;
+    if (deleteConfirmName !== server.name) {
+      setDeleteError('Server name does not match');
+      return;
+    }
     setDeleteLoading(true);
     setDeleteError('');
     try {
@@ -728,10 +734,23 @@ export const ServerSettings: React.FC<Props> = ({
                   </button>
                 ) : (
                   <div className="settings-delete-confirm">
-                    <p>Type the server name to confirm deletion, then click Delete Forever.</p>
+                    <p>Type the server name <strong>{server.name}</strong> to confirm deletion, then click Delete Forever.</p>
+                    <input
+                      className="settings-form-input"
+                      type="text"
+                      value={deleteConfirmName}
+                      onChange={e => setDeleteConfirmName(e.target.value)}
+                      placeholder={server.name}
+                      autoFocus
+                      style={{ marginBottom: 10 }}
+                    />
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <button className="settings-btn settings-btn-secondary" onClick={() => setShowDeleteConfirm(false)}>Cancel</button>
-                      <button className="settings-btn settings-btn-danger" onClick={handleDeleteServer} disabled={deleteLoading}>
+                      <button className="settings-btn settings-btn-secondary" onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmName(''); }}>Cancel</button>
+                      <button
+                        className="settings-btn settings-btn-danger"
+                        onClick={handleDeleteServer}
+                        disabled={deleteLoading || deleteConfirmName !== server.name}
+                      >
                         {deleteLoading ? 'Deleting...' : 'Delete Forever'}
                       </button>
                     </div>
