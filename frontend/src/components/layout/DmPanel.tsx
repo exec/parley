@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { MessageSquare } from 'lucide-react';
 import { DmChannel, User } from '../../api/types';
 import './DmPanel.css';
 import { ThemePopover } from '../theme/ThemePopover';
@@ -95,7 +96,11 @@ const DmPanel: React.FC<DmPanelProps> = ({
 
       <div className="dm-panel-list">
         {dmChannels.length === 0 ? (
-          <div className="dm-panel-empty">No direct messages yet</div>
+          <div className="dm-panel-empty">
+            <MessageSquare className="dm-panel-empty-icon" size={48} strokeWidth={1.5} aria-hidden="true" />
+            <div className="dm-panel-empty-title">No direct messages</div>
+            <div className="dm-panel-empty-hint">Start a conversation from a friend&apos;s profile.</div>
+          </div>
         ) : (
           dmChannels.map(channel => {
             const unread = dmUnreadCounts[channel.id] ?? 0;
@@ -118,7 +123,12 @@ const DmPanel: React.FC<DmPanelProps> = ({
                 </div>
                 <span className="dm-panel-name">{channel.other_display_name || channel.other_username}</span>
                 {unread > 0 && !isActive && (
-                  <span className="dm-unread-badge">{unread > 99 ? '99+' : unread}</span>
+                  <span
+                    className="dm-unread-badge"
+                    aria-label={`${unread} unread message${unread === 1 ? '' : 's'}`}
+                  >
+                    {unread > 99 ? '99+' : unread}
+                  </span>
                 )}
               </div>
             );

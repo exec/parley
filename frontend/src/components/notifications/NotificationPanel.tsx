@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { BellOff } from 'lucide-react';
 import { AppNotification } from '../../api/types';
 import './Notifications.css';
 
@@ -65,7 +66,11 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({
 
       <div className="notif-panel-body">
         {notifications.length === 0 ? (
-          <div className="notif-empty">No notifications yet</div>
+          <div className="notif-empty">
+            <BellOff className="notif-empty-icon" size={48} strokeWidth={1.5} aria-hidden="true" />
+            <div className="notif-empty-title">You&apos;re all caught up</div>
+            <div className="notif-empty-hint">New mentions, DMs, and friend requests will show up here.</div>
+          </div>
         ) : (
           notifications.map(n => (
             <div

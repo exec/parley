@@ -23,8 +23,14 @@ interface MessageInputProps {
   members?: ServerMember[];
   channels?: Channel[];
   replyTo?: MessageType | null;
+  onCancelReply?: () => void;
   serverId?: string;
   channelId?: string;
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 const PaperclipIcon = () => (
@@ -67,6 +73,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   members = [],
   channels = [],
   replyTo,
+  onCancelReply,
   serverId,
   channelId,
 }) => {
@@ -79,6 +86,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [showGifPicker, setShowGifPicker] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
+  const dragCounterRef = useRef(0);
 
   // Mention autocomplete state
   const [cursorPos, setCursorPos] = useState(0);
@@ -185,10 +195,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       onSendMessage(trimmedMessage, attachmentUrl, attachmentName, attachmentType, replyTo?.id);
       setMessage('');
       setPendingFile(null);
+      setUploadError(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       if (textareaRef.current) textareaRef.current.style.height = 'auto';
     } catch (err) {
       console.error('Failed to send message:', err);
+      setUploadError("Couldn't upload file — try again?");
     } finally {
       setIsUploading(false);
     }
@@ -252,9 +264,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         if (e.key === 'Tab' || e.key === 'Enter') { e.preventDefault(); handleEmojiSelect(emojiSuggestions[emojiSelIdx]); return; }
         if (e.key === 'Escape') { setCursorPos(message.length); return; }
       }
+      if (e.key === 'Escape' && replyTo && onCancelReply) {
+        e.preventDefault();
+        onCancelReply();
+        return;
+      }
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
     },
-    [handleSend, mentionSuggestions, mentionSelIdx, handleMentionSelect, channelSuggestions, channelSelIdx, handleChannelSelect, emojiSuggestions, emojiSelIdx, handleEmojiSelect, message.length],
+    [handleSend, mentionSuggestions, mentionSelIdx, handleMentionSelect, channelSuggestions, channelSelIdx, handleChannelSelect, emojiSuggestions, emojiSelIdx, handleEmojiSelect, message.length, replyTo, onCancelReply],
   );
 
   const handleChange = useCallback(
@@ -274,7 +291,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   const handleFileChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) { setPendingFile(file); setVoiceBlob(null); }
+    if (file) { setPendingFile(file); setVoiceBlob(null); setUploadError(null); }
   }, []);
 
   const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -286,14 +303,65 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     e.preventDefault();
     setPendingFile(file);
     setVoiceBlob(null);
+    setUploadError(null);
   }, []);
 
   const handleAttachClick = useCallback(() => { fileInputRef.current?.click(); }, []);
 
   const handleRemoveFile = useCallback(() => {
     setPendingFile(null);
+    setUploadError(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, []);
+
+  // Drag and drop handlers
+  const hasFileDrag = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    const types = e.dataTransfer?.types;
+    if (!types) return false;
+    for (let i = 0; i < types.length; i++) {
+      if (types[i] === 'Files') return true;
+    }
+    return false;
+  }, []);
+
+  const handleDragEnter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    if (!hasFileDrag(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current += 1;
+    setDragActive(true);
+  }, [hasFileDrag]);
+
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    if (!hasFileDrag(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+  }, [hasFileDrag]);
+
+  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    if (!hasFileDrag(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current -= 1;
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0;
+      setDragActive(false);
+    }
+  }, [hasFileDrag]);
+
+  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    if (!hasFileDrag(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current = 0;
+    setDragActive(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      setPendingFile(file);
+      setVoiceBlob(null);
+      setUploadError(null);
+    }
+  }, [hasFileDrag]);
 
   const cancelVoice = useCallback(() => {
     setVoiceBlob(null);
@@ -371,11 +439,29 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   }
 
   return (
-    <div className="message-input-container">
+    <div
+      className="message-input-container"
+      onDragOver={(e) => { if (hasFileDrag(e)) e.preventDefault(); }}
+      onDrop={(e) => { if (hasFileDrag(e)) e.preventDefault(); }}
+    >
       {voiceBlob && voiceBlobUrl && (
         <div className="attachment-preview attachment-preview--voice">
           <AudioPlayer url={voiceBlobUrl} isVoiceMessage />
           <button type="button" className="attachment-preview-remove" onClick={cancelVoice} title="Discard">✕</button>
+        </div>
+      )}
+
+      {uploadError && (
+        <div className="upload-error" role="alert">
+          <span className="upload-error-text">{uploadError}</span>
+          <button
+            type="button"
+            className="upload-error-retry"
+            onClick={handleSend}
+            disabled={isUploading}
+          >
+            Retry
+          </button>
         </div>
       )}
 
@@ -387,6 +473,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             <span className="attachment-preview-icon"><PaperclipIcon /></span>
           )}
           <span className="attachment-preview-name">{pendingFile.name}</span>
+          <span className="attachment-preview-size">• {formatFileSize(pendingFile.size)}</span>
           <button type="button" className="attachment-preview-remove" onClick={handleRemoveFile} title="Remove">✕</button>
         </div>
       )}
@@ -433,7 +520,17 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           disabled={isBusy}
         />
 
-        <div className="message-input-wrapper">
+        <div
+          className={`message-input-wrapper${dragActive ? ' drag-active' : ''}`}
+          style={{ position: 'relative' }}
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          {dragActive && (
+            <div className="drag-overlay">Drop to attach</div>
+          )}
           {canAttach && (
           <button
             type="button"

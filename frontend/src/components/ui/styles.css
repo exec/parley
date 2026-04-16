@@ -167,7 +167,8 @@
 }
 
 .input:focus-visible {
-  outline: none;
+  outline: 2px solid var(--parley-accent);
+  outline-offset: 2px;
   border-color: var(--parley-accent);
   box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.18);
 }

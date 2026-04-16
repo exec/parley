@@ -5,7 +5,6 @@ import { detectMention, useMentionSuggestions, MentionSuggestion } from '../../h
 import { detectChannelTag, useChannelSuggestions } from '../../hooks/useChannelAutocomplete';
 import { MentionDropdown } from '../chat/MentionDropdown';
 import { ChannelTagDropdown } from '../chat/ChannelTagDropdown';
-import MarkdownRenderer from '../ui/MarkdownRenderer';
 import './SearchPanel.css';
 
 interface Props {
@@ -44,6 +43,35 @@ function formatTimestamp(ts: string) {
   const d = new Date(ts);
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) +
     ' at ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+}
+
+/** Escape regex special characters in a user-supplied string. */
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Render `text` with whitespace-separated `query` terms wrapped in <mark>.
+ * Terms shorter than 2 chars are ignored. Matching is case-insensitive.
+ * Ignores `from:`/`in:` filter tokens so only free-text terms highlight.
+ */
+function highlightQuery(text: string, query: string): React.ReactNode {
+  const cleaned = query
+    .replace(/from:@?\S+/gi, '')
+    .replace(/in:#?\S+/gi, '')
+    .trim();
+  if (!cleaned) return text;
+  const terms = cleaned.split(/\s+/).filter(t => t.length >= 2);
+  if (terms.length === 0) return text;
+  const pattern = new RegExp(`(${terms.map(escapeRegex).join('|')})`, 'gi');
+  const parts = text.split(pattern);
+  // String.split with a capturing regex produces alternating non-match/match
+  // segments; odd indices are the captured matches.
+  return parts.map((part, i) =>
+    i % 2 === 1
+      ? <mark key={i} className="search-highlight">{part}</mark>
+      : <React.Fragment key={i}>{part}</React.Fragment>
+  );
 }
 
 export const SearchPanel: React.FC<Props> = ({
@@ -220,13 +248,7 @@ export const SearchPanel: React.FC<Props> = ({
                 title="Click to go to channel"
               >
                 {msg.content ? (
-                  <MarkdownRenderer
-                    content={msg.content}
-                    mode="chat"
-                    memberMap={memberMap}
-                    channelMap={channelMap}
-                    onChannelClick={onNavigateToChannel}
-                  />
+                  highlightQuery(msg.content, query)
                 ) : (
                   msg.attachment_name && (
                     <span className="search-result-attachment">📎 {msg.attachment_name}</span>
