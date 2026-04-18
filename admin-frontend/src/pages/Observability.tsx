@@ -1,16 +1,16 @@
 // Embedded Grafana panels scoped to Parley logs only.
-// Requires the operator to have an SSH tunnel for Grafana running concurrently
-// with the admin tunnel, e.g.:
 //
-//   ssh -L 8081:10.10.10.15:8081 eqr    # admin (this page)
-//   ssh -L 3000:10.10.10.60:3000 eqr    # grafana (the iframes below)
+// Grafana is reverse-proxied by parley-admin's nginx at /grafana/ so only one
+// SSH tunnel is needed:
+//
+//   ssh -L 8081:10.10.10.15:80 eqr      # admin nginx (this page + /grafana/)
 //
 // Scope is enforced server-side via the `parley-embed` dashboard (only
 // {host=~"parley-.*"} streams), so there's no way for DMZ / gitwise / wg-vpn
 // traffic to leak through this page.
 
 const GRAFANA_URL =
-  (import.meta.env.VITE_GRAFANA_URL as string) || 'http://localhost:3000'
+  (import.meta.env.VITE_GRAFANA_URL as string) || '/grafana'
 const DASH = 'parley-embed'
 
 function panelSrc(id: number, extra: Record<string, string> = {}): string {
@@ -76,9 +76,9 @@ export default function Observability() {
       <h1 style={{ fontSize: 22, marginBottom: 4 }}>Observability</h1>
       <p style={{ color: 'var(--text-secondary, #888)', fontSize: 13, marginBottom: 20 }}>
         Live Parley logs and account-level security events, scoped to{' '}
-        <code>{'{host=~"parley-.*"}'}</code> only. If panels show "Cannot reach
-        Grafana" you're missing the Grafana SSH tunnel —{' '}
-        <code>ssh -L 3000:10.10.10.60:3000 eqr</code>.
+        <code>{'{host=~"parley-.*"}'}</code> only. Grafana is reverse-proxied
+        through the admin nginx at <code>/grafana</code> — the same SSH tunnel
+        you used to reach this page already covers it.
       </p>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }}>

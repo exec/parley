@@ -57,8 +57,8 @@ cp -r dist/* /var/www/parley-admin/
 DB_PASSWORD_ENCODED=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$${DB_PASSWORD}")
 DATABASE_URL="postgres://parley:$${DB_PASSWORD_ENCODED}@$${DB_HOST}:5432/parley?sslmode=disable"
 
-# Create service user
-useradd -r -s /bin/false parley
+# Create service user (idempotent)
+id -u parley >/dev/null 2>&1 || useradd -r -s /bin/false parley
 
 # Environment file
 mkdir -p /etc/parley
@@ -104,10 +104,30 @@ server {
     listen 80;
     server_name _;
 
+    # Allow large request bodies so uploaded images / bulk API calls aren't truncated
+    client_max_body_size 50M;
+
     location /api/ {
         proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # Reverse-proxy the observability LXC's Grafana under /grafana/ so the
+    # admin UI can iframe embed it without a separate SSH tunnel. Grafana
+    # itself is configured with serve_from_sub_path + root_url=.../grafana/
+    # so asset + API URLs it generates resolve back through here.
+    # WebSocket upgrade headers are required for Grafana Live (log tailing).
+    location /grafana/ {
+        proxy_pass http://10.10.10.60:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 300s;
     }
 
     location / {
