@@ -344,6 +344,15 @@ jobs:
             "https://api.digitalocean.com/v2/firewalls/$FW_DB_ID/rules" || true
           rm -f ~/.ssh/deploy_key
 
+      - name: Upload backup as workflow artifact
+        if: github.event.inputs.action == 'backup-db'
+        uses: actions/upload-artifact@v4
+        with:
+          name: parley-db-dump
+          path: terraform/parley-*.dump
+          retention-days: 7
+          if-no-files-found: error
+
       - name: Restore database from latest backup
         if: github.event.inputs.action == 'restore-db'
         env:
