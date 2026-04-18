@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 )
 
 type contextKey string
@@ -29,6 +31,28 @@ const (
 func SHA256Hex(s string) string {
 	h := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(h[:])
+}
+
+// bannedAuditDedup throttles the blocked_banned_user audit log so a client
+// hammering an old JWT post-ban doesn't produce one log line per request.
+// Key: user_id. Value: time.Time of the last emission.
+var bannedAuditDedup sync.Map
+
+const bannedAuditInterval = 5 * time.Minute
+
+// shouldLogBannedAudit returns true if we haven't logged a blocked_banned_user
+// event for this user in the last bannedAuditInterval, and records the time if so.
+// Called per-request in the auth middleware — the denial (403) still happens
+// every time; only the log line is suppressed.
+func shouldLogBannedAudit(userID string) bool {
+	now := time.Now()
+	if prev, ok := bannedAuditDedup.Load(userID); ok {
+		if last, ok := prev.(time.Time); ok && now.Sub(last) < bannedAuditInterval {
+			return false
+		}
+	}
+	bannedAuditDedup.Store(userID, now)
+	return true
 }
 
 // ClientIP extracts the real client IP from the request. When Parley sits
@@ -99,7 +123,9 @@ func AuthMiddlewareWith(svc *AuthService) func(http.Handler) http.Handler {
 				}
 				userIDStr := strconv.FormatInt(userID, 10)
 				if banned, reason, _ := svc.IsBanned(r.Context(), userIDStr); banned {
-					log.Printf("audit: blocked_banned_user user_id=%s ip=%s via=api_key reason=%q path=%s", userIDStr, ClientIP(r), reason, r.URL.Path)
+					if shouldLogBannedAudit(userIDStr) {
+						log.Printf("audit: blocked_banned_user user_id=%s ip=%s via=api_key reason=%q path=%s", userIDStr, ClientIP(r), reason, r.URL.Path)
+					}
 					http.Error(w, "Account banned", http.StatusForbidden)
 					return
 				}
@@ -122,7 +148,9 @@ func AuthMiddlewareWith(svc *AuthService) func(http.Handler) http.Handler {
 					return
 				}
 				if banned, reason, _ := svc.IsBanned(r.Context(), userID); banned {
-					log.Printf("audit: blocked_banned_user user_id=%s ip=%s via=jwt reason=%q path=%s", userID, ClientIP(r), reason, r.URL.Path)
+					if shouldLogBannedAudit(userID) {
+						log.Printf("audit: blocked_banned_user user_id=%s ip=%s via=jwt reason=%q path=%s", userID, ClientIP(r), reason, r.URL.Path)
+					}
 					http.Error(w, "Account banned", http.StatusForbidden)
 					return
 				}
