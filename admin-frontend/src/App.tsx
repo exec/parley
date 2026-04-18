@@ -11,6 +11,7 @@ import Messages from './pages/Messages'
 import Reports from './pages/Reports'
 import Servers from './pages/Servers'
 import Bots from './pages/Bots'
+import Observability from './pages/Observability'
 import Settings from './pages/Settings'
 
 function ProtectedLayout({ children }: { children: React.ReactNode }) {
@@ -80,6 +81,14 @@ export default function App() {
             element={
               <ProtectedLayout>
                 <Bots />
+              </ProtectedLayout>
+            }
+          />
+          <Route
+            path="/observability"
+            element={
+              <ProtectedLayout>
+                <Observability />
               </ProtectedLayout>
             }
           />

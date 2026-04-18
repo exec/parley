@@ -62,15 +62,22 @@ const IcoLogout = () => (
     <path d="M6 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3M10 11l3-3-3-3M13 8H6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.8"/>
   </svg>
 )
+const IcoObservability = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <path d="M1.5 8.5s2.5-5 6.5-5 6.5 5 6.5 5-2.5 5-6.5 5-6.5-5-6.5-5Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" opacity="0.8"/>
+    <circle cx="8" cy="8.5" r="2" stroke="currentColor" strokeWidth="1.4" opacity="0.9"/>
+  </svg>
+)
 
 const NAV_ITEMS: { to: string; label: string; Icon: React.FC }[] = [
-  { to: '/',         label: 'Dashboard', Icon: IcoDash },
-  { to: '/users',    label: 'Users',     Icon: IcoUsers },
-  { to: '/messages', label: 'Messages',  Icon: IcoMessages },
-  { to: '/reports',  label: 'Reports',   Icon: IcoFlag },
-  { to: '/servers',  label: 'Servers',   Icon: IcoServer },
-  { to: '/bots',     label: 'Bots',      Icon: IcoBot },
-  { to: '/settings', label: 'Settings',  Icon: IcoSettings },
+  { to: '/',              label: 'Dashboard',     Icon: IcoDash },
+  { to: '/users',         label: 'Users',         Icon: IcoUsers },
+  { to: '/messages',      label: 'Messages',      Icon: IcoMessages },
+  { to: '/reports',       label: 'Reports',       Icon: IcoFlag },
+  { to: '/servers',       label: 'Servers',       Icon: IcoServer },
+  { to: '/bots',          label: 'Bots',          Icon: IcoBot },
+  { to: '/observability', label: 'Observability', Icon: IcoObservability },
+  { to: '/settings',      label: 'Settings',      Icon: IcoSettings },
 ]
 
 function NavItem({ to, label, Icon, badge }: { to: string; label: string; Icon: React.FC; badge?: number }) {
