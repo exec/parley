@@ -33,25 +33,28 @@ func SHA256Hex(s string) string {
 	return hex.EncodeToString(h[:])
 }
 
-// bannedAuditDedup throttles the blocked_banned_user audit log so a client
-// hammering an old JWT post-ban doesn't produce one log line per request.
-// Key: user_id. Value: time.Time of the last emission.
-var bannedAuditDedup sync.Map
+// auditDedup throttles audit log emissions keyed by an arbitrary string so a
+// client generating the same reject reason repeatedly doesn't produce one log
+// line per request. Callers namespace their keys (e.g. "banned:<user_id>",
+// "ratelimit:u:<user_id>", "ratelimit:ip:<ip>").
+// Value: time.Time of the last emission.
+var auditDedup sync.Map
 
-const bannedAuditInterval = 5 * time.Minute
+// AuditDedupInterval is the per-key suppression window. First occurrence after
+// an interval is always logged; subsequent hits within the window are silent.
+// The deny/reject action itself is NOT suppressed — only the log.
+const AuditDedupInterval = 5 * time.Minute
 
-// shouldLogBannedAudit returns true if we haven't logged a blocked_banned_user
-// event for this user in the last bannedAuditInterval, and records the time if so.
-// Called per-request in the auth middleware — the denial (403) still happens
-// every time; only the log line is suppressed.
-func shouldLogBannedAudit(userID string) bool {
+// ShouldLogAuditOnce returns true if we haven't logged this key in the last
+// AuditDedupInterval, and records the time if so.
+func ShouldLogAuditOnce(key string) bool {
 	now := time.Now()
-	if prev, ok := bannedAuditDedup.Load(userID); ok {
-		if last, ok := prev.(time.Time); ok && now.Sub(last) < bannedAuditInterval {
+	if prev, ok := auditDedup.Load(key); ok {
+		if last, ok := prev.(time.Time); ok && now.Sub(last) < AuditDedupInterval {
 			return false
 		}
 	}
-	bannedAuditDedup.Store(userID, now)
+	auditDedup.Store(key, now)
 	return true
 }
 
@@ -123,7 +126,7 @@ func AuthMiddlewareWith(svc *AuthService) func(http.Handler) http.Handler {
 				}
 				userIDStr := strconv.FormatInt(userID, 10)
 				if banned, reason, _ := svc.IsBanned(r.Context(), userIDStr); banned {
-					if shouldLogBannedAudit(userIDStr) {
+					if ShouldLogAuditOnce("banned:" + userIDStr) {
 						log.Printf("audit: blocked_banned_user user_id=%s ip=%s via=api_key reason=%q path=%s", userIDStr, ClientIP(r), reason, r.URL.Path)
 					}
 					http.Error(w, "Account banned", http.StatusForbidden)
@@ -148,7 +151,7 @@ func AuthMiddlewareWith(svc *AuthService) func(http.Handler) http.Handler {
 					return
 				}
 				if banned, reason, _ := svc.IsBanned(r.Context(), userID); banned {
-					if shouldLogBannedAudit(userID) {
+					if ShouldLogAuditOnce("banned:" + userID) {
 						log.Printf("audit: blocked_banned_user user_id=%s ip=%s via=jwt reason=%q path=%s", userID, ClientIP(r), reason, r.URL.Path)
 					}
 					http.Error(w, "Account banned", http.StatusForbidden)

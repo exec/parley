@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"net"
+	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -179,11 +179,11 @@ func (rl *rateLimiter) Stop() {
 func rateLimitMiddleware(rl rateLimiterI) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ip, _, _ := net.SplitHostPort(r.RemoteAddr)
-			if ip == "" {
-				ip = r.RemoteAddr
-			}
+			ip := auth.ClientIP(r)
 			if !rl.Allow(ip) {
+				if auth.ShouldLogAuditOnce("ratelimit:ip:" + ip) {
+					log.Printf("audit: rate_limited ip=%s path=%s scope=ip", ip, r.URL.Path)
+				}
 				http.Error(w, "rate limit exceeded, please slow down", http.StatusTooManyRequests)
 				return
 			}
@@ -200,14 +200,20 @@ func userRateLimitMiddleware(rl rateLimiterI) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Use authenticated user ID as the rate limit key so the limit applies
 			// per account regardless of IP (defeats multi-IP bypass attempts).
-			key := auth.GetUserIDFromContext(r)
+			userID := auth.GetUserIDFromContext(r)
+			key := userID
 			if key == "" {
 				// Fallback to IP (should not occur on authenticated routes)
-				key, _, _ = net.SplitHostPort(r.RemoteAddr)
+				key = auth.ClientIP(r)
 			} else {
 				key = "u:" + key // namespace to avoid collision with IP keys
 			}
 			if !rl.Allow(key) {
+				if userID != "" && auth.ShouldLogAuditOnce("ratelimit:u:"+userID) {
+					log.Printf("audit: rate_limited user_id=%s ip=%s path=%s scope=user", userID, auth.ClientIP(r), r.URL.Path)
+				} else if userID == "" && auth.ShouldLogAuditOnce("ratelimit:ip:"+key) {
+					log.Printf("audit: rate_limited ip=%s path=%s scope=user_fallback_ip", key, r.URL.Path)
+				}
 				http.Error(w, "rate limit exceeded, slow down", http.StatusTooManyRequests)
 				return
 			}
