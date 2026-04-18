@@ -268,6 +268,7 @@ func (s *AuthService) Login(ctx context.Context, emailOrPhone, password, ip stri
 		if dbUser.BanReason != "" {
 			reason = dbUser.BanReason
 		}
+		log.Printf("audit: login_blocked_banned user_id=%d ip=%s reason=%q", dbUser.ID, ip, reason)
 		return User{}, "", fmt.Errorf("Your account was dissolved in a vat of acid. Reason: %s. Appeals can be submitted to /dev/null.", reason)
 	}
 
@@ -286,6 +287,7 @@ func (s *AuthService) Login(ctx context.Context, emailOrPhone, password, ip stri
 	if err != nil {
 		return User{}, "", err
 	}
+	log.Printf("audit: login_success user_id=%d ip=%s", dbUser.ID, ip)
 	return user, token, nil
 }
 
@@ -640,6 +642,32 @@ func (s *AuthService) ValidateToken(tokenString string) (string, error) {
 	}
 
 	return "", errors.New("invalid token")
+}
+
+// IsBanned returns whether a user is currently banned and (if so) the reason.
+// Mirrors the shape of IsForceLoggedOut; called from auth middleware on every
+// authenticated request so a ban takes effect immediately even for users with
+// a still-valid JWT.
+func (s *AuthService) IsBanned(ctx context.Context, userID string) (bool, string, error) {
+	id, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		return false, "", errors.New("invalid user ID")
+	}
+	var bannedAt sql.NullTime
+	var banReason sql.NullString
+	err = s.repo.DB().QueryRowContext(ctx,
+		`SELECT banned_at, ban_reason FROM users WHERE id = $1`, id,
+	).Scan(&bannedAt, &banReason)
+	if err == sql.ErrNoRows {
+		return false, "", nil
+	}
+	if err != nil {
+		return false, "", err
+	}
+	if bannedAt.Valid {
+		return true, banReason.String, nil
+	}
+	return false, "", nil
 }
 
 // IsForceLoggedOut checks if a token issued at issuedAt should be invalidated due to a force logout.

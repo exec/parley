@@ -127,6 +127,7 @@ func handleBanUser(w http.ResponseWriter, r *http.Request) {
 	}
 	repo.ForceLogoutUser(r.Context(), id)
 	publishKick(fmt.Sprintf("%d", id))
+	log.Printf("audit: admin_ban user_id=%d reason=%q", id, req.Reason)
 	jsonOK(w, map[string]string{"message": "user banned"})
 }
 
@@ -140,6 +141,7 @@ func handleUnbanUser(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	log.Printf("audit: admin_unban user_id=%d", id)
 	jsonOK(w, map[string]string{"message": "user unbanned"})
 }
 

@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/subtle"
 	"encoding/json"
-	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -11,12 +10,12 @@ import (
 	"parley/internal/auth"
 )
 
+// requestIP resolves the client IP. Behind the DMZ nginx, r.RemoteAddr is the
+// DMZ's internal IP (10.10.10.5) — the real client comes in via X-Forwarded-For,
+// which nginx populates from Cloudflare's CF-Connecting-IP. Shared helper in
+// internal/auth so the middleware does the same thing.
 func requestIP(r *http.Request) string {
-	ip, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return ip
+	return auth.ClientIP(r)
 }
 
 func handleAuthRegister(authService *auth.AuthService) http.HandlerFunc {

@@ -5,6 +5,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"log"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -27,6 +29,28 @@ const (
 func SHA256Hex(s string) string {
 	h := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(h[:])
+}
+
+// ClientIP extracts the real client IP from the request. When Parley sits
+// behind the DMZ nginx (which sets X-Forwarded-For from CF-Connecting-IP),
+// r.RemoteAddr is the DMZ's internal IP, not the user's — so we prefer the
+// forwarded headers.
+func ClientIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		// XFF can be a chain; the leftmost is the original client.
+		if idx := strings.Index(xff, ","); idx > 0 {
+			return strings.TrimSpace(xff[:idx])
+		}
+		return strings.TrimSpace(xff)
+	}
+	if xri := r.Header.Get("X-Real-IP"); xri != "" {
+		return strings.TrimSpace(xri)
+	}
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return ip
 }
 
 // IsAPIKeyAuth returns true if the request was authenticated via an API key.
@@ -73,9 +97,15 @@ func AuthMiddlewareWith(svc *AuthService) func(http.Handler) http.Handler {
 					http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
 					return
 				}
+				userIDStr := strconv.FormatInt(userID, 10)
+				if banned, reason, _ := svc.IsBanned(r.Context(), userIDStr); banned {
+					log.Printf("audit: blocked_banned_user user_id=%s ip=%s via=api_key reason=%q path=%s", userIDStr, ClientIP(r), reason, r.URL.Path)
+					http.Error(w, "Account banned", http.StatusForbidden)
+					return
+				}
 				// Update last_used_at asynchronously
 				go svc.repo.UpdateAPIKeyLastUsed(context.Background(), keyID)
-				ctx := context.WithValue(r.Context(), UserIDKey, strconv.FormatInt(userID, 10))
+				ctx := context.WithValue(r.Context(), UserIDKey, userIDStr)
 				ctx = context.WithValue(ctx, IsAPIKeyAuthKey, true)
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return
@@ -89,6 +119,11 @@ func AuthMiddlewareWith(svc *AuthService) func(http.Handler) http.Handler {
 			if svc.repo != nil {
 				if kicked, _ := svc.IsForceLoggedOut(r.Context(), userID, iat); kicked {
 					http.Error(w, "Session expired", http.StatusUnauthorized)
+					return
+				}
+				if banned, reason, _ := svc.IsBanned(r.Context(), userID); banned {
+					log.Printf("audit: blocked_banned_user user_id=%s ip=%s via=jwt reason=%q path=%s", userID, ClientIP(r), reason, r.URL.Path)
+					http.Error(w, "Account banned", http.StatusForbidden)
 					return
 				}
 			}
