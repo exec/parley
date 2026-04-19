@@ -10,6 +10,7 @@
     "frontendDist": "../../frontend/dist"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
         "label": "main",
@@ -38,7 +39,11 @@
     ],
     "category": "SocialNetworking",
     "shortDescription": "Parley desktop client",
-    "longDescription": "Parley desktop client."
+    "longDescription": "Parley desktop client.",
+    "macOS": {
+      "entitlements": "entitlements.plist",
+      "infoPlist": "Info.plist"
+    }
   },
   "plugins": {
     "deep-link": {

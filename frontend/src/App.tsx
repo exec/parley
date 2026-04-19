@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { InvitePage } from './pages/InvitePage';
@@ -1540,9 +1540,19 @@ function App() {
 const TauriDragBar: React.FC = () => {
   if (typeof document === 'undefined') return null;
   if (document.documentElement.dataset.tauriPlatform !== 'macos') return null;
+  const handleMouseDown = async (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    try {
+      const { getCurrentWindow } = await import('@tauri-apps/api/window');
+      await getCurrentWindow().startDragging();
+    } catch {
+      // no-op outside Tauri
+    }
+  };
   return (
     <div
-      data-tauri-drag-region
+      data-tauri-drag-region="true"
+      onMouseDown={handleMouseDown}
       style={{
         position: 'fixed',
         top: 0,
