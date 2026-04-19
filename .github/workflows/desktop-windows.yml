@@ -1,0 +1,89 @@
+name: Build Windows desktop app
+
+# Builds the Tauri desktop app for Windows as an unsigned .msi installer
+# (x86_64). Runs on push to main when desktop/ or frontend/ changes, and on
+# manual dispatch. Output lands as a workflow artifact; no secrets required.
+#
+# WebView2 runtime is fetched by the MSI at install time (downloadBootstrapper
+# default), so the installer stays small.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "desktop/**"
+      - "frontend/**"
+      - ".github/workflows/desktop-windows.yml"
+  pull_request:
+    paths:
+      - "desktop/**"
+      - "frontend/**"
+      - ".github/workflows/desktop-windows.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build .msi (x86_64)
+    runs-on: windows-latest
+    env:
+      VITE_SITE_URL: https://parley.byexec.com
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            desktop/package-lock.json
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo build
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm install --no-audit --no-fund
+
+      - name: Install desktop deps
+        working-directory: desktop
+        run: npm install --no-audit --no-fund
+
+      - name: Build Tauri (msi)
+        working-directory: desktop
+        run: npx tauri build --bundles msi
+
+      - name: Collect .msi
+        id: collect
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem -Path desktop/src-tauri/target/release/bundle/msi -Filter *.msi | Select-Object -First 1
+          if (-not $msi) {
+            Write-Error "No .msi produced"
+            exit 1
+          }
+          "msi=$($msi.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "msi-name=$($msi.Name)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Upload .msi artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.collect.outputs.msi-name }}
+          path: ${{ steps.collect.outputs.msi }}
+          if-no-files-found: error
+          retention-days: 30
