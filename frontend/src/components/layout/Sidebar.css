@@ -14,6 +14,13 @@
   border-right: 1px solid var(--border);
 }
 
+/* macOS Tauri window uses titleBarStyle:"Overlay" so traffic-light controls
+   float over the top-left corner. Push the sidebar down so the first server
+   icon doesn't sit underneath them. */
+[data-tauri-platform="macos"] .sidebar {
+  padding-top: 40px;
+}
+
 
 .sidebar-scroll {
   flex: 1;

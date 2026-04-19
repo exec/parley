@@ -8,6 +8,16 @@ import './index.css';
 // cross-origin bundle), redirect relative `/api/...` fetches to the absolute
 // URL. apiClient already does this for its own requests; this catch-all
 // covers the handful of direct fetch() calls for unauthenticated auth routes.
+// Flag the document when running inside a Tauri webview so CSS can carve out
+// space for native window chrome (e.g. macOS traffic-light buttons overlap
+// content because we use titleBarStyle: "Overlay").
+if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+  document.documentElement.dataset.tauri = '1';
+  const ua = navigator.userAgent;
+  const platform = /Mac/i.test(ua) ? 'macos' : /Windows/i.test(ua) ? 'windows' : 'linux';
+  document.documentElement.dataset.tauriPlatform = platform;
+}
+
 const __SITE_URL = (import.meta.env.VITE_SITE_URL as string) || '';
 if (__SITE_URL && typeof window !== 'undefined') {
   const __origFetch = window.fetch.bind(window);
