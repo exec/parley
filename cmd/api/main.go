@@ -487,8 +487,10 @@ func setupRouter(
 
 // allowedOrigins lists origins permitted to access the API
 var allowedOrigins = map[string]bool{
-	"http://localhost:5173": true, // Vite dev server
-	"http://localhost:8080": true, // local API dev
+	"http://localhost:5173":  true, // Vite dev server
+	"http://localhost:8080":  true, // local API dev
+	"tauri://localhost":      true, // Tauri v2 bundled webview (macOS/Linux)
+	"http://tauri.localhost": true, // Tauri v2 bundled webview (Windows)
 }
 
 // corsMiddleware returns a CORS middleware handler

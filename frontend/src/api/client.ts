@@ -1,6 +1,13 @@
 import { ApiError } from './types';
 
-const DEFAULT_BASE_URL = '/api';
+// When the bundle is not served same-origin with the API (e.g. the Tauri
+// desktop shell, where the webview origin is tauri://localhost), the API
+// calls need an absolute URL. VITE_SITE_URL, when set at build time, points
+// at the deployed Parley site. For the normal web build it is either unset
+// (relative `/api` still works) or set to the same origin (absolute URL is
+// equivalent to relative).
+const SITE_URL = (import.meta.env.VITE_SITE_URL as string) || '';
+const DEFAULT_BASE_URL = SITE_URL ? `${SITE_URL.replace(/\/$/, '')}/api` : '/api';
 
 class ApiClient {
   private baseUrl: string;

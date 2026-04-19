@@ -216,8 +216,16 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
       return;
     }
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws?ticket=${encodeURIComponent(ticket)}`;
+    const siteUrl = (import.meta.env.VITE_SITE_URL as string) || '';
+    let wsUrl: string;
+    if (siteUrl) {
+      const u = new URL(siteUrl);
+      const protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
+      wsUrl = `${protocol}//${u.host}/ws?ticket=${encodeURIComponent(ticket)}`;
+    } else {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      wsUrl = `${protocol}//${window.location.host}/ws?ticket=${encodeURIComponent(ticket)}`;
+    }
 
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
