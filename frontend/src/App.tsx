@@ -1496,6 +1496,8 @@ const HomeRoute: React.FC = () => {
 
 function App() {
   return (
+    <>
+      <TauriDragBar />
     <Routes>
       <Route path="/login" element={<AuthRoute><Login /></AuthRoute>} />
       <Route path="/register" element={<AuthRoute><Register /></AuthRoute>} />
@@ -1524,7 +1526,30 @@ function App() {
       <Route path="/bots/invite/:token" element={<BotInvitePage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   );
 }
+
+// Invisible 16px strip at the top of the window that lets macOS Tauri builds
+// drag the window. Rendered first so positioned toolbar icons (server
+// settings, pin, search, member-sidebar toggle, etc.) stack on top of it
+// by DOM order and still receive clicks — this strip only catches the empty
+// space above them. No-op in the web build.
+const TauriDragBar: React.FC = () => {
+  if (typeof document === 'undefined') return null;
+  if (document.documentElement.dataset.tauriPlatform !== 'macos') return null;
+  return (
+    <div
+      data-tauri-drag-region
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 16,
+      }}
+    />
+  );
+};
 
 export default App;
