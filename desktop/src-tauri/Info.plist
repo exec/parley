@@ -7,6 +7,6 @@
     <key>NSCameraUsageDescription</key>
     <string>Parley needs camera access to use video in voice channels.</string>
     <key>NSHumanReadableCopyright</key>
-    <string>© 2026 Dylan Hart. Open source — github.com/exec/parley</string>
+    <string>© 2026 Dylan Hart</string>
 </dict>
 </plist>
