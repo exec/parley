@@ -37,7 +37,10 @@ func rootCmd() *cobra.Command {
 		Long:  "Stress-tests Parley HTTP and WebSocket APIs to find bottlenecks.\n\nTarget a dev/Proxmox instance — never production.",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			host, _ := cmd.Flags().GetString("host")
-			if strings.Contains(host, productionHost) {
+			// Only block when a production host is actually configured —
+			// strings.Contains(x, "") is always true, so an empty
+			// productionHost would reject every target.
+			if productionHost != "" && strings.Contains(host, productionHost) {
 				return fmt.Errorf("refusing to run against production host %q", productionHost)
 			}
 			return nil

@@ -5,9 +5,31 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 )
+
+// sharedTransport is a single connection pool for every virtual user's HTTPClient.
+// Go's http.DefaultTransport caps MaxIdleConnsPerHost at 2, which adds TCP
+// handshake latency to every request once concurrency exceeds 2 — that shows
+// up in bench results as ~100ms "server latency" that's actually client-side
+// queueing. A bench driver needs a pool big enough that keep-alive reuse wins
+// at the target concurrency (100s-1000s of virtual users per host).
+var sharedTransport = &http.Transport{
+	Proxy: http.ProxyFromEnvironment,
+	DialContext: (&net.Dialer{
+		Timeout:   10 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}).DialContext,
+	ForceAttemptHTTP2:     true,
+	MaxIdleConns:          4096,
+	MaxIdleConnsPerHost:   2048,
+	MaxConnsPerHost:       4096,
+	IdleConnTimeout:       90 * time.Second,
+	TLSHandshakeTimeout:   10 * time.Second,
+	ExpectContinueTimeout: 1 * time.Second,
+}
 
 // HTTPClient is a thin wrapper around net/http for Parley's API.
 type HTTPClient struct {
@@ -23,7 +45,8 @@ func NewHTTPClient(base, token, secret string) *HTTPClient {
 		token:  token,
 		secret: secret,
 		client: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout:   30 * time.Second,
+			Transport: sharedTransport,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse
 			},
