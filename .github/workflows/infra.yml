@@ -1,4 +1,10 @@
-name: Infrastructure
+name: Infrastructure (deprecated — DigitalOcean)
+
+# DEPRECATED: Parley moved to self-hosted Proxmox infrastructure. This workflow
+# targeted DigitalOcean droplets/Spaces and is kept for historical reference
+# only. The `enabled` gate below makes every run a no-op. To re-enable, set
+# repository variable ENABLE_DO_INFRA=true (and make sure the DO account,
+# secrets, and state backend still exist).
 
 on:
   workflow_dispatch:
@@ -50,6 +56,8 @@ on:
 jobs:
   terraform:
     name: Terraform ${{ github.event.inputs.action || 'apply' }}
+    # Deprecated: gated behind repository variable. No-op unless explicitly enabled.
+    if: ${{ vars.ENABLE_DO_INFRA == 'true' }}
     runs-on: ubuntu-latest
     defaults:
       run:

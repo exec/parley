@@ -1,13 +1,17 @@
-name: Deploy
+name: Deploy (deprecated — DigitalOcean)
+
+# DEPRECATED: targets DigitalOcean droplets, which Parley has moved off of in
+# favor of self-hosted Proxmox. Kept for historical reference. Push trigger
+# removed and the job is gated behind repository variable ENABLE_DO_INFRA so
+# nothing runs by default.
 
 on:
-  workflow_dispatch:  # Manual trigger via Actions UI or gh workflow run
-  push:
-    branches: [main]
+  workflow_dispatch:  # Manual-only; still a no-op unless ENABLE_DO_INFRA=true.
 
 jobs:
   deploy:
     name: Deploy to production
+    if: ${{ vars.ENABLE_DO_INFRA == 'true' }}
     runs-on: ubuntu-latest
     # Requires manual approval before deploying. Configure the "production"
     # environment in GitHub repo Settings > Environments with required reviewers.
