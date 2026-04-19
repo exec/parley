@@ -1,10 +1,20 @@
-import React, { useState, FormEvent } from 'react';
+import React, { useState, FormEvent, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { loginWithPasskey } from '../api/passkeys';
+import { exchangeDesktopCode } from '../api/desktopAuth';
 import { apiClient } from '../api/client';
+import { isTauri, randomState, openInBrowser, onDeepLink } from '../lib/tauri';
 import './Auth.css';
+
+// URL the Tauri app opens in the system browser for the passkey handoff. In
+// dev this defaults to the Vite dev server (same origin as the webview) so
+// Safari can hit `/auth/desktop` and proxy `/api` locally. Prod Tauri builds
+// must set VITE_SITE_URL to the deployed Parley URL before `npm run build`.
+const DESKTOP_SITE_URL =
+  (import.meta.env.VITE_SITE_URL as string) ||
+  (typeof window !== 'undefined' ? window.location.origin : '');
 
 interface LoginFormData {
   email: string;
@@ -31,7 +41,10 @@ export const Login: React.FC = () => {
   const [errors, setErrors] = useState<LoginErrors>({});
   const [loading, setLoading] = useState(false);
   const [passkeyLoading, setPasskeyLoading] = useState(false);
+  const [browserLoading, setBrowserLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const stateRef = useRef<string>('');
+  const inTauri = isTauri();
 
   const validate = (): boolean => {
     const newErrors: LoginErrors = {};
@@ -110,6 +123,59 @@ export const Login: React.FC = () => {
       setPasskeyLoading(false);
     }
   };
+
+  // Tauri-only: open the site in the default browser for a passkey login, then
+  // receive a one-time exchange code back via a parley:// deep link.
+  const handleBrowserLogin = async () => {
+    setErrors({});
+    setBrowserLoading(true);
+    stateRef.current = randomState();
+    try {
+      const url = `${DESKTOP_SITE_URL}/auth/desktop?state=${encodeURIComponent(stateRef.current)}`;
+      await openInBrowser(url);
+    } catch (err) {
+      setErrors({ general: err instanceof Error ? err.message : 'Failed to open browser.' });
+      setBrowserLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!inTauri) return;
+    let cancelled = false;
+    let unlisten: (() => void) | null = null;
+    onDeepLink((url) => {
+      if (cancelled) return;
+      try {
+        const parsed = new URL(url);
+        if (parsed.host !== 'auth' && parsed.pathname !== '/auth') return;
+        const code = parsed.searchParams.get('code');
+        const state = parsed.searchParams.get('state');
+        if (!code || !state || state !== stateRef.current) {
+          setErrors({ general: 'Invalid desktop login response.' });
+          setBrowserLoading(false);
+          return;
+        }
+        exchangeDesktopCode(code, state)
+          .then((data) => {
+            localStorage.setItem('token', data.token);
+            localStorage.setItem('user', JSON.stringify(data.user));
+            apiClient.setToken(data.token);
+            navigate(redirectTo);
+          })
+          .catch((err) => {
+            setErrors({ general: err instanceof Error ? err.message : 'Desktop login failed.' });
+          })
+          .finally(() => setBrowserLoading(false));
+      } catch {
+        setErrors({ general: 'Invalid desktop login response.' });
+        setBrowserLoading(false);
+      }
+    }).then((fn) => { unlisten = fn; });
+    return () => {
+      cancelled = true;
+      if (unlisten) unlisten();
+    };
+  }, [inTauri, navigate, redirectTo]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -196,17 +262,30 @@ export const Login: React.FC = () => {
             </Button>
           </form>
 
-          {typeof window !== 'undefined' && window.PublicKeyCredential && (
+          {inTauri ? (
             <Button
               type="button"
               variant="secondary"
               size="lg"
-              loading={passkeyLoading}
-              onClick={handlePasskeyLogin}
+              loading={browserLoading}
+              onClick={handleBrowserLogin}
               style={{ width: '100%', marginTop: 12 }}
             >
-              🔑 Sign in with passkey
+              🔑 Sign in with passkey (via browser)
             </Button>
+          ) : (
+            typeof window !== 'undefined' && window.PublicKeyCredential && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="lg"
+                loading={passkeyLoading}
+                onClick={handlePasskeyLogin}
+                style={{ width: '100%', marginTop: 12 }}
+              >
+                🔑 Sign in with passkey
+              </Button>
+            )
           )}
 
           <div className="auth-footer">

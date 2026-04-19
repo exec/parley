@@ -19,6 +19,7 @@ import (
 	"parley/internal/bots"
 	"parley/internal/channel"
 	"parley/internal/db"
+	"parley/internal/desktopauth"
 	"parley/internal/dm"
 	"parley/internal/friend"
 	"parley/internal/message"
@@ -124,6 +125,9 @@ func registerRoutes(
 					r.Post("/passkey/login/begin", handlePasskeyLoginBegin(passkeySvc))
 					r.Post("/passkey/login/finish", handlePasskeyLoginFinish(passkeySvc, authService))
 				}
+				if redisHub != nil {
+					r.Post("/desktop/exchange", handleDesktopAuthExchange(desktopauth.New(redisHub.Client()), authService))
+				}
 			})
 
 			// Authenticated auth routes
@@ -146,6 +150,9 @@ func registerRoutes(
 					r.Delete("/passkeys/{id}", handleDeletePasskey(passkeySvc))
 					r.Put("/passkeys/{id}", handleRenamePasskey(passkeySvc))
 				r.Delete("/password", handleRemovePassword(passkeySvc, authService))
+				}
+				if redisHub != nil {
+					r.Post("/desktop/issue", handleDesktopAuthIssue(desktopauth.New(redisHub.Client())))
 				}
 			})
 		})

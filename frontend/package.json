@@ -16,6 +16,8 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@emoji-mart/data": "^1.2.1",
     "@ricky0123/vad-web": "^0.0.30",
+    "@tauri-apps/api": "^2.10.1",
+    "@tauri-apps/plugin-shell": "^2.3.5",
     "dompurify": "^3.3.3",
     "emoji-mart": "^5.6.0",
     "katex": "^0.16.38",

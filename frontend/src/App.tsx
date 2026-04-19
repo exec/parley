@@ -7,6 +7,7 @@ import { VerifyEmail } from './pages/VerifyEmail';
 import { Impersonate } from './pages/Impersonate';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { ResetPassword } from './pages/ResetPassword';
+import { AuthDesktop } from './pages/AuthDesktop';
 import { AppProvider, useApp } from './context/AppContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { Landing } from './pages/Landing';
@@ -1514,6 +1515,7 @@ function App() {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/impersonate" element={<Impersonate />} />
+      <Route path="/auth/desktop" element={<AuthDesktop />} />
       {/* Channel routes — all handled by MainApp which syncs URL with state */}
       <Route path="/" element={<HomeRoute />} />
       <Route path="/channels/*" element={ProtectedApp} />
