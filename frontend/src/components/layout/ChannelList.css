@@ -43,6 +43,13 @@
   align-items: center;
 }
 
+/* Keep the settings + context-menu icons clickable where they overlap the
+   macOS Tauri drag strip (z-index 100) in the top 16px of the window. */
+[data-tauri-platform="macos"] .server-header-actions {
+  position: relative;
+  z-index: 101;
+}
+
 .server-header-actions svg {
   width: 20px;
   height: 20px;

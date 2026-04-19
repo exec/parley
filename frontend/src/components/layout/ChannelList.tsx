@@ -635,7 +635,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
         onClick={e => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setServerContextMenu({ top: r.top, left: r.left }); }}
       >
         <span className="server-name">{serverName}</span>
-        <div className="server-header-actions">
+        <div className="server-header-actions" data-tauri-drag-region="false">
           {onServerSettings && (
             <button className="server-settings-btn" onClick={e => { e.stopPropagation(); onServerSettings(); }} title="Server Settings">
               <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">

@@ -526,6 +526,13 @@
   flex-shrink: 0;
 }
 
+/* Sit above the macOS Tauri drag strip (z-index 100) so the header icons
+   stay clickable where they overlap the top 16px of the window. */
+[data-tauri-platform="macos"] .chat-header-actions {
+  position: relative;
+  z-index: 101;
+}
+
 .chat-header-btn {
   background: none;
   border: none;

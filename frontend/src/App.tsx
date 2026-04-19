@@ -1531,10 +1531,12 @@ function App() {
 }
 
 // Invisible 16px strip at the top of the window that lets macOS Tauri builds
-// drag the window. Rendered first so positioned toolbar icons (server
-// settings, pin, search, member-sidebar toggle, etc.) stack on top of it
-// by DOM order and still receive clicks — this strip only catches the empty
-// space above them. No-op in the web build.
+// drag the window. Sits at z-index 100 — above normal page content (so text
+// like "Direct Messages" doesn't get text-selected instead of dragging the
+// window) but below the button toolbars we explicitly raise in CSS
+// (.chat-header-actions, .server-header-actions). Those toolbars also carry
+// data-tauri-drag-region="false" so clicks on them never initiate a drag.
+// No-op outside macOS Tauri.
 const TauriDragBar: React.FC = () => {
   if (typeof document === 'undefined') return null;
   if (document.documentElement.dataset.tauriPlatform !== 'macos') return null;
@@ -1547,6 +1549,7 @@ const TauriDragBar: React.FC = () => {
         left: 0,
         right: 0,
         height: 16,
+        zIndex: 100,
       }}
     />
   );

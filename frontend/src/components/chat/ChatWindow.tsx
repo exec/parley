@@ -201,7 +201,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           {isOnline !== undefined && (
             <span className={`chat-header-status-dot ${isOnline ? 'online' : 'offline'}`} title={isOnline ? 'Online' : 'Offline'} />
           )}
-          <div className="chat-header-actions" onClick={e => e.stopPropagation()}>
+          <div className="chat-header-actions" onClick={e => e.stopPropagation()} data-tauri-drag-region="false">
             {/* Hamburger — mobile only, always shown when callback provided */}
             {onToggleChannelList && (
               <button className="chat-header-btn chat-header-btn--hamburger" onClick={onToggleChannelList} title="Toggle channel list">
