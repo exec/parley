@@ -1,20 +1,22 @@
 /* ============================================================
    PARLEY ADMIN — Design System
-   Deep Slate professional theme
+   Tuned to match Grafana 11's dark theme so the embedded Grafana
+   iframes on /observability blend with the surrounding admin UI.
+   Accent (cyan) is kept — it's Parley's identity.
    ============================================================ */
 
 :root {
-  /* Backgrounds */
-  --bg:           #0c1117;
-  --bg-surface:   #111827;
-  --bg-elevated:  #1c2535;
-  --bg-overlay:   #232e42;
+  /* Backgrounds (Grafana-ish cool-grey, not blue-slate) */
+  --bg:           #111217;
+  --bg-surface:   #181b1f;
+  --bg-elevated:  #22252b;
+  --bg-overlay:   #2b2f36;
   --bg-hover:     rgba(255,255,255,0.04);
 
   /* Text */
-  --text:           #e2e8f0;
-  --text-secondary: #94a3b8;
-  --text-muted:     #4b5568;
+  --text:           #ccccdc;
+  --text-secondary: #a7a9b1;
+  --text-muted:     #6b6d75;
 
   /* Accent (cyan — matches main app abyss theme) */
   --accent:       #06b6d4;
