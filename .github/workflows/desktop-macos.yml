@@ -62,13 +62,16 @@ jobs:
         with:
           workspaces: desktop/src-tauri -> target
 
+      # npm install (rather than npm ci) to tolerate small lockfile drift
+      # across npm versions — the local dev machine may write slightly
+      # different optional-dep entries than the runner's npm.
       - name: Install frontend deps
         working-directory: frontend
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       - name: Install desktop deps
         working-directory: desktop
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       - name: Build Tauri (universal .dmg)
         working-directory: desktop
