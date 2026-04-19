@@ -8,9 +8,10 @@ import { listPasskeys, registerPasskey, deletePasskey, renamePasskey, removePass
 import { DeveloperTab } from './DeveloperTab';
 import { VoiceSettingsTab } from './VoiceSettings';
 import { AppearanceTab } from './AppearanceTab';
+import { AboutTab } from './AboutTab';
 import './Settings.css';
 
-type Tab = 'account' | 'profile' | 'notifications' | 'developer' | 'voice' | 'appearance';
+type Tab = 'account' | 'profile' | 'notifications' | 'developer' | 'voice' | 'appearance' | 'about';
 
 interface Props {
   isOpen: boolean;
@@ -242,6 +243,9 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
           <button className={`settings-nav-item${activeTab === 'appearance' ? ' active' : ''}`} onClick={() => setActiveTab('appearance')}>
             Appearance
           </button>
+          <button className={`settings-nav-item${activeTab === 'about' ? ' active' : ''}`} onClick={() => setActiveTab('about')}>
+            About
+          </button>
         </div>
         <div className="settings-nav-divider" />
         <div className="settings-sidebar-spacer" />
@@ -309,6 +313,7 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
           {activeTab === 'developer' && <DeveloperTab />}
           {activeTab === 'voice' && <VoiceSettingsTab />}
           {activeTab === 'appearance' && <AppearanceTab />}
+          {activeTab === 'about' && <AboutTab />}
         </div>
       </div>
 
