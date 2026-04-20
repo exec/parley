@@ -79,7 +79,19 @@ export function useNotifications() {
     await requestNotificationPermission();
   }, []);
 
-  const notify = useCallback((title: string, body: string, icon?: string, onClick?: () => void) => {
+  const notify = useCallback((
+    title: string,
+    body: string,
+    icon?: string,
+    onClick?: () => void,
+    // True when this message is for the channel/DM the user is currently
+    // viewing. Only suppresses the ping when the window is also in the
+    // foreground — otherwise we still fire so a minimized/backgrounded user
+    // is alerted.
+    forActiveChannel: boolean = false,
+  ) => {
+    if (forActiveChannel && inForegroundRef.current) return;
+
     const audio = audioRef.current;
     if (audio) {
       audio.currentTime = 0;

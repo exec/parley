@@ -563,50 +563,53 @@ function MainApp() {
   const handleReceiveMessage = useCallback((msg: Parameters<typeof receiveMessage>[0]) => {
     clearTypingUser(msg.channel_id, msg.author_id);
     receiveMessage(msg);
-    if (msg.channel_id !== activeChannel?.id) {
-      // Use the accumulated channel→server map so background-server messages use the right pref
-      const msgServerId = channelToServerRef.current[msg.channel_id] ?? activeServer?.id ?? '';
-      const pref = getNotifPref(msgServerId);
-      const isDirectMention = msg.content.includes(`<@${currentUser?.id}>`);
-      let shouldCount = true;
-      if (pref === NOTIF_PREFS.NEVER) {
-        shouldCount = false;
-      } else if (pref === NOTIF_PREFS.TAGS) {
-        shouldCount = msg.content.includes('@everyone') ||
-          msg.content.includes('@here') ||
-          isDirectMention;
-      } else if (pref === NOTIF_PREFS.DIRECT) {
-        shouldCount = isDirectMention;
-      }
-      if (shouldCount) {
-        setUnreadCounts(prev => ({ ...prev, [msg.channel_id]: (prev[msg.channel_id] ?? 0) + 1 }));
-        if (isDirectMention) {
-          setMentionCounts(prev => new Set([...prev, msg.channel_id]));
-        }
-        const channelName = channels.find(c => c.id === msg.channel_id)?.name ?? 'a channel';
-        notify(
-          `#${channelName}`,
-          `${msg.author_username}: ${msg.content}`,
-          msg.author_avatar_url,
-          () => navigate(`/channels/${msgServerId}/${msg.channel_id}`),
-        );
+    // Use the accumulated channel→server map so background-server messages use the right pref
+    const msgServerId = channelToServerRef.current[msg.channel_id] ?? activeServer?.id ?? '';
+    const pref = getNotifPref(msgServerId);
+    const isDirectMention = msg.content.includes(`<@${currentUser?.id}>`);
+    let shouldCount = true;
+    if (pref === NOTIF_PREFS.NEVER) {
+      shouldCount = false;
+    } else if (pref === NOTIF_PREFS.TAGS) {
+      shouldCount = msg.content.includes('@everyone') ||
+        msg.content.includes('@here') ||
+        isDirectMention;
+    } else if (pref === NOTIF_PREFS.DIRECT) {
+      shouldCount = isDirectMention;
+    }
+    if (!shouldCount) return;
+    const isActiveChannel = msg.channel_id === activeChannel?.id;
+    if (!isActiveChannel) {
+      setUnreadCounts(prev => ({ ...prev, [msg.channel_id]: (prev[msg.channel_id] ?? 0) + 1 }));
+      if (isDirectMention) {
+        setMentionCounts(prev => new Set([...prev, msg.channel_id]));
       }
     }
+    const channelName = channels.find(c => c.id === msg.channel_id)?.name ?? 'a channel';
+    notify(
+      `#${channelName}`,
+      `${msg.author_username}: ${msg.content}`,
+      msg.author_avatar_url,
+      () => navigate(`/channels/${msgServerId}/${msg.channel_id}`),
+      isActiveChannel,
+    );
   }, [receiveMessage, clearTypingUser, activeChannel?.id, activeServer?.id, currentUser?.id, channels, notify, navigate]);
 
   const handleReceiveDmMessage = useCallback((msg: DmMessage) => {
     receiveDmMessage(msg);
-    if (msg.dm_channel_id !== activeDmChannel?.id) {
+    const isActiveChannel = msg.dm_channel_id === activeDmChannel?.id;
+    if (!isActiveChannel) {
       setUnreadCounts(prev => ({ ...prev, [msg.dm_channel_id]: (prev[msg.dm_channel_id] ?? 0) + 1 }));
       // DMs always count as direct mentions for badge purposes
       setMentionCounts(prev => new Set([...prev, msg.dm_channel_id]));
-      notify(
-        `${msg.author_username}`,
-        msg.content,
-        msg.author_avatar_url,
-        () => navigate(`/channels/@me/${msg.dm_channel_id}`),
-      );
     }
+    notify(
+      `${msg.author_username}`,
+      msg.content,
+      msg.author_avatar_url,
+      () => navigate(`/channels/@me/${msg.dm_channel_id}`),
+      isActiveChannel,
+    );
   }, [receiveDmMessage, activeDmChannel?.id, notify, navigate]);
 
   const handleDmDelete = useCallback(async (messageId: string) => {
