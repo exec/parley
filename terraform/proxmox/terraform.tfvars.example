@@ -38,15 +38,15 @@ redis_password           = "change-me"
 # Repo
 repo_url = "https://github.com/exec/parley.git"
 
-# API keys (copy from production)
-giphy_api_key  = "JQsD2D0EteELR8qQQOs1Su5ehVxQ7F20"
-ollama_api_key = "08a39ec4749a41ebbcb972c6ca81729b.sWnLMN0SaUBomoqG1YvbzMNX"
+# API keys — generate fresh, never commit real values
+giphy_api_key  = "your-giphy-api-key"
+ollama_api_key = "your-ollama-api-key"
 ollama_api_url = "https://ollama.com"
 ollama_model   = "devstral-small-2:24b-cloud"
 
-livekit_api_key    = "APIyDN3nzBLyRok"
-livekit_api_secret = "toVUyfS2xkiAzwDsDjmztnwZ8H5ALobdWrhoUlpEgmR"
-livekit_url        = "wss://parley-6jjbl5wy.livekit.cloud"
+livekit_api_key    = "your-livekit-api-key"
+livekit_api_secret = "your-livekit-api-secret"
+livekit_url        = "wss://your-project.livekit.cloud"
 
 # Object storage — MinIO VM is always provisioned; set credentials here
 minio_access_key = "parleyminio"

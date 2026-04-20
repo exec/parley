@@ -41,9 +41,9 @@ Almost entirely frontend work. Backend changes are limited to environment variab
 Update environment variables on all 3 API servers (`parley-api-1`, `parley-api-2`, `parley-api-3`):
 
 ```
-LIVEKIT_URL=wss://parley-6jjbl5wy.livekit.cloud
-LIVEKIT_API_KEY=APIyDN3nzBLyRok
-LIVEKIT_API_SECRET=toVUyfS2xkiAzwDsDjmztnwZ8H5ALobdWrhoUlpEgmR
+LIVEKIT_URL=wss://your-project.livekit.cloud
+LIVEKIT_API_KEY=your-livekit-api-key
+LIVEKIT_API_SECRET=your-livekit-api-secret
 ```
 
 `terraform.tfvars` has been updated with these values. The `parley-vc` self-hosted droplet can be decommissioned after confirming LiveKit Cloud is working.

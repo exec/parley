@@ -1665,7 +1665,7 @@ git add frontend/src/components/settings/CustomThemeEditor.tsx frontend/src/comp
 Run the following on each of the three API servers. Substitute the correct values:
 
 ```
-OLLAMA_API_KEY = 9387ccdc56fb4f258b1a9c5b1f72e7d8.GbzZvDlntgjdara1k3_L12Dq
+OLLAMA_API_KEY = your-ollama-api-key
 OLLAMA_API_URL = https://ollama.com/api
 OLLAMA_MODEL   = qwen3.5:9b
 ```
@@ -1676,7 +1676,7 @@ OLLAMA_MODEL   = qwen3.5:9b
 # Append Ollama env vars
 cat >> /etc/parley/env <<'EOF'
 OLLAMA_API_URL=https://ollama.com/api
-OLLAMA_API_KEY=9387ccdc56fb4f258b1a9c5b1f72e7d8.GbzZvDlntgjdara1k3_L12Dq
+OLLAMA_API_KEY=your-ollama-api-key
 OLLAMA_MODEL=qwen3.5:9b
 EOF
 chmod 600 /etc/parley/env
