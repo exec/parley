@@ -14,7 +14,13 @@ import './index.css';
 if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
   document.documentElement.dataset.tauri = '1';
   const ua = navigator.userAgent;
-  const platform = /Mac/i.test(ua) ? 'macos' : /Windows/i.test(ua) ? 'windows' : 'linux';
+  // iOS UA contains "Mac" ("CPU iPhone OS ... like Mac OS X"), so iOS/Android
+  // must be matched before the macOS check.
+  const platform = /iPad|iPhone|iPod/.test(ua) ? 'ios'
+    : /Android/.test(ua) ? 'android'
+    : /Mac/i.test(ua) ? 'macos'
+    : /Windows/i.test(ua) ? 'windows'
+    : 'linux';
   document.documentElement.dataset.tauriPlatform = platform;
 }
 

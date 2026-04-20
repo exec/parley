@@ -14,7 +14,10 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px 10px;
+  /* Safe-area-top so the title clears the Dynamic Island / status bar on
+     mobile. The search panel is a full-height sibling that can land right
+     up against the top edge. */
+  padding: calc(14px + max(0px, env(safe-area-inset-top, 0px))) 16px 10px;
   border-bottom: 1px solid var(--parley-bg-tertiary);
   flex-shrink: 0;
 }

@@ -1458,6 +1458,19 @@
   flex-shrink: 0;
 }
 
+.pinned-panel-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--parley-text-muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+.pinned-panel-close:hover { color: var(--parley-text-normal); }
+
 .pinned-panel-body {
   flex: 1;
   overflow-y: auto;
