@@ -79,7 +79,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   return (
     <div className="sidebar">
       <div
-        className={`home-button ${activeServerId === null ? 'active' : ''}`}
+        className={`home-button ${activeServerId === null && !discoveryActive ? 'active' : ''}`}
         onClick={() => onHomepage?.()}
       >
         <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
