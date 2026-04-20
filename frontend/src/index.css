@@ -144,6 +144,47 @@
   box-sizing: border-box;
 }
 
+/* =====================================================
+   Native-feel polish for iOS / Android WKWebView / WebView.
+   These rules also apply on desktop browsers but the defaults
+   they override only affect touch devices, so no visible change
+   for mouse users.
+
+   - Tap highlight flash: the gray rectangle that briefly appears
+     when you tap a button. Removed so taps feel instant.
+   - Touch callout: the long-press link-preview / share-sheet popup.
+     Removed from UI chrome (re-enabled below for message content).
+   - Text selection: disabled on UI chrome so long-press doesn't
+     pop the copy/paste bar. Re-enabled on actual content / inputs.
+   - Overscroll bounce: disabled so pulling past the top of a
+     scroller doesn't rubber-band and reveal the white page behind.
+   - touch-action: manipulation removes the historic 300ms tap
+     delay on fast-taps without breaking pinch where it's allowed.
+   ===================================================== */
+html,
+body {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+
+/* Re-enable selection + callout wherever actual content lives. */
+input,
+textarea,
+[contenteditable="true"],
+.message-content,
+.message-body,
+.post-view-body,
+pre,
+code {
+  -webkit-touch-callout: default;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 html {
   /* 100svh = stable "small" viewport height — never shifts when Safari URL bar
      slides in/out. Safe-area padding clears Dynamic Island & home indicator;
