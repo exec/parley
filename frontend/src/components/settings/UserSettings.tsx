@@ -915,6 +915,7 @@ const NotificationsTab: React.FC = () => {
   const [permission, setPermission] = React.useState<NotifyPermission>('default');
   const [tauriApp, setTauriApp] = React.useState(false);
   const [supported, setSupported] = React.useState(true);
+  const [testLog, setTestLog] = React.useState<string>('');
 
   React.useEffect(() => {
     let cancelled = false;
@@ -964,35 +965,47 @@ const NotificationsTab: React.FC = () => {
             <button
               className="settings-btn settings-btn-secondary"
               onClick={async () => {
-                const steps: string[] = [];
+                const steps: string[] = [`click at ${new Date().toISOString()}`];
+                setTestLog(steps.join('\n'));
                 try {
+                  steps.push(`isTauri=${isTauri()}`);
+                  setTestLog(steps.join('\n'));
                   if (isTauri()) {
                     const mod = await import('@tauri-apps/plugin-notification');
+                    steps.push('plugin imported');
+                    setTestLog(steps.join('\n'));
                     const granted = await mod.isPermissionGranted();
                     steps.push(`isPermissionGranted=${granted}`);
+                    setTestLog(steps.join('\n'));
                     if (!granted) {
                       const r = await mod.requestPermission();
                       steps.push(`requestPermission=${r}`);
-                      if (r !== 'granted') { alert(steps.join('\n')); return; }
+                      setTestLog(steps.join('\n'));
+                      if (r !== 'granted') return;
                     }
                     mod.sendNotification({ title: 'Parley', body: 'Test notification — wiring verified.' });
-                    steps.push('sendNotification() called');
+                    steps.push('sendNotification() returned');
+                    setTestLog(steps.join('\n'));
                   } else {
-                    if (Notification.permission !== 'granted') {
-                      steps.push(`browser permission=${Notification.permission}`);
-                    }
+                    steps.push(`browser Notification.permission=${Notification.permission}`);
                     new Notification('Parley', { body: 'Test notification — wiring verified.' });
                     steps.push('new Notification() fired');
+                    setTestLog(steps.join('\n'));
                   }
-                  alert(steps.join('\n'));
                 } catch (e) {
-                  alert(`ERROR: ${e instanceof Error ? e.message : String(e)}\n\nSteps so far:\n${steps.join('\n')}`);
+                  steps.push(`ERROR: ${e instanceof Error ? e.message : String(e)}`);
+                  setTestLog(steps.join('\n'));
                 }
               }}
               style={{ marginTop: 8 }}
             >
               Send test notification
             </button>
+            {testLog && (
+              <pre style={{ marginTop: 8, padding: 8, fontSize: 11, whiteSpace: 'pre-wrap', background: 'var(--parley-input)', border: '1px solid var(--parley-border-light)', borderRadius: 4, color: 'var(--parley-text-normal)' }}>
+                {testLog}
+              </pre>
+            )}
           </>
         )}
 
