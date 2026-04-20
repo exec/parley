@@ -486,10 +486,10 @@
 
 /* Chat Header */
 .chat-header {
-  /* padding-top absorbs the iOS safe-area (Dynamic Island / notch) so the
-     channel background can extend under the status bar. Shaved 8px off the
-     raw inset because the system UI only needs clearance, not full reserve. */
-  padding: max(10px, calc(env(safe-area-inset-top, 0px) - 8px)) 16px 10px 16px;
+  /* padding-top absorbs the full iOS safe-area (Dynamic Island / notch) so
+     tap targets in the header clear the status bar. Channel background
+     extends under it separately because .chat-header is transparent. */
+  padding: max(10px, env(safe-area-inset-top, 0px)) 16px 10px 16px;
   border-bottom: 1px solid rgba(var(--accent-rgb), 0.2);
   background-color: transparent;
   flex-shrink: 0;
