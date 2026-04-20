@@ -146,11 +146,14 @@
 
 html {
   /* 100svh = stable "small" viewport height — never shifts when Safari URL bar
-     slides in/out. Safe-area padding clears Dynamic Island & home indicator.
-     Background fills the safe-area zones edge-to-edge. */
+     slides in/out. Safe-area padding clears Dynamic Island & home indicator;
+     we shave ~8px off each end because the raw insets leave awkwardly large
+     gaps on iPhone — the system-drawn status bar + home indicator only need
+     clearance, not the full reserved zone. Background fills the safe-area
+     zones edge-to-edge so the shave is visually unnoticed. */
   height: 100svh;
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-top: max(0px, calc(env(safe-area-inset-top, 0px) - 8px));
+  padding-bottom: max(0px, calc(env(safe-area-inset-bottom, 0px) - 8px));
   box-sizing: border-box;
   background-color: var(--parley-bg-primary);
 }
