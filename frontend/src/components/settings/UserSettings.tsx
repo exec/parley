@@ -957,9 +957,43 @@ const NotificationsTab: React.FC = () => {
         )}
 
         {supported && permission === 'granted' && (
-          <div className="settings-success">
-            Desktop notifications are enabled.
-          </div>
+          <>
+            <div className="settings-success">
+              Desktop notifications are enabled.
+            </div>
+            <button
+              className="settings-btn settings-btn-secondary"
+              onClick={async () => {
+                const steps: string[] = [];
+                try {
+                  if (isTauri()) {
+                    const mod = await import('@tauri-apps/plugin-notification');
+                    const granted = await mod.isPermissionGranted();
+                    steps.push(`isPermissionGranted=${granted}`);
+                    if (!granted) {
+                      const r = await mod.requestPermission();
+                      steps.push(`requestPermission=${r}`);
+                      if (r !== 'granted') { alert(steps.join('\n')); return; }
+                    }
+                    mod.sendNotification({ title: 'Parley', body: 'Test notification — wiring verified.' });
+                    steps.push('sendNotification() called');
+                  } else {
+                    if (Notification.permission !== 'granted') {
+                      steps.push(`browser permission=${Notification.permission}`);
+                    }
+                    new Notification('Parley', { body: 'Test notification — wiring verified.' });
+                    steps.push('new Notification() fired');
+                  }
+                  alert(steps.join('\n'));
+                } catch (e) {
+                  alert(`ERROR: ${e instanceof Error ? e.message : String(e)}\n\nSteps so far:\n${steps.join('\n')}`);
+                }
+              }}
+              style={{ marginTop: 8 }}
+            >
+              Send test notification
+            </button>
+          </>
         )}
 
         {supported && permission === 'denied' && (
