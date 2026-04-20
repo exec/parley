@@ -45,12 +45,6 @@ export const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const stateRef = useRef<string>('');
   const inTauri = isTauri();
-  // iOS WKWebView supports navigator.credentials natively from iOS 16.4+ as
-  // long as the origin matches the WebAuthn RP ID, so we skip the browser
-  // handoff and use the in-app passkey flow. Other Tauri platforms (desktop)
-  // still need the handoff because the OS browser owns the iCloud Keychain
-  // / Windows Hello / etc.
-  const isIOSTauri = inTauri && /iPad|iPhone|iPod/.test(navigator.userAgent);
 
   const validate = (): boolean => {
     const newErrors: LoginErrors = {};
@@ -268,7 +262,7 @@ export const Login: React.FC = () => {
             </Button>
           </form>
 
-          {inTauri && !isIOSTauri ? (
+          {inTauri ? (
             <Button
               type="button"
               variant="secondary"
