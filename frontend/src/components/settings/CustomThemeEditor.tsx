@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { UserTheme, NewTheme, publishTheme } from '../../api/themes';
+import { apiUrl } from '../../api/client';
 import { BUILTIN_IDS } from '../../context/ThemeContext';
 import { validateCSS } from '../../lib/cssValidator';
 import { themeVarsCSS } from '../../lib/themePreview';
@@ -62,7 +63,7 @@ body{font-family:sans-serif;background:var(--parley-app-bg,var(--parley-channel-
 async function uploadFile(file: File): Promise<string> {
   const form = new FormData();
   form.append('file', file);
-  const res = await fetch('/api/upload', {
+  const res = await fetch(apiUrl('/upload'), {
     method: 'POST',
     headers: { Authorization: `Bearer ${localStorage.getItem('token') || ''}` },
     body: form,
@@ -148,7 +149,7 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
     abortRef.current = new AbortController();
     setAiStatus({ type: 'generating' });
     try {
-      const resp = await fetch('/api/me/themes/generate', {
+      const resp = await fetch(apiUrl('/me/themes/generate'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

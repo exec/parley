@@ -1,10 +1,17 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Trash2, Upload, Smile, X } from 'lucide-react';
+import { Trash2, Upload, Smile, X, FileAudio } from 'lucide-react';
 import { Sound, listServerSounds, uploadSound, deleteSound } from '../../api/soundboard';
 import { EmojiPicker } from '../chat/EmojiPicker';
 import './SoundboardTab.css';
 
 const MAX_SOUNDS = 48;
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
+
+function formatBytes(n: number): string {
+  if (n >= 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  if (n >= 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${n} B`;
+}
 
 interface Props {
   serverId: number;
@@ -35,7 +42,6 @@ export const SoundboardTab: React.FC<Props> = ({ serverId }) => {
       .finally(() => setLoading(false));
   }, [serverId]);
 
-  // Close emoji picker on outside click
   useEffect(() => {
     if (!showEmojiPicker) return;
     const handler = (e: MouseEvent) => {
@@ -47,6 +53,28 @@ export const SoundboardTab: React.FC<Props> = ({ serverId }) => {
     return () => document.removeEventListener('mousedown', handler);
   }, [showEmojiPicker]);
 
+  const pickFile = () => fileInputRef.current?.click();
+
+  const onFileChange = (file: File | null) => {
+    setUploadError('');
+    if (file && file.size > MAX_FILE_BYTES) {
+      setUploadFile(null);
+      setUploadError(`File too large (${formatBytes(file.size)}). Max 5 MB.`);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+    setUploadFile(file);
+    if (file && !uploadName.trim()) {
+      const base = file.name.replace(/\.[^.]+$/, '').slice(0, 32);
+      setUploadName(base);
+    }
+  };
+
+  const clearFile = () => {
+    setUploadFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!uploadFile || !uploadName.trim()) return;
@@ -57,8 +85,7 @@ export const SoundboardTab: React.FC<Props> = ({ serverId }) => {
       setSounds(prev => [...prev, sound]);
       setUploadName('');
       setUploadEmoji('');
-      setUploadFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      clearFile();
     } catch (err: any) {
       setUploadError(err?.message ?? 'Upload failed.');
     } finally {
@@ -76,115 +103,146 @@ export const SoundboardTab: React.FC<Props> = ({ serverId }) => {
     }
   };
 
-  return (
-    <div className="soundboard-tab">
-      <div className="soundboard-header">
-        <h3 className="soundboard-title">Soundboard</h3>
-        <span className="soundboard-count">{sounds.length} / {MAX_SOUNDS} sounds</span>
-      </div>
+  const atLimit = sounds.length >= MAX_SOUNDS;
 
-      {/* Upload form */}
-      <form className="soundboard-upload-form" onSubmit={handleUpload}>
-        <h4 className="soundboard-section-title">Add Sound</h4>
-        <div className="soundboard-upload-row">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".mp3,.ogg,.wav,audio/mpeg,audio/ogg,audio/wav"
-            onChange={e => setUploadFile(e.target.files?.[0] ?? null)}
-            className="soundboard-file-input"
-          />
-          <input
-            type="text"
-            placeholder="Name (required, max 32 chars)"
-            maxLength={32}
-            value={uploadName}
-            onChange={e => setUploadName(e.target.value)}
-            className="soundboard-input"
-          />
-          {/* Emoji picker trigger */}
-          <div className="soundboard-emoji-wrapper" ref={emojiWrapperRef}>
-            <button
-              type="button"
-              className="soundboard-emoji-btn"
-              onClick={() => {
-                if (!showEmojiPicker && emojiWrapperRef.current) {
-                  const rect = emojiWrapperRef.current.getBoundingClientRect();
-                  setPickerOpensDown(rect.bottom + 400 <= window.innerHeight - 16);
-                }
-                setShowEmojiPicker(v => !v);
-              }}
-              title="Pick emoji"
-            >
-              {uploadEmoji ? (
-                <span className="soundboard-emoji-preview">{uploadEmoji}</span>
-              ) : (
-                <Smile size={16} />
-              )}
-            </button>
-            {uploadEmoji && (
-              <button
-                type="button"
-                className="soundboard-emoji-clear"
-                onClick={() => setUploadEmoji('')}
-                title="Clear emoji"
-              >
-                <X size={12} />
-              </button>
-            )}
-            {showEmojiPicker && (
-              <div
-                className="soundboard-emoji-picker-anchor"
-                style={pickerOpensDown ? { top: 'calc(100% + 6px)', bottom: 'auto' } : { bottom: 'calc(100% + 6px)', top: 'auto' }}
-              >
-                <EmojiPicker
-                  ref={emojiPickerRef}
-                  onSelect={emoji => { setUploadEmoji(emoji); setShowEmojiPicker(false); }}
-                  onClose={() => setShowEmojiPicker(false)}
-                />
+  return (
+    <div>
+      <h2 className="settings-page-title">Soundboard</h2>
+
+      <div className="settings-section">
+        <div className="settings-section-title">Add Sound</div>
+        <div className="settings-form-hint" style={{ marginBottom: 14 }}>
+          MP3, OGG, or WAV. Up to 5 MB and 32 characters for the name. {sounds.length} / {MAX_SOUNDS} sounds used.
+        </div>
+
+        <form className="soundboard-form" onSubmit={handleUpload}>
+          <div className="settings-form-group">
+            <label className="settings-form-label">Audio File</label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".mp3,.ogg,.wav,audio/mpeg,audio/ogg,audio/wav"
+              onChange={e => onFileChange(e.target.files?.[0] ?? null)}
+              className="soundboard-file-hidden"
+            />
+            {uploadFile ? (
+              <div className="soundboard-file-chip">
+                <FileAudio size={14} />
+                <span className="soundboard-file-chip-name">{uploadFile.name}</span>
+                <span className="soundboard-file-chip-size">{formatBytes(uploadFile.size)}</span>
+                <button type="button" className="soundboard-file-chip-clear" onClick={clearFile} title="Remove">
+                  <X size={14} />
+                </button>
               </div>
+            ) : (
+              <button type="button" className="soundboard-file-pick" onClick={pickFile}>
+                Choose File…
+              </button>
             )}
           </div>
+
+          <div className="settings-form-group">
+            <label className="settings-form-label">Name</label>
+            <input
+              type="text"
+              placeholder="Name (required, max 32 chars)"
+              maxLength={32}
+              value={uploadName}
+              onChange={e => setUploadName(e.target.value)}
+              className="settings-form-input"
+            />
+          </div>
+
+          <div className="settings-form-group">
+            <label className="settings-form-label">Emoji (optional)</label>
+            <div className="soundboard-emoji-wrapper" ref={emojiWrapperRef}>
+              <button
+                type="button"
+                className="soundboard-emoji-btn"
+                onClick={() => {
+                  if (!showEmojiPicker && emojiWrapperRef.current) {
+                    const rect = emojiWrapperRef.current.getBoundingClientRect();
+                    setPickerOpensDown(rect.bottom + 400 <= window.innerHeight - 16);
+                  }
+                  setShowEmojiPicker(v => !v);
+                }}
+                title="Pick emoji"
+              >
+                {uploadEmoji ? (
+                  <span className="soundboard-emoji-preview">{uploadEmoji}</span>
+                ) : (
+                  <Smile size={16} />
+                )}
+              </button>
+              {uploadEmoji && (
+                <button
+                  type="button"
+                  className="soundboard-emoji-clear"
+                  onClick={() => setUploadEmoji('')}
+                  title="Clear emoji"
+                >
+                  <X size={12} />
+                </button>
+              )}
+              {showEmojiPicker && (
+                <div
+                  className="soundboard-emoji-picker-anchor"
+                  style={pickerOpensDown ? { top: 'calc(100% + 6px)', bottom: 'auto' } : { bottom: 'calc(100% + 6px)', top: 'auto' }}
+                >
+                  <EmojiPicker
+                    ref={emojiPickerRef}
+                    onSelect={emoji => { setUploadEmoji(emoji); setShowEmojiPicker(false); }}
+                    onClose={() => setShowEmojiPicker(false)}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {uploadError && <div className="settings-error" style={{ marginBottom: 12 }}>{uploadError}</div>}
+          {atLimit && (
+            <div className="settings-error" style={{ marginBottom: 12 }}>
+              Server has reached the {MAX_SOUNDS} sound limit.
+            </div>
+          )}
+
           <button
             type="submit"
-            className="soundboard-upload-btn"
-            disabled={uploading || !uploadFile || !uploadName.trim() || sounds.length >= MAX_SOUNDS}
+            className="settings-save-btn"
+            disabled={uploading || !uploadFile || !uploadName.trim() || atLimit}
           >
-            <Upload size={14} />
+            <Upload size={14} style={{ marginRight: 6 }} />
             {uploading ? 'Uploading…' : 'Upload'}
           </button>
-        </div>
-        {uploadError && <p className="soundboard-error">{uploadError}</p>}
-        {sounds.length >= MAX_SOUNDS && (
-          <p className="soundboard-error">Server has reached the {MAX_SOUNDS} sound limit.</p>
-        )}
-      </form>
+        </form>
+      </div>
 
-      {/* Sound list */}
-      <div className="soundboard-section-title">Sounds</div>
-      {loading ? (
-        <p className="soundboard-empty">Loading…</p>
-      ) : error ? (
-        <p className="soundboard-error">{error}</p>
-      ) : sounds.length === 0 ? (
-        <p className="soundboard-empty">No sounds yet. Upload one above.</p>
-      ) : (
-        <div className="soundboard-grid">
-          {sounds.map(sound => (
-            <div key={sound.id} className="soundboard-card">
-              <span className="soundboard-card-emoji">{sound.emoji || '🔊'}</span>
-              <span className="soundboard-card-name">{sound.name}</span>
-              <button
-                className="soundboard-card-delete"
-                onClick={() => handleDelete(sound)}
-                title="Delete"
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="settings-section">
+        <div className="settings-section-title">Sounds</div>
+        {loading ? (
+          <div className="settings-form-hint">Loading…</div>
+        ) : error ? (
+          <div className="settings-error">{error}</div>
+        ) : sounds.length === 0 ? (
+          <div className="settings-form-hint">No sounds yet. Upload one above.</div>
+        ) : (
+          <div className="soundboard-grid">
+            {sounds.map(sound => (
+              <div key={sound.id} className="soundboard-card">
+                <span className="soundboard-card-emoji">{sound.emoji || '🔊'}</span>
+                <span className="soundboard-card-name">{sound.name}</span>
+                <button
+                  className="soundboard-card-delete"
+                  onClick={() => handleDelete(sound)}
+                  title="Delete"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

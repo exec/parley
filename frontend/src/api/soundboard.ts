@@ -1,4 +1,4 @@
-import { apiClient } from './client';
+import { apiClient, apiUrl } from './client';
 
 export interface Sound {
   id: string;
@@ -32,7 +32,7 @@ export async function uploadSound(serverId: string, file: File, name: string, em
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`/api/servers/${serverId}/soundboard`, {
+  const response = await fetch(apiUrl(`/servers/${serverId}/soundboard`), {
     method: 'POST',
     headers,
     body: formData,

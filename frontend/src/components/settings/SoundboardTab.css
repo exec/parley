@@ -1,122 +1,139 @@
-/* frontend/src/components/settings/SoundboardTab.css */
-
-.soundboard-tab {
-  padding: 16px 20px;
-}
-
-.soundboard-header {
+.soundboard-form {
   display: flex;
-  flex-direction: row;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Hide native file input; a styled button/chip triggers it. */
+.soundboard-file-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.soundboard-file-pick {
+  display: inline-flex;
   align-items: center;
-  margin-bottom: 0.5rem;
-}
-
-.soundboard-title {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--parley-text, #eee);
-}
-
-.soundboard-count {
-  font-size: 0.85rem;
-  opacity: 0.6;
-  color: var(--parley-text-muted, #888);
-}
-
-.soundboard-section-title {
-  margin-top: 1.5rem;
-  margin-bottom: 0.75rem;
-  font-size: 0.85rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--parley-text-muted, #888);
-}
-
-h4.soundboard-section-title {
-  margin-top: 1rem;
-}
-
-.soundboard-upload-form {
-  margin-bottom: 1.5rem;
-}
-
-.soundboard-upload-row {
-  display: flex;
-  flex-direction: row;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.soundboard-file-input {
-  flex: 1;
-  min-width: 200px;
-  color: var(--parley-text, #eee);
-  font-size: 0.85rem;
-}
-
-.soundboard-input {
-  flex: 2;
-  min-width: 120px;
-  padding: 0.4rem 0.6rem;
-  background: var(--parley-input, #1a1a1a);
-  border: 1px solid var(--parley-border, #40444b);
+  gap: 6px;
+  padding: 8px 14px;
+  background: var(--parley-input);
+  border: 1px dashed var(--parley-border-light);
   border-radius: 4px;
-  color: var(--parley-text, #eee);
-  font-size: 0.9rem;
+  color: var(--parley-text-normal);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  align-self: flex-start;
+  transition: border-color 0.12s ease, color 0.12s ease;
+}
+
+.soundboard-file-pick:hover {
+  border-color: var(--parley-accent);
+  color: var(--parley-accent);
+}
+
+.soundboard-file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 8px 12px;
+  background: var(--parley-input);
+  border: 1px solid var(--parley-border-light);
+  border-radius: 4px;
+  color: var(--parley-text-normal);
+  font-size: 13px;
+  max-width: 480px;
+}
+
+.soundboard-file-chip-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.soundboard-file-chip-size {
+  color: var(--parley-text-muted);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.soundboard-file-chip-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: none;
+  border: none;
+  color: var(--parley-text-muted);
+  cursor: pointer;
+  padding: 0;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.soundboard-file-chip-clear:hover {
+  color: var(--parley-danger);
+  background: rgba(var(--parley-danger-rgb), 0.12);
 }
 
 /* Emoji picker trigger */
 .soundboard-emoji-wrapper {
   position: relative;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 6px;
 }
 
 .soundboard-emoji-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  background: var(--parley-input, #1a1a1a);
-  border: 1px solid var(--parley-border, #40444b);
+  width: 38px;
+  height: 38px;
+  background: var(--parley-input);
+  border: 1px solid var(--parley-border-light);
   border-radius: 4px;
-  color: var(--parley-text-muted, #888);
+  color: var(--parley-text-muted);
   cursor: pointer;
-  font-size: 1.1rem;
+  font-size: 18px;
+  line-height: 1;
 }
 
 .soundboard-emoji-btn:hover {
-  border-color: var(--parley-accent, #5865f2);
-  color: var(--parley-text, #eee);
+  border-color: var(--parley-accent);
+  color: var(--parley-text-normal);
 }
 
 .soundboard-emoji-preview {
-  font-size: 1.15rem;
+  font-size: 20px;
   line-height: 1;
 }
 
 .soundboard-emoji-clear {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   background: none;
   border: none;
-  color: var(--parley-text-muted, #888);
+  color: var(--parley-text-muted);
   cursor: pointer;
   padding: 0;
   border-radius: 3px;
 }
 
 .soundboard-emoji-clear:hover {
-  color: var(--parley-danger, #f04747);
+  color: var(--parley-danger);
 }
 
 .soundboard-emoji-picker-anchor {
@@ -125,66 +142,40 @@ h4.soundboard-section-title {
   z-index: 200;
 }
 
-.soundboard-upload-btn {
-  flex: none;
-  padding: 0.4rem 0.75rem;
-  background: var(--parley-accent, #5865f2);
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.85rem;
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-weight: 600;
-}
-
-.soundboard-upload-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.soundboard-error {
-  color: #f04747;
-  font-size: 0.85rem;
-  margin: 0.4rem 0;
-}
-
-.soundboard-empty {
-  color: var(--parley-text-muted, #888);
-  font-style: italic;
-  font-size: 0.9rem;
-}
-
 .soundboard-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
 }
 
 .soundboard-card {
-  background: var(--parley-bg-secondary, #2f3136);
+  background: var(--parley-input);
+  border: 1px solid var(--parley-border-light);
   border-radius: 6px;
-  padding: 0.6rem 0.75rem;
+  padding: 10px 12px;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  border: 1px solid var(--parley-border, #40444b);
+  gap: 10px;
+  transition: border-color 0.12s ease;
+}
+
+.soundboard-card:hover {
+  border-color: var(--parley-accent);
 }
 
 .soundboard-card-emoji {
-  font-size: 1.2rem;
+  font-size: 18px;
+  line-height: 1;
   flex-shrink: 0;
 }
 
 .soundboard-card-name {
   flex: 1;
-  font-size: 0.9rem;
+  font-size: 13px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--parley-text, #eee);
+  color: var(--parley-text-normal);
 }
 
 .soundboard-card-delete {
@@ -192,14 +183,14 @@ h4.soundboard-section-title {
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--parley-text-muted, #888);
-  padding: 2px;
-  display: flex;
+  color: var(--parley-text-muted);
+  padding: 4px;
+  display: inline-flex;
   align-items: center;
   border-radius: 3px;
 }
 
 .soundboard-card-delete:hover {
-  color: #f04747;
-  background: rgba(240, 71, 71, 0.1);
+  color: var(--parley-danger);
+  background: rgba(var(--parley-danger-rgb), 0.12);
 }

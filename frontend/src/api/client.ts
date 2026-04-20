@@ -9,6 +9,12 @@ import { ApiError } from './types';
 const SITE_URL = (import.meta.env.VITE_SITE_URL as string) || '';
 const DEFAULT_BASE_URL = SITE_URL ? `${SITE_URL.replace(/\/$/, '')}/api` : '/api';
 
+// Build an absolute API URL for endpoints that bypass apiClient (multipart
+// uploads, etc.). Paths should start with a slash.
+export function apiUrl(path: string): string {
+  return `${DEFAULT_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+}
+
 class ApiClient {
   private baseUrl: string;
   private token: string | null = null;
