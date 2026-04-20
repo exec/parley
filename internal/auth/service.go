@@ -84,16 +84,23 @@ func (s *AuthService) SetEmailClient(client *email.Client, siteURL string) {
 	}
 }
 
-// Register creates a new user and returns a token
-func (s *AuthService) Register(ctx context.Context, username, email_, phone, password, registrationIP string) (User, string, error) {
+// Register creates a new user and returns a token. Registration is gated on
+// a single-use registration_invites code. The `phone` parameter is accepted
+// for API compatibility but ignored — SMS verification was removed while it
+// was nonfunctional; reinstating it should restore the commented-out block
+// below.
+func (s *AuthService) Register(ctx context.Context, username, email_, phone, password, inviteCode, registrationIP string) (User, string, error) {
 	username = strings.ToLower(username)
 
 	// Validate input
 	if username == "" {
 		return User{}, "", errors.New("username is required")
 	}
-	if email_ == "" && phone == "" {
-		return User{}, "", errors.New("email or phone number is required")
+	if inviteCode == "" {
+		return User{}, "", errors.New("invite code is required")
+	}
+	if email_ == "" {
+		return User{}, "", errors.New("email is required")
 	}
 	if len(username) > 32 {
 		return User{}, "", errors.New("username must be 32 characters or fewer")
@@ -117,15 +124,19 @@ func (s *AuthService) Register(ctx context.Context, username, email_, phone, pas
 		return User{}, "", err
 	}
 
-	if phone != "" {
-		_, err = s.repo.GetUserByPhone(ctx, phone)
-		if err == nil {
-			return User{}, "", errors.New("user with this phone number already exists")
-		}
-		if err != db.ErrNotFound {
-			return User{}, "", err
-		}
-	}
+	// Previous flow accepted phone signups alongside email. SMS verification
+	// is disabled for now, so phone-only signups are blocked; the uniqueness
+	// check is kept commented for when SMS comes back.
+	// if phone != "" {
+	// 	_, err = s.repo.GetUserByPhone(ctx, phone)
+	// 	if err == nil {
+	// 		return User{}, "", errors.New("user with this phone number already exists")
+	// 	}
+	// 	if err != db.ErrNotFound {
+	// 		return User{}, "", err
+	// 	}
+	// }
+	_ = phone // reserved for future SMS reactivation
 
 	if email_ != "" {
 		_, err := s.repo.GetUserByEmail(ctx, email_)
@@ -150,25 +161,55 @@ func (s *AuthService) Register(ctx context.Context, username, email_, phone, pas
 		}
 	}
 
-	// Generate email verification token
+	// Generate email verification token. We still store it so the user can
+	// trigger verification later via /resend-verification, but we no longer
+	// automatically send the email at registration time (see below).
 	verificationToken, err := generateToken()
 	if err != nil {
 		log.Printf("Register: failed to generate verification token: %v", err)
 		verificationToken = "" // fail-open: create user without token
 	}
 
-	// Create user in database
 	dbUser := &db.User{
 		Username:               username,
 		Email:                  email_,
 		PasswordHash:           hashedPassword,
 		EmailVerificationToken: verificationToken,
-		PhoneNumber:            phone,
-		RegistrationIP:         registrationIP,
+		// PhoneNumber intentionally left empty while SMS is disabled.
+		RegistrationIP: registrationIP,
 	}
 
-	err = s.repo.CreateUser(ctx, dbUser)
+	// Tie invite consumption + user creation into a single transaction so a
+	// failed insert (e.g. username race) doesn't burn the code, and a racing
+	// registration against the same code can't produce a zombie user row.
+	tx, err := s.repo.DB().BeginTx(ctx, nil)
 	if err != nil {
+		return User{}, "", err
+	}
+	defer tx.Rollback()
+
+	var inviterID int64
+	err = tx.QueryRowContext(ctx,
+		`SELECT inviter_id FROM registration_invites
+		 WHERE code = $1 AND used_at IS NULL
+		 FOR UPDATE`, inviteCode,
+	).Scan(&inviterID)
+	if err == sql.ErrNoRows {
+		return User{}, "", errors.New("invalid or already-used invite code")
+	}
+	if err != nil {
+		return User{}, "", err
+	}
+
+	if err := s.repo.CreateUserTx(ctx, tx, dbUser); err != nil {
+		return User{}, "", err
+	}
+
+	if err := s.repo.ConsumeRegistrationInvite(ctx, tx, inviteCode, dbUser.ID); err != nil {
+		return User{}, "", err
+	}
+
+	if err := tx.Commit(); err != nil {
 		return User{}, "", err
 	}
 
@@ -177,24 +218,26 @@ func (s *AuthService) Register(ctx context.Context, username, email_, phone, pas
 		log.Printf("Register: failed to create user_preferences for user %d: %v", dbUser.ID, prefErr)
 	}
 
-	// Send verification email (fail-open)
-	if s.emailClient != nil && email_ != "" && verificationToken != "" {
-		if emailErr := s.emailClient.SendVerificationEmail(ctx, email_, username, verificationToken, s.siteURL); emailErr != nil {
-			log.Printf("Register: failed to send verification email to %s: %v", email_, emailErr)
-		}
-	}
+	// Invite-only launch: don't auto-send the verification email. The user
+	// can request one via POST /api/auth/resend-verification when ready.
+	// if s.emailClient != nil && email_ != "" && verificationToken != "" {
+	// 	if emailErr := s.emailClient.SendVerificationEmail(ctx, email_, username, verificationToken, s.siteURL); emailErr != nil {
+	// 		log.Printf("Register: failed to send verification email to %s: %v", email_, emailErr)
+	// 	}
+	// }
 
-	if s.emailClient != nil && phone != "" {
-		smsCode, codeErr := generateSMSCode()
-		if codeErr == nil {
-			expiresAt := time.Now().Add(15 * time.Minute)
-			if dbErr := s.repo.SetPhoneVerificationCode(ctx, dbUser.ID, smsCode, expiresAt); dbErr == nil {
-				if smsErr := s.emailClient.SendVerificationSMS(ctx, phone, smsCode); smsErr != nil {
-					log.Printf("Register: failed to send SMS to %s: %v", phone, smsErr)
-				}
-			}
-		}
-	}
+	// SMS verification send removed while the SMS provider is nonfunctional.
+	// if s.emailClient != nil && phone != "" {
+	// 	smsCode, codeErr := generateSMSCode()
+	// 	if codeErr == nil {
+	// 		expiresAt := time.Now().Add(15 * time.Minute)
+	// 		if dbErr := s.repo.SetPhoneVerificationCode(ctx, dbUser.ID, smsCode, expiresAt); dbErr == nil {
+	// 			if smsErr := s.emailClient.SendVerificationSMS(ctx, phone, smsCode); smsErr != nil {
+	// 				log.Printf("Register: failed to send SMS to %s: %v", phone, smsErr)
+	// 			}
+	// 		}
+	// 	}
+	// }
 
 	// Convert int64 ID to string for API
 	userID := fmt.Sprintf("%d", dbUser.ID)
@@ -203,7 +246,6 @@ func (s *AuthService) Register(ctx context.Context, username, email_, phone, pas
 		ID:            userID,
 		Username:      username,
 		Email:         email_,
-		PhoneNumber:   phone,
 		EmailVerified: false,
 		PhoneVerified: false,
 		HasPassword:   hashedPassword != "!",

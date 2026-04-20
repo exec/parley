@@ -119,6 +119,10 @@ func registerRoutes(
 				r.Post("/register", handleAuthRegister(authService))
 				r.Post("/login", handleAuthLogin(authService))
 				r.Get("/verify-email", handleVerifyEmail(authService))
+				// Pre-registration invite-code probe. Cheap lookup gated by the
+				// same auth limiter; we don't want unauthenticated users to be
+				// able to enumerate codes.
+				r.Get("/check-invite", handleCheckInvite(repo))
 				r.Post("/forgot-password", handleForgotPassword(authService))
 				r.Post("/reset-password", handleResetPassword(authService))
 				if passkeySvc != nil {
@@ -341,6 +345,10 @@ func registerRoutes(
 
 			// Bots owned by the current user
 			r.Get("/bots/mine", botsHandler.GetMyBots)
+
+			// Registration invite routes — users manage their own codes.
+			r.Get("/invites", handleListMyInvites(repo))
+			r.Post("/invites", handleCreateMyInvite(repo))
 
 			// User routes
 			r.Get("/users/search", handleUserSearch(repo))

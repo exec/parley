@@ -414,24 +414,32 @@ func TestRemovePasswordInvalidUserID(t *testing.T) {
 
 func TestRegisterEmptyUsername(t *testing.T) {
 	svc := newTestService()
-	_, _, err := svc.Register(nil, "", "test@example.com", "", "password123", "")
+	_, _, err := svc.Register(nil, "", "test@example.com", "", "password123", "code123", "")
 	if err == nil || err.Error() != "username is required" {
 		t.Errorf("expected 'username is required', got: %v", err)
 	}
 }
 
-func TestRegisterNoEmailOrPhone(t *testing.T) {
+func TestRegisterMissingInviteCode(t *testing.T) {
 	svc := newTestService()
-	_, _, err := svc.Register(nil, "testuser", "", "", "password123", "")
-	if err == nil || err.Error() != "email or phone number is required" {
-		t.Errorf("expected 'email or phone number is required', got: %v", err)
+	_, _, err := svc.Register(nil, "testuser", "test@example.com", "", "password123", "", "")
+	if err == nil || err.Error() != "invite code is required" {
+		t.Errorf("expected 'invite code is required', got: %v", err)
+	}
+}
+
+func TestRegisterMissingEmail(t *testing.T) {
+	svc := newTestService()
+	_, _, err := svc.Register(nil, "testuser", "", "", "password123", "code123", "")
+	if err == nil || err.Error() != "email is required" {
+		t.Errorf("expected 'email is required', got: %v", err)
 	}
 }
 
 func TestRegisterUsernameTooLong(t *testing.T) {
 	svc := newTestService()
 	longName := "a123456789012345678901234567890ab" // 33 chars
-	_, _, err := svc.Register(nil, longName, "test@example.com", "", "password123", "")
+	_, _, err := svc.Register(nil, longName, "test@example.com", "", "password123", "code123", "")
 	if err == nil || err.Error() != "username must be 32 characters or fewer" {
 		t.Errorf("expected username length error, got: %v", err)
 	}
@@ -439,7 +447,7 @@ func TestRegisterUsernameTooLong(t *testing.T) {
 
 func TestRegisterInvalidUsernameChars(t *testing.T) {
 	svc := newTestService()
-	_, _, err := svc.Register(nil, "user name!", "test@example.com", "", "password123", "")
+	_, _, err := svc.Register(nil, "user name!", "test@example.com", "", "password123", "code123", "")
 	if err == nil || err.Error() != "username may only contain letters, numbers, underscores, hyphens and dots" {
 		t.Errorf("expected invalid username chars error, got: %v", err)
 	}
@@ -447,7 +455,7 @@ func TestRegisterInvalidUsernameChars(t *testing.T) {
 
 func TestRegisterPasswordTooShort(t *testing.T) {
 	svc := newTestService()
-	_, _, err := svc.Register(nil, "validuser", "test@example.com", "", "short", "")
+	_, _, err := svc.Register(nil, "validuser", "test@example.com", "", "short", "code123", "")
 	if err == nil || err.Error() != "password must be at least 8 characters" {
 		t.Errorf("expected password length error, got: %v", err)
 	}
@@ -459,7 +467,7 @@ func TestRegisterPasswordTooLong(t *testing.T) {
 	for i := range longPassword {
 		longPassword[i] = 'a'
 	}
-	_, _, err := svc.Register(nil, "validuser", "test@example.com", "", string(longPassword), "")
+	_, _, err := svc.Register(nil, "validuser", "test@example.com", "", string(longPassword), "code123", "")
 	if err == nil || err.Error() != "password must be 72 characters or fewer (bcrypt limit)" {
 		t.Errorf("expected bcrypt limit error, got: %v", err)
 	}

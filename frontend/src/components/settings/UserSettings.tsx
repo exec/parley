@@ -9,6 +9,7 @@ import { DeveloperTab } from './DeveloperTab';
 import { VoiceSettingsTab } from './VoiceSettings';
 import { AppearanceTab } from './AppearanceTab';
 import { AboutTab } from './AboutTab';
+import { InvitesSettingsTab } from './InvitesSettingsTab';
 import {
   isTauri,
   getNotificationPermission,
@@ -17,7 +18,7 @@ import {
 } from '../../lib/tauri';
 import './Settings.css';
 
-type Tab = 'account' | 'profile' | 'notifications' | 'developer' | 'voice' | 'appearance' | 'about';
+type Tab = 'account' | 'profile' | 'notifications' | 'invites' | 'developer' | 'voice' | 'appearance' | 'about';
 
 interface Props {
   isOpen: boolean;
@@ -244,6 +245,9 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
           <button className={`settings-nav-item${activeTab === 'notifications' ? ' active' : ''}`} onClick={() => setActiveTab('notifications')}>
             Notifications
           </button>
+          <button className={`settings-nav-item${activeTab === 'invites' ? ' active' : ''}`} onClick={() => setActiveTab('invites')}>
+            Invites
+          </button>
           <button className={`settings-nav-item${activeTab === 'developer' ? ' active' : ''}`} onClick={() => setActiveTab('developer')}>
             Developer
           </button>
@@ -329,6 +333,7 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
             hasChanges={hasChanges()}
           />}
           {activeTab === 'notifications' && <NotificationsTab />}
+          {activeTab === 'invites' && <InvitesSettingsTab />}
           {activeTab === 'developer' && <DeveloperTab />}
           {activeTab === 'voice' && <VoiceSettingsTab />}
           {activeTab === 'appearance' && <AppearanceTab />}

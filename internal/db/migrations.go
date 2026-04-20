@@ -880,6 +880,23 @@ CREATE INDEX IF NOT EXISTS idx_bot_interactions_bot ON bot_interactions(bot_id);
 -- this phase: 'normal', 'interaction_response', 'system'. No CHECK constraint
 -- so new kinds can be added by later migrations without a column rewrite.
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS kind VARCHAR(16) NOT NULL DEFAULT 'normal';`,
+
+	`-- Invite-only registration. invite_count tracks how many codes a user may
+-- still generate; registration_invites stores each generated code with the
+-- inviter, and (when consumed) the invitee and used_at. Every existing
+-- non-system, non-bot user starts with 1 invite.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS invite_count INTEGER NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS registration_invites (
+    code        VARCHAR(16) PRIMARY KEY,
+    inviter_id  BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    invitee_id  BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    used_at     TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_registration_invites_inviter ON registration_invites(inviter_id);
+
+UPDATE users SET invite_count = 1 WHERE is_system = FALSE AND is_bot = FALSE AND invite_count = 0;`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

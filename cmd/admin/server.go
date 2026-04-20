@@ -151,6 +151,8 @@ func runServer() {
 			r.Post("/users/{id}/force-logout", handleForceLogout)
 			r.Post("/users/{id}/impersonate", handleImpersonate)
 			r.Patch("/users/{id}/badges", handleSetBadges)
+			r.Post("/users/{id}/invites", handleAddUserInvites)
+			r.Post("/invites/bulk", handleBulkAddInvites)
 			r.Delete("/users/{id}", handleDeleteUser)
 
 			// Messages

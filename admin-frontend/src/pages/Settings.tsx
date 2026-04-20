@@ -1,5 +1,5 @@
 import { useState, useEffect, FormEvent } from 'react'
-import { apiGetCategories, apiCreateCategory, apiDeleteCategory, Category } from '../api'
+import { apiGetCategories, apiCreateCategory, apiDeleteCategory, apiBulkAddInvites, Category } from '../api'
 
 export default function Settings() {
   const [categories, setCategories] = useState<Category[]>([])
@@ -8,6 +8,26 @@ export default function Settings() {
   const [success, setSuccess] = useState('')
   const [newCatName, setNewCatName] = useState('')
   const [addLoading, setAddLoading] = useState(false)
+  const [bulkInviteCount, setBulkInviteCount] = useState(1)
+  const [bulkInviteLoading, setBulkInviteLoading] = useState(false)
+
+  const handleBulkInvites = async () => {
+    if (bulkInviteCount < 1 || bulkInviteCount > 10) {
+      setError('Invite count must be between 1 and 10.')
+      return
+    }
+    if (!confirm(`Grant ${bulkInviteCount} invite${bulkInviteCount === 1 ? '' : 's'} to every active user?`)) return
+    setBulkInviteLoading(true)
+    setError('')
+    try {
+      const res = await apiBulkAddInvites(bulkInviteCount)
+      setSuccess(`Added ${res.count_added} to ${res.users_updated} user${res.users_updated === 1 ? '' : 's'}.`)
+    } catch (ex) {
+      setError(ex instanceof Error ? ex.message : 'Bulk add failed')
+    } finally {
+      setBulkInviteLoading(false)
+    }
+  }
 
   const loadCategories = () => {
     setLoading(true)
@@ -103,6 +123,33 @@ export default function Settings() {
               </form>
             </>
           )}
+        </div>
+
+        {/* Bulk invites */}
+        <div className="card">
+          <div className="card-title">Registration Invites</div>
+          <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '12px', lineHeight: 1.45 }}>
+            Grant invite credits to every active, non-system, non-bot user. Capped at 10 per click.
+          </div>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <input
+              type="number"
+              min={1}
+              max={10}
+              value={bulkInviteCount}
+              onChange={e => setBulkInviteCount(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
+              style={{ width: '80px' }}
+              disabled={bulkInviteLoading}
+            />
+            <button
+              className="btn btn-primary"
+              onClick={handleBulkInvites}
+              disabled={bulkInviteLoading}
+              style={{ flex: 1 }}
+            >
+              {bulkInviteLoading ? 'Granting…' : `Grant ${bulkInviteCount} to everyone`}
+            </button>
+          </div>
         </div>
 
         {/* System info */}

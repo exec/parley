@@ -18,10 +18,11 @@ import (
 // ============ Request / response types ============
 
 type RegisterRequest struct {
-	Username string `json:"username"`
-	Email    string `json:"email"`
-	Phone    string `json:"phone"`
-	Password string `json:"password"`
+	Username   string `json:"username"`
+	Email      string `json:"email"`
+	Phone      string `json:"phone"`
+	Password   string `json:"password"`
+	InviteCode string `json:"invite_code"`
 }
 
 type LoginRequest struct {

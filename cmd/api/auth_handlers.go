@@ -26,7 +26,7 @@ func handleAuthRegister(authService *auth.AuthService) http.HandlerFunc {
 			return
 		}
 
-		user, token, err := authService.Register(r.Context(), req.Username, req.Email, req.Phone, req.Password, requestIP(r))
+		user, token, err := authService.Register(r.Context(), req.Username, req.Email, req.Phone, req.Password, req.InviteCode, requestIP(r))
 		if err != nil {
 			jsonError(w, err.Error(), http.StatusBadRequest)
 			return

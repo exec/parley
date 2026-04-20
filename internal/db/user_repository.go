@@ -10,6 +10,21 @@ import (
 // ============ User Operations ============
 
 func (r *Repository) CreateUser(ctx context.Context, user *User) error {
+	return r.insertUser(ctx, r.db, user)
+}
+
+// CreateUserTx inserts a user inside an open transaction so callers can tie
+// user creation to other writes (e.g. consuming a registration invite) with
+// rollback-on-failure semantics.
+func (r *Repository) CreateUserTx(ctx context.Context, tx *sql.Tx, user *User) error {
+	return r.insertUser(ctx, tx, user)
+}
+
+type sqlQuerier interface {
+	QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row
+}
+
+func (r *Repository) insertUser(ctx context.Context, q sqlQuerier, user *User) error {
 	query := `
 		INSERT INTO users (username, email, password_hash, avatar_url, banner_url, email_verification_token, email_verification_token_expires_at, phone_number, registration_ip, created_at, updated_at)
 		VALUES ($1, NULLIF($2, ''), $3, $4, $5, NULLIF($6, ''), CASE WHEN NULLIF($6, '') IS NOT NULL THEN NOW() + INTERVAL '72 hours' ELSE NULL END, NULLIF($7, ''), NULLIF($8, ''), $9, $10)
@@ -20,7 +35,7 @@ func (r *Repository) CreateUser(ctx context.Context, user *User) error {
 	user.CreatedAt = now
 	user.UpdatedAt = now
 
-	err := r.db.QueryRowContext(ctx, query,
+	return q.QueryRowContext(ctx, query,
 		user.Username,
 		user.Email,
 		user.PasswordHash,
@@ -32,8 +47,6 @@ func (r *Repository) CreateUser(ctx context.Context, user *User) error {
 		user.CreatedAt,
 		user.UpdatedAt,
 	).Scan(&user.ID)
-
-	return err
 }
 
 func (r *Repository) GetUserByID(ctx context.Context, id int64) (*User, error) {
@@ -44,7 +57,7 @@ func (r *Repository) GetUserByID(ctx context.Context, id int64) (*User, error) {
 		       COALESCE(phone_number, ''), phone_verified,
 		       banned_at, COALESCE(ban_reason, ''), force_logout_at, is_system, badges,
 		       COALESCE(registration_ip, ''), COALESCE(last_seen_ip, ''),
-		       status_type, status_text,
+		       status_type, status_text, invite_count,
 		       created_at, updated_at
 		FROM users
 		WHERE id = $1
@@ -74,6 +87,7 @@ func (r *Repository) GetUserByID(ctx context.Context, id int64) (*User, error) {
 		&user.LastSeenIP,
 		&user.StatusType,
 		&user.StatusText,
+		&user.InviteCount,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)

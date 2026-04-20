@@ -180,6 +180,59 @@ func handleImpersonate(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, map[string]string{"token": tokenStr})
 }
 
+// handleAddUserInvites bumps a single user's registration-invite allowance
+// by a caller-specified count. Capped at 10 per call — no cumulative cap.
+func handleAddUserInvites(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		jsonError(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	var req struct {
+		Count int `json:"count"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+	if req.Count < 1 || req.Count > 10 {
+		jsonError(w, "count must be between 1 and 10", http.StatusBadRequest)
+		return
+	}
+	if err := repo.AdminAddUserInvites(r.Context(), id, req.Count); err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	log.Printf("audit: admin_add_invites user_id=%d count=%d", id, req.Count)
+	jsonOK(w, map[string]int{"count_added": req.Count})
+}
+
+// handleBulkAddInvites adds N registration invites to every active,
+// non-system, non-bot user. Capped at 10 per call.
+func handleBulkAddInvites(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Count int `json:"count"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+	if req.Count < 1 || req.Count > 10 {
+		jsonError(w, "count must be between 1 and 10", http.StatusBadRequest)
+		return
+	}
+	updated, err := repo.AdminBulkAddInvites(r.Context(), req.Count)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	log.Printf("audit: admin_bulk_add_invites count=%d users_updated=%d", req.Count, updated)
+	jsonOK(w, map[string]interface{}{
+		"count_added":    req.Count,
+		"users_updated":  updated,
+	})
+}
+
 func handleSetBadges(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {

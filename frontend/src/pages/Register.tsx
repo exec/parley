@@ -1,5 +1,4 @@
-import React, { useState, FormEvent } from 'react';
-import { SITE_URL } from '../config';
+import React, { useState, useEffect, FormEvent } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { Button } from '../components/ui/Button';
@@ -16,18 +15,27 @@ export const Register: React.FC = () => {
     const p = new URLSearchParams(search).get('redirect') || '/';
     return p.startsWith('/') && !p.startsWith('//') ? p : '/';
   })();
-  const [method, setMethod] = useState<'email' | 'phone'>('email');
+  // Parley is invite-only during early launch. Phone/SMS signup is disabled
+  // while the SMS provider is nonfunctional; the code is kept in commented
+  // branches below so it can be restored when that changes.
+  // const [method, setMethod] = useState<'email' | 'phone'>('email');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+  // const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [smsConsent, setSmsConsent] = useState(false);
+  // const [smsConsent, setSmsConsent] = useState(false);
+  const [inviteCode, setInviteCode] = useState('');
   const [preReleaseAck, setPreReleaseAck] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   // Set to true after account creation when no password was provided
   const [passkeySetupRequired, setPasskeySetupRequired] = useState(false);
+  // Prefill invite code from ?invite=... (e.g. a shared link)
+  useEffect(() => {
+    const fromQuery = new URLSearchParams(search).get('invite');
+    if (fromQuery) setInviteCode(fromQuery);
+  }, [search]);
   const [passkeyError, setPasskeyError] = useState('');
   const [passkeyLoading, setPasskeyLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -41,14 +49,18 @@ export const Register: React.FC = () => {
     else if (username.length < 2) e.username = 'Username must be at least 2 characters';
     else if (!/^[a-zA-Z0-9_]+$/.test(username)) e.username = 'Letters, numbers, and underscores only';
 
-    if (method === 'email') {
-      if (!email.trim()) e.email = 'Email is required';
-      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = 'Invalid email address';
-    } else {
-      if (!phone.trim()) e.phone = 'Phone number is required';
-      else if (!/^\+?[1-9]\d{7,14}$/.test(phone.replace(/[\s\-()]/g, ''))) e.phone = 'Invalid phone number';
-      if (!smsConsent) e.smsConsent = 'You must agree to receive SMS messages to continue';
-    }
+    if (!inviteCode.trim()) e.inviteCode = 'An invite code is required';
+
+    if (!email.trim()) e.email = 'Email is required';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = 'Invalid email address';
+
+    // Phone/SMS signup is disabled while SMS is nonfunctional. Preserved for
+    // re-enablement:
+    // if (method === 'phone') {
+    //   if (!phone.trim()) e.phone = 'Phone number is required';
+    //   else if (!/^\+?[1-9]\d{7,14}$/.test(phone.replace(/[\s\-()]/g, ''))) e.phone = 'Invalid phone number';
+    //   if (!smsConsent) e.smsConsent = 'You must agree to receive SMS messages to continue';
+    // }
 
     if (password) {
       if (password.length < 8) e.password = 'Password must be at least 8 characters';
@@ -66,10 +78,10 @@ export const Register: React.FC = () => {
     if (!validate()) return;
     setLoading(true);
     try {
-      const body: Record<string, string> = { username };
+      const body: Record<string, string> = { username, email, invite_code: inviteCode.trim() };
       if (password) body.password = password;
-      if (method === 'email') body.email = email;
-      else body.phone = phone.replace(/[\s\-()]/g, '');
+      // Phone signup disabled — see note at top of file.
+      // if (method === 'phone') body.phone = phone.replace(/[\s\-()]/g, '');
 
       const response = await fetch('/api/auth/register', {
         method: 'POST',
@@ -182,58 +194,40 @@ export const Register: React.FC = () => {
             </div>
 
             <div className="input-wrapper">
-              <label className="input-label">Verification method</label>
-              <div className="auth-method-toggle">
-                <button
-                  type="button"
-                  className={`auth-method-btn${method === 'email' ? ' active' : ''}`}
-                  onClick={() => { setMethod('email'); setSmsConsent(false); }}
-                >Email</button>
-                <button
-                  type="button"
-                  className={`auth-method-btn${method === 'phone' ? ' active' : ''}`}
-                  onClick={() => setMethod('phone')}
-                >Phone</button>
-              </div>
-              {method === 'email' ? (
-                <>
-                  <input
-                    type="email"
-                    className={`input ${errors.email ? 'input-error' : ''}`}
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    placeholder="Enter your email"
-                    autoComplete="email"
-                  />
-                  {errors.email && <span className="input-error-message">{errors.email}</span>}
-                </>
-              ) : (
-                <>
-                  <input
-                    type="tel"
-                    className={`input ${errors.phone ? 'input-error' : ''}`}
-                    value={phone}
-                    onChange={e => setPhone(e.target.value)}
-                    placeholder="+1 555 000 0000"
-                    autoComplete="tel"
-                  />
-                  {errors.phone && <span className="input-error-message">{errors.phone}</span>}
-                  <label className="auth-sms-consent">
-                    <input
-                      type="checkbox"
-                      checked={smsConsent}
-                      onChange={e => setSmsConsent(e.target.checked)}
-                      className="auth-sms-checkbox"
-                    />
-                    <span className="auth-sms-text">
-                      I agree to receive automated transactional SMS messages from Parley (up to 5 msgs/mo). Msg &amp; data rates may apply. Frequency may vary. Reply <strong>STOP</strong> to opt out or <strong>HELP</strong> for assistance. Your mobile number will not be sold or shared with third parties for promotional or marketing purposes.{' '}
-                      <a href={`${SITE_URL}/privacy/`} target="_blank" rel="noopener noreferrer" className="auth-link">Terms &amp; Privacy Policy</a>.
-                    </span>
-                  </label>
-                  {errors.smsConsent && <span className="input-error-message">{errors.smsConsent}</span>}
-                </>
-              )}
+              <label className="input-label">Invite code</label>
+              <input
+                type="text"
+                className={`input ${errors.inviteCode ? 'input-error' : ''}`}
+                value={inviteCode}
+                onChange={e => setInviteCode(e.target.value)}
+                placeholder="Paste your invite code"
+                autoComplete="off"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+              />
+              {errors.inviteCode && <span className="input-error-message">{errors.inviteCode}</span>}
+              <span className="input-hint">
+                Parley is invite-only. Ask someone with an unused code to share one.
+              </span>
             </div>
+
+            <div className="input-wrapper">
+              <label className="input-label">Email</label>
+              <input
+                type="email"
+                className={`input ${errors.email ? 'input-error' : ''}`}
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="Enter your email"
+                autoComplete="email"
+              />
+              {errors.email && <span className="input-error-message">{errors.email}</span>}
+            </div>
+
+            {/* Phone + SMS signup disabled while SMS is nonfunctional. Kept in
+                history so it can be reinstated when the provider comes back.
+                See commented blocks in validate() / handleSubmit() above. */}
 
             <div className="input-wrapper">
               <label className="input-label">Password</label>

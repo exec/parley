@@ -3,7 +3,8 @@ import { SITE_URL } from '../config'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   apiGetUser, apiBanUser, apiUnbanUser, apiForceLogout,
-  apiImpersonateUser, apiDeleteUser, apiSetBadges, userStatus, User,
+  apiImpersonateUser, apiDeleteUser, apiSetBadges, apiAddUserInvites,
+  userStatus, User,
 } from '../api'
 import StatusBadge from '../components/StatusBadge'
 import Modal from '../components/Modal'
@@ -19,6 +20,8 @@ export default function UserDetail() {
   const [banReason, setBanReason] = useState('')
   const [actionLoading, setActionLoading] = useState(false)
   const [badgesLoading, setBadgesLoading] = useState(false)
+  const [inviteCount, setInviteCount] = useState(1)
+  const [inviteLoading, setInviteLoading] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -76,6 +79,24 @@ export default function UserDetail() {
       setSuccess('Badges updated.')
     } catch (e) { setError(e instanceof Error ? e.message : 'Badge update failed') }
     finally { setBadgesLoading(false) }
+  }
+
+  const handleAddInvites = async () => {
+    if (!user) return
+    if (inviteCount < 1 || inviteCount > 10) {
+      setError('Invite count must be between 1 and 10.')
+      return
+    }
+    setInviteLoading(true)
+    try {
+      await apiAddUserInvites(user.id, inviteCount)
+      setSuccess(`Added ${inviteCount} invite${inviteCount === 1 ? '' : 's'}.`)
+      reload()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to add invites')
+    } finally {
+      setInviteLoading(false)
+    }
   }
 
   const handleDelete = async () => {
@@ -152,6 +173,11 @@ export default function UserDetail() {
             <span className="detail-label">Status</span>
             <span className="detail-value"><StatusBadge status={status} /></span>
 
+            <span className="detail-label">Invites</span>
+            <span className="detail-value" style={{ fontWeight: '600', color: user.invite_count > 0 ? 'var(--accent)' : 'var(--text-muted)' }}>
+              {user.invite_count ?? 0}
+            </span>
+
             <span className="detail-label">Joined</span>
             <span className="detail-value mono" style={{ color: 'var(--text-secondary)' }}>{fmt(user.created_at)}</span>
 
@@ -223,6 +249,35 @@ export default function UserDetail() {
                 style={{ fontSize: '13px', color: 'var(--accent)', display: 'block', padding: '4px 0' }}>
                 View messages →
               </Link>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-title">Invites</div>
+            <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '10px' }}>
+              Current balance: <strong style={{ color: 'var(--text)' }}>{user.invite_count ?? 0}</strong>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <input
+                type="number"
+                min={1}
+                max={10}
+                value={inviteCount}
+                onChange={e => setInviteCount(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
+                style={{ width: '72px' }}
+                disabled={inviteLoading}
+              />
+              <button
+                className="btn btn-primary"
+                onClick={handleAddInvites}
+                disabled={inviteLoading}
+                style={{ flex: 1, justifyContent: 'center' }}
+              >
+                {inviteLoading ? 'Adding…' : `Add ${inviteCount}`}
+              </button>
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
+              Max 10 per click.
             </div>
           </div>
 

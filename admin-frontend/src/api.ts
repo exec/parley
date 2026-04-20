@@ -92,6 +92,7 @@ export interface User {
   force_logout_at?: string
   is_system: boolean
   badges: number
+  invite_count: number
   registration_ip?: string
   last_seen_ip?: string
   created_at: string
@@ -134,6 +135,14 @@ export async function apiDeleteUser(id: number): Promise<void> {
 
 export async function apiSetBadges(id: number, badges: number): Promise<{ badges: number }> {
   return request<{ badges: number }>('PATCH', `/users/${id}/badges`, { badges })
+}
+
+export async function apiAddUserInvites(id: number, count: number): Promise<{ count_added: number }> {
+  return request<{ count_added: number }>('POST', `/users/${id}/invites`, { count })
+}
+
+export async function apiBulkAddInvites(count: number): Promise<{ count_added: number; users_updated: number }> {
+  return request<{ count_added: number; users_updated: number }>('POST', '/invites/bulk', { count })
 }
 
 // ---- Messages ----

@@ -39,6 +39,7 @@ type User struct {
 	LastSeenIP              string     `json:"last_seen_ip,omitempty" db:"last_seen_ip"`
 	StatusType              string     `json:"status_type" db:"status_type"`
 	StatusText              string     `json:"status_text" db:"status_text"`
+	InviteCount             int        `json:"invite_count" db:"invite_count"`
 	CreatedAt               time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt               time.Time  `json:"updated_at" db:"updated_at"`
 }
@@ -240,6 +241,20 @@ type ReactionGroup struct {
 	Emoji   string   `json:"emoji"`
 	Count   int      `json:"count"`
 	UserIDs []string `json:"user_ids"`
+}
+
+// RegistrationInvite is a single-use code a user can share to let someone
+// register a new account. Counts against the inviter's users.invite_count
+// at generation time; marking invitee_id + used_at is done transactionally
+// during registration.
+type RegistrationInvite struct {
+	Code        string     `json:"code" db:"code"`
+	InviterID   int64      `json:"inviter_id" db:"inviter_id"`
+	InviteeID   *int64     `json:"invitee_id,omitempty" db:"invitee_id"`
+	CreatedAt   time.Time  `json:"created_at" db:"created_at"`
+	UsedAt      *time.Time `json:"used_at,omitempty" db:"used_at"`
+	// InviteeUsername is populated by list queries for display.
+	InviteeUsername string `json:"invitee_username,omitempty" db:"-"`
 }
 
 // Invite represents an invite code for a server
