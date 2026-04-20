@@ -8,6 +8,12 @@ const SOUND_URL = 'https://raw.githubusercontent.com/exec/parley/main/assets/aud
 
 export function useNotifications() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // True while the app is in the foreground (window visible + focused). OS
+  // notifications are suppressed in that state so the in-app UI is the only
+  // surface; otherwise we fall through to sendDesktopNotification. We track
+  // this via focus/blur + visibilitychange because document.hidden alone
+  // doesn't flip to true when the Tauri window is hidden via hide() on macOS.
+  const inForegroundRef = useRef(true);
 
   useEffect(() => {
     const audio = new Audio(SOUND_URL);
@@ -28,9 +34,23 @@ export function useNotifications() {
     document.addEventListener('click', unlock, { once: true });
     document.addEventListener('keydown', unlock, { once: true });
 
+    const recomputeForeground = () => {
+      inForegroundRef.current = !document.hidden && document.hasFocus();
+    };
+    recomputeForeground();
+
+    const onFocus = () => { inForegroundRef.current = !document.hidden; };
+    const onBlur = () => { inForegroundRef.current = false; };
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('blur', onBlur);
+    document.addEventListener('visibilitychange', recomputeForeground);
+
     return () => {
       document.removeEventListener('click', unlock);
       document.removeEventListener('keydown', unlock);
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('blur', onBlur);
+      document.removeEventListener('visibilitychange', recomputeForeground);
     };
   }, []);
 
@@ -47,7 +67,7 @@ export function useNotifications() {
 
     // sendDesktopNotification rechecks permission at call time and no-ops
     // when not granted, so we don't have to cache a (stale-prone) value.
-    if (document.hidden) {
+    if (!inForegroundRef.current) {
       void sendDesktopNotification({ title, body, icon, onClick });
     }
   }, []);
