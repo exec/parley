@@ -978,6 +978,11 @@
   .settings-back-btn {
     display: flex !important;
   }
+  /* Hide the top-right X on mobile — Back (content view) and the
+     "Close Settings" nav item (categories view) already cover exit. */
+  .settings-close-btn {
+    display: none !important;
+  }
 }
 
 /* Mobile-only back button shown inside settings-main when viewing a
