@@ -40,7 +40,7 @@
    right so it clears them. Only applies inside the desktop app
    (data-tauri-platform is set by main.tsx). */
 [data-tauri-platform="macos"] .auth-nav {
-  padding-left: 52px;
+  padding-left: 62px;
 }
 
 .auth-nav-brand {
