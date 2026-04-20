@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	_ "github.com/jackc/pgx/v5/stdlib" // registers the "pgx" database/sql driver
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
 
