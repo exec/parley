@@ -30,11 +30,6 @@ jobs:
     name: Build ${{ matrix.platform }}
     strategy:
       fail-fast: false
-      # Jobs run serially so the first one creates the draft release and the
-      # rest find it by tag. Parallel racing caused tauri-action to drop sig
-      # assets + latest.json because multiple jobs tried to create the same
-      # release at once.
-      max-parallel: 1
       matrix:
         include:
           - platform: macos-14
@@ -124,11 +119,18 @@ jobs:
         with:
           script: |
             const tag = process.env.TAG_NAME;
-            const { data: release } = await github.rest.repos.getReleaseByTag({
+            // getReleaseByTag 404s on drafts (the tag isn't bound to the ref
+            // until the release is published), so list recent releases and
+            // match on tag_name instead.
+            const { data: releases } = await github.rest.repos.listReleases({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              tag,
+              per_page: 30,
             });
+            const release = releases.find((r) => r.tag_name === tag);
+            if (!release) {
+              throw new Error(`No release found for tag ${tag}`);
+            }
             await github.rest.repos.updateRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
