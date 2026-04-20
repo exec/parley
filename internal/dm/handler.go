@@ -279,6 +279,33 @@ func (h *Handler) SendDmMessage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// If this is the very first message in the channel, the recipient has never
+	// seen this DM channel before and isn't subscribed to dm:{id}. Surface the
+	// new channel to them via their per-user WS so their DM list updates live.
+	// We detect "first message" via a post-insert count == 1 rather than wiring
+	// a `created` flag through GetOrCreateDmChannel, because the channel is
+	// typically created earlier by POST /dms (open-without-sending) — the true
+	// "new surfacing" signal is the first inbound message, not channel creation.
+	if h.hub != nil {
+		count, cerr := h.repo.CountDmMessages(r.Context(), dmChannelID)
+		if cerr == nil && count == 1 {
+			recipientID := channel.User1ID
+			if channel.User1ID == currentUserID {
+				recipientID = channel.User2ID
+			}
+			recipientChannel, ferr := h.repo.GetDmChannelForUser(r.Context(), dmChannelID, recipientID)
+			if ferr == nil {
+				payload, perr := json.Marshal(map[string]interface{}{
+					"channel": recipientChannel,
+					"message": msg,
+				})
+				if perr == nil {
+					h.hub.SendToUser(strconv.FormatInt(recipientID, 10), ws.EventDmChannelCreate, payload)
+				}
+			}
+		}
+	}
+
 	// Notify the recipient asynchronously
 	if h.dmNotify != nil {
 		recipientID := channel.User1ID

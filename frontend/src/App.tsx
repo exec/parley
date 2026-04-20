@@ -17,7 +17,7 @@ import { BotInvitePage } from './pages/BotInvitePage';
 import { useWebSocket, MemberRoleUpdate, UserUpdate, VoiceStateUpdate, VoiceForceMuteEvent, RoleUpdateEvent, RoleDeleteEvent, BotStatusUpdate, SoundboardPlayEvent } from './hooks/useWebSocket';
 import { VoiceChannel } from './components/voice/VoiceChannel';
 
-import { DmMessage, Message, BinChannelTag, ServerMember, AppNotification } from './api/types';
+import { DmChannel, DmMessage, Message, BinChannelTag, ServerMember, AppNotification } from './api/types';
 import NotificationPanel from './components/notifications/NotificationPanel';
 import { ForwardModal } from './components/chat/ForwardModal';
 import * as serversApi from './api/servers';
@@ -83,6 +83,7 @@ function MainApp() {
     deleteDmMessage,
     applyDmReactionUpdate,
     receiveDmMessageDelete,
+    receiveDmChannelCreate,
     logout,
     dmChannels,
     activeDmChannel,
@@ -775,6 +776,9 @@ function MainApp() {
     onDmMessageDelete: useCallback((messageId: string) => {
       receiveDmMessageDelete(messageId);
     }, [receiveDmMessageDelete]),
+    onDmChannelCreate: useCallback((event: { channel: DmChannel; message: DmMessage }) => {
+      receiveDmChannelCreate(event.channel);
+    }, [receiveDmChannelCreate]),
     onDmReactionUpdate: useCallback((update: { message_id: string; dm_channel_id: string; user_id: string; emoji: string; added: boolean }) => {
       applyDmReactionUpdate({
         message_id: update.message_id,

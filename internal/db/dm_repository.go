@@ -107,6 +107,47 @@ func (r *Repository) GetUserDmChannels(ctx context.Context, userID int64) ([]DmC
 	return channels, nil
 }
 
+// GetDmChannelForUser returns a DmChannel with other_* fields populated from the
+// given viewer's perspective — same shape as GetUserDmChannels rows. Used to
+// broadcast the DM_CHANNEL_CREATE event with display info for the recipient.
+func (r *Repository) GetDmChannelForUser(ctx context.Context, dmChannelID, viewerID int64) (*DmChannel, error) {
+	query := `
+		SELECT dc.id, dc.user1_id, dc.user2_id, dc.created_at,
+		       u.id, u.username, COALESCE(u.avatar_url, ''), COALESCE(u.display_name, '')
+		FROM dm_channels dc
+		JOIN users u ON u.id = CASE WHEN dc.user1_id = $2 THEN dc.user2_id ELSE dc.user1_id END
+		WHERE dc.id = $1
+	`
+	var channel DmChannel
+	err := r.db.QueryRowContext(ctx, query, dmChannelID, viewerID).Scan(
+		&channel.ID,
+		&channel.User1ID,
+		&channel.User2ID,
+		&channel.CreatedAt,
+		&channel.OtherUserID,
+		&channel.OtherUsername,
+		&channel.OtherAvatarURL,
+		&channel.OtherDisplayName,
+	)
+	if err == sql.ErrNoRows {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &channel, nil
+}
+
+// CountDmMessages returns the total number of messages in a DM channel.
+// Used to detect the "first message" case for DM_CHANNEL_CREATE broadcasts.
+func (r *Repository) CountDmMessages(ctx context.Context, dmChannelID int64) (int, error) {
+	var count int
+	err := r.db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM dm_messages WHERE dm_channel_id = $1", dmChannelID,
+	).Scan(&count)
+	return count, err
+}
+
 func (r *Repository) GetDmChannelByID(ctx context.Context, id int64) (*DmChannel, error) {
 	query := `
 		SELECT id, user1_id, user2_id, created_at

@@ -1,10 +1,7 @@
 import { useRef, useEffect, useCallback } from 'react';
 import {
-  isTauri,
-  getNotificationPermission,
   requestNotificationPermission,
   sendDesktopNotification,
-  type NotifyPermission,
 } from '../lib/tauri';
 
 const SOUND_URL = import.meta.env.VITE_CDN_HOST
@@ -13,8 +10,6 @@ const SOUND_URL = import.meta.env.VITE_CDN_HOST
 
 export function useNotifications() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const permissionRef = useRef<NotifyPermission>('default');
-  const tauriRef = useRef<boolean>(false);
 
   useEffect(() => {
     const audio = new Audio(SOUND_URL);
@@ -35,11 +30,6 @@ export function useNotifications() {
     document.addEventListener('click', unlock, { once: true });
     document.addEventListener('keydown', unlock, { once: true });
 
-    tauriRef.current = isTauri();
-    void getNotificationPermission().then(p => {
-      permissionRef.current = p;
-    });
-
     return () => {
       document.removeEventListener('click', unlock);
       document.removeEventListener('keydown', unlock);
@@ -47,9 +37,7 @@ export function useNotifications() {
   }, []);
 
   const requestPermission = useCallback(async () => {
-    if (permissionRef.current === 'default') {
-      permissionRef.current = await requestNotificationPermission();
-    }
+    await requestNotificationPermission();
   }, []);
 
   const notify = useCallback((title: string, body: string, icon?: string, onClick?: () => void) => {
@@ -59,7 +47,9 @@ export function useNotifications() {
       audio.play().catch(() => {});
     }
 
-    if (document.hidden && permissionRef.current === 'granted') {
+    // sendDesktopNotification rechecks permission at call time and no-ops
+    // when not granted, so we don't have to cache a (stale-prone) value.
+    if (document.hidden) {
       void sendDesktopNotification({ title, body, icon, onClick });
     }
   }, []);

@@ -1,4 +1,4 @@
-use tauri::{Emitter, Manager, WindowEvent};
+use tauri::{Emitter, Manager, RunEvent, WindowEvent};
 use tauri_plugin_deep_link::DeepLinkExt;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -50,8 +50,18 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            // macOS: clicking the Dock icon after closing (hiding) the main
+            // window fires applicationShouldHandleReopen. We re-show the
+            // hidden window so the Dock click matches the tray-click path.
+            if let RunEvent::Reopen { has_visible_windows, .. } = event {
+                if !has_visible_windows {
+                    reveal_main_window(app);
+                }
+            }
+        });
 }
 
 #[cfg(desktop)]

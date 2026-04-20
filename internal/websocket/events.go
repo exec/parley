@@ -70,6 +70,9 @@ const (
 	// Notification events
 	EventNotificationCreate = "NOTIFICATION_CREATE"
 
+	// DM events
+	EventDmChannelCreate = "DM_CHANNEL_CREATE"
+
 	// Slash command / interaction events
 	EventInteractionCreate = "INTERACTION_CREATE"
 )

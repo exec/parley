@@ -98,6 +98,7 @@ interface AppActions {
   deleteDmMessage: (dmChannelId: string, messageId: string) => Promise<void>;
   applyDmReactionUpdate: (update: ReactionUpdate) => void;
   receiveDmMessageDelete: (messageId: string) => void;
+  receiveDmChannelCreate: (channel: DmChannel) => void;
   addServer: (server: Server) => void;
   updateCurrentUser: (user: User) => void;
   loadServers: () => Promise<void>;
@@ -599,6 +600,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setDmMessages(prev => prev.filter(m => m.id !== messageId));
   }, []);
 
+  const receiveDmChannelCreate = useCallback((channel: DmChannel) => {
+    setDmChannels(prev => {
+      if (prev.some(c => String(c.id) === String(channel.id))) return prev;
+      return [channel, ...prev];
+    });
+  }, []);
+
   const toggleReaction = useCallback(async (messageId: string, emoji: string) => {
     await messagesApi.toggleReaction(messageId, emoji);
   }, []);
@@ -892,6 +900,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       deleteDmMessage,
       applyDmReactionUpdate,
       receiveDmMessageDelete,
+      receiveDmChannelCreate,
       updateCurrentUser,
       loadServers,
       receiveChannelCreate,

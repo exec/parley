@@ -61,10 +61,15 @@ export async function sendDesktopNotification(opts: SendNotificationOptions): Pr
   const { title, body, icon, onClick } = opts;
   if (isTauri()) {
     try {
-      const { sendNotification } = await import('@tauri-apps/plugin-notification');
+      const { sendNotification, isPermissionGranted } = await import('@tauri-apps/plugin-notification');
+      // Re-check at call time so late grants (e.g. via the Settings tab)
+      // take effect without waiting for the hook to rehydrate its ref.
+      // Calling sendNotification before permission is granted triggers a
+      // system prompt on macOS, stealing what should be a real notification.
+      if (!(await isPermissionGranted())) return;
       sendNotification({ title, body });
     } catch {
-      // plugin missing or permission not granted — silently drop
+      // plugin missing — silently drop
     }
     return;
   }

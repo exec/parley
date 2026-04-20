@@ -8,7 +8,7 @@ function useLatest<T>(value: T): MutableRefObject<T> {
   useEffect(() => { ref.current = value; }, [value]);
   return ref;
 }
-import { Message, DmMessage, Channel, Server, Role, FriendUser, FriendRequest, AppNotification } from '../api/types';
+import { Message, DmMessage, Channel, Server, Role, FriendUser, FriendRequest, AppNotification, DmChannel } from '../api/types';
 import { getWsTicket } from '../api/auth';
 
 interface WSMessage {
@@ -85,6 +85,11 @@ export interface BotStatusUpdate {
   degraded: boolean;
 }
 
+export interface DmChannelCreateEvent {
+  channel: DmChannel;
+  message: DmMessage;
+}
+
 export interface SoundboardPlayEvent {
   channel_id: string;
   user_id: string;
@@ -126,6 +131,7 @@ interface UseWebSocketOptions {
   onRoleDelete?: (event: RoleDeleteEvent) => void;
   onBotStatusUpdate?: (update: BotStatusUpdate) => void;
   onDmMessageDelete?: (messageId: string, dmChannelId: string) => void;
+  onDmChannelCreate?: (event: DmChannelCreateEvent) => void;
   onDmReactionUpdate?: (update: { message_id: string; dm_channel_id: string; user_id: string; emoji: string; added: boolean }) => void;
   onFriendRequest?: (req: FriendRequest) => void;
   onFriendAccept?: (user: FriendUser) => void;
@@ -138,7 +144,7 @@ interface UseWebSocketOptions {
   onConnect?: () => void; // Called on every successful (re)connect
 }
 
-export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onServerMemberLeave, onServerMemberKick, onServerMemberBan, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, onChannelCreate, onChannelUpdate, onChannelDelete, onServerUpdate, onServerDelete, onMemberRoleUpdate, onUserUpdate, onVoiceStateUpdate, onVoiceForceMute, onVoiceForceDisconnect, onBinPostCreate, onBinPostUpdate, onBinPostDelete, onChannelOverwriteUpdate, onRoleUpdate, onRoleDelete, onBotStatusUpdate, onDmMessageDelete, onDmReactionUpdate, onFriendRequest, onFriendAccept, onFriendRemove, onUserStatusUpdate, onSoundboardPlay, onNotification, onConnect, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
+export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onServerMemberLeave, onServerMemberKick, onServerMemberBan, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, onChannelCreate, onChannelUpdate, onChannelDelete, onServerUpdate, onServerDelete, onMemberRoleUpdate, onUserUpdate, onVoiceStateUpdate, onVoiceForceMute, onVoiceForceDisconnect, onBinPostCreate, onBinPostUpdate, onBinPostDelete, onChannelOverwriteUpdate, onRoleUpdate, onRoleDelete, onBotStatusUpdate, onDmMessageDelete, onDmChannelCreate, onDmReactionUpdate, onFriendRequest, onFriendAccept, onFriendRemove, onUserStatusUpdate, onSoundboardPlay, onNotification, onConnect, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const subscribedChannelsRef = useRef<Set<string>>(new Set());
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -178,6 +184,7 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
   const onRoleDeleteRef = useLatest(onRoleDelete);
   const onBotStatusUpdateRef = useLatest(onBotStatusUpdate);
   const onDmMessageDeleteRef = useLatest(onDmMessageDelete);
+  const onDmChannelCreateRef = useLatest(onDmChannelCreate);
   const onDmReactionUpdateRef = useLatest(onDmReactionUpdate);
   const onFriendRequestRef = useLatest(onFriendRequest);
   const onFriendAcceptRef = useLatest(onFriendAccept);
@@ -415,6 +422,11 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
           onSoundboardPlayRef.current(wsMsg.payload as SoundboardPlayEvent);
         } else if (wsMsg.type === 'NOTIFICATION_CREATE' && onNotificationRef.current) {
           onNotificationRef.current(wsMsg.payload as AppNotification);
+        } else if (wsMsg.type === 'DM_CHANNEL_CREATE' && onDmChannelCreateRef.current) {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            const p = wsMsg.payload as DmChannelCreateEvent;
+            if (p.channel) onDmChannelCreateRef.current(p);
+          }
         }
       } catch (err) {
         console.error('[WebSocket] Failed to parse message:', err);
