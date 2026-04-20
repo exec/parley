@@ -25,18 +25,17 @@
   .user-sidebar {
     position: fixed;
     right: 0;
-    top: 0;
+    /* Start below the status bar so the sidebar itself doesn't extend behind
+       the Dynamic Island, but reach all the way to the bottom edge. */
+    top: env(safe-area-inset-top, 0px);
     bottom: 0;
     width: 260px;
     min-width: 260px;
-    height: 100svh;
     z-index: 100;
     overflow-y: auto;
     border-left-width: 1px;
     transform: translateX(110%);
     transition: transform 0.22s ease;
-    padding-top: env(safe-area-inset-top, 0px);
-    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   /* Reset the desktop collapse — on mobile, hidden = off-screen, not width:0 */
   .user-sidebar:not(.user-sidebar--open) {

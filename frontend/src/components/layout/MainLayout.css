@@ -135,7 +135,9 @@
   }
 
   /* Left drawer (server icons + channel list) slides in as one unit.
-     position:fixed means it ignores html's safe-area padding, so apply directly. */
+     position:fixed means it ignores html's safe-area padding, so apply
+     padding-top directly. No padding-bottom — the drawer extends all the
+     way to the bottom edge of the screen. */
   .left-drawer {
     position: fixed;
     left: 0;
@@ -146,7 +148,6 @@
     transform: translateX(-110%);
     transition: transform 0.22s ease;
     padding-top: env(safe-area-inset-top, 0px);
-    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   .left-drawer--open {
     transform: translateX(0);
