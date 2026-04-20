@@ -187,15 +187,14 @@ code {
 
 /* iOS auto-zooms into any <input>/<textarea> with font-size < 16px on focus,
    regardless of viewport maximum-scale (Apple deprecated that as a zoom
-   lock). The fix is pedestrian: force 16px on touch devices. Scoped to
-   (hover: none) + (pointer: coarse) so desktop sizes are untouched. */
-@media (hover: none) and (pointer: coarse) {
-  input,
-  textarea,
-  select,
-  [contenteditable="true"] {
-    font-size: 16px !important;
-  }
+   lock). The fix is pedestrian: force 16px. Applied unconditionally —
+   15px vs 16px is visually imperceptible on desktop and this avoids
+   media-query matching edge cases in embedded webviews. */
+input,
+textarea,
+select,
+[contenteditable="true"] {
+  font-size: 16px !important;
 }
 
 html {
