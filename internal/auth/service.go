@@ -644,6 +644,36 @@ func (s *AuthService) ValidateToken(tokenString string) (string, error) {
 	return "", errors.New("invalid token")
 }
 
+// SessionStatus carries the auth-relevant row fields the middleware checks on
+// every request: force-logout timestamp and ban state. Merging both into a
+// single lookup avoids two round-trips-per-request through pgbouncer.
+type SessionStatus struct {
+	ForceLogoutAt sql.NullTime
+	BannedAt      sql.NullTime
+	BanReason     sql.NullString
+}
+
+// GetSessionStatus fetches force-logout + ban state in a single query.
+// Middleware should prefer this over calling IsForceLoggedOut and IsBanned
+// separately; the individual methods are kept for callers that only need one.
+func (s *AuthService) GetSessionStatus(ctx context.Context, userID string) (*SessionStatus, error) {
+	id, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		return nil, errors.New("invalid user ID")
+	}
+	var st SessionStatus
+	err = s.repo.DB().QueryRowContext(ctx,
+		`SELECT force_logout_at, banned_at, ban_reason FROM users WHERE id = $1`, id,
+	).Scan(&st.ForceLogoutAt, &st.BannedAt, &st.BanReason)
+	if err == sql.ErrNoRows {
+		return &st, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &st, nil
+}
+
 // IsBanned returns whether a user is currently banned and (if so) the reason.
 // Mirrors the shape of IsForceLoggedOut; called from auth middleware on every
 // authenticated request so a ban takes effect immediately even for users with

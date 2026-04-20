@@ -146,16 +146,19 @@ func AuthMiddlewareWith(svc *AuthService) func(http.Handler) http.Handler {
 				return
 			}
 			if svc.repo != nil {
-				if kicked, _ := svc.IsForceLoggedOut(r.Context(), userID, iat); kicked {
-					http.Error(w, "Session expired", http.StatusUnauthorized)
-					return
-				}
-				if banned, reason, _ := svc.IsBanned(r.Context(), userID); banned {
-					if ShouldLogAuditOnce("banned:" + userID) {
-						log.Printf("audit: blocked_banned_user user_id=%s ip=%s via=jwt reason=%q path=%s", userID, ClientIP(r), reason, r.URL.Path)
+				if st, err := svc.GetSessionStatus(r.Context(), userID); err == nil {
+					if st.ForceLogoutAt.Valid && iat <= st.ForceLogoutAt.Time.Unix() {
+						http.Error(w, "Session expired", http.StatusUnauthorized)
+						return
 					}
-					http.Error(w, "Account banned", http.StatusForbidden)
-					return
+					if st.BannedAt.Valid {
+						reason := st.BanReason.String
+						if ShouldLogAuditOnce("banned:" + userID) {
+							log.Printf("audit: blocked_banned_user user_id=%s ip=%s via=jwt reason=%q path=%s", userID, ClientIP(r), reason, r.URL.Path)
+						}
+						http.Error(w, "Account banned", http.StatusForbidden)
+						return
+					}
 				}
 			}
 			ctx := context.WithValue(r.Context(), UserIDKey, userID)
