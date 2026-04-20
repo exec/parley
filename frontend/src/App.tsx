@@ -256,8 +256,13 @@ function MainApp() {
   // Reply-to state for nested replies
   const [replyTo, setReplyTo] = useState<Message | null>(null);
 
-  // Sidebar visibility — persisted to localStorage
+  // Sidebar visibility — persisted to localStorage, but on mobile we always
+  // start with it closed. Otherwise a "true" value carried over from a
+  // desktop session makes the members drawer + backdrop appear on the very
+  // first mobile launch, which looks like a broken overlay.
   const [showMembers, setShowMembers] = useState(() => {
+    const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
+    if (isMobile) return false;
     const stored = localStorage.getItem('parley:showMembers');
     return stored !== null ? stored === 'true' : false;
   });
