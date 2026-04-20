@@ -503,15 +503,23 @@
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  /* Pin to top so iOS's "scroll input into view" keyboard behavior can't
+     push the header up off screen. Needs a solid bg on mobile (added in
+     the media query below) so scrolled messages don't bleed through. */
+  position: sticky;
+  top: 0;
+  z-index: 3;
 }
 
 /* On mobile the header sits under the Dynamic Island / notch because the
    channel background extends edge-to-edge behind it. Match the at-me-topbar
    shave — env(safe-area-inset-top) - 24px — so tap targets clear the system
-   chrome without leaving an oversized gap. */
+   chrome without leaving an oversized gap. Solid bg so sticky header covers
+   scrolling messages cleanly. */
 @media (hover: none) and (pointer: coarse) {
   .chat-header {
     padding-top: max(10px, env(safe-area-inset-top, 0px));
+    background-color: var(--parley-chat-bg, var(--parley-channel-bg));
   }
 }
 
