@@ -9,6 +9,12 @@ import { DeveloperTab } from './DeveloperTab';
 import { VoiceSettingsTab } from './VoiceSettings';
 import { AppearanceTab } from './AppearanceTab';
 import { AboutTab } from './AboutTab';
+import {
+  isTauri,
+  getNotificationPermission,
+  requestNotificationPermission,
+  type NotifyPermission,
+} from '../../lib/tauri';
 import './Settings.css';
 
 type Tab = 'account' | 'profile' | 'notifications' | 'developer' | 'voice' | 'appearance' | 'about';
@@ -906,24 +912,40 @@ const ProfileTab: React.FC<ProfileTabProps> = (p) => {
 /* ---- Notifications Tab ---- */
 
 const NotificationsTab: React.FC = () => {
-  const [permission, setPermission] = React.useState<NotificationPermission>(
-    typeof Notification !== 'undefined' ? Notification.permission : 'default'
-  );
+  const [permission, setPermission] = React.useState<NotifyPermission>('default');
+  const [tauriApp, setTauriApp] = React.useState(false);
+  const [supported, setSupported] = React.useState(true);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const tauri = isTauri();
+    setTauriApp(tauri);
+    if (!tauri && typeof Notification === 'undefined') {
+      setSupported(false);
+      return;
+    }
+    void getNotificationPermission().then(p => {
+      if (!cancelled) setPermission(p);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const handleEnable = async () => {
-    if (typeof Notification === 'undefined') return;
-    const result = await Notification.requestPermission();
+    const result = await requestNotificationPermission();
     setPermission(result);
   };
 
-  const supported = typeof Notification !== 'undefined';
+  const sectionTitle = tauriApp ? 'Desktop Notifications' : 'Browser Push Notifications';
+  const deniedCopy = tauriApp
+    ? 'Notifications are blocked by your operating system. Enable them in your system notification settings for Parley, then restart the app.'
+    : "Notifications are blocked. To enable them, click the lock icon in your browser's address bar and allow notifications for this site, then reload.";
 
   return (
     <div>
       <h2 className="settings-page-title">Notifications</h2>
 
       <div className="settings-section">
-        <div className="settings-section-title">Browser Push Notifications</div>
+        <div className="settings-section-title">{sectionTitle}</div>
         <div className="settings-form-hint" style={{ marginBottom: 12 }}>
           Allow Parley to show desktop notifications for mentions, direct messages, and friend requests even when the app is not in focus.
         </div>
@@ -942,7 +964,7 @@ const NotificationsTab: React.FC = () => {
 
         {supported && permission === 'denied' && (
           <div className="settings-error">
-            Notifications are blocked. To enable them, click the lock icon in your browser's address bar and allow notifications for this site, then reload.
+            {deniedCopy}
           </div>
         )}
 

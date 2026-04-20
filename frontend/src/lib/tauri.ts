@@ -21,6 +21,68 @@ export async function openInBrowser(url: string): Promise<void> {
   await open(url);
 }
 
+export type NotifyPermission = 'granted' | 'denied' | 'default';
+
+export async function getNotificationPermission(): Promise<NotifyPermission> {
+  if (isTauri()) {
+    try {
+      const { isPermissionGranted } = await import('@tauri-apps/plugin-notification');
+      return (await isPermissionGranted()) ? 'granted' : 'default';
+    } catch {
+      return 'default';
+    }
+  }
+  if (typeof Notification === 'undefined') return 'denied';
+  return Notification.permission;
+}
+
+export async function requestNotificationPermission(): Promise<NotifyPermission> {
+  if (isTauri()) {
+    try {
+      const { requestPermission } = await import('@tauri-apps/plugin-notification');
+      const r = await requestPermission();
+      return r === 'granted' ? 'granted' : r === 'denied' ? 'denied' : 'default';
+    } catch {
+      return 'denied';
+    }
+  }
+  if (typeof Notification === 'undefined') return 'denied';
+  return Notification.requestPermission();
+}
+
+export interface SendNotificationOptions {
+  title: string;
+  body: string;
+  icon?: string;
+  onClick?: () => void;
+}
+
+export async function sendDesktopNotification(opts: SendNotificationOptions): Promise<void> {
+  const { title, body, icon, onClick } = opts;
+  if (isTauri()) {
+    try {
+      const { sendNotification } = await import('@tauri-apps/plugin-notification');
+      sendNotification({ title, body });
+    } catch {
+      // plugin missing or permission not granted — silently drop
+    }
+    return;
+  }
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+  try {
+    const n = new Notification(title, { body, icon, silent: true });
+    if (onClick) {
+      n.onclick = () => {
+        window.focus();
+        onClick();
+        n.close();
+      };
+    }
+  } catch {
+    // Firefox may throw if called outside a gesture context
+  }
+}
+
 type DeepLinkHandler = (url: string) => void;
 
 export async function onDeepLink(handler: DeepLinkHandler): Promise<() => void> {
