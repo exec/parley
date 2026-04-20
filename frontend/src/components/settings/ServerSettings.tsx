@@ -1,5 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X } from 'lucide-react';
+import {
+  DndContext,
+  DragEndEvent,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Server, ServerMember, Role, ServerCategory } from '../../api/types';
 import { updateServer, deleteServer, setVanityURL, getMyPermissions } from '../../api/servers';
 import { getServerCategories, getServerCategoryAssignments, setServerCategories } from '../../api/discovery';
@@ -34,6 +49,36 @@ function arrayEquals(a: number[], b: number[]): boolean {
   const sb = [...b].sort();
   return sa.every((v, i) => v === sb[i]);
 }
+
+interface SortableRoleItemProps {
+  role: Role;
+  active: boolean;
+  onSelect: () => void;
+}
+
+const SortableRoleItem: React.FC<SortableRoleItemProps> = ({ role, active, onSelect }) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: role.id });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+  return (
+    <button
+      ref={setNodeRef}
+      style={style}
+      className={`roles-list-item${active ? ' active' : ''}`}
+      onClick={onSelect}
+      {...attributes}
+      {...listeners}
+    >
+      <span className="roles-list-color-dot" style={{ backgroundColor: role.color }} />
+      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {role.name}
+      </span>
+    </button>
+  );
+};
 
 type Tab = 'overview' | 'roles' | 'invites' | 'members' | 'bots' | 'soundboard' | 'auditlog' | 'danger';
 
@@ -143,22 +188,54 @@ export const ServerSettings: React.FC<Props> = ({
     }
   }, [isOpen, activeTab, server]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Sort: @everyone always last, then by position descending (higher position = higher in hierarchy).
+  const sortRolesForDisplay = (list: Role[]): Role[] =>
+    [...list].sort((a, b) => {
+      if (a.is_everyone) return 1;
+      if (b.is_everyone) return -1;
+      return (b.position ?? 0) - (a.position ?? 0);
+    });
+
   const loadRoles = async () => {
     if (!server) return;
     setRolesLoading(true);
     try {
       const r = await getServerRoles(server.id);
-      // Sort: @everyone always last, then by position ascending
-      const sorted = (r ?? []).sort((a, b) => {
-        if (a.is_everyone) return 1;
-        if (b.is_everyone) return -1;
-        return (a.position ?? 0) - (b.position ?? 0);
-      });
-      setRoles(sorted);
+      setRoles(sortRolesForDisplay(r ?? []));
     } catch (e) {
       setRolesError(e instanceof Error ? e.message : 'Failed to load roles');
     } finally {
       setRolesLoading(false);
+    }
+  };
+
+  const roleSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
+  const handleRoleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!server || !over || active.id === over.id) return;
+
+    const nonEv = roles.filter(r => !r.is_everyone);
+    const oldIdx = nonEv.findIndex(r => r.id === active.id);
+    const newIdx = nonEv.findIndex(r => r.id === over.id);
+    if (oldIdx === -1 || newIdx === -1) return;
+
+    const reordered = arrayMove(nonEv, oldIdx, newIdx);
+    const N = reordered.length;
+    // Top of displayed list (index 0) gets highest position; bottom gets 1 (above @everyone = 0).
+    const repositioned: Role[] = reordered.map((r, i) => ({ ...r, position: N - i }));
+    const everyone = roles.filter(r => r.is_everyone);
+    setRoles([...repositioned, ...everyone]);
+
+    const origByID = new Map(roles.map(r => [r.id, r]));
+    const changed = repositioned.filter(r => (origByID.get(r.id)?.position ?? 0) !== r.position);
+    try {
+      await Promise.all(changed.map(r =>
+        updateServerRole(server.id, r.id, r.name, r.color, r.permissions ?? 0, r.hoist, r.position)
+      ));
+    } catch (e) {
+      setRolesError(e instanceof Error ? e.message : 'Failed to reorder roles');
+      loadRoles();
     }
   };
 
@@ -255,7 +332,7 @@ export const ServerSettings: React.FC<Props> = ({
     setRolesError('');
     try {
       const role = await createServerRole(server.id, newRoleName.trim(), newRoleColor, permToNumber(newRolePerms));
-      setRoles(prev => [...prev, role]);
+      setRoles(prev => sortRolesForDisplay([...prev, role]));
       setNewRoleName('');
       setNewRoleColor('#99aab5');
       setNewRolePerms(0n);
@@ -274,7 +351,7 @@ export const ServerSettings: React.FC<Props> = ({
     setRolesError('');
     try {
       const updated = await updateServerRole(server.id, selectedRoleId, editRoleName.trim(), editRoleColor, permToNumber(editRolePerms), editRoleHoist, editRolePosition);
-      setRoles(prev => prev.map(r => r.id === selectedRoleId ? updated : r));
+      setRoles(prev => sortRolesForDisplay(prev.map(r => r.id === selectedRoleId ? updated : r)));
     } catch (e) {
       setRolesError(e instanceof Error ? e.message : 'Failed to update role');
     } finally {
@@ -320,6 +397,8 @@ export const ServerSettings: React.FC<Props> = ({
   if (!isOpen || !server) return null;
 
   const selectedRole = roles.find(r => r.id === selectedRoleId) ?? null;
+  const nonEveryoneRoles = roles.filter(r => !r.is_everyone);
+  const everyoneRole = roles.find(r => r.is_everyone) ?? null;
 
   return (
     <div className="settings-overlay">
@@ -508,19 +587,31 @@ export const ServerSettings: React.FC<Props> = ({
                   {/* Left: role list */}
                   <div className="roles-list-col">
                     {rolesLoading && roles.length === 0 && <div style={{ fontSize: 12, color: 'var(--parley-text-muted)' }}>Loading...</div>}
-                    {roles.map(role => (
+                    <DndContext sensors={roleSensors} collisionDetection={closestCenter} onDragEnd={handleRoleDragEnd}>
+                      <SortableContext items={nonEveryoneRoles.map(r => r.id)} strategy={verticalListSortingStrategy}>
+                        {nonEveryoneRoles.map(role => (
+                          <SortableRoleItem
+                            key={role.id}
+                            role={role}
+                            active={selectedRoleId === role.id && !creatingRole}
+                            onSelect={() => { setSelectedRoleId(role.id); setCreatingRole(false); }}
+                          />
+                        ))}
+                      </SortableContext>
+                    </DndContext>
+                    {everyoneRole && (
                       <button
-                        key={role.id}
-                        className={`roles-list-item${selectedRoleId === role.id && !creatingRole ? ' active' : ''}${role.is_everyone ? ' everyone-role' : ''}`}
-                        onClick={() => { setSelectedRoleId(role.id); setCreatingRole(false); }}
-                        title={role.is_everyone ? '@everyone — base role for all members' : undefined}
+                        key={everyoneRole.id}
+                        className={`roles-list-item everyone-role${selectedRoleId === everyoneRole.id && !creatingRole ? ' active' : ''}`}
+                        onClick={() => { setSelectedRoleId(everyoneRole.id); setCreatingRole(false); }}
+                        title="@everyone — base role for all members"
                       >
-                        <span className="roles-list-color-dot" style={{ backgroundColor: role.color }} />
+                        <span className="roles-list-color-dot" style={{ backgroundColor: everyoneRole.color }} />
                         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {role.is_everyone ? '@everyone' : role.name}
+                          @everyone
                         </span>
                       </button>
-                    ))}
+                    )}
                     <button className="roles-list-add" onClick={() => { setCreatingRole(true); setSelectedRoleId(null); }}>
                       + New Role
                     </button>

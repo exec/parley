@@ -37,8 +37,8 @@ func (r *Repository) GetServerRoles(ctx context.Context, serverID int64) ([]Serv
 func (r *Repository) CreateServerRole(ctx context.Context, serverID int64, name, color string, permissions int64) (*ServerRole, error) {
 	var role ServerRole
 	err := r.db.QueryRowContext(ctx,
-		`INSERT INTO server_roles (server_id, name, color, permissions)
-         VALUES ($1, $2, $3, $4)
+		`INSERT INTO server_roles (server_id, name, color, permissions, position)
+         VALUES ($1, $2, $3, $4, COALESCE((SELECT MAX(position) FROM server_roles WHERE server_id = $1), 0) + 1)
          RETURNING id, server_id, name, color, permissions, hoist, position, is_everyone, created_at`,
 		serverID, name, color, permissions,
 	).Scan(&role.ID, &role.ServerID, &role.Name, &role.Color, &role.Permissions, &role.Hoist, &role.Position, &role.IsEveryone, &role.CreatedAt)

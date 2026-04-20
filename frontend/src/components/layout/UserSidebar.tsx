@@ -106,13 +106,13 @@ function topHoistedRole(member: ServerMember): Role | null {
   if (!member.roles || member.roles.length === 0) return null;
   const hoisted = member.roles.filter(r => r.hoist);
   if (hoisted.length === 0) return null;
-  return hoisted.reduce((a, b) => (a.position <= b.position ? a : b));
+  return hoisted.reduce((a, b) => (a.position >= b.position ? a : b));
 }
 
 /** Returns the highest-position role for a member (for the inline tag). */
 function topRole(member: ServerMember): Role | null {
   if (!member.roles || member.roles.length === 0) return null;
-  return member.roles.reduce((a, b) => (a.position <= b.position ? a : b));
+  return member.roles.reduce((a, b) => (a.position >= b.position ? a : b));
 }
 
 function buildGroups(members: ServerMember[], ownerId?: string, onlineIds?: Set<string>): MemberGroup[] {
@@ -129,7 +129,7 @@ function buildGroups(members: ServerMember[], ownerId?: string, onlineIds?: Set<
     const r = topHoistedRole(m);
     if (r) hoistedRolesMap.set(r.id, r);
   }
-  const hoistedRoles = Array.from(hoistedRolesMap.values()).sort((a, b) => a.position - b.position);
+  const hoistedRoles = Array.from(hoistedRolesMap.values()).sort((a, b) => b.position - a.position);
 
   // Track which online members have been placed
   const placed = new Set<string>();
