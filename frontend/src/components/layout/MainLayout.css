@@ -207,8 +207,8 @@
 @media (hover: none) and (pointer: coarse) {
   .at-me-topbar {
     height: auto;
-    min-height: calc(48px + max(0px, env(safe-area-inset-top, 0px) - 24px));
-    padding-top: max(0px, calc(env(safe-area-inset-top, 0px) - 24px));
+    min-height: calc(48px + max(0px, env(safe-area-inset-top, 0px) - 16px));
+    padding-top: max(0px, calc(env(safe-area-inset-top, 0px) - 16px));
   }
 }
 

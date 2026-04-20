@@ -502,7 +502,7 @@
    chrome without leaving an oversized gap. */
 @media (hover: none) and (pointer: coarse) {
   .chat-header {
-    padding-top: max(10px, calc(env(safe-area-inset-top, 0px) - 24px));
+    padding-top: max(10px, calc(env(safe-area-inset-top, 0px) - 16px));
   }
 }
 
