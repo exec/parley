@@ -270,9 +270,10 @@
 }
 
 .user-area {
-  height: 52px;
   min-height: 52px;
-  padding: 0 8px;
+  /* Matches DmPanel's user-area — 10px bottom padding keeps the row above
+     the iOS home-indicator swipe zone on mobile. */
+  padding: 0 8px 10px;
   display: flex;
   align-items: center;
   background-color: var(--parley-panel-footer-bg, var(--bg-primary));
