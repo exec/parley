@@ -945,9 +945,6 @@
 }
 
 @media (max-width: 720px) {
-  .settings-sidebar {
-    width: 180px;
-  }
   .settings-content {
     padding: 48px 20px 80px;
   }
@@ -957,6 +954,52 @@
   .settings-profile-preview {
     width: 100%;
   }
+
+  /* Discord-style nested settings on mobile: one panel at a time.
+     - "categories" view: sidebar fills the screen; main is hidden.
+     - "content"    view: main fills the screen with a back button;
+                          sidebar is hidden. */
+  .settings-sidebar {
+    width: 100%;
+    border-right: none;
+    padding-top: max(56px, calc(env(safe-area-inset-top, 0px) + 16px));
+  }
+  .settings-overlay[data-mobile-view="categories"] .settings-main {
+    display: none;
+  }
+  .settings-overlay[data-mobile-view="content"] .settings-sidebar {
+    display: none;
+  }
+  .settings-overlay[data-mobile-view="content"] .settings-main {
+    width: 100%;
+  }
+  .settings-back-btn {
+    display: flex !important;
+  }
+}
+
+/* Mobile-only back button shown inside settings-main when viewing a
+   specific category. Hidden on desktop (sidebar is always visible there). */
+.settings-back-btn {
+  display: none;
+  position: absolute;
+  top: max(12px, calc(env(safe-area-inset-top, 0px) + 4px));
+  left: 12px;
+  z-index: 2;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px 6px 6px;
+  background: var(--parley-panel-bg, var(--parley-bg-secondary));
+  border: 1px solid var(--parley-border);
+  border-radius: 6px;
+  color: var(--parley-text-normal);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.settings-back-btn:hover {
+  background: var(--parley-hover);
 }
 
 /* ── Developer tab ─────────────────────────────────────────────────────────── */

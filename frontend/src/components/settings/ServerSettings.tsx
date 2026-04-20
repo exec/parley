@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, ChevronLeft } from 'lucide-react';
 import {
   DndContext,
   DragEndEvent,
@@ -99,7 +99,10 @@ interface Props {
 export const ServerSettings: React.FC<Props> = ({
   isOpen, onClose, server, members, onUpdate, onDelete, initialTab, currentUserId,
 }) => {
-  const [activeTab, setActiveTab] = useState<Tab>(initialTab ?? 'overview');
+  const [activeTab, setActiveTabRaw] = useState<Tab>(initialTab ?? 'overview');
+  // Mobile: which panel is showing. Ignored on desktop (both visible via CSS).
+  const [mobileView, setMobileView] = useState<'categories' | 'content'>('categories');
+  const setActiveTab = (t: Tab) => { setActiveTabRaw(t); setMobileView('content'); };
   const isOwner = server?.owner_id === currentUserId;
 
   // Overview fields
@@ -401,7 +404,7 @@ export const ServerSettings: React.FC<Props> = ({
   const everyoneRole = roles.find(r => r.is_everyone) ?? null;
 
   return (
-    <div className="settings-overlay">
+    <div className="settings-overlay" data-mobile-view={mobileView}>
       {/* Sidebar */}
       <div className="settings-sidebar">
         <div className="settings-sidebar-group">
@@ -447,6 +450,15 @@ export const ServerSettings: React.FC<Props> = ({
 
       {/* Content */}
       <div className="settings-main">
+        <button
+          type="button"
+          className="settings-back-btn"
+          onClick={() => setMobileView('categories')}
+          aria-label="Back to settings categories"
+        >
+          <ChevronLeft size={16} />
+          Back
+        </button>
         <div className={`settings-content${activeTab === 'roles' ? ' settings-content--wide' : ''}`}>
           {activeTab === 'overview' && (
             <>

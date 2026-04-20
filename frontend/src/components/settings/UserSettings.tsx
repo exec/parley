@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { SITE_URL } from '../../config';
-import { X } from 'lucide-react';
+import { X, ChevronLeft } from 'lucide-react';
 import { User } from '../../api/types';
 import { updateProfile, resendVerification, changeEmail, verifyPhone, resendPhone, changePhone, getMyPhone } from '../../api/auth';
 import { uploadFile } from '../../api/upload';
@@ -27,7 +27,11 @@ interface Props {
 }
 
 export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, onUpdate }) => {
-  const [activeTab, setActiveTab] = useState<Tab>('account');
+  const [activeTab, setActiveTabRaw] = useState<Tab>('account');
+  // Mobile-only: which panel is showing — the category list or the selected
+  // tab's content. Ignored on desktop (CSS media query makes both visible).
+  const [mobileView, setMobileView] = useState<'categories' | 'content'>('categories');
+  const setActiveTab = (t: Tab) => { setActiveTabRaw(t); setMobileView('content'); };
 
   // Profile fields
   const [username, setUsername] = useState('');
@@ -226,7 +230,7 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
   if (!isOpen) return null;
 
   return (
-    <div className="settings-overlay">
+    <div className="settings-overlay" data-mobile-view={mobileView}>
       {/* Sidebar */}
       <div className="settings-sidebar">
         <div className="settings-sidebar-group">
@@ -265,6 +269,15 @@ export const UserSettings: React.FC<Props> = ({ isOpen, onClose, currentUser, on
 
       {/* Main content */}
       <div className="settings-main">
+        <button
+          type="button"
+          className="settings-back-btn"
+          onClick={() => setMobileView('categories')}
+          aria-label="Back to settings categories"
+        >
+          <ChevronLeft size={16} />
+          Back
+        </button>
         <div className="settings-content">
           {activeTab === 'account' && <AccountTab
             currentUser={currentUser}
