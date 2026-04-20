@@ -23,13 +23,16 @@ export function useNotifications() {
     audioRef.current = audio;
 
     // Browsers block audio playback until a user gesture has occurred.
-    // Playing muted + immediately pausing on the first interaction "unlocks"
-    // the element so that later play() calls (triggered by WS events) succeed.
+    // Playing at volume 0 + immediately pausing on the first interaction
+    // "unlocks" the element so later play() calls (triggered by WS events)
+    // succeed. Using volume=0 instead of muted=true because iOS WKWebView
+    // ignores the muted flag for a few ms during play, so you hear a blip
+    // of the ping sound on every first tap.
     const unlock = () => {
-      audio.muted = true;
+      audio.volume = 0;
       audio.play()
-        .then(() => { audio.pause(); audio.currentTime = 0; audio.muted = false; })
-        .catch(() => { audio.muted = false; });
+        .then(() => { audio.pause(); audio.currentTime = 0; audio.volume = 0.4; })
+        .catch(() => { audio.volume = 0.4; });
     };
 
     document.addEventListener('click', unlock, { once: true });
