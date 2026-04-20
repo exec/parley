@@ -102,7 +102,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onJumpClear,
 }) => {
   const { hasPerm: checkPerm } = usePermissions(channel.server_id || undefined, channel.id || undefined);
-  const canManageMessages = !channel.server_id || checkPerm(PERM_MANAGE_MESSAGES);
+  // In DMs (no server_id) users can only manage their own messages; other
+  // users' messages are gated by `isOwnMessage` in Message.tsx. Setting
+  // canManageMessages=false for DMs hides the "mod-style" delete button on
+  // messages authored by the other participant.
+  const canManageMessages = channel.server_id ? checkPerm(PERM_MANAGE_MESSAGES) : false;
   const canAddReactions = !channel.server_id || checkPerm(PERM_ADD_REACTIONS);
   const canPin = !!channel.server_id && (checkPerm(PERM_MANAGE_MESSAGES) || checkPerm(PERM_PIN_MESSAGES));
 

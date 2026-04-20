@@ -4,9 +4,7 @@ import {
   sendDesktopNotification,
 } from '../lib/tauri';
 
-const SOUND_URL = import.meta.env.VITE_CDN_HOST
-  ? `${import.meta.env.VITE_CDN_HOST}/audio/noti.mp3`
-  : 'https://parley-prod.nyc3.cdn.digitaloceanspaces.com/audio/noti.mp3';
+const SOUND_URL = 'https://raw.githubusercontent.com/exec/parley/main/assets/audio/ping.mp3';
 
 export function useNotifications() {
   const audioRef = useRef<HTMLAudioElement | null>(null);

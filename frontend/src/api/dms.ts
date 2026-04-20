@@ -32,7 +32,9 @@ export async function sendDmMessage(
     attachment_url: attachmentUrl || '',
     attachment_name: attachmentName || '',
     attachment_type: attachmentType || '',
-    parent_id: parentId || null,
+    // Stringify — DmMessage.ID serializes as a JSON number from the Go side,
+    // so without this the backend's *string Decode on parent_id 400s.
+    parent_id: parentId != null ? String(parentId) : null,
   });
 }
 
