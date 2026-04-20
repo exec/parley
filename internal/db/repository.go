@@ -36,11 +36,27 @@ type cachedServer struct {
 	expiresAt time.Time
 }
 
+// UserMessageInfo is the narrow user row the message path needs to decorate
+// a newly-sent message (author username/display_name/avatar + bot flag).
+// It's cached to avoid re-fetching the same row on every message.
+type UserMessageInfo struct {
+	Username    string
+	DisplayName string
+	AvatarURL   string
+	IsBot       bool
+}
+
+type cachedUserMessageInfo struct {
+	u         *UserMessageInfo
+	expiresAt time.Time
+}
+
 // Repository handles database operations for all models.
 type Repository struct {
-	db            *sql.DB
-	channelCache  sync.Map // int64 id -> *cachedChannel
-	serverCache   sync.Map // int64 id -> *cachedServer
+	db               *sql.DB
+	channelCache     sync.Map // int64 id -> *cachedChannel
+	serverCache      sync.Map // int64 id -> *cachedServer
+	userMsgInfoCache sync.Map // int64 id -> *cachedUserMessageInfo
 }
 
 // NewRepository creates a new Repository with the given database connection.
@@ -53,6 +69,31 @@ func (r *Repository) invalidateChannelCache(id int64) { r.channelCache.Delete(id
 
 // invalidateServerCache drops a server entry so the next read refreshes.
 func (r *Repository) invalidateServerCache(id int64) { r.serverCache.Delete(id) }
+
+// invalidateUserMessageInfo drops a user's message-path cache entry.
+func (r *Repository) invalidateUserMessageInfo(id int64) { r.userMsgInfoCache.Delete(id) }
+
+// GetUserMessageInfo returns the narrow user fields the message path needs
+// (username/display_name/avatar_url/is_bot), with a short-TTL cache so a
+// chatty user in a message-storm doesn't re-hit the DB for every send.
+func (r *Repository) GetUserMessageInfo(ctx context.Context, userID int64) (*UserMessageInfo, error) {
+	if v, ok := r.userMsgInfoCache.Load(userID); ok {
+		e := v.(*cachedUserMessageInfo)
+		if time.Now().Before(e.expiresAt) {
+			return e.u, nil
+		}
+	}
+	var u UserMessageInfo
+	err := r.db.QueryRowContext(ctx,
+		"SELECT username, COALESCE(display_name, ''), COALESCE(avatar_url, ''), is_bot FROM users WHERE id = $1",
+		userID,
+	).Scan(&u.Username, &u.DisplayName, &u.AvatarURL, &u.IsBot)
+	if err != nil {
+		return nil, err
+	}
+	r.userMsgInfoCache.Store(userID, &cachedUserMessageInfo{u: &u, expiresAt: time.Now().Add(metadataCacheTTL)})
+	return &u, nil
+}
 
 // NewRepositoryWithDSN creates a new Repository and establishes a connection using the DSN.
 func NewRepositoryWithDSN(ctx context.Context, dsn string) (*Repository, error) {

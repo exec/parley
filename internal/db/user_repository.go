@@ -659,6 +659,9 @@ func (r *Repository) UpdateUserFields(ctx context.Context, userID int64, usernam
 		`UPDATE users SET username = $2, display_name = $3, avatar_url = $4, updated_at = NOW()
 		 WHERE id = $1`,
 		userID, username, displayName, avatarURL)
+	if err == nil {
+		r.invalidateUserMessageInfo(userID)
+	}
 	return err
 }
 

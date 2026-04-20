@@ -140,12 +140,16 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 	}
 
 	// Single user lookup — used for both bot check (maxLen) and response population.
+	// Cached at the repository layer so a chatty author in a storm doesn't re-hit
+	// the DB for every message.
 	var authorUsername, authorDisplayName, authorAvatarURL string
 	var authorIsBot bool
-	if err := s.repo.DB().QueryRowContext(ctx,
-		"SELECT username, COALESCE(display_name, ''), COALESCE(avatar_url, ''), is_bot FROM users WHERE id = $1",
-		authorIDInt,
-	).Scan(&authorUsername, &authorDisplayName, &authorAvatarURL, &authorIsBot); err != nil {
+	if info, err := s.repo.GetUserMessageInfo(ctx, authorIDInt); err == nil && info != nil {
+		authorUsername = info.Username
+		authorDisplayName = info.DisplayName
+		authorAvatarURL = info.AvatarURL
+		authorIsBot = info.IsBot
+	} else if err != nil {
 		log.Printf("SendMessage: failed to fetch user info for author %d: %v", authorIDInt, err)
 	}
 
