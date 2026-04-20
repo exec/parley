@@ -7,7 +7,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/lib/pq"
 	dbpkg "parley/internal/db"
 )
 
@@ -436,8 +435,8 @@ func (r *Repository) GetUserDisplayName(ctx context.Context, userID int64) (stri
 }
 
 // isPgUniqueViolation checks for Postgres unique constraint violation (code 23505).
-// The project uses github.com/lib/pq so we can use the typed error code.
+// Driver-agnostic via dbpkg.IsUniqueViolation so the check works under both
+// pgx and lib/pq.
 func isPgUniqueViolation(err error) bool {
-	var pqErr *pq.Error
-	return errors.As(err, &pqErr) && pqErr.Code == "23505"
+	return dbpkg.IsUniqueViolation(err)
 }

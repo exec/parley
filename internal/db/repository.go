@@ -10,8 +10,30 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/lib/pq"
+
 	"parley/internal/audit"
 )
+
+// IsPgErrorCode returns true when err (possibly wrapped) carries the given
+// Postgres SQLSTATE across either the pgx driver (pgconn.PgError) or the
+// legacy lib/pq one. Keeps error-code checks driver-agnostic so callers
+// don't care which driver the pool was opened with.
+func IsPgErrorCode(err error, code string) bool {
+	var pgxErr *pgconn.PgError
+	if errors.As(err, &pgxErr) {
+		return pgxErr.Code == code
+	}
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) {
+		return string(pqErr.Code) == code
+	}
+	return false
+}
+
+// IsUniqueViolation is a convenience for the common 23505 check.
+func IsUniqueViolation(err error) bool { return IsPgErrorCode(err, "23505") }
 
 var (
 	ErrNotFound         = errors.New("record not found")
@@ -97,7 +119,7 @@ func (r *Repository) GetUserMessageInfo(ctx context.Context, userID int64) (*Use
 
 // NewRepositoryWithDSN creates a new Repository and establishes a connection using the DSN.
 func NewRepositoryWithDSN(ctx context.Context, dsn string) (*Repository, error) {
-	db, err := sql.Open("postgres", dsn)
+	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, err
 	}

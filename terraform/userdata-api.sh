@@ -1,7 +1,11 @@
 #!/bin/bash
 set -e
-# Cloud-init script for Parley API droplets
-# This script sets up the environment and runs the Go API service
+# Works as a cloud-init script on DO droplets and as a re-runnable provisioner
+# script inside LXC containers. Non-idempotent steps are guarded; ufw is skipped
+# inside LXC because the Proxmox host firewall handles inter-container isolation.
+
+IS_LXC=$(systemd-detect-virt --container 2>/dev/null || echo none)
+case "$IS_LXC" in lxc|systemd-nspawn) IS_LXC=yes ;; *) IS_LXC=no ;; esac
 
 # Configuration variables (passed from Terraform)
 DB_HOST="${DB_HOST}"
@@ -52,38 +56,37 @@ run_with_retry "apt-get update -y" || true
 run_with_retry "apt-get upgrade -y" || true
 
 echo "=== Applying kernel tuning for high-connection workloads ==="
+# || true on each: some sysctls are read-only in unprivileged LXC (e.g.
+# fs.file-max); those are silently ignored and the persistent values below
+# still apply on DO droplets where they're writable.
 
-# Maximum open file descriptors (system-wide)
-sysctl -w fs.file-max=2097152
+sysctl -w fs.file-max=2097152 || true
 
-# Per-process FD limit for new sessions
-echo "* soft nofile 1048576" >> /etc/security/limits.conf
-echo "* hard nofile 1048576" >> /etc/security/limits.conf
-echo "root soft nofile 1048576" >> /etc/security/limits.conf
-echo "root hard nofile 1048576" >> /etc/security/limits.conf
+# Per-process FD limit (idempotent — only append once)
+if ! grep -q "^# parley-api limits" /etc/security/limits.conf; then
+cat >> /etc/security/limits.conf <<'LIMITS'
+# parley-api limits
+* soft nofile 1048576
+* hard nofile 1048576
+root soft nofile 1048576
+root hard nofile 1048576
+LIMITS
+fi
 
-# Increase local port range for outbound connections (DB, Redis)
-sysctl -w net.ipv4.ip_local_port_range="1024 65535"
+sysctl -w net.ipv4.ip_local_port_range="1024 65535" || true
+sysctl -w net.ipv4.tcp_tw_reuse=1 || true
+sysctl -w net.core.somaxconn=65535 || true
+sysctl -w net.ipv4.tcp_max_syn_backlog=65535 || true
+sysctl -w net.core.rmem_max=16777216 || true
+sysctl -w net.core.wmem_max=16777216 || true
+sysctl -w net.ipv4.tcp_keepalive_time=60 || true
+sysctl -w net.ipv4.tcp_keepalive_intvl=10 || true
+sysctl -w net.ipv4.tcp_keepalive_probes=6 || true
 
-# Faster recycling of TIME_WAIT sockets
-sysctl -w net.ipv4.tcp_tw_reuse=1
-
-# Increase the backlog queue for incoming connections
-sysctl -w net.core.somaxconn=65535
-sysctl -w net.ipv4.tcp_max_syn_backlog=65535
-
-# Increase socket receive/send buffers
-sysctl -w net.core.rmem_max=16777216
-sysctl -w net.core.wmem_max=16777216
-
-# TCP keepalive: detect dead connections after 60s idle, then every 10s × 6 probes
-# Prevents zombie WS connections from stacking up when clients vanish without FIN
-sysctl -w net.ipv4.tcp_keepalive_time=60
-sysctl -w net.ipv4.tcp_keepalive_intvl=10
-sysctl -w net.ipv4.tcp_keepalive_probes=6
-
-# Persist sysctl settings across reboots
+# Persist sysctl settings across reboots (idempotent: only append once)
+if ! grep -q "^# parley-api sysctls" /etc/sysctl.conf; then
 cat >> /etc/sysctl.conf << 'SYSCTL'
+# parley-api sysctls
 fs.file-max=2097152
 net.ipv4.ip_local_port_range=1024 65535
 net.ipv4.tcp_tw_reuse=1
@@ -95,10 +98,11 @@ net.ipv4.tcp_keepalive_time=60
 net.ipv4.tcp_keepalive_intvl=10
 net.ipv4.tcp_keepalive_probes=6
 SYSCTL
+fi
 
 # Install required packages with retry
 echo "=== Installing required packages ==="
-run_with_retry "apt-get install -y git curl build-essential nginx certbot python3-certbot-nginx ufw software-properties-common redis-tools"
+run_with_retry "apt-get install -y git curl build-essential nginx certbot python3-certbot-nginx ufw redis-tools"
 
 # Install Node.js (LTS)
 echo "=== Installing Node.js ==="
@@ -169,9 +173,9 @@ cp -r dist/* /var/www/parley/
 
 # NSFW moderation sidecar is disabled — moved to dedicated box (TODO)
 
-# Create service user
+# Create service user (idempotent)
 echo "=== Creating parley service user ==="
-useradd -r -s /bin/false parley
+id -u parley >/dev/null 2>&1 || useradd -r -s /bin/false parley
 
 # Create environment file
 echo "=== Creating environment configuration ==="
@@ -353,16 +357,22 @@ fi
 run_with_retry "systemctl restart nginx"
 run_with_retry "systemctl enable nginx"
 
-# Configure firewall
-echo "=== Configuring firewall ==="
-ufw allow 22/tcp    # SSH
-ufw allow 80/tcp    # HTTP
-ufw allow 443/tcp   # HTTPS
-ufw --force enable
+# Configure firewall (skipped in LXC — Proxmox firewall handles isolation)
+if [ "$IS_LXC" = "no" ] && command -v ufw >/dev/null 2>&1; then
+  echo "=== Configuring firewall ==="
+  ufw allow 22/tcp    # SSH
+  ufw allow 80/tcp    # HTTP
+  ufw allow 443/tcp   # HTTPS
+  ufw --force enable
+else
+  echo "=== Skipping ufw config (LXC — Proxmox firewall handles isolation) ==="
+fi
 
-# Start the API service with retry
-echo "=== Starting Parley API service ==="
-run_with_retry "systemctl start parley-api.service"
+# Restart (not start) so re-apply with a rewritten /etc/parley/env or updated
+# binary actually picks up the changes — `start` is a no-op on an already-running
+# service, which previously meant env changes silently failed to take effect.
+echo "=== (Re)starting Parley API service ==="
+run_with_retry "systemctl restart parley-api.service"
 
 # Wait a moment for the service to start
 sleep 3

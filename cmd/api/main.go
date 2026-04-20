@@ -16,6 +16,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	_ "github.com/lib/pq"
 
 	"parley/internal/audit"
@@ -108,7 +109,7 @@ func main() {
 	config := DefaultConfig()
 
 	// Connect to PostgreSQL
-	dbConn, err := sql.Open("postgres", config.DatabaseURL)
+	dbConn, err := sql.Open("pgx", config.DatabaseURL)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}

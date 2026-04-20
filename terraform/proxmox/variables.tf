@@ -1,5 +1,5 @@
-variable "proxmox_api_url" {
-  description = "Proxmox API URL (e.g. https://192.168.1.10:8006/api2/json)"
+variable "proxmox_endpoint" {
+  description = "Proxmox API root endpoint (e.g. https://10.0.0.246:8006/)"
   type        = string
 }
 
@@ -15,81 +15,142 @@ variable "proxmox_api_token_secret" {
 }
 
 variable "proxmox_node" {
-  description = "Proxmox node name to deploy VMs on"
+  description = "Proxmox node name to deploy containers on"
   type        = string
   default     = "pve"
 }
 
 variable "proxmox_storage" {
-  description = "Proxmox storage pool for VM disks"
+  description = "Proxmox storage pool for container rootfs"
   type        = string
   default     = "local-lvm"
 }
 
 variable "proxmox_bridge" {
-  description = "Network bridge for VM NICs"
+  description = "Network bridge for container NICs"
   type        = string
-  default     = "vmbr0"
+  default     = "vmbr1"
 }
 
-variable "vm_template" {
-  description = "Name of the Ubuntu 24.04 cloud-init template VM"
+variable "ct_template" {
+  description = "LXC CT template in storage:vztmpl/<name> form"
   type        = string
-  default     = "ubuntu-2404-template"
+  default     = "local:vztmpl/debian-13-standard_13.1-2_amd64.tar.zst"
 }
 
-# ---- VM sizing (mirrors DO droplet sizes) ----
+# ---- Proxmox host SSH (used by provisioners to pct push/exec into containers) ----
+
+variable "proxmox_host_address" {
+  description = "IP or hostname of the Proxmox host reachable by SSH from the machine running terraform"
+  type        = string
+}
+
+variable "proxmox_host_user" {
+  description = "SSH user on the Proxmox host (must have passwordless sudo)"
+  type        = string
+  default     = "root"
+}
+
+variable "proxmox_host_ssh_key" {
+  description = "Path to the SSH private key for proxmox_host_user"
+  type        = string
+  default     = "~/.ssh/id_ed25519"
+}
+
+# ---- Container sizing ----
 
 variable "api_cores" {
-  description = "vCPUs for API VMs (DO s-2vcpu-2gb equivalent)"
+  description = "vCPUs for API containers"
   type        = number
   default     = 2
 }
 
 variable "api_memory" {
-  description = "RAM in MB for API VMs"
+  description = "RAM in MB for API containers"
   type        = number
   default     = 2048
 }
 
 variable "api_disk_size" {
-  description = "Disk size for API VMs (GB)"
+  description = "Rootfs size for API containers (e.g. 20G)"
   type        = string
   default     = "20G"
 }
 
 variable "db_cores" {
-  description = "vCPUs for DB VM (DO s-2vcpu-4gb equivalent)"
+  description = "vCPUs for DB container"
   type        = number
   default     = 2
 }
 
 variable "db_memory" {
-  description = "RAM in MB for DB VM"
+  description = "RAM in MB for DB container"
   type        = number
   default     = 4096
 }
 
 variable "db_disk_size" {
-  description = "Disk size for DB VM (GB)"
+  description = "Rootfs size for DB container (e.g. 40G)"
   type        = string
   default     = "40G"
 }
 
 variable "admin_cores" {
-  description = "vCPUs for admin VM (DO s-1vcpu-1gb equivalent)"
+  description = "vCPUs for admin container"
   type        = number
   default     = 1
 }
 
 variable "admin_memory" {
-  description = "RAM in MB for admin VM"
+  description = "RAM in MB for admin container"
   type        = number
   default     = 1024
 }
 
+variable "admin_disk_size" {
+  description = "Rootfs size for admin container"
+  type        = string
+  default     = "10G"
+}
+
+variable "lb_cores" {
+  description = "vCPUs for nginx LB container"
+  type        = number
+  default     = 1
+}
+
+variable "lb_memory" {
+  description = "RAM in MB for nginx LB container"
+  type        = number
+  default     = 512
+}
+
+variable "lb_disk_size" {
+  description = "Rootfs size for nginx LB container"
+  type        = string
+  default     = "8G"
+}
+
+variable "minio_cores" {
+  description = "vCPUs for MinIO container"
+  type        = number
+  default     = 1
+}
+
+variable "minio_memory" {
+  description = "RAM in MB for MinIO container"
+  type        = number
+  default     = 1024
+}
+
+variable "minio_disk_size" {
+  description = "Rootfs size for MinIO container"
+  type        = string
+  default     = "20G"
+}
+
 variable "api_count" {
-  description = "Number of API VMs (max 4 with default IPs to avoid collision with admin_ip at .15)"
+  description = "Number of API containers (max 9 with default IPs)"
   type        = number
   default     = 1
 
@@ -99,30 +160,42 @@ variable "api_count" {
   }
 }
 
-# ---- Networking ----
+# ---- Networking (vmbr1 internal subnet by default) ----
 
 variable "api_ip_base" {
-  description = "Base IP for API VMs (e.g. 192.168.1.11 — increments by count)"
+  description = "First octet-group + first API IP (e.g. 10.10.10.11 — increments by count)"
   type        = string
-  default     = "192.168.1.11"
+  default     = "10.10.10.11"
 }
 
 variable "db_ip" {
-  description = "Static IP for DB VM"
+  description = "Static IP for DB container"
   type        = string
-  default     = "192.168.1.10"
+  default     = "10.10.10.10"
 }
 
 variable "admin_ip" {
-  description = "Static IP for admin VM"
+  description = "Static IP for admin container"
   type        = string
-  default     = "192.168.1.15"
+  default     = "10.10.10.15"
+}
+
+variable "lb_ip" {
+  description = "Static IP for nginx LB container (only when api_count > 1)"
+  type        = string
+  default     = "10.10.10.20"
+}
+
+variable "minio_ip" {
+  description = "Static IP for MinIO container"
+  type        = string
+  default     = "10.10.10.21"
 }
 
 variable "gateway" {
-  description = "Default gateway for VMs"
+  description = "Default gateway (host IP on the bridge)"
   type        = string
-  default     = "192.168.1.1"
+  default     = "10.10.10.1"
 }
 
 variable "subnet_mask" {
@@ -132,26 +205,20 @@ variable "subnet_mask" {
 }
 
 variable "dns_server" {
-  description = "DNS server for VMs"
+  description = "DNS server for containers"
   type        = string
   default     = "1.1.1.1"
 }
 
-# ---- SSH ----
+# ---- SSH key injected into containers ----
 
 variable "ssh_public_key" {
-  description = "SSH public key to inject via cloud-init"
+  description = "SSH public key to inject into containers (path)"
   type        = string
   default     = "~/.ssh/id_ed25519.pub"
 }
 
-variable "ssh_private_key" {
-  description = "SSH private key path for provisioning"
-  type        = string
-  default     = "~/.ssh/id_ed25519"
-}
-
-# ---- App secrets (same as DO vars) ----
+# ---- App secrets ----
 
 variable "db_password" {
   description = "PostgreSQL parley user password"
@@ -171,32 +238,26 @@ variable "repo_url" {
   default     = "https://github.com/exec/parley.git"
 }
 
-variable "minio_ip" {
-  description = "Static IP for MinIO VM (S3-compatible object storage)"
-  type        = string
-  default     = "192.168.1.21"
-}
-
 variable "minio_access_key" {
-  description = "MinIO root access key (used as SPACES_ACCESS_KEY in the API)"
+  description = "MinIO root access key"
   type        = string
   default     = "parleyminio"
 }
 
 variable "minio_secret_key" {
-  description = "MinIO root secret key (used as SPACES_SECRET_KEY in the API)"
+  description = "MinIO root secret key"
   type        = string
   sensitive   = true
 }
 
 variable "minio_bucket" {
-  description = "MinIO bucket name for Parley uploads"
+  description = "MinIO bucket name"
   type        = string
   default     = "parley"
 }
 
 variable "brevo_api_key" {
-  description = "Brevo API key for transactional email"
+  description = "Brevo API key"
   type        = string
   sensitive   = true
   default     = ""
@@ -209,9 +270,9 @@ variable "brevo_from_email" {
 }
 
 variable "site_url" {
-  description = "Public URL (used in email links)"
+  description = "Public URL"
   type        = string
-  default     = "http://192.168.1.11"
+  default     = "http://10.10.10.11"
 }
 
 variable "admin_jwt_secret" {
@@ -229,7 +290,7 @@ variable "admin_impersonate_secret" {
 }
 
 variable "giphy_api_key" {
-  description = "Giphy API key for GIF search"
+  description = "Giphy API key"
   type        = string
   sensitive   = true
   default     = ""
@@ -252,7 +313,7 @@ variable "livekit_api_secret" {
 variable "livekit_url" {
   description = "LiveKit WSS URL"
   type        = string
-  default     = "wss://parley-6jjbl5wy.livekit.cloud"
+  default     = ""
 }
 
 variable "ollama_api_url" {
@@ -262,7 +323,7 @@ variable "ollama_api_url" {
 }
 
 variable "ollama_api_key" {
-  description = "Ollama API key for AI theme generation"
+  description = "Ollama API key"
   type        = string
   sensitive   = true
   default     = ""
@@ -282,14 +343,8 @@ variable "bot_key_secret" {
 }
 
 variable "redis_password" {
-  description = "Redis authentication password (requirepass)"
+  description = "Redis password"
   type        = string
   sensitive   = true
   default     = ""
-}
-
-variable "lb_ip" {
-  description = "Static IP for the nginx load balancer VM (only used when api_count > 1)"
-  type        = string
-  default     = "192.168.1.20"
 }

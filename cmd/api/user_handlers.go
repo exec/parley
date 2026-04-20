@@ -7,7 +7,6 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/lib/pq"
 
 	"parley/internal/auth"
 	"parley/internal/db"
@@ -290,7 +289,7 @@ func handlePatchMe(repo *db.Repository, hub *ws.Hub, cdnHost string) http.Handle
 		}
 
 		if err := repo.UpdateUserFields(r.Context(), userID, user.Username, user.DisplayName, user.AvatarURL); err != nil {
-			if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
+			if db.IsUniqueViolation(err) {
 				jsonError(w, "username already taken", http.StatusConflict)
 				return
 			}

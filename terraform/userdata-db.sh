@@ -1,10 +1,15 @@
 #!/bin/bash
 set -e
 
-# Cloud-init script for Parley PostgreSQL droplet
-# This script sets up PostgreSQL and configures it for the API
+# Works as a cloud-init script on DO droplets and as a re-runnable provisioner
+# script inside LXC containers. All non-idempotent steps are guarded so a second
+# run is a no-op. Firewall config (ufw) is skipped inside LXC because the
+# Proxmox host firewall already handles inter-container isolation.
 
-echo "=== Starting Parley Database setup ==="
+IS_LXC=$(systemd-detect-virt --container 2>/dev/null || echo none)
+case "$IS_LXC" in lxc|systemd-nspawn) IS_LXC=yes ;; *) IS_LXC=no ;; esac
+
+echo "=== Starting Parley Database setup (LXC=$IS_LXC) ==="
 
 # Update system
 echo "=== Updating system packages ==="
@@ -24,22 +29,24 @@ systemctl enable postgresql
 # Wait for PostgreSQL to be ready
 sleep 3
 
-# Create parley user and database
+# Create parley user and database (idempotent)
 echo "=== Creating Parley database and user ==="
 sudo -u postgres psql <<EOF
--- Create the parley user
-CREATE USER parley WITH PASSWORD '${db_password}';
+DO \$\$ BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'parley') THEN
+    CREATE USER parley WITH PASSWORD '${db_password}';
+  ELSE
+    ALTER USER parley WITH PASSWORD '${db_password}';
+  END IF;
+END \$\$;
 
--- Create the parley database
-CREATE DATABASE parley OWNER parley;
+SELECT 'CREATE DATABASE parley OWNER parley'
+ WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'parley')\gexec
 
--- Grant privileges
 GRANT ALL PRIVILEGES ON DATABASE parley TO parley;
 
--- Connect to the database and set default schema
 \c parley
 
--- Grant schema privileges
 GRANT ALL ON SCHEMA public TO parley;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO parley;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO parley;
@@ -62,7 +69,7 @@ echo "Database private IP: $DB_PRIVATE_IP"
 # Derive subnet from this VM's IP — works on both DO (10.x.x.x) and Proxmox (192.168.x.x)
 LAN_SUBNET="$${DB_PRIVATE_IP%.*}.0/24"
 PG_HBA=$(find /etc/postgresql -name pg_hba.conf | head -1)
-if [ -n "$PG_HBA" ]; then
+if [ -n "$PG_HBA" ] && ! grep -q "Parley API connections" "$PG_HBA"; then
     echo "# Parley API connections - allow LAN subnet only" >> "$PG_HBA"
     echo "host    all             all             $LAN_SUBNET          scram-sha-256" >> "$PG_HBA"
 fi
@@ -96,7 +103,7 @@ fi
 # Guard with || true: if the kernel lacks huge pages support (e.g. cloud kernels),
 # sysctl -w returns non-zero and would abort this set -e script unnecessarily.
 # PostgreSQL's huge_pages=try already falls back gracefully.
-echo "vm.nr_hugepages=512" >> /etc/sysctl.conf
+grep -q "^vm.nr_hugepages=" /etc/sysctl.conf || echo "vm.nr_hugepages=512" >> /etc/sysctl.conf
 sysctl -w vm.nr_hugepages=512 || true
 
 # Install Redis for cross-node WebSocket broadcasting
@@ -121,15 +128,22 @@ sed -i "s/^protected-mode .*/protected-mode yes/" /etc/redis/redis.conf 2>/dev/n
 systemctl restart redis-server
 systemctl enable redis-server
 
-# Configure firewall — DB/Redis only accessible from LAN subnet, not public internet
-echo "=== Configuring firewall (LAN-only DB ports) ==="
-ufw default deny incoming
-ufw default allow outgoing
-ufw allow 22/tcp                                                   # SSH
-ufw allow from "$LAN_SUBNET" to any port 5432 proto tcp           # PostgreSQL — LAN only
-ufw allow from "$LAN_SUBNET" to any port 6432 proto tcp           # PgBouncer — LAN only
-ufw allow from "$LAN_SUBNET" to any port 6379 proto tcp           # Redis — LAN only
-ufw --force enable
+# Configure firewall — DB/Redis only accessible from LAN subnet, not public internet.
+# Skipped in LXC: the Proxmox host firewall handles inter-container isolation,
+# and ufw/iptables in unprivileged LXC has reliability issues (sudo hangs
+# after ufw reconfigures netfilter rules mid-script).
+if [ "$IS_LXC" = "no" ] && command -v ufw >/dev/null 2>&1; then
+  echo "=== Configuring firewall (LAN-only DB ports) ==="
+  ufw default deny incoming
+  ufw default allow outgoing
+  ufw allow 22/tcp                                                   # SSH
+  ufw allow from "$LAN_SUBNET" to any port 5432 proto tcp           # PostgreSQL — LAN only
+  ufw allow from "$LAN_SUBNET" to any port 6432 proto tcp           # PgBouncer — LAN only
+  ufw allow from "$LAN_SUBNET" to any port 6379 proto tcp           # Redis — LAN only
+  ufw --force enable
+else
+  echo "=== Skipping ufw config (LXC — Proxmox firewall handles isolation) ==="
+fi
 
 # Restart PostgreSQL with new configuration
 echo "=== Restarting PostgreSQL ==="
@@ -141,8 +155,8 @@ systemctl status postgresql --no-pager || true
 
 # Check connections
 echo "=== Testing database connection ==="
-sudo -u postgres psql -c "SELECT version();"
-sudo -u postgres psql -c "\\du" | grep parley
+timeout 30 sudo -u postgres psql -c "SELECT version();" || echo "(could not fetch version — continuing)"
+timeout 30 sudo -u postgres psql -c "\\du" 2>/dev/null | grep parley || echo "(could not list roles — continuing)"
 
 # Create database schema (if migrations exist)
 echo "=== Checking for database migrations ==="

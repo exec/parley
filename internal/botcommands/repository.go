@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lib/pq"
+	"parley/internal/db"
 )
 
 // ErrNotFound is returned when a row is not found.
@@ -376,7 +376,8 @@ func unmarshalOptions(raw []byte, dst *[]BotCommandOption) error {
 }
 
 // isPgUniqueViolation detects Postgres unique-constraint violations (SQLSTATE 23505).
+// Driver-agnostic via db.IsUniqueViolation so the check works under both pgx
+// and lib/pq.
 func isPgUniqueViolation(err error) bool {
-	var pqErr *pq.Error
-	return errors.As(err, &pqErr) && pqErr.Code == "23505"
+	return db.IsUniqueViolation(err)
 }
