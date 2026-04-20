@@ -945,8 +945,10 @@
 }
 
 @media (max-width: 720px) {
+  /* Top padding clears the absolute-positioned Back button (safe-area-top +
+     button height + some breathing room). */
   .settings-content {
-    padding: 48px 20px 80px;
+    padding: calc(env(safe-area-inset-top, 0px) + 60px) 20px 80px;
   }
   .settings-profile-split {
     flex-direction: column;
