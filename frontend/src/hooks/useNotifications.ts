@@ -46,18 +46,25 @@ export function useNotifications() {
     window.addEventListener('blur', onBlur);
     document.addEventListener('visibilitychange', recomputeForeground);
 
-    // In Tauri on macOS, DOM focus/blur don't fire when the NSWindow loses
-    // focus or is hidden (WKWebView keeps the web layer "focused"), so hook
-    // into Tauri's window-level focus events directly as a second signal.
+    // In Tauri on macOS, DOM focus/blur don't reliably fire when the NSWindow
+    // loses focus or is hidden (WKWebView keeps the web layer "focused"). The
+    // Rust side emits `parley:foreground` with a boolean payload when it
+    // hides / reveals the main window; we also subscribe to onFocusChanged
+    // as a belt-and-braces signal for raw focus changes.
     let unlistenTauriFocus: (() => void) | null = null;
+    let unlistenForegroundEvent: (() => void) | null = null;
     if (isTauri()) {
       (async () => {
         try {
           const { getCurrentWindow } = await import('@tauri-apps/api/window');
+          const { listen } = await import('@tauri-apps/api/event');
           const w = getCurrentWindow();
           inForegroundRef.current = await w.isFocused();
           unlistenTauriFocus = await w.onFocusChanged(({ payload: focused }) => {
             inForegroundRef.current = focused;
+          });
+          unlistenForegroundEvent = await listen<boolean>('parley:foreground', (event) => {
+            inForegroundRef.current = event.payload;
           });
         } catch {
           // fall back to DOM listeners only
@@ -72,6 +79,7 @@ export function useNotifications() {
       window.removeEventListener('blur', onBlur);
       document.removeEventListener('visibilitychange', recomputeForeground);
       if (unlistenTauriFocus) unlistenTauriFocus();
+      if (unlistenForegroundEvent) unlistenForegroundEvent();
     };
   }, []);
 

@@ -37,12 +37,15 @@ pub fn run() {
 
             // Closing the window keeps the process alive so WebSocket + OS
             // notifications keep working; users quit explicitly via the tray
-            // menu or Cmd+Q.
+            // menu or Cmd+Q. We emit parley:foreground=false just before the
+            // hide so the renderer's notification hook can flip its flag — the
+            // DOM and tauri://blur signals don't reliably fire on macOS hide.
             if let Some(window) = app.get_webview_window("main") {
                 let hide_target = window.clone();
                 window.on_window_event(move |event| {
                     if let WindowEvent::CloseRequested { api, .. } = event {
                         api.prevent_close();
+                        let _ = hide_target.emit("parley:foreground", false);
                         let _ = hide_target.hide();
                     }
                 });
@@ -112,5 +115,6 @@ fn reveal_main_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
         let _ = w.show();
         let _ = w.unminimize();
         let _ = w.set_focus();
+        let _ = w.emit("parley:foreground", true);
     }
 }
