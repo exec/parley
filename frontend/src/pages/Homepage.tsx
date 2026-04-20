@@ -41,12 +41,7 @@ export function Homepage({ currentUser, onCreateServer, onOpenDm }: HomepageProp
     <div className="homepage">
       <div className="homepage-hero">
         <div className="homepage-logo-mark">
-          <svg className="homepage-logo-svg" viewBox="0 0 40 52" fill="none" xmlns="http://www.w3.org/2000/svg">
-            {/* Slick geometric P — thick vertical stem, precise bowl */}
-            <rect x="5" y="4" width="6" height="44" rx="3" fill="currentColor" />
-            <path d="M11 4 h10 a14 14 0 0 1 0 28 H11 Z" fill="currentColor" opacity="0.9" />
-            <rect x="11" y="17" width="16" height="5" rx="2.5" fill="var(--parley-channel-bg)" />
-          </svg>
+          <img src="/favicon.svg" alt="Parley" className="homepage-logo-svg" />
         </div>
         <h1 className="homepage-title">Welcome back{currentUser?.display_name || currentUser?.username ? `, ${currentUser.display_name || currentUser.username}` : ''}</h1>
         <p className="homepage-subtitle">

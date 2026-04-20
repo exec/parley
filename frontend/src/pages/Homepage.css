@@ -67,20 +67,19 @@
 .homepage-logo-mark {
   width: 56px;
   height: 56px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, var(--parley-bg-hover) 0%, rgba(0, 180, 216, 0.12) 100%);
-  border: 1px solid rgba(0, 180, 216, 0.25);
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: 4px;
-  box-shadow: 0 0 0 1px rgba(0, 180, 216, 0.08), 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  border-radius: 14px;
+  overflow: hidden;
 }
 
 .homepage-logo-svg {
-  width: 22px;
-  height: 28px;
-  color: var(--parley-accent);
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .homepage-title {
