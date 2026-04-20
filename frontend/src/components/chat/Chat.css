@@ -486,10 +486,7 @@
 
 /* Chat Header */
 .chat-header {
-  /* padding-top absorbs the full iOS safe-area (Dynamic Island / notch) so
-     tap targets in the header clear the status bar. Channel background
-     extends under it separately because .chat-header is transparent. */
-  padding: max(10px, env(safe-area-inset-top, 0px)) 16px 10px 16px;
+  padding: 10px 16px;
   border-bottom: 1px solid rgba(var(--accent-rgb), 0.2);
   background-color: transparent;
   flex-shrink: 0;
@@ -497,6 +494,16 @@
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+/* On mobile the header sits under the Dynamic Island / notch because the
+   channel background extends edge-to-edge behind it. Give a hefty clearance:
+   at minimum 56px (safe for any iPhone status bar), and env() + 12px on
+   notched devices so tap targets never overlap the system chrome. */
+@media (hover: none) and (pointer: coarse) {
+  .chat-header {
+    padding-top: max(56px, calc(env(safe-area-inset-top, 0px) + 12px));
+  }
 }
 
 .chat-header-avatar {
