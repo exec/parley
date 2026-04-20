@@ -36,6 +36,13 @@
   z-index: 2;
 }
 
+/* macOS Tauri draws traffic lights in the top-left corner; nudge the logo
+   right so it clears them. Only applies inside the desktop app
+   (data-tauri-platform is set by main.tsx). */
+[data-tauri-platform="macos"] .auth-nav {
+  padding-left: 52px;
+}
+
 .auth-nav-brand {
   font-family: 'Syne', 'Outfit', sans-serif;
   font-size: 16px;
