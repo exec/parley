@@ -341,7 +341,10 @@
 
 /* Message Input Styles */
 .message-input-container {
-  padding: 16px;
+  /* padding-bottom absorbs the iOS safe-area (home indicator) so the channel
+     background runs to the bottom edge. More aggressive shave than the top —
+     home indicator only needs minimal clearance. */
+  padding: 16px 16px max(12px, calc(env(safe-area-inset-bottom, 0px) - 16px)) 16px;
   background-color: transparent;
   border-top: 1px solid rgba(var(--accent-rgb), 0.3);
 }
@@ -483,7 +486,10 @@
 
 /* Chat Header */
 .chat-header {
-  padding: 10px 16px;
+  /* padding-top absorbs the iOS safe-area (Dynamic Island / notch) so the
+     channel background can extend under the status bar. Shaved 8px off the
+     raw inset because the system UI only needs clearance, not full reserve. */
+  padding: max(10px, calc(env(safe-area-inset-top, 0px) - 8px)) 16px 10px 16px;
   border-bottom: 1px solid rgba(var(--accent-rgb), 0.2);
   background-color: transparent;
   flex-shrink: 0;
