@@ -45,6 +45,9 @@
     "macOS": {
       "entitlements": "entitlements.plist",
       "infoPlist": "Info.plist"
+    },
+    "iOS": {
+      "developmentTeam": "7Q9P3WCY2D"
     }
   },
   "plugins": {

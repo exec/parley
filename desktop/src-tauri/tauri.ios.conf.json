@@ -1,0 +1,6 @@
+{
+  "build": {
+    "devUrl": "https://parley.byexec.com",
+    "beforeDevCommand": ""
+  }
+}

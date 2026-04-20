@@ -51,6 +51,7 @@ import { useVoiceConnection } from './hooks/useVoiceConnection';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { UpdateBanner } from './components/UpdateBanner';
 import { checkForUpdate, type PendingUpdate } from './lib/updater';
+import { isTauri } from './lib/tauri';
 
 type View = 'homepage' | 'server' | 'dm';
 
@@ -1518,7 +1519,13 @@ const ProtectedApp = (
 
 const HomeRoute: React.FC = () => {
   const token = localStorage.getItem('token');
-  if (!token) return <Landing />;
+  if (!token) {
+    // Landing is a marketing surface for first-time web visitors. Anyone
+    // running the packaged desktop or mobile app already knows what Parley
+    // is, so skip it and send them straight to login.
+    if (isTauri()) return <Navigate to="/login" replace />;
+    return <Landing />;
+  }
   return <Navigate to="/channels/@me" replace />;
 };
 

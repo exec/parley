@@ -1,4 +1,6 @@
-use tauri::{Emitter, Manager, WindowEvent};
+use tauri::{Emitter, Manager};
+#[cfg(desktop)]
+use tauri::WindowEvent;
 #[cfg(target_os = "macos")]
 use tauri::RunEvent;
 use tauri_plugin_deep_link::DeepLinkExt;
@@ -44,11 +46,14 @@ pub fn run() {
             #[cfg(desktop)]
             setup_tray(app)?;
 
-            // Closing the window keeps the process alive so WebSocket + OS
-            // notifications keep working; users quit explicitly via the tray
-            // menu or Cmd+Q. We emit parley:foreground=false just before the
-            // hide so the renderer's notification hook can flip its flag — the
-            // DOM and tauri://blur signals don't reliably fire on macOS hide.
+            // Desktop close-to-tray: keep the process alive when the window is
+            // closed so WebSocket + OS notifications keep working. We emit
+            // parley:foreground=false just before hide() so the renderer's
+            // notification hook flips its flag — DOM and tauri://blur signals
+            // don't reliably fire on macOS hide. Mobile has no window-close
+            // concept (iOS pauses the app via the lifecycle instead), so the
+            // whole handler is desktop-only.
+            #[cfg(desktop)]
             if let Some(window) = app.get_webview_window("main") {
                 let hide_target = window.clone();
                 window.on_window_event(move |event| {

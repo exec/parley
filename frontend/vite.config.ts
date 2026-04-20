@@ -38,7 +38,16 @@ export default defineConfig({
     setupFiles: './src/test/setup.ts',
     css: false,
   },
+  // Tauri mobile sets TAURI_DEV_HOST to the Mac's LAN IP so the app running
+  // on a physical phone can reach this dev server. Without host:0.0.0.0, vite
+  // binds to localhost only and the phone can't load the page.
   server: {
+    host: process.env.TAURI_DEV_HOST || 'localhost',
+    port: 5173,
+    strictPort: true,
+    hmr: process.env.TAURI_DEV_HOST
+      ? { protocol: 'ws', host: process.env.TAURI_DEV_HOST, port: 1421 }
+      : undefined,
     proxy: {
       '/api': {
         target: apiTarget,
