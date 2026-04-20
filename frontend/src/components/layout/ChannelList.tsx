@@ -9,7 +9,8 @@ import {
   DragEndEvent,
   DragOverlay,
   DragStartEvent,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   closestCenter,
   useSensor,
   useSensors,
@@ -538,7 +539,14 @@ const ChannelList: React.FC<ChannelListProps> = ({
   [sorted]);
 
   // dnd-kit sensors — require 8px movement to start drag (prevents click hijacking)
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  // Split sensors: mouse uses distance-based activation so click vs. drag is
+  // fast on desktop, touch uses a 250ms press-and-hold so a normal tap on
+  // the channel goes through as a click without being swallowed by the
+  // drag-detection window on iOS.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
+  );
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(String(event.active.id));
