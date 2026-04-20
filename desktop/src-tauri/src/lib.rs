@@ -1,4 +1,6 @@
-use tauri::{Emitter, Manager, RunEvent, WindowEvent};
+use tauri::{Emitter, Manager, WindowEvent};
+#[cfg(target_os = "macos")]
+use tauri::RunEvent;
 use tauri_plugin_deep_link::DeepLinkExt;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -62,13 +64,16 @@ pub fn run() {
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|app, event| {
+        .run(|_app, _event| {
             // macOS: clicking the Dock icon after closing (hiding) the main
             // window fires applicationShouldHandleReopen. We re-show the
             // hidden window so the Dock click matches the tray-click path.
-            if let RunEvent::Reopen { has_visible_windows, .. } = event {
+            // RunEvent::Reopen only exists on macOS, so the whole branch is
+            // gated off — other platforms fall through.
+            #[cfg(target_os = "macos")]
+            if let RunEvent::Reopen { has_visible_windows, .. } = _event {
                 if !has_visible_windows {
-                    reveal_main_window(app);
+                    reveal_main_window(_app);
                 }
             }
         });
