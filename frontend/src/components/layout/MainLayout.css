@@ -202,6 +202,16 @@
   flex-shrink: 0;
 }
 
+/* On mobile the @me top bar sits under the Dynamic Island / status bar.
+   Push it down so its tap targets clear the system chrome. */
+@media (hover: none) and (pointer: coarse) {
+  .at-me-topbar {
+    height: auto;
+    min-height: calc(48px + max(0px, env(safe-area-inset-top, 0px) - 4px));
+    padding-top: max(0px, calc(env(safe-area-inset-top, 0px) - 4px));
+  }
+}
+
 .at-me-topbar-icon {
   color: var(--parley-text-muted, #8ba3bf);
   display: flex;
