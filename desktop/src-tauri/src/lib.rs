@@ -56,6 +56,7 @@ pub fn run() {
 
 #[cfg(desktop)]
 fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    use tauri::image::Image;
     use tauri::menu::{MenuBuilder, MenuItemBuilder};
     use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 
@@ -63,13 +64,15 @@ fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let quit_item = MenuItemBuilder::with_id("quit", "Quit Parley").build(app)?;
     let menu = MenuBuilder::new(app).items(&[&show_item, &quit_item]).build()?;
 
-    let icon = app
-        .default_window_icon()
-        .cloned()
-        .ok_or("missing default window icon")?;
+    // Monochrome P-only glyph (black on transparent). On macOS this is rendered
+    // as an NSImage template so the system tints it to match the menu bar
+    // (white on dark, dark on light). Windows/Linux get the same shape, which
+    // reads fine against their tray backgrounds.
+    let tray_icon = Image::from_bytes(include_bytes!("../icons/tray-template.png"))?;
 
     let _tray = TrayIconBuilder::with_id("parley-tray")
-        .icon(icon)
+        .icon(tray_icon)
+        .icon_as_template(cfg!(target_os = "macos"))
         .tooltip("Parley")
         .menu(&menu)
         .show_menu_on_left_click(false)

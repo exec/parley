@@ -327,6 +327,26 @@ export const PostView: React.FC<PostViewProps> = ({ postId, onBack, currentUserI
           <div className="post-view-title-row">
             <h1 className="post-view-title">{post.title}</h1>
 
+            <div className="post-view-meta">
+              <div className="post-view-author">
+                <div className="post-view-avatar">
+                  {post.author_avatar_url
+                    ? <img src={post.author_avatar_url} alt={post.author_username} />
+                    : <span>{authorInitials}</span>}
+                </div>
+                <span className="post-view-username">{post.author_username}</span>
+              </div>
+              <span className="post-view-time">{formatRelativeTime(post.created_at)}</span>
+
+              {post.tags && post.tags.length > 0 && (
+                <div className="post-view-tags">
+                  {post.tags.map((tag) => (
+                    <span key={tag} className="post-view-tag-pill">{tag}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {versions.length > 1 && (
               <select
                 className="post-view-version-select"
@@ -339,26 +359,6 @@ export const PostView: React.FC<PostViewProps> = ({ postId, onBack, currentUserI
                   </option>
                 ))}
               </select>
-            )}
-          </div>
-
-          <div className="post-view-meta">
-            <div className="post-view-author">
-              <div className="post-view-avatar">
-                {post.author_avatar_url
-                  ? <img src={post.author_avatar_url} alt={post.author_username} />
-                  : <span>{authorInitials}</span>}
-              </div>
-              <span className="post-view-username">{post.author_username}</span>
-            </div>
-            <span className="post-view-time">{formatRelativeTime(post.created_at)}</span>
-
-            {post.tags && post.tags.length > 0 && (
-              <div className="post-view-tags">
-                {post.tags.map((tag) => (
-                  <span key={tag} className="post-view-tag-pill">{tag}</span>
-                ))}
-              </div>
             )}
           </div>
         </div>

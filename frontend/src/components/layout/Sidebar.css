@@ -19,6 +19,8 @@
    icon doesn't sit underneath them. */
 [data-tauri-platform="macos"] .sidebar {
   padding-top: 40px;
+  width: 76px;
+  min-width: 76px;
 }
 
 

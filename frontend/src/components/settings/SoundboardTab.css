@@ -4,6 +4,13 @@
   gap: 4px;
 }
 
+.soundboard-upload-btn {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 /* Hide native file input; a styled button/chip triggers it. */
 .soundboard-file-hidden {
   position: absolute;

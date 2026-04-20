@@ -208,10 +208,10 @@ export const SoundboardTab: React.FC<Props> = ({ serverId }) => {
 
           <button
             type="submit"
-            className="settings-save-btn"
+            className="settings-btn settings-btn-primary soundboard-upload-btn"
             disabled={uploading || !uploadFile || !uploadName.trim() || atLimit}
           >
-            <Upload size={14} style={{ marginRight: 6 }} />
+            <Upload size={14} />
             {uploading ? 'Uploading…' : 'Upload'}
           </button>
         </form>
