@@ -549,7 +549,7 @@ export const Message: React.FC<MessageProps> = ({
                       src={message.attachment_url}
                       alt={message.attachment_name || 'attachment'}
                       className="message-attachment-image"
-                      style={{ maxWidth: '400px', maxHeight: '300px', borderRadius: '4px', marginTop: '4px', cursor: 'zoom-in' }}
+                      style={{ maxHeight: '300px', borderRadius: '4px', marginTop: '4px', cursor: 'zoom-in' }}
                       onClick={() => setLightboxUrl(message.attachment_url!)}
                     />
                   ) : isVoice || isAudio ? (
