@@ -204,6 +204,11 @@ html {
   height: var(--app-height, 100svh);
   box-sizing: border-box;
   background-color: var(--parley-bg-primary);
+  /* overflow: hidden prevents iOS from document-scrolling when an input
+     focuses — otherwise the header briefly slides up before our scrollTo
+     snapback fires. Inner scroll containers (message list, sidebars) still
+     scroll normally. */
+  overflow: hidden;
 }
 
 /* Standalone PWA: the --app-height variable already handles this — the
@@ -221,7 +226,7 @@ body {
   font-feature-settings: 'kern' 1, 'liga' 1;
   /* Prevent any rogue wide descendant from scrolling the whole page on
      mobile — individual scrollable regions still work. */
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
 #root {
