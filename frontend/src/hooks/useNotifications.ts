@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback } from 'react';
 import {
+  isTauri,
   requestNotificationPermission,
   sendDesktopNotification,
 } from '../lib/tauri';
@@ -45,12 +46,32 @@ export function useNotifications() {
     window.addEventListener('blur', onBlur);
     document.addEventListener('visibilitychange', recomputeForeground);
 
+    // In Tauri on macOS, DOM focus/blur don't fire when the NSWindow loses
+    // focus or is hidden (WKWebView keeps the web layer "focused"), so hook
+    // into Tauri's window-level focus events directly as a second signal.
+    let unlistenTauriFocus: (() => void) | null = null;
+    if (isTauri()) {
+      (async () => {
+        try {
+          const { getCurrentWindow } = await import('@tauri-apps/api/window');
+          const w = getCurrentWindow();
+          inForegroundRef.current = await w.isFocused();
+          unlistenTauriFocus = await w.onFocusChanged(({ payload: focused }) => {
+            inForegroundRef.current = focused;
+          });
+        } catch {
+          // fall back to DOM listeners only
+        }
+      })();
+    }
+
     return () => {
       document.removeEventListener('click', unlock);
       document.removeEventListener('keydown', unlock);
       window.removeEventListener('focus', onFocus);
       window.removeEventListener('blur', onBlur);
       document.removeEventListener('visibilitychange', recomputeForeground);
+      if (unlistenTauriFocus) unlistenTauriFocus();
     };
   }, []);
 
