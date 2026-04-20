@@ -190,9 +190,11 @@
 }
 
 .dm-panel-user-area {
-  height: 52px;
   min-height: 52px;
-  padding: 0 8px;
+  /* On mobile the DM panel sits inside the left drawer, which reaches the
+     bottom edge of the screen — without extra bottom padding the user-info
+     row sits right against the home indicator. 14px clears the swipe zone. */
+  padding: 0 8px 14px;
   display: flex;
   align-items: center;
   background-color: var(--parley-panel-footer-bg, var(--bg-primary));

@@ -25,7 +25,9 @@
 .message-list-container {
   height: 100%;
   overflow-y: auto;
-  padding: 16px 0;
+  /* 24px top gives a bit of breathing room between the sticky chat header
+     and the first message; 16px bottom matches prior visual weight. */
+  padding: 24px 0 16px;
   display: flex;
   flex-direction: column;
 }
