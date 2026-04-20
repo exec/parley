@@ -17,6 +17,10 @@ export async function updateServerRole(serverId: string, roleId: string, name: s
   return apiClient.patch<Role>(`/servers/${serverId}/roles/${roleId}`, { name, color, permissions, hoist, position });
 }
 
+export async function reorderServerRoles(serverId: string, positions: Array<{ role_id: string; position: number }>): Promise<Role[]> {
+  return apiClient.patch<Role[]>(`/servers/${serverId}/roles/positions`, { positions });
+}
+
 export async function getMemberRoles(serverId: string, userId: string): Promise<Role[]> {
   return apiClient.get<Role[]>(`/servers/${serverId}/members/${userId}/roles`);
 }

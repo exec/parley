@@ -787,6 +787,102 @@ func (h *Handler) GetMemberRoles(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, roles)
 }
 
+// ReorderServerRoles handles PATCH /servers/:id/roles/positions.
+// Body: { "positions": [ { "role_id": "...", "position": int }, ... ] }
+// Applied in a single transaction to avoid unique-position collisions that
+// plague parallel individual PATCHes.
+func (h *Handler) ReorderServerRoles(w http.ResponseWriter, r *http.Request) {
+	serverID := chi.URLParam(r, "id")
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	server, err := h.service.GetServer(r.Context(), serverID)
+	if err != nil {
+		httputil.JSONError(w, "server not found", http.StatusNotFound)
+		return
+	}
+
+	var req struct {
+		Positions []struct {
+			RoleID   string `json:"role_id"`
+			Position int    `json:"position"`
+		} `json:"positions"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || len(req.Positions) == 0 {
+		httputil.JSONError(w, "positions is required", http.StatusBadRequest)
+		return
+	}
+
+	sID, _ := permissions.ParseInt64(serverID)
+	aID, _ := permissions.ParseInt64(userID)
+	ownerID, _ := permissions.ParseInt64(server.OwnerID)
+	isOwner := server.OwnerID == userID
+
+	roles, _ := h.service.Repo().GetServerRoles(r.Context(), sID)
+	rolesByID := make(map[int64]struct {
+		IsEveryone bool
+		Position   int
+	}, len(roles))
+	for _, role := range roles {
+		rolesByID[role.ID] = struct {
+			IsEveryone bool
+			Position   int
+		}{role.IsEveryone, role.Position}
+	}
+
+	positions := make(map[int64]int, len(req.Positions))
+	touchesEveryone := false
+	for _, p := range req.Positions {
+		rID, err := permissions.ParseInt64(p.RoleID)
+		if err != nil {
+			httputil.JSONError(w, "invalid role_id", http.StatusBadRequest)
+			return
+		}
+		info, ok := rolesByID[rID]
+		if !ok {
+			httputil.JSONError(w, "role not found", http.StatusNotFound)
+			return
+		}
+		if info.IsEveryone {
+			touchesEveryone = true
+		}
+		positions[rID] = p.Position
+	}
+
+	if !isOwner {
+		requiredPerm := permissions.PermManageRoles
+		if touchesEveryone {
+			requiredPerm = permissions.PermManageServer
+		}
+		hasPerm, err := permissions.HasPermission(r.Context(), h.service.Repo(), sID, aID, ownerID, requiredPerm)
+		if err != nil || !hasPerm {
+			httputil.JSONError(w, "insufficient permissions to reorder roles", http.StatusForbidden)
+			return
+		}
+		// Hierarchy: actor's highest role must sit strictly above every touched
+		// role, both at its current position and its new target position, so a
+		// non-owner can't float a role above themselves.
+		actorHighest, _ := h.service.Repo().GetHighestRolePosition(r.Context(), sID, aID)
+		for rID, newPos := range positions {
+			info := rolesByID[rID]
+			if info.Position >= actorHighest || newPos >= actorHighest {
+				httputil.JSONError(w, "cannot reorder a role at or above your highest role", http.StatusForbidden)
+				return
+			}
+		}
+	}
+
+	out, err := h.service.ReorderServerRoles(r.Context(), serverID, positions)
+	if err != nil {
+		httputil.InternalError(w, err)
+		return
+	}
+	render.JSON(w, r, out)
+}
+
 // AssignRoleToMember handles POST /servers/:id/members/:userId/roles
 func (h *Handler) AssignRoleToMember(w http.ResponseWriter, r *http.Request) {
 	serverID := chi.URLParam(r, "id")

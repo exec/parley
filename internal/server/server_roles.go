@@ -109,6 +109,41 @@ func (s *ServerService) DeleteServerRole(ctx context.Context, serverID, roleID s
 	return nil
 }
 
+// ReorderServerRoles atomically rewrites each given role's position. The map
+// key is the role ID; the value is the new position. Returns the full refreshed
+// role list on success and fans out role-update websocket events.
+func (s *ServerService) ReorderServerRoles(ctx context.Context, serverID string, positions map[int64]int) ([]Role, error) {
+	sID, err := idToInt64(serverID)
+	if err != nil {
+		return nil, errors.New("invalid server ID")
+	}
+	if err := s.repo.ReorderServerRoles(ctx, sID, positions); err != nil {
+		return nil, err
+	}
+	dbRoles, err := s.repo.GetServerRoles(ctx, sID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Role, len(dbRoles))
+	for i, r := range dbRoles {
+		out[i] = dbRoleToRole(r)
+	}
+	if s.hub != nil {
+		for _, r := range out {
+			if _, touched := positions[func() int64 { v, _ := strconv.ParseInt(r.ID, 10, 64); return v }()]; !touched {
+				continue
+			}
+			payload, err := json.Marshal(r)
+			if err != nil {
+				log.Printf("Failed to marshal role update event: %v", err)
+				continue
+			}
+			s.hub.BroadcastToChannel("server:"+serverID, ws.EventRoleUpdate, payload)
+		}
+	}
+	return out, nil
+}
+
 func (s *ServerService) UpdateServerRole(ctx context.Context, serverID, roleID, name, color string, permissions int64, hoist bool, position int, actorID int64, actorUsername string) (*Role, error) {
 	serverIDInt, err := idToInt64(serverID)
 	if err != nil {

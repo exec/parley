@@ -28,12 +28,16 @@ export const AppearanceTab: React.FC = () => {
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [publishingId, setPublishingId] = useState<number | null>(null);
 
+  const [shareError, setShareError] = useState('');
   const handleShare = async (id: number) => {
+    setShareError('');
     try {
       const { share_url } = await shareTheme(id);
       await navigator.clipboard.writeText(share_url);
       setCopiedId(id); setTimeout(() => setCopiedId(null), 2000);
-    } catch {}
+    } catch (e) {
+      setShareError(e instanceof Error ? e.message : 'Failed to share');
+    }
   };
 
   const handleTogglePublish = async (id: number, currentlyPublished: boolean) => {
@@ -105,6 +109,7 @@ export const AppearanceTab: React.FC = () => {
         </button>
       </div>
       <div className="appearance-theme-counter">{theme.customThemes.length} / 20 themes</div>
+      {shareError && <div className="settings-error" style={{ marginBottom: 8 }}>{shareError}</div>}
       <div className="appearance-custom-list">
         {theme.customThemes.map(t => {
           const isActive = theme.activeTheme==='custom' && theme.activeCustomThemeId===t.id;

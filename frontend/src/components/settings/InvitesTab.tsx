@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Server } from '../../api/types';
+import { siteOrigin } from '../../config';
 import {
   Invite,
   InviteMember,
@@ -166,7 +167,7 @@ export const InvitesTab: React.FC<Props> = ({ server }) => {
   };
 
   const handleCopy = (code: string) => {
-    const url = `${window.location.origin}/invite/${code}`;
+    const url = `${siteOrigin()}/invite/${code}`;
     navigator.clipboard.writeText(url);
     setCopied(code);
     if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
@@ -225,7 +226,7 @@ export const InvitesTab: React.FC<Props> = ({ server }) => {
         {createdInvite && (
           <div className="invites-new-link-box">
             <span className="invites-new-link-url">
-              {window.location.origin}/invite/{createdInvite.code}
+              {siteOrigin()}/invite/{createdInvite.code}
             </span>
             <button
               className="settings-btn settings-btn-ghost"

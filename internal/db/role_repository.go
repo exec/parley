@@ -48,6 +48,38 @@ func (r *Repository) CreateServerRole(ctx context.Context, serverID int64, name,
 	return &role, nil
 }
 
+// ReorderServerRoles sets the position for each given role in a single
+// transaction. The unique (server_id, position) constraint makes a naive loop
+// fail when new positions overlap with existing ones, so this uses a two-phase
+// approach: first park every touched row at a negative position (guaranteed
+// unique because we use the row's own id), then move each to its target.
+func (r *Repository) ReorderServerRoles(ctx context.Context, serverID int64, positions map[int64]int) error {
+	if len(positions) == 0 {
+		return nil
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	for id := range positions {
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE server_roles SET position = -id WHERE server_id = $1 AND id = $2`,
+			serverID, id); err != nil {
+			return err
+		}
+	}
+	for id, pos := range positions {
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE server_roles SET position = $1 WHERE server_id = $2 AND id = $3`,
+			pos, serverID, id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
 func (r *Repository) DeleteServerRole(ctx context.Context, serverID, roleID int64) error {
 	result, err := r.db.ExecContext(ctx,
 		`DELETE FROM server_roles WHERE id = $1 AND server_id = $2`,

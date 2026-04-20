@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { SITE_URL } from '../../config';
+import { SITE_URL, siteOrigin } from '../../config';
 import { listAPIKeys, createAPIKey, revokeAPIKey, renameBotUser, APIKeyInfo, CreateKeyResponse } from '../../api/developer';
 import { getMyBots, updateBotInvitePermissions, updateBotShowAuthor, UserBot } from '../../api/bots';
 import { PERMISSION_CATEGORIES, permFromNumber } from '../../lib/permissions';
@@ -317,7 +317,7 @@ export const DeveloperTab: React.FC = () => {
         <div className="settings-section">
           <div className="settings-section-title">My Bots</div>
           {myBots.map(bot => {
-            const inviteURL = `${window.location.origin}/invite/bot/${bot.invite_token}`;
+            const inviteURL = `${siteOrigin()}/invite/bot/${bot.invite_token}`;
             return (
               <div key={bot.id} style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
                 <div style={{ fontWeight: 600, marginBottom: 4 }}>

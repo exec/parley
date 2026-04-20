@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Server } from '../../api/types';
+import { siteOrigin } from '../../config';
 import { updateServer, deleteServer, createInvite, setVanityURL } from '../../api/servers';
 import { uploadFile } from '../../api/upload';
 
@@ -125,7 +126,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
 
   const copyInviteLink = () => {
     if (inviteCode) {
-      navigator.clipboard.writeText(`${window.location.origin}/invite/${inviteCode}`);
+      navigator.clipboard.writeText(`${siteOrigin()}/invite/${inviteCode}`);
       setCopied(true);
       if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
       copiedTimerRef.current = setTimeout(() => setCopied(false), 1500);
@@ -186,7 +187,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
         <div className="form-group">
           <label className="form-label">Vanity URL</label>
           <div className="vanity-url-input-wrapper">
-            <span className="vanity-url-prefix">{window.location.origin}/invite/</span>
+            <span className="vanity-url-prefix">{siteOrigin()}/invite/</span>
             <input
               className="form-input vanity-url-input"
               type="text"
@@ -213,7 +214,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                 className="form-input invite-link-input"
                 type="text"
                 readOnly
-                value={`${window.location.origin}/invite/${inviteCode}`}
+                value={`${siteOrigin()}/invite/${inviteCode}`}
               />
               <Button variant="secondary" onClick={copyInviteLink}>
                 {copied ? 'Copied!' : 'Copy'}

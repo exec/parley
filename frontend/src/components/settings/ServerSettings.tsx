@@ -16,6 +16,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Server, ServerMember, Role, ServerCategory } from '../../api/types';
+import { siteOrigin } from '../../config';
 import { updateServer, deleteServer, setVanityURL, getMyPermissions } from '../../api/servers';
 import { getServerCategories, getServerCategoryAssignments, setServerCategories } from '../../api/discovery';
 import '../discovery/DiscoveryPage.css';
@@ -25,6 +26,7 @@ import {
   createServerRole,
   deleteServerRole,
   updateServerRole,
+  reorderServerRoles,
 } from '../../api/roles';
 import {
   PERMISSION_CATEGORIES,
@@ -228,11 +230,13 @@ export const ServerSettings: React.FC<Props> = ({
     setRoles([...repositioned, ...everyone]);
 
     const origByID = new Map(roles.map(r => [r.id, r]));
-    const changed = repositioned.filter(r => (origByID.get(r.id)?.position ?? 0) !== r.position);
+    const changed = repositioned
+      .filter(r => (origByID.get(r.id)?.position ?? 0) !== r.position)
+      .map(r => ({ role_id: r.id, position: r.position }));
+    if (changed.length === 0) return;
     try {
-      await Promise.all(changed.map(r =>
-        updateServerRole(server.id, r.id, r.name, r.color, r.permissions ?? 0, r.hoist, r.position)
-      ));
+      const refreshed = await reorderServerRoles(server.id, changed);
+      setRoles(sortRolesForDisplay(refreshed));
     } catch (e) {
       setRolesError(e instanceof Error ? e.message : 'Failed to reorder roles');
       loadRoles();
@@ -484,7 +488,7 @@ export const ServerSettings: React.FC<Props> = ({
               <div className="settings-section">
                 <div className="settings-section-title">Vanity URL</div>
                 <div className="settings-vanity-wrap">
-                  <span className="settings-vanity-prefix">{window.location.origin}/invite/</span>
+                  <span className="settings-vanity-prefix">{siteOrigin()}/invite/</span>
                   <input
                     className="settings-vanity-input"
                     type="text"
