@@ -14,7 +14,9 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = ["macos-private-api", "devtools", "tray-icon", "image-png"] }
-tauri-plugin-shell = "2"
+# Pinned to 2.2.0 — iOS `open()` regressed in 2.2.1+
+# (tauri-apps/plugins-workspace#2781). JS companion is pinned to match.
+tauri-plugin-shell = "=2.2.0"
 tauri-plugin-deep-link = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-clipboard-manager = "2"
