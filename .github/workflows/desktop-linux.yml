@@ -81,6 +81,33 @@ jobs:
         working-directory: desktop
         run: npx tauri build --bundles deb,rpm
 
+      # Rewrite the .deb Depends so the package installs on Debian trixie+ as
+      # well as Ubuntu 24.04+. Both libgtk-3-0 and libwebkit2gtk-4.1-0 were
+      # renamed with a "t64" suffix during Debian's time64 transition, and
+      # Tauri's auto-detected deps hard-code the pre-transition names. The
+      # tauri.conf.json "depends" override only *appends* to the list, so the
+      # original (broken) names still appear — we fix it up after the build.
+      - name: Fix .deb Depends for Debian t64 transition
+        run: |
+          DEB=$(ls desktop/src-tauri/target/release/bundle/deb/*.deb | head -1)
+          WORKDIR=$(mktemp -d)
+          dpkg-deb -R "$DEB" "$WORKDIR/extracted"
+          echo "--- before:"
+          grep -i '^Depends' "$WORKDIR/extracted/DEBIAN/control"
+          sed -i 's#^Depends:.*#Depends: libwebkit2gtk-4.1-0 | libwebkit2gtk-4.1-0t64, libgtk-3-0 | libgtk-3-0t64#' "$WORKDIR/extracted/DEBIAN/control"
+          dpkg-deb -b "$WORKDIR/extracted" "$DEB"
+          echo "--- after:"
+          dpkg-deb -f "$DEB" Depends
+
+      # Surface the .rpm's requirements in the build log so we can tell whether
+      # Fedora/RHEL targets need the same kind of alternatives wrangling.
+      - name: Inspect .rpm requirements
+        run: |
+          RPM=$(ls desktop/src-tauri/target/release/bundle/rpm/*.rpm | head -1)
+          sudo apt-get install -y rpm >/dev/null
+          echo "--- Requires:"
+          rpm -qpR "$RPM" || true
+
       - name: Collect .deb and .rpm
         id: collect
         run: |
