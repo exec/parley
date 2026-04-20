@@ -17,25 +17,24 @@
     setThemeColor(t);
   }
 
-  // ── Standalone PWA height ────────────────────────────────────────────────
-  // The CSS display-mode:standalone media query handles the svh→dvh switch,
-  // but during login→app transition React may remount before the cascade
-  // resolves. Set an explicit --app-height so there's never a flash.
-  // In standalone: use screen dimensions (true full screen).
-  // In browser: use innerHeight (current visible area, stable enough on mount).
-  var isStandalone = window.navigator.standalone === true ||
-    window.matchMedia('(display-mode: standalone)').matches;
-  var h = isStandalone
-    ? (window.screen.height)  // full physical screen in CSS px
-    : (window.visualViewport ? window.visualViewport.height : window.innerHeight);
-  document.documentElement.style.setProperty('--app-height', h + 'px');
+  // ── Viewport height tracking ─────────────────────────────────────────────
+  // Track visualViewport.height so the app shrinks above the iOS keyboard
+  // (keyboard doesn't affect 100svh/100dvh — Apple treats it as an overlay).
+  // Without this, iOS auto-scrolls the whole WKWebView on input focus and
+  // the chat header slides off screen.
+  function updateAppHeight(){
+    var h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    document.documentElement.style.setProperty('--app-height', h + 'px');
+    // Cancel any document-level scroll that iOS may have initiated to push
+    // the input into view. Our inner containers handle their own scrolling.
+    if (window.scrollY !== 0 || window.scrollX !== 0) window.scrollTo(0, 0);
+  }
+  updateAppHeight();
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', updateAppHeight);
+    window.visualViewport.addEventListener('scroll', updateAppHeight);
+  }
   window.addEventListener('orientationchange', function(){
-    setTimeout(function(){
-      var isStandalone2 = window.navigator.standalone === true ||
-        window.matchMedia('(display-mode: standalone)').matches;
-      var h2 = isStandalone2 ? window.screen.height
-        : (window.visualViewport ? window.visualViewport.height : window.innerHeight);
-      document.documentElement.style.setProperty('--app-height', h2 + 'px');
-    }, 150);
+    setTimeout(updateAppHeight, 150);
   });
 })();

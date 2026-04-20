@@ -198,23 +198,17 @@ select,
 }
 
 html {
-  /* 100svh = stable "small" viewport height — never shifts when Safari URL bar
-     slides in/out. No safe-area padding here: we want the channel background
-     image to extend edge-to-edge under the Dynamic Island and home indicator.
-     Individual chrome elements (chat header, message input) carry the
-     safe-area clearance themselves so their content doesn't hit system UI. */
-  height: 100svh;
+  /* --app-height tracks visualViewport.height from theme-init.js so the app
+     shrinks above the iOS keyboard (plain 100svh/dvh stays full-screen even
+     when the keyboard is up). Falls back to 100svh on non-iOS. */
+  height: var(--app-height, 100svh);
   box-sizing: border-box;
   background-color: var(--parley-bg-primary);
 }
 
-/* In PWA standalone mode there is no Safari toolbar, so 100svh incorrectly
-   reserves toolbar space at the bottom. Switch to dvh which = full screen. */
-@media (display-mode: standalone) {
-  html {
-    height: 100dvh;
-  }
-}
+/* Standalone PWA: the --app-height variable already handles this — the
+   previous 100dvh override is redundant and would fight the keyboard
+   resize behavior. */
 
 body {
   height: 100%;
