@@ -48,29 +48,32 @@ func (r *Repository) CreateServerRole(ctx context.Context, serverID int64, name,
 	return &role, nil
 }
 
-// ReorderServerRoles sets the position for each given role in a single
-// transaction. The unique (server_id, position) constraint makes a naive loop
-// fail when new positions overlap with existing ones, so this uses a two-phase
-// approach: first park every touched row at a negative position (guaranteed
-// unique because we use the row's own id), then move each to its target.
-func (r *Repository) ReorderServerRoles(ctx context.Context, serverID int64, positions map[int64]int) error {
-	if len(positions) == 0 {
-		return nil
-	}
+// ReorderServerRoles normalizes every role position for a server in one
+// transaction. Input is the ordered list of non-@everyone role IDs, top
+// (highest hierarchy) first. @everyone is forced to position 0; the other
+// roles get positions N, N-1, ..., 1 matching the input order. A two-phase
+// update sidesteps the unique (server_id, position) index — every row is
+// parked at position = -id (unique because id is) before final assignment.
+func (r *Repository) ReorderServerRoles(ctx context.Context, serverID int64, orderedNonEveryoneIDs []int64) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	for id := range positions {
-		if _, err := tx.ExecContext(ctx,
-			`UPDATE server_roles SET position = -id WHERE server_id = $1 AND id = $2`,
-			serverID, id); err != nil {
-			return err
-		}
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE server_roles SET position = -id WHERE server_id = $1`,
+		serverID); err != nil {
+		return err
 	}
-	for id, pos := range positions {
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE server_roles SET position = 0 WHERE server_id = $1 AND is_everyone = TRUE`,
+		serverID); err != nil {
+		return err
+	}
+	n := len(orderedNonEveryoneIDs)
+	for i, id := range orderedNonEveryoneIDs {
+		pos := n - i
 		if _, err := tx.ExecContext(ctx,
 			`UPDATE server_roles SET position = $1 WHERE server_id = $2 AND id = $3`,
 			pos, serverID, id); err != nil {

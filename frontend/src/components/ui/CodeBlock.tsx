@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import DOMPurify from 'dompurify';
 import { highlight, highlightLines, type ThemedToken } from '../../lib/shiki';
+import { copyToClipboard } from '../../lib/tauri';
 import './CodeBlock.css';
 
 interface CodeBlockProps {
@@ -32,7 +33,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
   const handleCopy = async (e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      await navigator.clipboard.writeText(content);
+      await copyToClipboard(content);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {

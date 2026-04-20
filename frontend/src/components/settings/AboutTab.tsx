@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { APP_VERSION, APP_COMMIT } from '../../config';
-import { isTauri, openInBrowser } from '../../lib/tauri';
+import { isTauri, openInBrowser, copyToClipboard } from '../../lib/tauri';
 
 const REPO_URL = 'https://github.com/exec/parley';
 
@@ -134,7 +134,7 @@ function useCopyState() {
     done,
     copy: async (text: string) => {
       try {
-        await navigator.clipboard.writeText(text);
+        await copyToClipboard(text);
         setDone(true);
         setTimeout(() => setDone(false), 2000);
       } catch {/* ignore */}

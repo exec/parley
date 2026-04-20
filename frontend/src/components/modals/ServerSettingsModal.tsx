@@ -3,6 +3,7 @@ import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Server } from '../../api/types';
 import { siteOrigin } from '../../config';
+import { copyToClipboard } from '../../lib/tauri';
 import { updateServer, deleteServer, createInvite, setVanityURL } from '../../api/servers';
 import { uploadFile } from '../../api/upload';
 
@@ -126,7 +127,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
 
   const copyInviteLink = () => {
     if (inviteCode) {
-      navigator.clipboard.writeText(`${siteOrigin()}/invite/${inviteCode}`);
+      void copyToClipboard(`${siteOrigin()}/invite/${inviteCode}`);
       setCopied(true);
       if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
       copiedTimerRef.current = setTimeout(() => setCopied(false), 1500);

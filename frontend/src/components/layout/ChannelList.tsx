@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Volume2, Mic, MicOff, PhoneOff, Hash, Code2, X, Plus, Video, VideoOff, Monitor, MonitorOff, Headphones, HeadphoneOff } from 'lucide-react';
 import { VoiceContextMenu } from '../voice/VoiceContextMenu';
 import { muteVoiceParticipant, kickVoiceParticipant } from '../../api/voice';
+import { copyToClipboard } from '../../lib/tauri';
 import {
   DndContext,
   DragEndEvent,
@@ -244,7 +245,7 @@ const ChannelContextMenu: React.FC<{
       <div className="cl-channel-context-header">{label}</div>
       <div className="cl-server-context-divider" />
       {channel.type !== 3 && <button className="cl-server-context-item" onClick={() => { onMarkAsRead(); onClose(); }}>Mark as Read</button>}
-      <button className="cl-server-context-item" onClick={() => { navigator.clipboard.writeText(channel.id); onClose(); }}>Copy ID</button>
+      <button className="cl-server-context-item" onClick={() => { void copyToClipboard(channel.id); onClose(); }}>Copy ID</button>
       {canManageChannels && (
         <>
           <div className="cl-server-context-divider" />

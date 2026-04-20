@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { SITE_URL, siteOrigin } from '../../config';
+import { copyToClipboard } from '../../lib/tauri';
 import { listAPIKeys, createAPIKey, revokeAPIKey, renameBotUser, APIKeyInfo, CreateKeyResponse } from '../../api/developer';
 import { getMyBots, updateBotInvitePermissions, updateBotShowAuthor, UserBot } from '../../api/bots';
 import { PERMISSION_CATEGORIES, permFromNumber } from '../../lib/permissions';
@@ -142,7 +143,7 @@ export const DeveloperTab: React.FC = () => {
 
   const handleCopy = async (text: string) => {
     try {
-      await navigator.clipboard.writeText(text);
+      await copyToClipboard(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -330,7 +331,7 @@ export const DeveloperTab: React.FC = () => {
                   <button
                     className="settings-btn settings-btn-ghost"
                     style={{ padding: '3px 10px', fontSize: 12, flexShrink: 0 }}
-                    onClick={() => navigator.clipboard.writeText(inviteURL)}
+                    onClick={() => void copyToClipboard(inviteURL)}
                   >
                     Copy
                   </button>

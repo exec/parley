@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Server } from '../../api/types';
 import { siteOrigin } from '../../config';
+import { copyToClipboard } from '../../lib/tauri';
 import {
   Invite,
   InviteMember,
@@ -168,7 +169,7 @@ export const InvitesTab: React.FC<Props> = ({ server }) => {
 
   const handleCopy = (code: string) => {
     const url = `${siteOrigin()}/invite/${code}`;
-    navigator.clipboard.writeText(url);
+    void copyToClipboard(url);
     setCopied(code);
     if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
     copiedTimerRef.current = setTimeout(() => setCopied(null), 2000);

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { copyToClipboard } from '../../lib/tauri';
 import './Sidebar.css';
 import '../notifications/Notifications.css';
 
@@ -181,7 +182,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           </button>
 
           <button className="sidebar-ctx-item" onClick={() => {
-            navigator.clipboard.writeText(contextMenu.server.id);
+            void copyToClipboard(contextMenu.server.id);
             close();
           }}>
             Copy Server ID

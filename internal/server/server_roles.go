@@ -109,15 +109,16 @@ func (s *ServerService) DeleteServerRole(ctx context.Context, serverID, roleID s
 	return nil
 }
 
-// ReorderServerRoles atomically rewrites each given role's position. The map
-// key is the role ID; the value is the new position. Returns the full refreshed
-// role list on success and fans out role-update websocket events.
-func (s *ServerService) ReorderServerRoles(ctx context.Context, serverID string, positions map[int64]int) ([]Role, error) {
+// ReorderServerRoles atomically normalizes role positions for a server.
+// orderedNonEveryoneIDs lists the non-@everyone roles from top (highest
+// hierarchy) to bottom. Returns the refreshed role list and fans out
+// role-update websocket events for every role in the server.
+func (s *ServerService) ReorderServerRoles(ctx context.Context, serverID string, orderedNonEveryoneIDs []int64) ([]Role, error) {
 	sID, err := idToInt64(serverID)
 	if err != nil {
 		return nil, errors.New("invalid server ID")
 	}
-	if err := s.repo.ReorderServerRoles(ctx, sID, positions); err != nil {
+	if err := s.repo.ReorderServerRoles(ctx, sID, orderedNonEveryoneIDs); err != nil {
 		return nil, err
 	}
 	dbRoles, err := s.repo.GetServerRoles(ctx, sID)
@@ -130,9 +131,6 @@ func (s *ServerService) ReorderServerRoles(ctx context.Context, serverID string,
 	}
 	if s.hub != nil {
 		for _, r := range out {
-			if _, touched := positions[func() int64 { v, _ := strconv.ParseInt(r.ID, 10, 64); return v }()]; !touched {
-				continue
-			}
 			payload, err := json.Marshal(r)
 			if err != nil {
 				log.Printf("Failed to marshal role update event: %v", err)

@@ -4,6 +4,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { shareTheme, publishTheme } from '../../api/themes';
 import { CustomThemeEditor } from './CustomThemeEditor';
 import { themePreviewStyle } from '../../lib/themePreview';
+import { copyToClipboard } from '../../lib/tauri';
 import '../ui/styles.css';
 import './AppearanceTab.css';
 
@@ -33,7 +34,7 @@ export const AppearanceTab: React.FC = () => {
     setShareError('');
     try {
       const { share_url } = await shareTheme(id);
-      await navigator.clipboard.writeText(share_url);
+      await copyToClipboard(share_url);
       setCopiedId(id); setTimeout(() => setCopiedId(null), 2000);
     } catch (e) {
       setShareError(e instanceof Error ? e.message : 'Failed to share');

@@ -3,6 +3,7 @@ import { useViewportAdjust } from '../../hooks/useViewportAdjust';
 import { Reply, SmilePlus, Pencil, Trash2, X, Bot } from 'lucide-react';
 import { Message as MessageType } from '../../api/types';
 import { Avatar } from '../ui/Avatar';
+import { copyToClipboard } from '../../lib/tauri';
 import { EmojiPicker } from './EmojiPicker';
 import MarkdownRenderer from '../ui/MarkdownRenderer';
 import { AudioPlayer } from './AudioPlayer';
@@ -330,7 +331,7 @@ export const Message: React.FC<MessageProps> = ({
 
   const handleCopy = (e?: React.MouseEvent) => {
     e?.stopPropagation();
-    navigator.clipboard.writeText(message.content);
+    void copyToClipboard(message.content);
     setCopied(true);
     // Keep menu open briefly so the user sees the "Copied!" feedback,
     // then auto-close and reset the label.

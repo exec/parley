@@ -806,13 +806,11 @@ func (h *Handler) ReorderServerRoles(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Positions []struct {
-			RoleID   string `json:"role_id"`
-			Position int    `json:"position"`
-		} `json:"positions"`
+		// Ordered non-@everyone role IDs, top (highest hierarchy) first.
+		RoleIDs []string `json:"role_ids"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || len(req.Positions) == 0 {
-		httputil.JSONError(w, "positions is required", http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -826,17 +824,21 @@ func (h *Handler) ReorderServerRoles(w http.ResponseWriter, r *http.Request) {
 		IsEveryone bool
 		Position   int
 	}, len(roles))
+	nonEveryoneCount := 0
 	for _, role := range roles {
 		rolesByID[role.ID] = struct {
 			IsEveryone bool
 			Position   int
 		}{role.IsEveryone, role.Position}
+		if !role.IsEveryone {
+			nonEveryoneCount++
+		}
 	}
 
-	positions := make(map[int64]int, len(req.Positions))
-	touchesEveryone := false
-	for _, p := range req.Positions {
-		rID, err := permissions.ParseInt64(p.RoleID)
+	ordered := make([]int64, 0, len(req.RoleIDs))
+	seen := make(map[int64]bool, len(req.RoleIDs))
+	for _, s := range req.RoleIDs {
+		rID, err := permissions.ParseInt64(s)
 		if err != nil {
 			httputil.JSONError(w, "invalid role_id", http.StatusBadRequest)
 			return
@@ -847,26 +849,35 @@ func (h *Handler) ReorderServerRoles(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if info.IsEveryone {
-			touchesEveryone = true
+			httputil.JSONError(w, "@everyone cannot be reordered", http.StatusBadRequest)
+			return
 		}
-		positions[rID] = p.Position
+		if seen[rID] {
+			httputil.JSONError(w, "duplicate role_id", http.StatusBadRequest)
+			return
+		}
+		seen[rID] = true
+		ordered = append(ordered, rID)
+	}
+	if len(ordered) != nonEveryoneCount {
+		httputil.JSONError(w, "role_ids must include every non-@everyone role exactly once", http.StatusBadRequest)
+		return
 	}
 
 	if !isOwner {
-		requiredPerm := permissions.PermManageRoles
-		if touchesEveryone {
-			requiredPerm = permissions.PermManageServer
-		}
-		hasPerm, err := permissions.HasPermission(r.Context(), h.service.Repo(), sID, aID, ownerID, requiredPerm)
+		hasPerm, err := permissions.HasPermission(r.Context(), h.service.Repo(), sID, aID, ownerID, permissions.PermManageRoles)
 		if err != nil || !hasPerm {
-			httputil.JSONError(w, "insufficient permissions to reorder roles", http.StatusForbidden)
+			httputil.JSONError(w, "manage roles permission required", http.StatusForbidden)
 			return
 		}
-		// Hierarchy: actor's highest role must sit strictly above every touched
-		// role, both at its current position and its new target position, so a
-		// non-owner can't float a role above themselves.
+		// Hierarchy: the actor's highest role (by position) must sit strictly
+		// above every role whose new position changes. Since we're normalizing
+		// everyone, also check that the new target position stays below the
+		// actor's highest.
 		actorHighest, _ := h.service.Repo().GetHighestRolePosition(r.Context(), sID, aID)
-		for rID, newPos := range positions {
+		n := len(ordered)
+		for i, rID := range ordered {
+			newPos := n - i
 			info := rolesByID[rID]
 			if info.Position >= actorHighest || newPos >= actorHighest {
 				httputil.JSONError(w, "cannot reorder a role at or above your highest role", http.StatusForbidden)
@@ -875,7 +886,7 @@ func (h *Handler) ReorderServerRoles(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	out, err := h.service.ReorderServerRoles(r.Context(), serverID, positions)
+	out, err := h.service.ReorderServerRoles(r.Context(), serverID, ordered)
 	if err != nil {
 		httputil.InternalError(w, err)
 		return

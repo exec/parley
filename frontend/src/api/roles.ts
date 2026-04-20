@@ -17,8 +17,9 @@ export async function updateServerRole(serverId: string, roleId: string, name: s
   return apiClient.patch<Role>(`/servers/${serverId}/roles/${roleId}`, { name, color, permissions, hoist, position });
 }
 
-export async function reorderServerRoles(serverId: string, positions: Array<{ role_id: string; position: number }>): Promise<Role[]> {
-  return apiClient.patch<Role[]>(`/servers/${serverId}/roles/positions`, { positions });
+// Accepts ordered non-@everyone role IDs from top (highest hierarchy) to bottom.
+export async function reorderServerRoles(serverId: string, orderedRoleIds: string[]): Promise<Role[]> {
+  return apiClient.patch<Role[]>(`/servers/${serverId}/roles/positions`, { role_ids: orderedRoleIds });
 }
 
 export async function getMemberRoles(serverId: string, userId: string): Promise<Role[]> {

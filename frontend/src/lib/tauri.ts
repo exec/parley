@@ -83,6 +83,23 @@ export async function sendDesktopNotification(opts: SendNotificationOptions): Pr
   }
 }
 
+// Copy text to the OS clipboard. In Tauri the browser Notification-gesture
+// rules break after an `await` (WebKit clears the user-activation flag), so
+// `navigator.clipboard.writeText` throws NotAllowedError — the plugin route
+// bypasses that. Falls back to the browser API on the web.
+export async function copyToClipboard(text: string): Promise<void> {
+  if (isTauri()) {
+    try {
+      const { writeText } = await import('@tauri-apps/plugin-clipboard-manager');
+      await writeText(text);
+      return;
+    } catch {
+      // fall through to the browser API
+    }
+  }
+  await navigator.clipboard.writeText(text);
+}
+
 type DeepLinkHandler = (url: string) => void;
 
 export async function onDeepLink(handler: DeepLinkHandler): Promise<() => void> {

@@ -224,18 +224,14 @@ export const ServerSettings: React.FC<Props> = ({
 
     const reordered = arrayMove(nonEv, oldIdx, newIdx);
     const N = reordered.length;
-    // Top of displayed list (index 0) gets highest position; bottom gets 1 (above @everyone = 0).
+    // Top (index 0) gets highest position; bottom gets 1. @everyone is pinned
+    // to position 0 by the backend.
     const repositioned: Role[] = reordered.map((r, i) => ({ ...r, position: N - i }));
-    const everyone = roles.filter(r => r.is_everyone);
+    const everyone = roles.filter(r => r.is_everyone).map(r => ({ ...r, position: 0 }));
     setRoles([...repositioned, ...everyone]);
 
-    const origByID = new Map(roles.map(r => [r.id, r]));
-    const changed = repositioned
-      .filter(r => (origByID.get(r.id)?.position ?? 0) !== r.position)
-      .map(r => ({ role_id: r.id, position: r.position }));
-    if (changed.length === 0) return;
     try {
-      const refreshed = await reorderServerRoles(server.id, changed);
+      const refreshed = await reorderServerRoles(server.id, reordered.map(r => r.id));
       setRoles(sortRolesForDisplay(refreshed));
     } catch (e) {
       setRolesError(e instanceof Error ? e.message : 'Failed to reorder roles');

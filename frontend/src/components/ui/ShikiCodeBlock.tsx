@@ -2,6 +2,7 @@ import { useState, useEffect, type MouseEvent } from 'react';
 import DOMPurify from 'dompurify';
 import type { Components } from 'react-markdown';
 import { highlight } from '../../lib/shiki';
+import { copyToClipboard } from '../../lib/tauri';
 import './CodeBlock.css';
 
 /**
@@ -34,7 +35,7 @@ const ShikiCodeBlock: Components['code'] = ({ className, children, ...props }) =
   const handleCopy = async (e: MouseEvent) => {
     e.stopPropagation();
     try {
-      await navigator.clipboard.writeText(code);
+      await copyToClipboard(code);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
