@@ -26,7 +26,8 @@
     position: fixed;
     right: 0;
     /* Start below the status bar so the sidebar itself doesn't extend behind
-       the Dynamic Island, but reach all the way to the bottom edge. */
+       the Dynamic Island. Bottom padding keeps the last member entry out
+       of the iOS home-indicator swipe zone. */
     top: env(safe-area-inset-top, 0px);
     bottom: 0;
     width: 260px;
@@ -36,6 +37,7 @@
     border-left-width: 1px;
     transform: translateX(110%);
     transition: transform 0.22s ease;
+    padding-bottom: 10px;
   }
   /* Reset the desktop collapse — on mobile, hidden = off-screen, not width:0 */
   .user-sidebar:not(.user-sidebar--open) {

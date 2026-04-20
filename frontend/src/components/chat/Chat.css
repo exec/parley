@@ -353,7 +353,7 @@
      minus ~6px still leaves the channel background visually extending to
      the edge while giving ~28px of clearance on iPhone. Desktop/web minimum
      is 22px so there's always breathing room below the input. */
-  padding: 16px 16px max(32px, calc(env(safe-area-inset-bottom, 0px) + 4px)) 16px;
+  padding: 16px 16px max(22px, calc(env(safe-area-inset-bottom, 0px) - 6px)) 16px;
   background-color: transparent;
   border-top: 1px solid rgba(var(--accent-rgb), 0.3);
 }
