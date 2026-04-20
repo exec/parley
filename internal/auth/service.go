@@ -10,6 +10,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -40,10 +41,23 @@ type User struct {
 
 // AuthService handles authentication operations
 type AuthService struct {
-	config      *Config
-	repo        *db.Repository
-	emailClient *email.Client
-	siteURL     string
+	config       *Config
+	repo         *db.Repository
+	emailClient  *email.Client
+	siteURL      string
+	sessionCache sync.Map // userID string -> *cachedSessionStatus
+}
+
+// sessionCacheTTL governs how long the auth middleware trusts an in-memory
+// copy of a user's force-logout / ban state before re-reading the DB. Force
+// logouts and bans are rare moderator actions, so a few seconds of staleness
+// is acceptable; the upside is that the hot auth path becomes purely local
+// memory for the typical request.
+const sessionCacheTTL = 3 * time.Second
+
+type cachedSessionStatus struct {
+	st        *SessionStatus
+	expiresAt time.Time
 }
 
 // NewAuthService creates a new AuthService instance
@@ -52,6 +66,14 @@ func NewAuthService(repo *db.Repository) *AuthService {
 		config: GetConfig(),
 		repo:   repo,
 	}
+}
+
+// InvalidateSessionCache drops the cached session status for userID so the next
+// authenticated request goes back to the DB. Call this from the handlers that
+// force-logout or ban a user so the change is visible on this node immediately.
+// Cross-node invalidation still relies on the TTL.
+func (s *AuthService) InvalidateSessionCache(userID string) {
+	s.sessionCache.Delete(userID)
 }
 
 // SetEmailClient configures the email client and site URL for sending verification emails.
@@ -656,7 +678,17 @@ type SessionStatus struct {
 // GetSessionStatus fetches force-logout + ban state in a single query.
 // Middleware should prefer this over calling IsForceLoggedOut and IsBanned
 // separately; the individual methods are kept for callers that only need one.
+//
+// Results are cached in-process for sessionCacheTTL — force-logout and ban
+// are rare moderator actions, so a few seconds of staleness is acceptable
+// and the cache turns the hot path into a local-memory read.
 func (s *AuthService) GetSessionStatus(ctx context.Context, userID string) (*SessionStatus, error) {
+	if v, ok := s.sessionCache.Load(userID); ok {
+		e := v.(*cachedSessionStatus)
+		if time.Now().Before(e.expiresAt) {
+			return e.st, nil
+		}
+	}
 	id, err := strconv.ParseInt(userID, 10, 64)
 	if err != nil {
 		return nil, errors.New("invalid user ID")
@@ -665,12 +697,10 @@ func (s *AuthService) GetSessionStatus(ctx context.Context, userID string) (*Ses
 	err = s.repo.DB().QueryRowContext(ctx,
 		`SELECT force_logout_at, banned_at, ban_reason FROM users WHERE id = $1`, id,
 	).Scan(&st.ForceLogoutAt, &st.BannedAt, &st.BanReason)
-	if err == sql.ErrNoRows {
-		return &st, nil
-	}
-	if err != nil {
+	if err != nil && err != sql.ErrNoRows {
 		return nil, err
 	}
+	s.sessionCache.Store(userID, &cachedSessionStatus{st: &st, expiresAt: time.Now().Add(sessionCacheTTL)})
 	return &st, nil
 }
 
