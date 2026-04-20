@@ -31,6 +31,13 @@ func (r *Repository) CreateServer(ctx context.Context, server *Server) error {
 }
 
 func (r *Repository) GetServerByID(ctx context.Context, id int64) (*Server, error) {
+	if v, ok := r.serverCache.Load(id); ok {
+		e := v.(*cachedServer)
+		if time.Now().Before(e.expiresAt) {
+			return e.srv, nil
+		}
+	}
+
 	query := `
 		SELECT id, name, icon_url, owner_id, vanity_url, created_at, updated_at
 		FROM servers
@@ -55,6 +62,7 @@ func (r *Repository) GetServerByID(ctx context.Context, id int64) (*Server, erro
 		return nil, err
 	}
 
+	r.serverCache.Store(id, &cachedServer{srv: &server, expiresAt: time.Now().Add(metadataCacheTTL)})
 	return &server, nil
 }
 
@@ -127,6 +135,7 @@ func (r *Repository) UpdateServer(ctx context.Context, server *Server) error {
 		return ErrNotFound
 	}
 
+	r.invalidateServerCache(server.ID)
 	return nil
 }
 
@@ -146,6 +155,7 @@ func (r *Repository) DeleteServer(ctx context.Context, id int64) error {
 		return ErrNotFound
 	}
 
+	r.invalidateServerCache(id)
 	return nil
 }
 

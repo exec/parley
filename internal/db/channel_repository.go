@@ -31,6 +31,13 @@ func (r *Repository) CreateChannel(ctx context.Context, channel *Channel) error 
 }
 
 func (r *Repository) GetChannelByID(ctx context.Context, id int64) (*Channel, error) {
+	if v, ok := r.channelCache.Load(id); ok {
+		e := v.(*cachedChannel)
+		if time.Now().Before(e.expiresAt) {
+			return e.ch, nil
+		}
+	}
+
 	query := `
 		SELECT id, server_id, name, channel_type, position, parent_id, topic, synced, created_at, updated_at
 		FROM channels
@@ -58,6 +65,7 @@ func (r *Repository) GetChannelByID(ctx context.Context, id int64) (*Channel, er
 		return nil, err
 	}
 
+	r.channelCache.Store(id, &cachedChannel{ch: &channel, expiresAt: time.Now().Add(metadataCacheTTL)})
 	return &channel, nil
 }
 
@@ -130,12 +138,16 @@ func (r *Repository) UpdateChannel(ctx context.Context, channel *Channel) error 
 		return ErrNotFound
 	}
 
+	r.invalidateChannelCache(channel.ID)
 	return nil
 }
 
 func (r *Repository) UpdateChannelOrder(ctx context.Context, id int64, position int, parentID sql.NullInt64) error {
 	query := `UPDATE channels SET position = $1, parent_id = $2, updated_at = NOW() WHERE id = $3`
 	_, err := r.db.ExecContext(ctx, query, position, parentID, id)
+	if err == nil {
+		r.invalidateChannelCache(id)
+	}
 	return err
 }
 
@@ -144,6 +156,9 @@ func (r *Repository) SetChannelSynced(ctx context.Context, channelID int64, sync
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE channels SET synced = $1, updated_at = NOW() WHERE id = $2`,
 		synced, channelID)
+	if err == nil {
+		r.invalidateChannelCache(channelID)
+	}
 	return err
 }
 
@@ -193,6 +208,7 @@ func (r *Repository) DeleteChannel(ctx context.Context, id int64) error {
 	if rowsAffected == 0 {
 		return ErrNotFound
 	}
+	r.invalidateChannelCache(id)
 
 	return nil
 }

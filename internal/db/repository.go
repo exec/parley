@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"parley/internal/audit"
@@ -18,15 +19,40 @@ var (
 	ErrInvalidOperation = errors.New("invalid operation")
 )
 
+// metadataCacheTTL controls how long read-heavy metadata (channels, servers)
+// stays warm in memory before the next lookup hits Postgres. Keep it short
+// enough that rename/icon/topic changes feel near-instant, long enough that
+// a chatty channel with dozens of messages per second doesn't re-query the
+// same row on every message.
+const metadataCacheTTL = 5 * time.Second
+
+type cachedChannel struct {
+	ch        *Channel
+	expiresAt time.Time
+}
+
+type cachedServer struct {
+	srv       *Server
+	expiresAt time.Time
+}
+
 // Repository handles database operations for all models.
 type Repository struct {
-	db *sql.DB
+	db            *sql.DB
+	channelCache  sync.Map // int64 id -> *cachedChannel
+	serverCache   sync.Map // int64 id -> *cachedServer
 }
 
 // NewRepository creates a new Repository with the given database connection.
 func NewRepository(db *sql.DB) *Repository {
 	return &Repository{db: db}
 }
+
+// invalidateChannelCache drops a channel entry so the next read refreshes.
+func (r *Repository) invalidateChannelCache(id int64) { r.channelCache.Delete(id) }
+
+// invalidateServerCache drops a server entry so the next read refreshes.
+func (r *Repository) invalidateServerCache(id int64) { r.serverCache.Delete(id) }
 
 // NewRepositoryWithDSN creates a new Repository and establishes a connection using the DSN.
 func NewRepositoryWithDSN(ctx context.Context, dsn string) (*Repository, error) {
