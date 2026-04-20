@@ -49,6 +49,8 @@ import { useNotifications } from './hooks/useNotifications';
 import { invalidatePermCache, clearAllPermCaches } from './hooks/usePermissions';
 import { useVoiceConnection } from './hooks/useVoiceConnection';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { UpdateBanner } from './components/UpdateBanner';
+import { checkForUpdate, type PendingUpdate } from './lib/updater';
 
 type View = 'homepage' | 'server' | 'dm';
 
@@ -187,6 +189,18 @@ function MainApp() {
 
   // Request notification permission once on mount (Chromium allows this without a gesture)
   useEffect(() => { requestPermission(); }, [requestPermission]);
+
+  // Desktop auto-update: silent check on mount. The banner appears only when
+  // an update is actually available and the user can dismiss or install.
+  const [pendingUpdate, setPendingUpdate] = useState<PendingUpdate | null>(null);
+  const [updateDismissed, setUpdateDismissed] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    checkForUpdate().then((u) => {
+      if (!cancelled) setPendingUpdate(u);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   // Load in-app notifications on mount
   useEffect(() => {
@@ -1450,6 +1464,13 @@ function MainApp() {
           dmChannels={dmChannels}
           currentChannelId={activeChannel?.id ?? activeDmChannel?.id}
           onClose={() => setForwardMessage(null)}
+        />
+      )}
+
+      {pendingUpdate && !updateDismissed && (
+        <UpdateBanner
+          update={pendingUpdate}
+          onDismiss={() => setUpdateDismissed(true)}
         />
       )}
 

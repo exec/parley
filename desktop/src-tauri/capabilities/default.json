@@ -9,6 +9,8 @@
     "shell:allow-open",
     "deep-link:default",
     "notification:default",
-    "clipboard-manager:allow-write-text"
+    "clipboard-manager:allow-write-text",
+    "updater:default",
+    "process:allow-restart"
   ]
 }
