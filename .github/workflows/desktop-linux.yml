@@ -1,7 +1,9 @@
 name: Build Linux desktop app
 
 # Builds the Tauri desktop app for Linux as unsigned .deb and .rpm packages
-# (x86_64 only for now). Runs on push to main when desktop/ or frontend/
+# for both x86_64 and aarch64. Each architecture runs natively on its own
+# runner (GitHub Actions' ubuntu-24.04 and ubuntu-24.04-arm) so we don't have
+# to cross-compile webkit2gtk. Runs on push to main when desktop/ or frontend/
 # changes, and on manual dispatch. Output lands as workflow artifacts; no
 # secrets required.
 #
@@ -30,8 +32,16 @@ concurrency:
 
 jobs:
   build:
-    name: Build .deb and .rpm (x86_64)
-    runs-on: ubuntu-24.04
+    name: Build .deb + .rpm (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
     env:
       VITE_SITE_URL: https://parley.byexec.com
 
