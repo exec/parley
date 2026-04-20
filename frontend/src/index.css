@@ -185,6 +185,19 @@ code {
   user-select: text;
 }
 
+/* iOS auto-zooms into any <input>/<textarea> with font-size < 16px on focus,
+   regardless of viewport maximum-scale (Apple deprecated that as a zoom
+   lock). The fix is pedestrian: force 16px on touch devices. Scoped to
+   (hover: none) + (pointer: coarse) so desktop sizes are untouched. */
+@media (hover: none) and (pointer: coarse) {
+  input,
+  textarea,
+  select,
+  [contenteditable="true"] {
+    font-size: 16px !important;
+  }
+}
+
 html {
   /* 100svh = stable "small" viewport height — never shifts when Safari URL bar
      slides in/out. Safe-area padding clears Dynamic Island & home indicator;
