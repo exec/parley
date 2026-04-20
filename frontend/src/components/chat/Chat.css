@@ -3,6 +3,13 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+  /* max-width + overflow-x clamp the whole chat area to viewport. On narrow
+     screens a wide image / code block / embed can otherwise force horizontal
+     scroll on the outer layout; keeping overflow here scopes the scroll to
+     the specific inner element (which has its own overflow handling). */
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
   background-color: var(--parley-chat-bg, var(--parley-channel-bg));
   color: var(--parley-text-normal);
 }

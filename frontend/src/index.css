@@ -225,6 +225,9 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-feature-settings: 'kern' 1, 'liga' 1;
+  /* Prevent any rogue wide descendant from scrolling the whole page on
+     mobile — individual scrollable regions still work. */
+  overflow-x: hidden;
 }
 
 #root {
