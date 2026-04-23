@@ -34,7 +34,6 @@ jwt_secret               = "change-me"
 # tokens with this key; api verifies.
 impersonation_jwt_secret = "change-me-distinct-from-jwt-secret"
 admin_jwt_secret         = "change-me"
-admin_impersonate_secret = "change-me"
 # F-admin-origin-fallback: explicit admin frontend origin. No default — if
 # unset, the admin Go server refuses to start. Must match the scheme+host
 # (+ optional port) the browser loads the admin SPA from.

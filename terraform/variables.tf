@@ -131,13 +131,6 @@ variable "admin_origin" {
   type        = string
 }
 
-variable "admin_impersonate_secret" {
-  description = "Shared secret for admin impersonation requests"
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
 # Signing key for admin-minted impersonation JWTs. MUST differ from jwt_secret
 # (see F-admin-jwt-secret / docs/security/runbooks/admin-jwt-secret-separation.md).
 # The admin container holds this key to SIGN impersonation tokens; the api

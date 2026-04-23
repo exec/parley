@@ -198,7 +198,6 @@ gh secret set DB_PASSWORD --body "$(openssl rand -base64 20)"
 # Authentication
 gh secret set JWT_SECRET --body "$(openssl rand -base64 32)"
 gh secret set ADMIN_JWT_SECRET --body "$(openssl rand -base64 32)"
-gh secret set ADMIN_IMPERSONATE_SECRET --body "$(openssl rand -base64 32)"
 # Separate from JWT_SECRET — admin signs impersonation tokens with this key;
 # api verifies. See docs/security/runbooks/admin-jwt-secret-separation.md.
 gh secret set IMPERSONATION_JWT_SECRET --body "$(openssl rand -base64 32)"
@@ -623,7 +622,6 @@ All variables are read at API startup. Required variables cause a fatal error if
 | `OLLAMA_API_KEY` | No | — | Ollama API key; omit to disable AI theme generation |
 | `OLLAMA_API_URL` | No | `https://ollama.com/api` | Ollama API base URL |
 | `OLLAMA_MODEL` | No | `devstral-small-2:24b-cloud` | Ollama model name |
-| `ADMIN_IMPERSONATE_SECRET` | No | — | Shared secret for admin impersonation; omit to disable the endpoint |
 
 ### Admin server (`cmd/admin serve`)
 
