@@ -225,6 +225,30 @@ func userRateLimitMiddleware(rl rateLimiterI) func(http.Handler) http.Handler {
 	}
 }
 
+// denyImpersonation returns 403 if the request is authenticated with an
+// admin-minted impersonation token. Applied to routes that modify the
+// target user's account, credentials, keys, or other state the admin
+// should never cause to change while acting as the user. Support-mode
+// viewing + low-risk remediation remains allowed; anything account-
+// mutating is denied. See audit finding F-impersonation-claim.
+func denyImpersonation(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if auth.IsImpersonation(r) {
+			actor := auth.ActorAdminID(r)
+			target := auth.GetUserIDFromContext(r)
+			if auth.ShouldLogAuditOnce("impersonation_deny:" + actor + ":" + target + ":" + r.URL.Path) {
+				log.Printf("audit: impersonation_denied actor_admin_id=%s target_user_id=%s method=%s path=%s",
+					actor, target, r.Method, r.URL.Path)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"error":"endpoint disallowed for impersonation sessions"}`))
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 // ----- Request body size limiter -----
 
 // maxBodyMiddleware caps request bodies at maxBytes. Requests that exceed the

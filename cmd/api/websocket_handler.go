@@ -38,15 +38,14 @@ func handleWebSocket(hub *ws.Hub, authService *auth.AuthService, repo *db.Reposi
 				return
 			}
 
-			var iat int64
-			var err error
-			userID, iat, err = authService.ValidateTokenFull(tokenString)
+			info, err := authService.ValidateTokenFull(tokenString)
 			if err != nil {
 				http.Error(w, "invalid or expired token", http.StatusUnauthorized)
 				return
 			}
+			userID = info.UserID
 
-			forceLoggedOut, err := authService.IsForceLoggedOut(r.Context(), userID, iat)
+			forceLoggedOut, err := authService.IsForceLoggedOut(r.Context(), userID, info.IssuedAt)
 			if err != nil {
 				log.Printf("handleWebSocket: IsForceLoggedOut error for user %s: %v", userID, err)
 				http.Error(w, "authorization check failed", http.StatusInternalServerError)

@@ -195,23 +195,59 @@ func TestValidateTokenFullReturnsIAT(t *testing.T) {
 		t.Fatalf("failed to create test token: %v", err)
 	}
 
-	userID, iat, err := svc.ValidateTokenFull(tokenString)
+	info, err := svc.ValidateTokenFull(tokenString)
 	if err != nil {
 		t.Fatalf("ValidateTokenFull failed: %v", err)
 	}
-	if userID != "99" {
-		t.Errorf("expected userID '99', got '%s'", userID)
+	if info.UserID != "99" {
+		t.Errorf("expected userID '99', got '%s'", info.UserID)
 	}
-	if iat != now.Unix() {
-		t.Errorf("expected iat %d, got %d", now.Unix(), iat)
+	if info.IssuedAt != now.Unix() {
+		t.Errorf("expected iat %d, got %d", now.Unix(), info.IssuedAt)
+	}
+	if info.IsImpersonation {
+		t.Error("normal token should not be flagged as impersonation")
+	}
+	if info.ActorAdminID != "" {
+		t.Errorf("normal token should not carry actor_admin_id, got %q", info.ActorAdminID)
 	}
 }
 
 func TestValidateTokenFullEmpty(t *testing.T) {
 	svc := newTestService()
-	_, _, err := svc.ValidateTokenFull("")
+	_, err := svc.ValidateTokenFull("")
 	if err == nil {
 		t.Error("ValidateTokenFull should reject empty token")
+	}
+}
+
+func TestValidateTokenFullImpersonation(t *testing.T) {
+	svc := newTestService()
+	now := time.Now()
+	claims := jwt.MapClaims{
+		"user_id":        "42",
+		"impersonation":  true,
+		"actor_admin_id": "7",
+		"exp":            now.Add(10 * time.Minute).Unix(),
+		"iat":            now.Unix(),
+	}
+	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := tok.SignedString([]byte(svc.config.SecretKey))
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+	info, err := svc.ValidateTokenFull(tokenString)
+	if err != nil {
+		t.Fatalf("ValidateTokenFull: %v", err)
+	}
+	if info.UserID != "42" {
+		t.Errorf("UserID: got %q, want \"42\"", info.UserID)
+	}
+	if !info.IsImpersonation {
+		t.Error("IsImpersonation: got false, want true")
+	}
+	if info.ActorAdminID != "7" {
+		t.Errorf("ActorAdminID: got %q, want \"7\"", info.ActorAdminID)
 	}
 }
 
