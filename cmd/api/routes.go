@@ -140,7 +140,6 @@ func registerRoutes(
 				r.Get("/me", handleGetMe(repo))
 				r.Get("/me/phone", handleGetMePhone(repo))
 				r.Post("/ws-ticket", handleWsTicket(authService, tickets))
-				r.With(rateLimitMiddleware(authLimiter)).Post("/impersonate-token", handleImpersonateToken(authService))
 				r.Put("/profile", handleUpdateProfile(authService, repo, hub, cdnHost))
 				r.Put("/email", handleChangeEmail(authService))
 				r.Post("/resend-verification", handleResendVerification(authService))

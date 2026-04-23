@@ -113,7 +113,6 @@ resource "digitalocean_droplet" "parley_api" {
     BREVO_API_KEY            = var.brevo_api_key
     BREVO_FROM_EMAIL         = var.brevo_from_email
     SITE_URL                 = var.site_url
-    ADMIN_IMPERSONATE_SECRET = var.admin_impersonate_secret
     LIVEKIT_API_KEY          = var.livekit_api_key
     LIVEKIT_API_SECRET       = var.livekit_api_secret
     LIVEKIT_URL              = var.livekit_url
@@ -199,7 +198,6 @@ resource "digitalocean_droplet" "parley_admin" {
     REDIS_HOST               = digitalocean_droplet.parley_db.ipv4_address_private
     ADMIN_JWT_SECRET         = var.admin_jwt_secret
     PARLEY_JWT_SECRET        = var.jwt_secret
-    ADMIN_IMPERSONATE_SECRET = var.admin_impersonate_secret
     ADMIN_PORT               = "8080"
   })
 
