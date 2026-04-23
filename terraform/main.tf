@@ -204,6 +204,7 @@ resource "digitalocean_droplet" "parley_admin" {
     # invalidate regular user sessions.
     IMPERSONATION_JWT_SECRET = var.impersonation_jwt_secret
     ADMIN_PORT               = "8080"
+    ADMIN_ORIGIN             = var.admin_origin
   })
 
   depends_on = [digitalocean_droplet.parley_db]

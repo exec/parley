@@ -14,12 +14,17 @@ import (
 )
 
 // adminOrigin is the allowed CORS origin for the admin frontend.
-// Defaults to the production admin URL but can be overridden via ADMIN_ORIGIN env.
+// ADMIN_ORIGIN MUST be set in production; we fail-closed rather than
+// silently falling back to a stale hardcoded value (F-admin-origin-fallback).
+// The previous fallback (http://<stale-DO-IP>) was both HTTP-only and
+// pointed at a DO droplet that hasn't existed since the Proxmox cutover,
+// so any request that reached the fallback was quietly broken.
 func adminOrigin() string {
-	if o := os.Getenv("ADMIN_ORIGIN"); o != "" {
-		return o
+	o := os.Getenv("ADMIN_ORIGIN")
+	if o == "" {
+		log.Fatal("ADMIN_ORIGIN is required — refusing to start without an explicit admin frontend origin")
 	}
-	return "http://167.71.242.21"
+	return o
 }
 
 // ----- simple IP-based rate limiter (reused from API pattern) -----

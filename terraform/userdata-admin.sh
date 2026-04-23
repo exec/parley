@@ -13,6 +13,10 @@ ADMIN_JWT_SECRET="${ADMIN_JWT_SECRET}"
 # denyImpersonation middleware blocks from sensitive routes.
 IMPERSONATION_JWT_SECRET="${IMPERSONATION_JWT_SECRET}"
 ADMIN_PORT="${ADMIN_PORT}"
+# F-admin-origin-fallback: explicit admin frontend origin. The Go admin server
+# fails to start if ADMIN_ORIGIN is unset, so this must always be provisioned
+# by terraform — no default IP fallback.
+ADMIN_ORIGIN="${ADMIN_ORIGIN}"
 
 exec > >(tee -a /var/log/cloud-init-output.log) 2>&1
 echo "=== Starting Parley Admin setup ==="
@@ -72,6 +76,7 @@ REDIS_HOST=$${REDIS_HOST}
 ADMIN_JWT_SECRET=$${ADMIN_JWT_SECRET}
 IMPERSONATION_JWT_SECRET=$${IMPERSONATION_JWT_SECRET}
 ADMIN_PORT=$${ADMIN_PORT}
+ADMIN_ORIGIN=$${ADMIN_ORIGIN}
 # F1: bind the admin HTTP server to 127.0.0.1 so the Go process is not
 # reachable directly on :8080 from any other vmbr1 host. The container-local
 # nginx reverse-proxies /api/ to 127.0.0.1:8080 and enforces the source-IP
