@@ -546,9 +546,12 @@ JWT_SECRET=dev \
 BOT_KEY_SECRET=dev \
 SITE_URL=http://localhost:5173 \
 REDIS_URL=redis://:parley@localhost:6379 \
+PARLEY_ENV=dev \
 PORT=8081 \
 go run ./cmd/api
 ```
+
+`PARLEY_ENV=dev` tells the WebAuthn configuration to accept `http://localhost:5173` and `http://localhost:8080` as valid RP origins for passkeys. Leave this variable unset in production so only the canonical `SITE_URL` is accepted.
 
 **Start the frontend:**
 ```bash
@@ -603,6 +606,7 @@ All variables are read at API startup. Required variables cause a fatal error if
 | `DATABASE_URL` | No | `postgres://postgres:postgres@localhost:5432/parley?sslmode=disable` | PostgreSQL connection string |
 | `PORT` | No | `8080` | HTTP listen port |
 | `SITE_URL` | No | — | Public URL (e.g. `https://parley.example.com`) — used in email verification links and CORS allowlist |
+| `PARLEY_ENV` | No | — | Set to `dev` to allow `http://localhost:5173` and `http://localhost:8080` as additional WebAuthn RP origins for local passkey development. Must be unset in production. |
 | `REDIS_URL` | No | `redis://localhost:6379` | Redis connection URL (e.g. `redis://:password@localhost:6379`); omit to run in single-node mode without pub/sub |
 | `BREVO_API_KEY` | No | — | Brevo transactional email API key; omit to disable email verification |
 | `BREVO_FROM_EMAIL` | No | — | Sender address for verification emails |
