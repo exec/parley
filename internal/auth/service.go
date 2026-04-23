@@ -307,6 +307,20 @@ func (s *AuthService) RemovePassword(ctx context.Context, userIDStr string) erro
 	return s.repo.UpdatePasswordHash(ctx, userID, "!")
 }
 
+// RemovePasswordIfPasskeyExists atomically clears the user's password only when
+// a passkey still exists at the instant of the UPDATE. Returns true when the
+// password was cleared and false when the user had no passkeys — callers map
+// false to a 400 ("cannot remove password without at least one passkey").
+// Closes F-auth-removepw-race, which could otherwise leave a user locked out
+// when a passkey delete raced the remove-password handler.
+func (s *AuthService) RemovePasswordIfPasskeyExists(ctx context.Context, userIDStr string) (bool, error) {
+	userID, err := strconv.ParseInt(userIDStr, 10, 64)
+	if err != nil {
+		return false, errors.New("invalid user ID")
+	}
+	return s.repo.ClearPasswordIfPasskeyExists(ctx, userID, "!")
+}
+
 // UpdateStatus updates a user's status type and status text.
 func (s *AuthService) UpdateStatus(ctx context.Context, userIDStr, statusType, statusText string) error {
 	userID, err := strconv.ParseInt(userIDStr, 10, 64)

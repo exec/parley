@@ -168,7 +168,7 @@ func registerRoutes(
 					r.With(auth.RequireScope(auth.ScopeProfileWrite)).Get("/passkeys", handleListPasskeys(passkeySvc))
 					r.With(denyImpersonation, auth.RequireScope(auth.ScopeProfileWrite)).Delete("/passkeys/{id}", handleDeletePasskey(passkeySvc))
 					r.With(denyImpersonation, auth.RequireScope(auth.ScopeProfileWrite)).Put("/passkeys/{id}", handleRenamePasskey(passkeySvc))
-					r.With(denyImpersonation, auth.RequireScope(auth.ScopeProfileWrite)).Delete("/password", handleRemovePassword(passkeySvc, authService))
+					r.With(denyImpersonation, auth.RequireScope(auth.ScopeProfileWrite)).Delete("/password", handleRemovePassword(authService))
 				}
 				if redisHub != nil {
 					r.With(denyImpersonation, auth.RequireScope(auth.ScopeProfileWrite)).Post("/desktop/issue", handleDesktopAuthIssue(desktopauth.New(redisHub.Client())))
