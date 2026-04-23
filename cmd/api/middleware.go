@@ -195,6 +195,41 @@ func rateLimitMiddleware(rl rateLimiterI) func(http.Handler) http.Handler {
 	}
 }
 
+// ownerRateLimitMiddleware applies per-owner rate limiting: writes from
+// a user and writes from every API-key bot they own share a single bucket.
+// Without this, an owner with N bots would get N+1 independent 5/s user
+// buckets (6/s × 11 = 66 msg-writes/s per attacker before hitting any
+// wall — the D4 finding). The aggregate cap is intentionally a little
+// higher than the per-user limit so that a legitimate user running one
+// or two helpful bots still has headroom.
+//
+// Key prefix is "o:" to avoid collision with userRateLimitMiddleware's
+// "u:" prefix and rateLimitMiddleware's IP keys.
+func ownerRateLimitMiddleware(rl rateLimiterI) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ownerID := auth.GetOwnerUserIDFromContext(r)
+			key := ownerID
+			if key == "" {
+				// Fallback to IP — should only happen on unauthenticated routes
+				// that mistakenly stack this middleware.
+				key = auth.ClientIP(r)
+			} else {
+				key = "o:" + key
+			}
+			if !rl.Allow(key) {
+				userID := auth.GetUserIDFromContext(r)
+				if ownerID != "" && auth.ShouldLogAuditOnce("ratelimit:o:"+ownerID) {
+					log.Printf("audit: rate_limited owner_user_id=%s user_id=%s ip=%s path=%s scope=owner", ownerID, userID, auth.ClientIP(r), r.URL.Path)
+				}
+				http.Error(w, "rate limit exceeded, slow down", http.StatusTooManyRequests)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // userRateLimitMiddleware applies per-authenticated-user rate limiting.
 // It uses the user ID from the JWT context as the bucket key so the limit
 // applies per account regardless of IP (defeats multi-IP bypass attempts).

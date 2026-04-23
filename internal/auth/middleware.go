@@ -21,6 +21,13 @@ const (
 	UserIDKey contextKey = "userID"
 	// IsAPIKeyAuthKey is the context key for marking API key authenticated requests
 	IsAPIKeyAuthKey contextKey = "isAPIKeyAuth"
+	// OwnerUserIDKey is the context key for the request's *owner* user ID:
+	// - for JWT-auth requests, the owner is the authenticated user themself;
+	// - for API-key-auth requests, the owner is the user who minted the key
+	//   (different from the authenticated user when the key belongs to a bot).
+	// The aggregate per-owner rate limiter (D4) keys on this value so that
+	// one user plus all their bots share a single write-rate bucket.
+	OwnerUserIDKey contextKey = "ownerUserID"
 	// IsImpersonationKey marks the request as carrying an admin-minted
 	// impersonation token rather than the real user's session. Handlers that
 	// guard destructive / profile-mutating actions use this to refuse work;
@@ -130,12 +137,13 @@ func AuthMiddlewareWith(svc *AuthService) func(http.Handler) http.Handler {
 					return
 				}
 				keyHash := SHA256Hex(tokenString)
-				keyID, userID, scopes, err := svc.repo.GetAPIKeyByHash(r.Context(), keyHash)
+				keyID, userID, ownerID, scopes, err := svc.repo.GetAPIKeyByHash(r.Context(), keyHash)
 				if err != nil {
 					http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
 					return
 				}
 				userIDStr := strconv.FormatInt(userID, 10)
+				ownerIDStr := strconv.FormatInt(ownerID, 10)
 				if banned, reason, _ := svc.IsBanned(r.Context(), userIDStr); banned {
 					if ShouldLogAuditOnce("banned:" + userIDStr) {
 						log.Printf("audit: blocked_banned_user user_id=%s ip=%s via=api_key reason=%q path=%s", userIDStr, ClientIP(r), reason, r.URL.Path)
@@ -147,6 +155,11 @@ func AuthMiddlewareWith(svc *AuthService) func(http.Handler) http.Handler {
 				go svc.repo.UpdateAPIKeyLastUsed(context.Background(), keyID)
 				ctx := context.WithValue(r.Context(), UserIDKey, userIDStr)
 				ctx = context.WithValue(ctx, IsAPIKeyAuthKey, true)
+				// The owner is the user who created this key; for bot
+				// keys ownerID != userID. Needed by the aggregate
+				// per-owner write limiter (D4) so the bot's writes
+				// count against the owner's bucket.
+				ctx = context.WithValue(ctx, OwnerUserIDKey, ownerIDStr)
 				// Stash the key's scopes so RequireScope (and any
 				// HasScope callers) can enforce them. Empty slice
 				// for a pre-migration row means "no scopes" — the
@@ -180,6 +193,10 @@ func AuthMiddlewareWith(svc *AuthService) func(http.Handler) http.Handler {
 				}
 			}
 			ctx := context.WithValue(r.Context(), UserIDKey, userID)
+			// For JWT auth the owner is the user themselves; the owner key
+			// is set so the aggregate per-owner write limiter (D4) has a
+			// consistent shape for both auth paths.
+			ctx = context.WithValue(ctx, OwnerUserIDKey, userID)
 			if info.IsImpersonation {
 				ctx = context.WithValue(ctx, IsImpersonationKey, true)
 				ctx = context.WithValue(ctx, ActorAdminIDKey, info.ActorAdminID)
@@ -233,6 +250,19 @@ func GetUserIDFromContext(r *http.Request) string {
 		return ""
 	}
 	return userID
+}
+
+// GetOwnerUserIDFromContext retrieves the owner's user ID from the request
+// context. For JWT-authenticated requests the owner is the user themself;
+// for API-key-authenticated requests (including bot keys) the owner is the
+// user who minted the key. Used by the aggregate per-owner write limiter
+// (D4) so a user plus all their bots share one write-rate bucket. Falls
+// back to the authenticated user ID when unset (older middleware paths).
+func GetOwnerUserIDFromContext(r *http.Request) string {
+	if ownerID, ok := r.Context().Value(OwnerUserIDKey).(string); ok && ownerID != "" {
+		return ownerID
+	}
+	return GetUserIDFromContext(r)
 }
 
 // GetUserIDFromContextWithError retrieves the userID from the request context with error

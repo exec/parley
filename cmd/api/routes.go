@@ -100,6 +100,11 @@ func registerRoutes(
 	// Rate limiter for message writes: 5 messages/second per authenticated user (burst 10).
 	// Keyed on user ID, not IP, to prevent cross-IP bypasses by the same account.
 	msgWriteLimiter := newRateLimiterFor(rdb, 10, 2*time.Second)
+	// D4: aggregate per-owner cap — 10 msg-writes/second shared across a user
+	// and every bot they own, regardless of bot count. Sized at 2× the
+	// per-user burst so a legit owner with a helpful bot isn't penalised,
+	// while the previous 1-owner + 10-bots = 55/s attack surface is gone.
+	msgWriteOwnerLimiter := newRateLimiterFor(rdb, 20, 2*time.Second)
 	// Rate limiter for public discovery endpoints: 30 per IP per minute.
 	discoverLimiter := newRateLimiterFor(rdb, 30, time.Minute)
 	// Rate limiter for message search: 20 per authenticated user per minute.
@@ -257,7 +262,7 @@ func registerRoutes(
 			messageHandler := message.NewHandler(messageService, cdnHost)
 			r.With(auth.RequireScope(auth.ScopeMessagesRead), userRateLimitMiddleware(msgSearchLimiter)).Get("/servers/{id}/messages/search", messageHandler.SearchMessages)
 			r.With(auth.RequireScope(auth.ScopeMessagesRead), rateLimitMiddleware(msgReadLimiter)).Get("/channels/{channelID}/messages", messageHandler.GetChannelMessages)
-			r.With(auth.RequireScope(auth.ScopeMessagesWrite), userRateLimitMiddleware(msgWriteLimiter)).Post("/channels/{channelID}/messages", messageHandler.SendMessage)
+			r.With(auth.RequireScope(auth.ScopeMessagesWrite), userRateLimitMiddleware(msgWriteLimiter), ownerRateLimitMiddleware(msgWriteOwnerLimiter)).Post("/channels/{channelID}/messages", messageHandler.SendMessage)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Put("/messages/{id}", messageHandler.EditMessage)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Delete("/messages/{id}", messageHandler.DeleteMessage)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/messages/{id}/reactions", messageHandler.ToggleReaction)
@@ -265,7 +270,7 @@ func registerRoutes(
 			r.With(auth.RequireScope(auth.ScopeMessagesRead)).Get("/channels/{channelID}/pins", messageHandler.GetChannelPins)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/channels/{channelID}/pins/{messageID}", messageHandler.PinMessage)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Delete("/channels/{channelID}/pins/{messageID}", messageHandler.UnpinMessage)
-			r.With(auth.RequireScope(auth.ScopeMessagesWrite), userRateLimitMiddleware(msgWriteLimiter)).Post("/channels/{channelID}/forward", messageHandler.ForwardToChannel)
+			r.With(auth.RequireScope(auth.ScopeMessagesWrite), userRateLimitMiddleware(msgWriteLimiter), ownerRateLimitMiddleware(msgWriteOwnerLimiter)).Post("/channels/{channelID}/forward", messageHandler.ForwardToChannel)
 
 			// Typing indicator — write (broadcasts presence into the channel)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/channels/{channelId}/typing", handleChannelTyping(repo, hub))
@@ -302,7 +307,7 @@ func registerRoutes(
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/messages", dmHandler.SendDmMessage)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Delete("/dms/{id}/messages/{messageId}", dmHandler.DeleteDmMessage)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/messages/{messageId}/reactions", dmHandler.ToggleDmReaction)
-			r.With(auth.RequireScope(auth.ScopeMessagesWrite), userRateLimitMiddleware(msgWriteLimiter)).Post("/dms/{id}/forward", dmHandler.ForwardToDm)
+			r.With(auth.RequireScope(auth.ScopeMessagesWrite), userRateLimitMiddleware(msgWriteLimiter), ownerRateLimitMiddleware(msgWriteOwnerLimiter)).Post("/dms/{id}/forward", dmHandler.ForwardToDm)
 
 			// Friend routes — profile-level state (the bot's friends list);
 			// scoped on profile:write for all mutations, servers:read for reads.
@@ -392,7 +397,7 @@ func registerRoutes(
 			// commands; messages:write covers the "fan-out writes a message"
 			// consequence.
 			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/servers/{id}/commands", botCommandsHandler.ListServerCommands)
-			r.With(auth.RequireScope(auth.ScopeMessagesWrite), userRateLimitMiddleware(msgWriteLimiter)).Post("/channels/{channelID}/interactions", botCommandsHandler.Invoke)
+			r.With(auth.RequireScope(auth.ScopeMessagesWrite), userRateLimitMiddleware(msgWriteLimiter), ownerRateLimitMiddleware(msgWriteOwnerLimiter)).Post("/channels/{channelID}/interactions", botCommandsHandler.Invoke)
 
 			// Authenticated bot invite accept — a bot claiming a server via
 			// its invite is a profile-level state change for the bot.

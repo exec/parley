@@ -60,22 +60,25 @@ func (r *Repository) CreateAPIKey(ctx context.Context, keyHash, keyPrefix, name 
 }
 
 // GetAPIKeyByHash looks up an API key by its SHA-256 hash.
-// Returns (keyID, userID, scopes, error). scopes may be nil/empty for
-// pre-migration rows; the middleware treats that as "no scopes" (fail
-// closed) rather than "full access".
-func (r *Repository) GetAPIKeyByHash(ctx context.Context, keyHash string) (int64, int64, []string, error) {
-	var keyID, userID int64
+// Returns (keyID, userID, ownerID, scopes, error). scopes may be nil/empty
+// for pre-migration rows; the middleware treats that as "no scopes" (fail
+// closed) rather than "full access". ownerID is the user that minted the
+// key — for bot keys it differs from userID (the bot user); for user keys
+// it equals userID. The aggregate per-owner rate limiter (D4) uses it to
+// cap fan-out across a user + all their bots in one bucket.
+func (r *Repository) GetAPIKeyByHash(ctx context.Context, keyHash string) (int64, int64, int64, []string, error) {
+	var keyID, userID, ownerID int64
 	var scopes pq.StringArray
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, user_id, scopes FROM api_keys WHERE key_hash = $1`, keyHash,
-	).Scan(&keyID, &userID, &scopes)
+		`SELECT id, user_id, owner_id, scopes FROM api_keys WHERE key_hash = $1`, keyHash,
+	).Scan(&keyID, &userID, &ownerID, &scopes)
 	if err == sql.ErrNoRows {
-		return 0, 0, nil, ErrNotFound
+		return 0, 0, 0, nil, ErrNotFound
 	}
 	if err != nil {
-		return 0, 0, nil, err
+		return 0, 0, 0, nil, err
 	}
-	return keyID, userID, []string(scopes), nil
+	return keyID, userID, ownerID, []string(scopes), nil
 }
 
 // UpdateAPIKeyLastUsed updates the last_used_at timestamp for an API key.
