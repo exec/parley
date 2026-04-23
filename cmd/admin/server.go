@@ -188,6 +188,15 @@ func runServer() {
 	// Serve SPA — must be last to avoid swallowing /api routes
 	r.Handle("/*", http.FileServer(http.Dir("/var/www/parley-admin")))
 
-	log.Printf("Admin server starting on :%s", port)
-	http.ListenAndServe(":"+port, r)
+	// F1: when ADMIN_BIND_LOCAL=1, bind to 127.0.0.1 only so the admin Go
+	// server is not reachable directly from vmbr1. The container-local nginx
+	// (which enforces the source-IP allow-list) reverse-proxies /api/ to
+	// 127.0.0.1:<ADMIN_PORT>. Default (unset / "0") preserves the legacy
+	// all-interfaces bind for dev / non-LXC deployments.
+	addr := ":" + port
+	if v := os.Getenv("ADMIN_BIND_LOCAL"); v == "1" || v == "true" || v == "yes" {
+		addr = "127.0.0.1:" + port
+	}
+	log.Printf("Admin server starting on %s", addr)
+	http.ListenAndServe(addr, r)
 }
