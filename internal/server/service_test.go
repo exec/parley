@@ -7,7 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"parley/internal/cache"
 	"parley/internal/db"
+	ws "parley/internal/websocket"
 )
 
 // --- Helper function tests ---
@@ -692,3 +694,90 @@ func TestGetMembersWithRoles_InvalidID(t *testing.T) {
 		t.Errorf("got %v, want 'invalid server ID'", err)
 	}
 }
+
+// TestInvalidateMembership_DropsCache verifies that invalidateMembership drops
+// the cached membership entry and any per-user perm entries for that server.
+func TestInvalidateMembership_DropsCache(t *testing.T) {
+	svc := NewServerService(nil, nil)
+	mc := cache.NewMembershipCache(30 * time.Second)
+	svc.SetMemberCache(mc)
+
+	const sID, uID int64 = 42, 7
+	mc.SetMember(sID, uID, true)
+	mc.SetPerm(sID, uID, 100, 1, true)
+
+	if isMember, ok := mc.GetMember(sID, uID); !ok || !isMember {
+		t.Fatal("precondition: membership must be cached before invalidate")
+	}
+	if allowed, ok := mc.GetPerm(sID, uID, 100, 1); !ok || !allowed {
+		t.Fatal("precondition: perm must be cached before invalidate")
+	}
+
+	svc.invalidateMembership("42", "7", sID, uID)
+
+	if _, ok := mc.GetMember(sID, uID); ok {
+		t.Error("membership entry should be invalidated")
+	}
+	if _, ok := mc.GetPerm(sID, uID, 100, 1); ok {
+		t.Error("perm entry should be invalidated")
+	}
+}
+
+// TestInvalidateMembership_NilHubIsSafe verifies that invalidateMembership
+// is a no-op on the hub side when no hub has been wired (e.g., unit tests).
+func TestInvalidateMembership_NilHubIsSafe(t *testing.T) {
+	svc := NewServerService(nil, nil)
+	mc := cache.NewMembershipCache(30 * time.Second)
+	svc.SetMemberCache(mc)
+	mc.SetMember(1, 2, true)
+
+	// Must not panic when hub is nil.
+	svc.invalidateMembership("1", "2", 1, 2)
+
+	if _, ok := mc.GetMember(1, 2); ok {
+		t.Error("cache entry must still be dropped even without a hub")
+	}
+}
+
+// TestInvalidateMembership_NilCacheLogsWarning verifies that the helper
+// tolerates a nil cache (e.g., early startup, legacy wiring).
+func TestInvalidateMembership_NilCacheLogsWarning(t *testing.T) {
+	svc := NewServerService(nil, nil)
+	// Must not panic when memberCache is nil and hub is nil.
+	svc.invalidateMembership("1", "2", 1, 2)
+}
+
+// TestInvalidateMembership_UnsubscribesFromServer verifies that
+// invalidateMembership drops the user's WS subscriptions to the kicked
+// server (both the virtual "server:{id}" channel and numeric channels
+// resolved to that server), while leaving DM subscriptions intact.
+func TestInvalidateMembership_UnsubscribesFromServer(t *testing.T) {
+	svc := NewServerService(nil, nil)
+	hub := ws.NewHub()
+	hub.SetChannelServerResolver(func(channelID string) (string, bool) {
+		if channelID == "101" {
+			return "42", true
+		}
+		return "", false
+	})
+	svc.SetHub(hub)
+
+	client := ws.NewTestClient(hub, "7")
+	hub.RegisterClient(client)
+	hub.SubscribeToChannel("server:42", client)
+	hub.SubscribeToChannel("101", client)
+	hub.SubscribeToChannel("dm:99", client)
+
+	svc.invalidateMembership("42", "7", 42, 7)
+
+	if hub.ClientSubscribed(client, "server:42") {
+		t.Error("server:42 should be unsubscribed")
+	}
+	if hub.ClientSubscribed(client, "101") {
+		t.Error("channel 101 (server 42) should be unsubscribed")
+	}
+	if !hub.ClientSubscribed(client, "dm:99") {
+		t.Error("DM subscription must remain")
+	}
+}
+

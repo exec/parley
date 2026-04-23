@@ -87,7 +87,24 @@ func (s *ServerService) RemoveMember(ctx context.Context, serverID, userID strin
 			s.hub.BroadcastToChannel("server:"+serverID, ws.EventMemberLeave, payload)
 		}
 	}
+
+	s.invalidateMembership(serverID, userID, serverIDInt, userIDInt)
 	return nil
+}
+
+// invalidateMembership drops cached membership + permission entries and
+// revokes the user's active WS subscriptions to this server. Failures are
+// logged — the DB removal is already authoritative.
+func (s *ServerService) invalidateMembership(serverID, userID string, serverIDInt, userIDInt int64) {
+	if s.memberCache != nil {
+		s.memberCache.InvalidateMember(serverIDInt, userIDInt)
+		s.memberCache.InvalidatePermsForUser(serverIDInt, userIDInt)
+	} else {
+		log.Printf("server: membership cache not wired; stale entries for user %d in server %d may linger up to 30s", userIDInt, serverIDInt)
+	}
+	if s.hub != nil {
+		s.hub.UnsubscribeUserFromServer(userID, serverID)
+	}
 }
 
 func (s *ServerService) KickMember(ctx context.Context, serverID, userID string, actorID int64, actorUsername string) error {
@@ -137,6 +154,8 @@ func (s *ServerService) KickMember(ctx context.Context, serverID, userID string,
 		TargetType:    "user",
 		TargetName:    targetUsername,
 	})
+
+	s.invalidateMembership(serverID, userID, serverIDInt, userIDInt)
 	return nil
 }
 
@@ -188,6 +207,8 @@ func (s *ServerService) BanMember(ctx context.Context, serverID, userID string, 
 		TargetName:    targetUsername,
 		Reason:        reason,
 	})
+
+	s.invalidateMembership(serverID, userID, serverIDInt, userIDInt)
 	return nil
 }
 

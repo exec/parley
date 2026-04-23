@@ -247,6 +247,27 @@ func main() {
 		return true
 	})
 
+	// Resolve subscription channel IDs to their owning server so that
+	// Hub.UnsubscribeUserFromServer can drop server-scoped subs on kick/ban
+	// without walking every channel.
+	hub.SetChannelServerResolver(func(channelID string) (string, bool) {
+		chID, err := strconv.ParseInt(channelID, 10, 64)
+		if err != nil {
+			return "", false
+		}
+		if sID, ok := memberCache.GetChannelServer(chID); ok {
+			return strconv.FormatInt(sID, 10), true
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		ch, err := repo.GetChannelByID(ctx, chID)
+		if err != nil {
+			return "", false
+		}
+		memberCache.SetChannelServer(chID, ch.ServerID)
+		return strconv.FormatInt(ch.ServerID, 10), true
+	})
+
 	// Set up Redis pub/sub for cross-node broadcasting (graceful fallback if unavailable)
 	redisHub := websocket.NewRedisHub(hub)
 	if redisHub != nil {

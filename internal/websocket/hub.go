@@ -104,6 +104,13 @@ type Hub struct {
 	// channelAccessChecker is an optional function to verify whether a user is
 	// allowed to subscribe to a channel. If nil, access is denied (fail closed).
 	channelAccessChecker func(userID, channelID string) bool
+
+	// channelServerResolver maps a subscription channel ID (as stored in
+	// channelSubs / clientChannels) to the server ID it belongs to. Returns
+	// ("", false) for DM channels or unknown IDs. Used by
+	// UnsubscribeUserFromServer. If nil, only "server:{id}" virtual channels
+	// can be matched.
+	channelServerResolver func(channelID string) (serverID string, ok bool)
 }
 
 // NewHub creates a new Hub
@@ -141,6 +148,15 @@ func (h *Hub) SetChannelAccessChecker(fn func(userID, channelID string) bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.channelAccessChecker = fn
+}
+
+// SetChannelServerResolver sets the function used to look up which server a
+// given subscription channel ID belongs to. Call this before starting the
+// hub's Run loop. The resolver is called with the lock released.
+func (h *Hub) SetChannelServerResolver(fn func(channelID string) (serverID string, ok bool)) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.channelServerResolver = fn
 }
 
 // CheckChannelAccess returns true only if the channelAccessChecker confirms the
@@ -442,6 +458,98 @@ func (h *Hub) DisconnectUser(userID string) {
 	for _, c := range clients {
 		c.closeSend()
 	}
+}
+
+// UnsubscribeUserFromServer drops all of the user's channel subscriptions
+// that belong to the given server, leaving DM and other-server subscriptions
+// intact. Called on kick/ban/leave so a removed user stops receiving
+// real-time events from the server. Does NOT close the WS connection.
+//
+// The "server:{serverID}" virtual channel is always matched directly. For
+// other channels, the hub's channelServerResolver (if set) is consulted
+// outside the lock; missing resolvers mean only the virtual channel is
+// dropped.
+func (h *Hub) UnsubscribeUserFromServer(userID, serverID string) {
+	if userID == "" || serverID == "" {
+		return
+	}
+
+	// Snapshot clients and their current subscription sets under RLock.
+	h.mu.RLock()
+	resolver := h.channelServerResolver
+	userClients := h.userToClient[userID]
+	type clientChans struct {
+		client   *Client
+		channels []string
+	}
+	snapshots := make([]clientChans, 0, len(userClients))
+	for c := range userClients {
+		chs := h.clientChannels[c]
+		if len(chs) == 0 {
+			continue
+		}
+		list := make([]string, 0, len(chs))
+		for chID := range chs {
+			list = append(list, chID)
+		}
+		snapshots = append(snapshots, clientChans{client: c, channels: list})
+	}
+	h.mu.RUnlock()
+
+	if len(snapshots) == 0 {
+		return
+	}
+
+	// Decide which channels belong to serverID (outside the lock — resolver
+	// may touch the DB or a cache).
+	serverPrefix := "server:" + serverID
+	toDrop := make(map[*Client][]string, len(snapshots))
+	for _, snap := range snapshots {
+		for _, chID := range snap.channels {
+			if chID == serverPrefix {
+				toDrop[snap.client] = append(toDrop[snap.client], chID)
+				continue
+			}
+			// Skip other "server:" virtual channels and DM channels.
+			if len(chID) >= 7 && chID[:7] == "server:" {
+				continue
+			}
+			if len(chID) >= 3 && chID[:3] == "dm:" {
+				continue
+			}
+			if resolver == nil {
+				continue
+			}
+			if sID, ok := resolver(chID); ok && sID == serverID {
+				toDrop[snap.client] = append(toDrop[snap.client], chID)
+			}
+		}
+	}
+
+	if len(toDrop) == 0 {
+		return
+	}
+
+	// Apply removals under WLock.
+	h.mu.Lock()
+	for client, channels := range toDrop {
+		clientChans := h.clientChannels[client]
+		for _, chID := range channels {
+			if subs := h.channelSubs[chID]; subs != nil {
+				delete(subs, client)
+				if len(subs) == 0 {
+					delete(h.channelSubs, chID)
+				}
+			}
+			if clientChans != nil {
+				delete(clientChans, chID)
+			}
+		}
+		if clientChans != nil && len(clientChans) == 0 {
+			delete(h.clientChannels, client)
+		}
+	}
+	h.mu.Unlock()
 }
 
 // BroadcastToAllLocal sends a message to every locally-connected client without
