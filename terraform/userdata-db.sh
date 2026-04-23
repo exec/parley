@@ -167,13 +167,30 @@ fi
 echo "=== Installing and configuring PgBouncer ==="
 apt-get install -y pgbouncer
 
+# D5: bind pgbouncer only to the internal LAN interface (and loopback),
+# not to 0.0.0.0. We resolve the LAN IP at runtime by picking the first
+# non-loopback IPv4 — this works on DO (private VPC) and on Proxmox LXC
+# (10.10.10.0/24). If detection fails, we fail closed to 127.0.0.1 so the
+# DB only ever accepts local traffic rather than accidentally listening
+# on the public interface. F2 (PVE firewall) already isolates this port
+# from other tenants; binding narrowly is defense-in-depth so a future
+# firewall-rule regression doesn't silently re-expose the DB.
+PGB_LAN_IP=$(ip -4 -o addr show scope global | awk '{print $4}' | cut -d/ -f1 | head -n1)
+if [ -z "$PGB_LAN_IP" ]; then
+    echo "WARN: could not resolve LAN IP for pgbouncer listen_addr; falling back to 127.0.0.1"
+    PGB_LISTEN="127.0.0.1"
+else
+    echo "Binding pgbouncer listen_addr to 127.0.0.1 and LAN IP $PGB_LAN_IP"
+    PGB_LISTEN="127.0.0.1,$PGB_LAN_IP"
+fi
+
 # PgBouncer configuration
-cat > /etc/pgbouncer/pgbouncer.ini << 'EOF'
+cat > /etc/pgbouncer/pgbouncer.ini << EOF
 [databases]
 parley = host=localhost port=5432 dbname=parley
 
 [pgbouncer]
-listen_addr = 0.0.0.0
+listen_addr = $PGB_LISTEN
 listen_port = 6432
 # auth_type = md5 requires PostgreSQL pg_hba.conf to also use md5.
 # Ubuntu 22.04+ PostgreSQL defaults to scram-sha-256. We use scram-sha-256
@@ -205,6 +222,16 @@ EOF
 # plaintext passwords in userlist.txt are supported — PgBouncer computes the SCRAM
 # exchange internally. No separate SCRAM verifier extraction is needed at provisioning.
 # To verify post-boot: psql -h 127.0.0.1 -p 6432 -U parley parley
+#
+# D5 follow-up: plaintext-on-disk credentials are acceptable today because the
+# file is 640 postgres:postgres and the container is not reachable from other
+# tenants (F2). A stronger posture is PgBouncer's `auth_query` pattern, which
+# keeps only a dedicated `pgbouncer_auth` role's password in userlist.txt and
+# uses a SECURITY DEFINER function in the PostgreSQL cluster to look up user
+# hashes on demand. See:
+#   https://www.pgbouncer.org/config.html#authentication-settings
+# That migration is out of scope here (requires cluster-side schema changes and
+# a coordinated password rotation) but is the right target for a follow-up.
 echo "\"parley\" \"${db_password}\"" > /etc/pgbouncer/userlist.txt
 chmod 640 /etc/pgbouncer/userlist.txt
 chown postgres:postgres /etc/pgbouncer/userlist.txt

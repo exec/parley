@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"time"
 
@@ -79,7 +80,12 @@ func rpidFromURL(siteURL string) string {
 
 func originsFromURL(siteURL string) []string {
 	origins := []string{siteURL}
-	origins = append(origins, "http://localhost:5173", "http://localhost:8080")
+	// Only accept dev-server origins when explicitly running in dev mode.
+	// Production deployments must leave PARLEY_ENV unset (or set to anything else)
+	// so WebAuthn rejects assertions forged against a localhost RP origin.
+	if os.Getenv("PARLEY_ENV") == "dev" {
+		origins = append(origins, "http://localhost:5173", "http://localhost:8080")
+	}
 	return origins
 }
 
