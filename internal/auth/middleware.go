@@ -130,7 +130,7 @@ func AuthMiddlewareWith(svc *AuthService) func(http.Handler) http.Handler {
 					return
 				}
 				keyHash := SHA256Hex(tokenString)
-				keyID, userID, err := svc.repo.GetAPIKeyByHash(r.Context(), keyHash)
+				keyID, userID, scopes, err := svc.repo.GetAPIKeyByHash(r.Context(), keyHash)
 				if err != nil {
 					http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
 					return
@@ -147,6 +147,12 @@ func AuthMiddlewareWith(svc *AuthService) func(http.Handler) http.Handler {
 				go svc.repo.UpdateAPIKeyLastUsed(context.Background(), keyID)
 				ctx := context.WithValue(r.Context(), UserIDKey, userIDStr)
 				ctx = context.WithValue(ctx, IsAPIKeyAuthKey, true)
+				// Stash the key's scopes so RequireScope (and any
+				// HasScope callers) can enforce them. Empty slice
+				// for a pre-migration row means "no scopes" — the
+				// safe failure mode: nothing HasScope-checks will
+				// permit, and the owner must rotate the key.
+				ctx = context.WithValue(ctx, ScopesKey, scopes)
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}

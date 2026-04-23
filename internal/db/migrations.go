@@ -897,6 +897,16 @@ CREATE TABLE IF NOT EXISTS registration_invites (
 CREATE INDEX IF NOT EXISTS idx_registration_invites_inviter ON registration_invites(inviter_id);
 
 UPDATE users SET invite_count = 1 WHERE is_system = FALSE AND is_bot = FALSE AND invite_count = 0;`,
+
+	// D3 (audit 2026-04-23): bot API keys now carry a scope array. Existing
+	// rows grandfather to {'full'} so deployed bots keep working while their
+	// owners rotate down to narrower scopes; new rows default to '{}' which
+	// CreateAPIKey / CreateBotWithKey overwrite with whatever the caller
+	// passed. An empty array at lookup time means a pre-migration key still
+	// in flight during a rolling deploy — the middleware treats that as
+	// no-scopes (HasScope always false), which is the safe failure mode.
+	`ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS scopes TEXT[] NOT NULL DEFAULT '{}';
+UPDATE api_keys SET scopes = ARRAY['full']::TEXT[] WHERE scopes = '{}'::TEXT[];`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

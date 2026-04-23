@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"fmt"
+
+	"github.com/lib/pq"
 )
 
 // ============ Developer API Key Operations ============
@@ -43,29 +45,37 @@ func (r *Repository) RenameBotUser(ctx context.Context, botID, ownerID int64, ne
 	return nil
 }
 
-// CreateAPIKey stores a new hashed API key.
-func (r *Repository) CreateAPIKey(ctx context.Context, keyHash, keyPrefix, name string, userID, ownerID int64) (int64, error) {
+// CreateAPIKey stores a new hashed API key with the given scopes. Callers
+// must validate `scopes` against auth.KnownScopes before reaching this
+// function — the DB stores whatever is handed in.
+func (r *Repository) CreateAPIKey(ctx context.Context, keyHash, keyPrefix, name string, userID, ownerID int64, scopes []string) (int64, error) {
 	var id int64
 	err := r.db.QueryRowContext(ctx,
-		`INSERT INTO api_keys (key_hash, key_prefix, user_id, owner_id, name, created_at)
-		 VALUES ($1, $2, $3, $4, $5, NOW())
+		`INSERT INTO api_keys (key_hash, key_prefix, user_id, owner_id, name, scopes, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, NOW())
 		 RETURNING id`,
-		keyHash, keyPrefix, userID, ownerID, name,
+		keyHash, keyPrefix, userID, ownerID, name, pq.StringArray(scopes),
 	).Scan(&id)
 	return id, err
 }
 
 // GetAPIKeyByHash looks up an API key by its SHA-256 hash.
-// Returns (keyID, userID, error).
-func (r *Repository) GetAPIKeyByHash(ctx context.Context, keyHash string) (int64, int64, error) {
+// Returns (keyID, userID, scopes, error). scopes may be nil/empty for
+// pre-migration rows; the middleware treats that as "no scopes" (fail
+// closed) rather than "full access".
+func (r *Repository) GetAPIKeyByHash(ctx context.Context, keyHash string) (int64, int64, []string, error) {
 	var keyID, userID int64
+	var scopes pq.StringArray
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, user_id FROM api_keys WHERE key_hash = $1`, keyHash,
-	).Scan(&keyID, &userID)
+		`SELECT id, user_id, scopes FROM api_keys WHERE key_hash = $1`, keyHash,
+	).Scan(&keyID, &userID, &scopes)
 	if err == sql.ErrNoRows {
-		return 0, 0, ErrNotFound
+		return 0, 0, nil, ErrNotFound
 	}
-	return keyID, userID, err
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	return keyID, userID, []string(scopes), nil
 }
 
 // UpdateAPIKeyLastUsed updates the last_used_at timestamp for an API key.
@@ -89,7 +99,7 @@ func (r *Repository) CountBotsByOwner(ctx context.Context, ownerID int64) (int, 
 // GetAPIKeysByOwner returns all API keys owned by the given user, enriched with bot info.
 func (r *Repository) GetAPIKeysByOwner(ctx context.Context, ownerID int64) ([]APIKeyInfo, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT k.id, k.key_prefix, k.user_id, k.owner_id, k.name, k.created_at, k.last_used_at,
+		SELECT k.id, k.key_prefix, k.user_id, k.owner_id, k.name, k.scopes, k.created_at, k.last_used_at,
 		       u.is_bot, CASE WHEN u.is_bot THEN u.username ELSE '' END
 		FROM api_keys k
 		JOIN users u ON u.id = k.user_id
@@ -104,7 +114,7 @@ func (r *Repository) GetAPIKeysByOwner(ctx context.Context, ownerID int64) ([]AP
 	for rows.Next() {
 		var k APIKeyInfo
 		if err := rows.Scan(&k.ID, &k.KeyPrefix, &k.UserID, &k.OwnerID, &k.Name,
-			&k.CreatedAt, &k.LastUsedAt, &k.IsBot, &k.BotUsername); err != nil {
+			&k.Scopes, &k.CreatedAt, &k.LastUsedAt, &k.IsBot, &k.BotUsername); err != nil {
 			return nil, err
 		}
 		keys = append(keys, k)
@@ -126,9 +136,9 @@ func (r *Repository) CreateBotInviteToken(ctx context.Context, botUserID, ownerI
 	return token, err
 }
 
-// CreateBotWithKey atomically creates a bot user, its invite token, and an API key.
-// Returns (botUserID, keyID, error).
-func (r *Repository) CreateBotWithKey(ctx context.Context, botUsername, keyHash, keyPrefix, keyName string, ownerID int64) (botUserID int64, keyID int64, err error) {
+// CreateBotWithKey atomically creates a bot user, its invite token, and an API key
+// carrying the provided scopes. Returns (botUserID, keyID, error).
+func (r *Repository) CreateBotWithKey(ctx context.Context, botUsername, keyHash, keyPrefix, keyName string, ownerID int64, scopes []string) (botUserID int64, keyID int64, err error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, 0, err
@@ -162,9 +172,9 @@ func (r *Repository) CreateBotWithKey(ctx context.Context, botUsername, keyHash,
 
 	// 3. Create API key
 	err = tx.QueryRowContext(ctx,
-		`INSERT INTO api_keys (key_hash, key_prefix, user_id, owner_id, name, created_at)
-		 VALUES ($1, $2, $3, $4, $5, NOW()) RETURNING id`,
-		keyHash, keyPrefix, botUserID, ownerID, keyName,
+		`INSERT INTO api_keys (key_hash, key_prefix, user_id, owner_id, name, scopes, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, NOW()) RETURNING id`,
+		keyHash, keyPrefix, botUserID, ownerID, keyName, pq.StringArray(scopes),
 	).Scan(&keyID)
 	if err != nil {
 		return 0, 0, err

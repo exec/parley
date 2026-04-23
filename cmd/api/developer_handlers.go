@@ -45,9 +45,10 @@ func handleCreateAPIKey(repo *db.Repository) http.HandlerFunc {
 			return
 		}
 		var req struct {
-			Type        string `json:"type"`
-			BotUsername string `json:"bot_username"`
-			Name        string `json:"name"`
+			Type        string   `json:"type"`
+			BotUsername string   `json:"bot_username"`
+			Name        string   `json:"name"`
+			Scopes      []string `json:"scopes"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			jsonError(w, "invalid request", http.StatusBadRequest)
@@ -59,6 +60,20 @@ func handleCreateAPIKey(repo *db.Repository) http.HandlerFunc {
 		}
 		if req.Type == "bot" && strings.TrimSpace(req.BotUsername) == "" {
 			jsonError(w, "bot_username is required for bot type", http.StatusBadRequest)
+			return
+		}
+
+		// D3: every new key must declare its scopes up front. An empty array
+		// is rejected (probably a client bug that forgot to send the field);
+		// unknown scope strings are rejected with the offending value in the
+		// error so the caller can fix it. Pre-D3 keys grandfathered to "full"
+		// live via the backfill migration, not this path.
+		if bad, ok := auth.ValidateScopes(req.Scopes); !ok {
+			if bad == "" {
+				jsonError(w, "scopes is required and must not be empty", http.StatusBadRequest)
+			} else {
+				jsonError(w, "unknown scope: "+bad, http.StatusBadRequest)
+			}
 			return
 		}
 
@@ -98,7 +113,7 @@ func handleCreateAPIKey(repo *db.Repository) http.HandlerFunc {
 				jsonError(w, "bot limit reached: maximum 10 bots per user", http.StatusForbidden)
 				return
 			}
-			botUserID, keyID, err = repo.CreateBotWithKey(r.Context(), botUsername, keyHash, keyPrefix, name, ownerID)
+			botUserID, keyID, err = repo.CreateBotWithKey(r.Context(), botUsername, keyHash, keyPrefix, name, ownerID, req.Scopes)
 			if err != nil {
 				if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
 					jsonError(w, "bot username already taken", http.StatusConflict)
@@ -113,7 +128,7 @@ func handleCreateAPIKey(repo *db.Repository) http.HandlerFunc {
 			if name == "" {
 				name = "User API Key"
 			}
-			keyID, err = repo.CreateAPIKey(r.Context(), keyHash, keyPrefix, name, targetUserID, ownerID)
+			keyID, err = repo.CreateAPIKey(r.Context(), keyHash, keyPrefix, name, targetUserID, ownerID, req.Scopes)
 			if err != nil {
 				jsonError(w, "failed to create key", http.StatusInternalServerError)
 				return
@@ -126,6 +141,7 @@ func handleCreateAPIKey(repo *db.Repository) http.HandlerFunc {
 			"key_prefix": keyPrefix,
 			"name":       name,
 			"type":       req.Type,
+			"scopes":     req.Scopes,
 		}
 		if req.Type == "bot" {
 			resp["bot_username"] = botUsername

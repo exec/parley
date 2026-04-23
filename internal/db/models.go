@@ -283,17 +283,21 @@ type ServerRole struct {
 	CreatedAt   time.Time `json:"created_at" db:"created_at"`
 }
 
-// APIKeyInfo is an API key enriched with bot info for display
+// APIKeyInfo is an API key enriched with bot info for display.
+// Scopes (D3) is the set of bot-permission strings the key carries — callers
+// see this in GET /api/developer/keys so they can audit what an existing
+// key can still do without regenerating it.
 type APIKeyInfo struct {
-	ID          int64      `json:"id"`
-	KeyPrefix   string     `json:"key_prefix"`
-	UserID      int64      `json:"user_id"`
-	OwnerID     int64      `json:"owner_id"`
-	Name        string     `json:"name"`
-	IsBot       bool       `json:"is_bot"`
-	BotUsername string     `json:"bot_username,omitempty"`
-	CreatedAt   time.Time  `json:"created_at"`
-	LastUsedAt  *time.Time `json:"last_used_at,omitempty"`
+	ID          int64          `json:"id"`
+	KeyPrefix   string         `json:"key_prefix"`
+	UserID      int64          `json:"user_id"`
+	OwnerID     int64          `json:"owner_id"`
+	Name        string         `json:"name"`
+	IsBot       bool           `json:"is_bot"`
+	BotUsername string         `json:"bot_username,omitempty"`
+	Scopes      pq.StringArray `json:"scopes"`
+	CreatedAt   time.Time      `json:"created_at"`
+	LastUsedAt  *time.Time     `json:"last_used_at,omitempty"`
 }
 
 // BinPost represents a post in a bin channel.
