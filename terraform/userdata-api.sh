@@ -263,6 +263,14 @@ server {
     root /var/www/parley;
     index index.html;
 
+    # F1 ingress gate — only accept connections from the DMZ proxy (10.10.10.5).
+    # All legitimate traffic arrives via Cloudflare -> DO cloud firewall -> DMZ
+    # nginx -> this backend. Any other vmbr1 host reaching :80 directly is a
+    # lateral-movement attempt and must be dropped before it hits the SPA or /api.
+    # Placed at the server level so every location inherits it.
+    allow 10.10.10.5;
+    deny all;
+
     # HSTS — tell browsers to always use HTTPS for this domain for 1 year.
     # Cloudflare handles TLS termination; this header is forwarded to clients.
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
