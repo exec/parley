@@ -54,6 +54,58 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO parley;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON PROCEDURES TO parley;
 EOF
 
+# pgbouncer auth_query setup (D5 follow-up — replaces plaintext userlist.txt).
+# The pgbouncer_auth role is a low-privilege lookup role that can ONLY execute
+# the user_lookup SECURITY DEFINER function. It cannot SELECT pg_authid or
+# pg_shadow directly — only postgres (the function owner) has that right.
+# pgbouncer holds this role's password to open its own auth-DB connection;
+# every per-client lookup runs through user_lookup() and never exposes hashes
+# for any other user to the pgbouncer_auth role.
+echo "=== Configuring pgbouncer auth_query (D5 follow-up) ==="
+
+# Generate a random password for pgbouncer_auth if one hasn't been stored yet.
+# Persisted in /etc/pgbouncer/auth_user.pw (mode 640, owned by postgres) so
+# re-runs of this script stay idempotent and don't churn the role password.
+PGB_AUTH_PW_FILE=/etc/pgbouncer/auth_user.pw
+install -d -m 755 /etc/pgbouncer
+if [ ! -s "$PGB_AUTH_PW_FILE" ]; then
+    umask 077
+    openssl rand -base64 32 | tr -d '\n' > "$PGB_AUTH_PW_FILE"
+    umask 022
+fi
+PGB_AUTH_PW=$(cat "$PGB_AUTH_PW_FILE")
+
+sudo -u postgres psql <<EOF
+DO \$\$ BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'pgbouncer_auth') THEN
+    CREATE ROLE pgbouncer_auth LOGIN PASSWORD '$PGB_AUTH_PW';
+  ELSE
+    ALTER ROLE pgbouncer_auth LOGIN PASSWORD '$PGB_AUTH_PW';
+  END IF;
+END \$\$;
+
+\c parley
+
+-- Lookup function owned by postgres (superuser). SECURITY DEFINER lets
+-- pgbouncer_auth read pg_authid indirectly via this function even though it
+-- has no direct SELECT privilege on pg_authid. search_path pinned to
+-- pg_catalog so a future malicious object in public can't hijack the call.
+CREATE OR REPLACE FUNCTION user_lookup(IN p_usename text, OUT usename text, OUT passwd text)
+  RETURNS record
+  LANGUAGE sql
+  SECURITY DEFINER
+  SET search_path = pg_catalog
+  AS \$func\$
+    SELECT rolname::text, rolpassword::text
+      FROM pg_authid
+     WHERE rolname = p_usename;
+  \$func\$;
+
+-- Tighten: revoke PUBLIC default, grant EXECUTE only to the lookup role.
+REVOKE ALL ON FUNCTION user_lookup(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION user_lookup(text) TO pgbouncer_auth;
+EOF
+
 # Configure PostgreSQL to accept connections from API droplets
 echo "=== Configuring PostgreSQL for remote connections ==="
 
@@ -184,7 +236,9 @@ else
     PGB_LISTEN="127.0.0.1,$PGB_LAN_IP"
 fi
 
-# PgBouncer configuration
+# PgBouncer configuration — uses auth_query pattern so only pgbouncer_auth's
+# password lives in userlist.txt. Per-client hashes are fetched on demand
+# from user_lookup() in the parley DB.
 cat > /etc/pgbouncer/pgbouncer.ini << EOF
 [databases]
 parley = host=localhost port=5432 dbname=parley
@@ -197,6 +251,15 @@ listen_port = 6432
 # here to match. If your PostgreSQL version/config uses md5, change both.
 auth_type = scram-sha-256
 auth_file = /etc/pgbouncer/userlist.txt
+# auth_query pattern (D5 follow-up): pgbouncer connects as pgbouncer_auth to
+# the target database and calls user_lookup() for each client login. Only
+# pgbouncer_auth's credentials are stored on disk; individual user SCRAM
+# hashes are looked up per-connection and never written to userlist.txt.
+# The function is SECURITY DEFINER and EXECUTE is granted to pgbouncer_auth
+# only, so compromising pgbouncer_auth yields at most the ability to call
+# user_lookup() — not to read pg_authid directly.
+auth_user = pgbouncer_auth
+auth_query = SELECT usename, passwd FROM user_lookup(\$1)
 # Session pooling mode: each client connection gets its own dedicated server
 # connection. This prevents prepared statement contamination across nodes —
 # lib/pq uses extended query protocol (prepared statements) which causes
@@ -218,21 +281,11 @@ log_connections = 0
 log_disconnections = 0
 EOF
 
-# PgBouncer auth file. With auth_type=scram-sha-256 and PgBouncer 1.17+ (Ubuntu 22.04),
-# plaintext passwords in userlist.txt are supported — PgBouncer computes the SCRAM
-# exchange internally. No separate SCRAM verifier extraction is needed at provisioning.
-# To verify post-boot: psql -h 127.0.0.1 -p 6432 -U parley parley
-#
-# D5 follow-up: plaintext-on-disk credentials are acceptable today because the
-# file is 640 postgres:postgres and the container is not reachable from other
-# tenants (F2). A stronger posture is PgBouncer's `auth_query` pattern, which
-# keeps only a dedicated `pgbouncer_auth` role's password in userlist.txt and
-# uses a SECURITY DEFINER function in the PostgreSQL cluster to look up user
-# hashes on demand. See:
-#   https://www.pgbouncer.org/config.html#authentication-settings
-# That migration is out of scope here (requires cluster-side schema changes and
-# a coordinated password rotation) but is the right target for a follow-up.
-echo "\"parley\" \"${db_password}\"" > /etc/pgbouncer/userlist.txt
+# PgBouncer auth file — only the pgbouncer_auth lookup role's credentials.
+# No application user hashes are stored here anymore (auth_query fetches them
+# per-connection). pgbouncer_auth is low-privilege: LOGIN + EXECUTE on
+# user_lookup(text) in the parley DB, nothing else.
+echo "\"pgbouncer_auth\" \"$PGB_AUTH_PW\"" > /etc/pgbouncer/userlist.txt
 chmod 640 /etc/pgbouncer/userlist.txt
 chown postgres:postgres /etc/pgbouncer/userlist.txt
 
