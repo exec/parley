@@ -21,6 +21,16 @@ const (
 	UserIDKey contextKey = "userID"
 	// IsAPIKeyAuthKey is the context key for marking API key authenticated requests
 	IsAPIKeyAuthKey contextKey = "isAPIKeyAuth"
+	// IsImpersonationKey marks the request as carrying an admin-minted
+	// impersonation token rather than the real user's session. Handlers that
+	// guard destructive / profile-mutating actions use this to refuse work;
+	// the audit-log path uses it to record every request an admin makes on
+	// another user's behalf.
+	IsImpersonationKey contextKey = "isImpersonation"
+	// ActorAdminIDKey is the admin_users.id of the admin who minted the
+	// impersonation token currently being exercised. Present only when
+	// IsImpersonationKey is true.
+	ActorAdminIDKey contextKey = "actorAdminID"
 	// AuthorizationHeader is the HTTP header name for authorization
 	AuthorizationHeader = "Authorization"
 	// BearerPrefix is the prefix for Bearer token
@@ -96,6 +106,12 @@ func extractToken(r *http.Request) string {
 	return ""
 }
 
+// impersonationAuditDedupInterval bounds how often the per-request audit
+// line fires for the same actor/target/path triple. A single page load can
+// fan out into dozens of XHRs; we want one line per distinct action within
+// a short window, not one line per resource fetched.
+const impersonationAuditDedupInterval = 5 * time.Second
+
 // AuthMiddlewareWith returns an auth middleware that also checks for force logout
 // using the provided AuthService (which must have a non-nil repo).
 func AuthMiddlewareWith(svc *AuthService) func(http.Handler) http.Handler {
@@ -135,14 +151,15 @@ func AuthMiddlewareWith(svc *AuthService) func(http.Handler) http.Handler {
 				return
 			}
 
-			userID, iat, err := svc.ValidateTokenFull(tokenString)
+			info, err := svc.ValidateTokenFull(tokenString)
 			if err != nil {
 				http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
 				return
 			}
+			userID := info.UserID
 			if svc.repo != nil {
 				if st, err := svc.GetSessionStatus(r.Context(), userID); err == nil {
-					if st.ForceLogoutAt.Valid && iat <= st.ForceLogoutAt.Time.Unix() {
+					if st.ForceLogoutAt.Valid && info.IssuedAt <= st.ForceLogoutAt.Time.Unix() {
 						http.Error(w, "Session expired", http.StatusUnauthorized)
 						return
 					}
@@ -157,9 +174,50 @@ func AuthMiddlewareWith(svc *AuthService) func(http.Handler) http.Handler {
 				}
 			}
 			ctx := context.WithValue(r.Context(), UserIDKey, userID)
+			if info.IsImpersonation {
+				ctx = context.WithValue(ctx, IsImpersonationKey, true)
+				ctx = context.WithValue(ctx, ActorAdminIDKey, info.ActorAdminID)
+				// Deduped so a single page-load's many XHRs collapse to
+				// one line per (actor, target, path) in a 5s window; a
+				// truly novel action still emits immediately.
+				key := "impersonation:" + info.ActorAdminID + ":" + userID + ":" + r.URL.Path
+				if shouldLogKeyedOnce(key, impersonationAuditDedupInterval) {
+					log.Printf("audit: impersonation_request actor_admin_id=%s target_user_id=%s method=%s path=%s",
+						info.ActorAdminID, userID, r.Method, r.URL.Path)
+				}
+			}
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// shouldLogKeyedOnce is a variant of ShouldLogAuditOnce that takes an
+// explicit interval — used for the impersonation request logger, which
+// needs a much tighter window than the 5-minute default so distinct
+// actions aren't silently suppressed.
+func shouldLogKeyedOnce(key string, interval time.Duration) bool {
+	now := time.Now()
+	if prev, ok := auditDedup.Load(key); ok {
+		if last, ok := prev.(time.Time); ok && now.Sub(last) < interval {
+			return false
+		}
+	}
+	auditDedup.Store(key, now)
+	return true
+}
+
+// IsImpersonation reports whether the request is authenticated with an
+// admin-minted impersonation token.
+func IsImpersonation(r *http.Request) bool {
+	v, _ := r.Context().Value(IsImpersonationKey).(bool)
+	return v
+}
+
+// ActorAdminID returns the admin_users.id of the admin driving the
+// impersonation session, or "" when the request isn't an impersonation.
+func ActorAdminID(r *http.Request) string {
+	v, _ := r.Context().Value(ActorAdminIDKey).(string)
+	return v
 }
 
 // GetUserIDFromContext retrieves the userID from the request context

@@ -193,14 +193,16 @@ func impersonationTargetCheck(t impersonationTarget) (bool, string) {
 
 // buildImpersonationToken mints a user-JWT the admin can hand to the frontend.
 // Isolated from the handler so the token shape can be tested without spinning
-// up a DB. Phase 2 will extend the claim set (actor admin id, jti, purpose) and
-// surface them at ValidateToken time.
-func buildImpersonationToken(targetUserID, secret string, ttl time.Duration, now time.Time) (string, error) {
+// up a DB. `actorAdminID` identifies the impersonating admin and is enforced
+// at the api's auth middleware (see internal/auth/middleware.go) — absence
+// leaves the request unidentifiable for audit, so callers must set it.
+func buildImpersonationToken(targetUserID, actorAdminID, secret string, ttl time.Duration, now time.Time) (string, error) {
 	claims := jwt.MapClaims{
-		"user_id":       targetUserID,
-		"impersonation": true,
-		"exp":           now.Add(ttl).Unix(),
-		"iat":           now.Unix(),
+		"user_id":        targetUserID,
+		"impersonation":  true,
+		"actor_admin_id": actorAdminID,
+		"exp":            now.Add(ttl).Unix(),
+		"iat":            now.Unix(),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(secret))
@@ -252,7 +254,7 @@ func handleImpersonate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tokenStr, err := buildImpersonationToken(userIDStr, parleyJWTSecret, impersonationTTL, time.Now())
+	tokenStr, err := buildImpersonationToken(userIDStr, strconv.FormatInt(adminID, 10), parleyJWTSecret, impersonationTTL, time.Now())
 	if err != nil {
 		jsonError(w, "token generation failed", http.StatusInternalServerError)
 		return

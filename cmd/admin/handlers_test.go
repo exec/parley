@@ -18,7 +18,7 @@ import (
 func TestBuildImpersonationTokenClaims(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	secret := "test-secret"
-	tok, err := buildImpersonationToken("42", secret, 10*time.Minute, now)
+	tok, err := buildImpersonationToken("42", "7", secret, 10*time.Minute, now)
 	if err != nil {
 		t.Fatalf("buildImpersonationToken: %v", err)
 	}
@@ -37,6 +37,9 @@ func TestBuildImpersonationTokenClaims(t *testing.T) {
 	}
 	if claims["impersonation"] != true {
 		t.Errorf("impersonation: got %v", claims["impersonation"])
+	}
+	if claims["actor_admin_id"] != "7" {
+		t.Errorf("actor_admin_id: got %v", claims["actor_admin_id"])
 	}
 	exp, _ := claims["exp"].(float64)
 	if int64(exp) != now.Add(10*time.Minute).Unix() {
@@ -119,6 +122,14 @@ func TestHandleImpersonateNormalUserReturnsToken(t *testing.T) {
 	claims := parsed.Claims.(jwt.MapClaims)
 	if claims["user_id"] != "42" {
 		t.Errorf("user_id: got %v", claims["user_id"])
+	}
+	if claims["impersonation"] != true {
+		t.Errorf("impersonation: got %v", claims["impersonation"])
+	}
+	// serveImpersonate stuffs admin_id=7 into the request context; the
+	// handler should surface that as actor_admin_id on the minted token.
+	if claims["actor_admin_id"] != "7" {
+		t.Errorf("actor_admin_id: got %v, want \"7\"", claims["actor_admin_id"])
 	}
 	exp, _ := claims["exp"].(float64)
 	iat, _ := claims["iat"].(float64)

@@ -139,23 +139,30 @@ func registerRoutes(
 				r.Use(auth.AuthMiddlewareWith(authService))
 				r.Get("/me", handleGetMe(repo))
 				r.Get("/me/phone", handleGetMePhone(repo))
-				r.Post("/ws-ticket", handleWsTicket(authService, tickets))
-				r.Put("/profile", handleUpdateProfile(authService, repo, hub, cdnHost))
-				r.Put("/email", handleChangeEmail(authService))
-				r.Post("/resend-verification", handleResendVerification(authService))
-				r.Post("/verify-phone", handleVerifyPhone(authService))
-				r.Post("/resend-phone", handleResendPhone(authService))
-				r.Put("/phone", handleChangePhone(authService))
+				// Support sessions must not acquire WS tickets as the
+				// target (would let an admin open a full WS session as
+				// the user) nor pair a desktop client to them.
+				r.With(denyImpersonation).Post("/ws-ticket", handleWsTicket(authService, tickets))
+				// Everything that mutates the target's account / credentials
+				// / verified contacts / passkeys is denied for impersonation
+				// sessions — these are destructive from the user's POV and
+				// have no support-workflow justification.
+				r.With(denyImpersonation).Put("/profile", handleUpdateProfile(authService, repo, hub, cdnHost))
+				r.With(denyImpersonation).Put("/email", handleChangeEmail(authService))
+				r.With(denyImpersonation).Post("/resend-verification", handleResendVerification(authService))
+				r.With(denyImpersonation).Post("/verify-phone", handleVerifyPhone(authService))
+				r.With(denyImpersonation).Post("/resend-phone", handleResendPhone(authService))
+				r.With(denyImpersonation).Put("/phone", handleChangePhone(authService))
 				if passkeySvc != nil {
-					r.Post("/passkey/register/begin", handlePasskeyRegisterBegin(passkeySvc))
-					r.Post("/passkey/register/finish", handlePasskeyRegisterFinish(passkeySvc))
+					r.With(denyImpersonation).Post("/passkey/register/begin", handlePasskeyRegisterBegin(passkeySvc))
+					r.With(denyImpersonation).Post("/passkey/register/finish", handlePasskeyRegisterFinish(passkeySvc))
 					r.Get("/passkeys", handleListPasskeys(passkeySvc))
-					r.Delete("/passkeys/{id}", handleDeletePasskey(passkeySvc))
-					r.Put("/passkeys/{id}", handleRenamePasskey(passkeySvc))
-				r.Delete("/password", handleRemovePassword(passkeySvc, authService))
+					r.With(denyImpersonation).Delete("/passkeys/{id}", handleDeletePasskey(passkeySvc))
+					r.With(denyImpersonation).Put("/passkeys/{id}", handleRenamePasskey(passkeySvc))
+					r.With(denyImpersonation).Delete("/password", handleRemovePassword(passkeySvc, authService))
 				}
 				if redisHub != nil {
-					r.Post("/desktop/issue", handleDesktopAuthIssue(desktopauth.New(redisHub.Client())))
+					r.With(denyImpersonation).Post("/desktop/issue", handleDesktopAuthIssue(desktopauth.New(redisHub.Client())))
 				}
 			})
 		})
@@ -186,7 +193,7 @@ func registerRoutes(
 			r.Get("/servers", serverHandler.GetUserServers)
 			r.Get("/servers/{id}", serverHandler.GetServer)
 			r.Put("/servers/{id}", serverHandler.UpdateServer)
-			r.Delete("/servers/{id}", serverHandler.DeleteServer)
+			r.With(denyImpersonation).Delete("/servers/{id}", serverHandler.DeleteServer)
 			r.Post("/servers/{id}/members", serverHandler.AddMember)
 			r.Delete("/servers/{id}/members/{userID}", serverHandler.RemoveMember)
 			r.Get("/servers/{id}/members", serverHandler.GetMembers)
@@ -307,9 +314,9 @@ func registerRoutes(
 			r.Post("/channels/{channelId}/soundboard/play", soundboardHandler.Play)
 
 			// Invite routes
-			r.Post("/servers/{id}/invites", serverHandler.CreateInvite)
+			r.With(denyImpersonation).Post("/servers/{id}/invites", serverHandler.CreateInvite)
 			r.Get("/servers/{id}/invites", serverHandler.ListServerInvites)
-			r.Delete("/servers/{id}/invites/{code}", serverHandler.RevokeInvite)
+			r.With(denyImpersonation).Delete("/servers/{id}/invites/{code}", serverHandler.RevokeInvite)
 			r.Get("/servers/{id}/invites/{code}/members", serverHandler.GetInviteMembers)
 			// GET previews invite info without joining; POST actually joins.
 			r.With(rateLimitMiddleware(inviteLimiter)).Get("/invites/{code}", serverHandler.PreviewInvite)
@@ -321,8 +328,8 @@ func registerRoutes(
 
 			// Bot routes
 			r.Get("/servers/{id}/bots", botsHandler.ListBots)
-			r.Post("/servers/{id}/bots", botsHandler.AddBot)
-			r.Delete("/servers/{id}/bots/{botId}", botsHandler.RemoveBot)
+			r.With(denyImpersonation).Post("/servers/{id}/bots", botsHandler.AddBot)
+			r.With(denyImpersonation).Delete("/servers/{id}/bots/{botId}", botsHandler.RemoveBot)
 			r.Get("/servers/{id}/ai-config", botsHandler.GetAIConfig)
 			r.Put("/servers/{id}/ai-config", botsHandler.SetAIConfig)
 			r.Get("/servers/{id}/ai-usage", botsHandler.GetAIUsage)
@@ -352,16 +359,24 @@ func registerRoutes(
 			// User routes
 			r.Get("/users/search", handleUserSearch(repo))
 			r.Get("/users/me", handleGetMeSelf(repo))
-			r.Patch("/users/me", handlePatchMe(repo, hub, cdnHost))
+			// PATCH /users/me mutates the profile (display name, avatar, etc.) —
+			// admins have a separate tool for that and shouldn't change these
+			// through an impersonation session.
+			r.With(denyImpersonation).Patch("/users/me", handlePatchMe(repo, hub, cdnHost))
 			r.Get("/users/{id}", handleGetUser(repo))
 			r.Patch("/users/@me/status", handleUpdateStatus(hub, repo))
 
-			// Developer API key routes
-			r.Get("/developer/keys", handleListAPIKeys(repo))
-			r.Post("/developer/keys", handleCreateAPIKey(repo))
-			r.Delete("/developer/keys/{id}", handleRevokeAPIKey(repo))
-			r.Patch("/developer/bots/{botId}", handleRenameBotUser(repo))
-			r.Patch("/developer/bots/{botId}/invite", botsHandler.UpdateInvitePermissions)
+			// Developer API key routes — entire group is off-limits for
+			// impersonation. Minting a key as the user or renaming their
+			// bots would give the admin post-session persistence.
+			r.Group(func(r chi.Router) {
+				r.Use(denyImpersonation)
+				r.Get("/developer/keys", handleListAPIKeys(repo))
+				r.Post("/developer/keys", handleCreateAPIKey(repo))
+				r.Delete("/developer/keys/{id}", handleRevokeAPIKey(repo))
+				r.Patch("/developer/bots/{botId}", handleRenameBotUser(repo))
+				r.Patch("/developer/bots/{botId}/invite", botsHandler.UpdateInvitePermissions)
+			})
 
 			// GIPHY proxy — keeps the API key server-side
 			r.Get("/giphy/search", handleGiphySearch)
@@ -370,16 +385,24 @@ func registerRoutes(
 			// File upload — 50 MB limit
 			r.With(maxBodyMiddleware(50 * 1024 * 1024)).Post("/upload", handleUpload(spacesClient, repo.DB()))
 
-			// Theme routes
-			r.Get("/me/preferences", themeHandler.GetPreferences)
-			r.Put("/me/preferences/theme", themeHandler.SetActiveTheme)
-			r.Post("/me/themes", themeHandler.CreateTheme)
-			r.Put("/me/themes/{id}", themeHandler.UpdateTheme)
-			r.Delete("/me/themes/{id}", themeHandler.DeleteTheme)
-			r.Post("/me/themes/{id}/share", themeHandler.ShareTheme)
-			r.Post("/me/themes/{id}/publish", themeHandler.TogglePublish)
-			r.Post("/me/themes/install/{token}", themeHandler.InstallTheme)
-			r.Post("/me/themes/generate", aiHandler.Generate)
+			// Theme routes — preferences + theme mutations are profile
+			// state and have no business being touched by a support
+			// session. GetPreferences is a read; still deny it so the
+			// admin UI doesn't silently pull the user's preference blob
+			// (covers every /me/preferences path). Public theme reads
+			// under /themes are registered outside this group.
+			r.Group(func(r chi.Router) {
+				r.Use(denyImpersonation)
+				r.Get("/me/preferences", themeHandler.GetPreferences)
+				r.Put("/me/preferences/theme", themeHandler.SetActiveTheme)
+				r.Post("/me/themes", themeHandler.CreateTheme)
+				r.Put("/me/themes/{id}", themeHandler.UpdateTheme)
+				r.Delete("/me/themes/{id}", themeHandler.DeleteTheme)
+				r.Post("/me/themes/{id}/share", themeHandler.ShareTheme)
+				r.Post("/me/themes/{id}/publish", themeHandler.TogglePublish)
+				r.Post("/me/themes/install/{token}", themeHandler.InstallTheme)
+				r.Post("/me/themes/generate", aiHandler.Generate)
+			})
 			r.Put("/themes/{id}/feature", themeHandler.ToggleFeature)
 		})
 

@@ -631,10 +631,27 @@ func (s *AuthService) CheckPassword(hash, password string) bool {
 	return err == nil
 }
 
-// ValidateTokenFull validates a JWT token and returns the userID and iat (issued-at) timestamp.
-func (s *AuthService) ValidateTokenFull(tokenString string) (userID string, iat int64, err error) {
+// TokenInfo surfaces the claims that callers need from a validated user JWT.
+// IsImpersonation + ActorAdminID flow through the middleware so downstream
+// handlers and audit logs can tell support-session traffic from a real user
+// session (see audit finding F-impersonation-claim).
+type TokenInfo struct {
+	UserID          string
+	IssuedAt        int64
+	ExpiresAt       int64
+	IsImpersonation bool
+	// ActorAdminID is the admin_users.id of the admin who minted the
+	// impersonation token. Empty when IsImpersonation is false.
+	ActorAdminID string
+}
+
+// ValidateTokenFull parses and validates a user JWT and returns the full claim
+// set the auth layer cares about. Callers that only need the userID should use
+// ValidateToken; callers that inspect iat (force-logout check) or the
+// impersonation flag (audit log / denyImpersonation middleware) use this one.
+func (s *AuthService) ValidateTokenFull(tokenString string) (TokenInfo, error) {
 	if tokenString == "" {
-		return "", 0, errors.New("token is required")
+		return TokenInfo{}, errors.New("token is required")
 	}
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -643,69 +660,48 @@ func (s *AuthService) ValidateTokenFull(tokenString string) (userID string, iat 
 		return []byte(s.config.SecretKey), nil
 	})
 	if err != nil {
-		return "", 0, err
+		return TokenInfo{}, err
 	}
-	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		exp, ok := claims["exp"].(float64)
-		if !ok {
-			return "", 0, errors.New("invalid token claims")
-		}
-		if time.Now().Unix() > int64(exp) {
-			return "", 0, errors.New("token has expired")
-		}
-		uid, ok := claims["user_id"].(string)
-		if !ok {
-			return "", 0, errors.New("invalid user_id in token")
-		}
-		if iatF, ok := claims["iat"].(float64); ok {
-			iat = int64(iatF)
-		}
-		return uid, iat, nil
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok || !token.Valid {
+		return TokenInfo{}, errors.New("invalid token")
 	}
-	return "", 0, errors.New("invalid token")
+	expF, ok := claims["exp"].(float64)
+	if !ok {
+		return TokenInfo{}, errors.New("invalid token claims")
+	}
+	exp := int64(expF)
+	if time.Now().Unix() > exp {
+		return TokenInfo{}, errors.New("token has expired")
+	}
+	uid, ok := claims["user_id"].(string)
+	if !ok {
+		return TokenInfo{}, errors.New("invalid user_id in token")
+	}
+	info := TokenInfo{UserID: uid, ExpiresAt: exp}
+	if iatF, ok := claims["iat"].(float64); ok {
+		info.IssuedAt = int64(iatF)
+	}
+	if imp, ok := claims["impersonation"].(bool); ok && imp {
+		info.IsImpersonation = true
+		// actor_admin_id is set by admin's handleImpersonate; tokens
+		// from older code paths may lack it — treat as unknown actor.
+		if actor, ok := claims["actor_admin_id"].(string); ok {
+			info.ActorAdminID = actor
+		}
+	}
+	return info, nil
 }
 
-// ValidateToken validates a JWT token and returns the userID
+// ValidateToken validates a JWT token and returns the userID. Back-compat
+// wrapper over ValidateTokenFull for callers that don't need the richer
+// claim set.
 func (s *AuthService) ValidateToken(tokenString string) (string, error) {
-	if tokenString == "" {
-		return "", errors.New("token is required")
-	}
-
-	// Parse the token
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		// Validate the signing method
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.New("invalid signing method")
-		}
-		return []byte(s.config.SecretKey), nil
-	})
-
+	info, err := s.ValidateTokenFull(tokenString)
 	if err != nil {
 		return "", err
 	}
-
-	// Extract claims
-	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		// Check expiration
-		exp, ok := claims["exp"].(float64)
-		if !ok {
-			return "", errors.New("invalid token claims")
-		}
-
-		if time.Now().Unix() > int64(exp) {
-			return "", errors.New("token has expired")
-		}
-
-		// Extract userID
-		userID, ok := claims["user_id"].(string)
-		if !ok {
-			return "", errors.New("invalid user_id in token")
-		}
-
-		return userID, nil
-	}
-
-	return "", errors.New("invalid token")
+	return info.UserID, nil
 }
 
 // SessionStatus carries the auth-relevant row fields the middleware checks on

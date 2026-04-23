@@ -1,8 +1,15 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
+
+	"parley/internal/auth"
 )
 
 func TestTokenBucketAllows(t *testing.T) {
@@ -82,3 +89,65 @@ func TestUserRateLimiterIsolation(t *testing.T) {
 		t.Error("user_b should not be affected by user_a exhaustion")
 	}
 }
+
+// --- denyImpersonation ---
+
+// impersonationCtx wires the same context values AuthMiddlewareWith would
+// set; lets us drive denyImpersonation in isolation.
+func impersonationCtx(r *http.Request, actor, target string) *http.Request {
+	ctx := r.Context()
+	ctx = context.WithValue(ctx, auth.UserIDKey, target)
+	ctx = context.WithValue(ctx, auth.IsImpersonationKey, true)
+	ctx = context.WithValue(ctx, auth.ActorAdminIDKey, actor)
+	return r.WithContext(ctx)
+}
+
+func TestDenyImpersonationBlocksImpersonationToken(t *testing.T) {
+	called := false
+	h := denyImpersonation(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := impersonationCtx(httptest.NewRequest(http.MethodDelete, "/api/auth/password", nil), "7", "42")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if called {
+		t.Fatal("handler should not be called for impersonation token")
+	}
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("status: got %d, want 403", rr.Code)
+	}
+	if ct := rr.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+		t.Errorf("Content-Type: got %q, want application/json", ct)
+	}
+	var body map[string]string
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v; body=%q", err, rr.Body.String())
+	}
+	if body["error"] != "endpoint disallowed for impersonation sessions" {
+		t.Errorf("error: got %q", body["error"])
+	}
+}
+
+func TestDenyImpersonationPassesNormalToken(t *testing.T) {
+	called := false
+	h := denyImpersonation(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/auth/password", nil)
+	req = req.WithContext(context.WithValue(req.Context(), auth.UserIDKey, "42"))
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if !called {
+		t.Fatal("handler should have been called for normal token")
+	}
+	if rr.Code != http.StatusOK {
+		t.Errorf("status: got %d, want 200", rr.Code)
+	}
+}
+
