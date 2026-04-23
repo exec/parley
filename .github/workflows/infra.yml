@@ -39,7 +39,6 @@ on:
 #   SPACES_CDN_URL            — DO Spaces CDN base URL
 #   BREVO_API_KEY             — Brevo transactional email API key
 #   ADMIN_JWT_SECRET          — Admin panel JWT secret
-#   ADMIN_IMPERSONATE_SECRET  — Admin impersonation shared secret
 #   IMPERSONATION_JWT_SECRET  — JWT signing key for admin-minted impersonation
 #                               tokens (must differ from JWT_SECRET)
 #   LIVEKIT_API_KEY           — LiveKit API key
@@ -82,7 +81,6 @@ jobs:
       TF_VAR_spaces_cdn_url: ${{ secrets.SPACES_CDN_URL }}
       TF_VAR_brevo_api_key: ${{ secrets.BREVO_API_KEY }}
       TF_VAR_admin_jwt_secret: ${{ secrets.ADMIN_JWT_SECRET }}
-      TF_VAR_admin_impersonate_secret: ${{ secrets.ADMIN_IMPERSONATE_SECRET }}
       TF_VAR_impersonation_jwt_secret: ${{ secrets.IMPERSONATION_JWT_SECRET }}
       TF_VAR_livekit_api_key: ${{ secrets.LIVEKIT_API_KEY }}
       TF_VAR_livekit_api_secret: ${{ secrets.LIVEKIT_API_SECRET }}

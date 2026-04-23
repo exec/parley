@@ -149,7 +149,7 @@ func adminRateLimitMiddleware(rl *adminRateLimiter) func(http.Handler) http.Hand
 func runServer() {
 	port := os.Getenv("ADMIN_PORT")
 	if port == "" {
-		port = "8081"
+		port = "8080"
 	}
 
 	// Rate limiter: 5 login attempts per IP per minute
