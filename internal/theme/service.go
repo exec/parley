@@ -2,26 +2,21 @@ package theme
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"net/url"
-	"regexp"
-	"strings"
+
+	"parley/internal/theme/cssvalidator"
 )
 
-const maxCSSBytes = 51200
 const maxThemes = 20
 
 var ErrThemeLimit = errors.New(fmt.Sprintf("theme limit reached (%d max)", maxThemes))
 
-var urlRe = regexp.MustCompile(`(?i)url\(\s*['"]?([^'"\s)]+)['"]?\s*\)`)
-
-type ValidationError struct {
-	OffendingURLs []string `json:"offending_urls"`
-}
-
-func (e *ValidationError) Error() string { b, _ := json.Marshal(e); return string(b) }
+// ValidationError is re-exported from cssvalidator so existing callers
+// (handler.go error assertion, frontend JSON shape) stay unchanged.
+// The actual URL allow-list logic lives in internal/theme/cssvalidator
+// so internal/ai can share it without an import cycle.
+type ValidationError = cssvalidator.ValidationError
 
 type Service struct {
 	repo    *Repository
@@ -33,38 +28,8 @@ func NewService(repo *Repository, cdnHost, siteURL string) *Service {
 	return &Service{repo: repo, cdnHost: cdnHost, siteURL: siteURL}
 }
 
-var staticAllowed = map[string]bool{
-	"fonts.googleapis.com": true,
-	"fonts.gstatic.com":    true,
-}
-
 func (s *Service) validateCSS(css string) error {
-	if len(css) > maxCSSBytes {
-		return fmt.Errorf("CSS exceeds 50 KB limit")
-	}
-	matches := urlRe.FindAllStringSubmatch(css, -1)
-	var bad []string
-	for _, m := range matches {
-		if len(m) < 2 {
-			continue
-		}
-		raw := strings.TrimSpace(m[1])
-		if strings.HasPrefix(raw, "data:") || strings.HasPrefix(raw, "#") || !strings.Contains(raw, "://") {
-			continue
-		}
-		parsed, err := url.Parse(raw)
-		if err != nil || parsed.Host == "" {
-			continue
-		}
-		h := strings.ToLower(parsed.Host)
-		if !staticAllowed[h] && h != strings.ToLower(s.cdnHost) {
-			bad = append(bad, raw)
-		}
-	}
-	if len(bad) > 0 {
-		return &ValidationError{OffendingURLs: bad}
-	}
-	return nil
+	return cssvalidator.Validate(css, s.cdnHost)
 }
 
 func (s *Service) GetPreferences(ctx context.Context, userID int64) (*UserPreferences, error) {

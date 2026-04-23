@@ -5,6 +5,8 @@ import (
 	"log"
 	"strings"
 	"time"
+
+	"parley/internal/theme/cssvalidator"
 )
 
 // systemPrompt is sent as the system message to every generation request.
@@ -179,19 +181,28 @@ func processOne(ctx context.Context, queue *AIQueue, ollama *OllamaClient) error
 	return queue.ReleaseLock(ctx)
 }
 
-// validateGeneratedCSS performs simple sanity checks on model output.
-// It does NOT check URL allowlists — that runs on Save in the theme service.
+// validateGeneratedCSS performs sanity checks on model output. It rejects
+// obvious framing mistakes (empty output, fenced markdown, unbalanced braces)
+// and runs the same URL allow-list check used on Save, so a prompt-injected
+// @import or url() from the model doesn't reach the user. cdnHost is left
+// empty: only the static font allow-list is honored here, and Save re-validates
+// with the real cdnHost before persistence.
 func validateGeneratedCSS(css string) bool {
 	s := strings.TrimSpace(css)
 	if s == "" {
 		return false
 	}
-	// Reject markdown code fences the model accidentally included.
 	if strings.HasPrefix(s, "```") {
 		return false
 	}
-	// Must contain at least one rule block.
 	open := strings.Count(s, "{")
 	close := strings.Count(s, "}")
-	return open > 0 && open == close
+	if open == 0 || open != close {
+		return false
+	}
+	if err := cssvalidator.Validate(css, ""); err != nil {
+		log.Printf("ai worker: generated CSS rejected: %v", err)
+		return false
+	}
+	return true
 }
