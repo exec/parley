@@ -58,18 +58,13 @@ func ShouldLogAuditOnce(key string) bool {
 	return true
 }
 
-// ClientIP extracts the real client IP from the request. When Parley sits
-// behind the DMZ nginx (which sets X-Forwarded-For from CF-Connecting-IP),
-// r.RemoteAddr is the DMZ's internal IP, not the user's — so we prefer the
-// forwarded headers.
+// ClientIP returns the real client IP. Behind the DMZ nginx (which sets
+// X-Real-IP to $remote_addr after real_ip_header CF-Connecting-IP), that
+// header is the trusted real-client IP — client-supplied copies are
+// overwritten at the proxy. We do NOT read X-Forwarded-For because
+// Cloudflare preserves client-supplied XFF as the leftmost token (see
+// audit finding F6); it is attacker-controlled.
 func ClientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		// XFF can be a chain; the leftmost is the original client.
-		if idx := strings.Index(xff, ","); idx > 0 {
-			return strings.TrimSpace(xff[:idx])
-		}
-		return strings.TrimSpace(xff)
-	}
 	if xri := r.Header.Get("X-Real-IP"); xri != "" {
 		return strings.TrimSpace(xri)
 	}

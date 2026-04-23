@@ -260,3 +260,49 @@ func TestConstants(t *testing.T) {
 		t.Errorf("unexpected BearerPrefix: %s", BearerPrefix)
 	}
 }
+
+// --- ClientIP (F6) ---
+
+// Cloudflare preserves client-supplied XFF as the leftmost token, so
+// ClientIP must ignore X-Forwarded-For entirely and fall back to RemoteAddr
+// when no trusted X-Real-IP is present.
+func TestClientIPIgnoresXForwardedFor(t *testing.T) {
+	r := httptest.NewRequest("GET", "/", nil)
+	r.Header.Set("X-Forwarded-For", "203.0.113.7")
+	r.RemoteAddr = "10.10.10.5:1234"
+	got := ClientIP(r)
+	if got != "10.10.10.5" {
+		t.Errorf("expected '10.10.10.5' (XFF must be ignored), got '%s'", got)
+	}
+}
+
+func TestClientIPPrefersXRealIP(t *testing.T) {
+	r := httptest.NewRequest("GET", "/", nil)
+	r.Header.Set("X-Real-IP", "198.51.100.42")
+	r.RemoteAddr = "10.10.10.5:1234"
+	got := ClientIP(r)
+	if got != "198.51.100.42" {
+		t.Errorf("expected '198.51.100.42', got '%s'", got)
+	}
+}
+
+func TestClientIPFallsBackToRemoteAddr(t *testing.T) {
+	r := httptest.NewRequest("GET", "/", nil)
+	r.RemoteAddr = "10.10.10.5:1234"
+	got := ClientIP(r)
+	if got != "10.10.10.5" {
+		t.Errorf("expected '10.10.10.5', got '%s'", got)
+	}
+}
+
+// With both XFF and XRI set, XRI wins and XFF is silently ignored.
+func TestClientIPXRealIPWinsOverXForwardedFor(t *testing.T) {
+	r := httptest.NewRequest("GET", "/", nil)
+	r.Header.Set("X-Forwarded-For", "203.0.113.7")
+	r.Header.Set("X-Real-IP", "198.51.100.42")
+	r.RemoteAddr = "10.10.10.5:1234"
+	got := ClientIP(r)
+	if got != "198.51.100.42" {
+		t.Errorf("expected '198.51.100.42' (XRI wins, XFF ignored), got '%s'", got)
+	}
+}

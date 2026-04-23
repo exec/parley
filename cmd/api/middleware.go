@@ -173,9 +173,12 @@ func (rl *rateLimiter) Stop() {
 // ----- Middleware helpers -----
 
 // rateLimitMiddleware rejects requests that exceed the limiter's threshold.
-// It uses r.RemoteAddr exclusively to avoid trusting client-supplied headers.
-// When nginx sits in front, it overwrites X-Real-IP before forwarding, and
-// Chi's RealIP middleware has already copied that trusted value into RemoteAddr.
+// It keys on auth.ClientIP(r), which returns X-Real-IP when we're behind the
+// DMZ nginx (nginx overwrites X-Real-IP to $remote_addr after real_ip_header
+// CF-Connecting-IP, so the header is the trusted real-client IP) and falls
+// back to r.RemoteAddr otherwise. X-Forwarded-For is never read — Cloudflare
+// preserves client-supplied XFF as the leftmost token, making it
+// attacker-controlled (see audit finding F6).
 func rateLimitMiddleware(rl rateLimiterI) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
