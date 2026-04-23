@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/rand"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -159,24 +160,105 @@ func handleForceLogout(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, map[string]string{"message": "user force logged out"})
 }
 
+// impersonationTTL bounds how long a minted impersonation token is valid.
+// Kept short because an admin opens a session, acts, and moves on — an hour
+// of reusable authority was wildly excessive (F-impersonate-replay).
+const impersonationTTL = 10 * time.Minute
+
+// impersonationTarget is the minimal view of a user the impersonation handler
+// needs to enforce its policy. It's intentionally narrower than db.User so the
+// dedicated SQL below doesn't couple to schema columns unrelated to this flow.
+type impersonationTarget struct {
+	Found    bool
+	IsSystem bool
+	IsBot    bool
+	Banned   bool
+}
+
+// impersonationTargetCheck returns (ok, reason). If ok is false the admin
+// must not be allowed to impersonate this user: bots, system users, and
+// banned accounts are all off-limits (F-impersonate-any-target). Hard-deleted
+// users surface as Found=false. Admin accounts live in a separate admin_users
+// table, so there's no is_admin flag to screen for here — the users row being
+// present means it is a regular user.
+func impersonationTargetCheck(t impersonationTarget) (bool, string) {
+	if !t.Found {
+		return false, "user not found"
+	}
+	if t.IsSystem || t.IsBot || t.Banned {
+		return false, "cannot impersonate this user type"
+	}
+	return true, ""
+}
+
+// buildImpersonationToken mints a user-JWT the admin can hand to the frontend.
+// Isolated from the handler so the token shape can be tested without spinning
+// up a DB. Phase 2 will extend the claim set (actor admin id, jti, purpose) and
+// surface them at ValidateToken time.
+func buildImpersonationToken(targetUserID, secret string, ttl time.Duration, now time.Time) (string, error) {
+	claims := jwt.MapClaims{
+		"user_id":       targetUserID,
+		"impersonation": true,
+		"exp":           now.Add(ttl).Unix(),
+		"iat":           now.Unix(),
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(secret))
+}
+
+// lookupImpersonationTarget is a package-level hook so tests can stub the DB
+// read. Production implementation issues a single dedicated query against the
+// columns the policy cares about.
+var lookupImpersonationTarget = func(r *http.Request, id int64) (impersonationTarget, error) {
+	var t impersonationTarget
+	var bannedAt *time.Time
+	err := repo.DB().QueryRowContext(r.Context(),
+		`SELECT is_system, is_bot, banned_at FROM users WHERE id = $1`, id,
+	).Scan(&t.IsSystem, &t.IsBot, &bannedAt)
+	if err == sql.ErrNoRows {
+		return impersonationTarget{Found: false}, nil
+	}
+	if err != nil {
+		return impersonationTarget{}, err
+	}
+	t.Found = true
+	t.Banned = bannedAt != nil
+	return t, nil
+}
+
 func handleImpersonate(w http.ResponseWriter, r *http.Request) {
 	if parleyJWTSecret == "" {
 		jsonError(w, "impersonation not configured", http.StatusNotImplemented)
 		return
 	}
 	userIDStr := chi.URLParam(r, "id")
-	claims := jwt.MapClaims{
-		"user_id":       userIDStr,
-		"impersonation": true,
-		"exp":           time.Now().Add(1 * time.Hour).Unix(),
-		"iat":           time.Now().Unix(),
+	adminID := getAdminID(r)
+
+	targetID, err := strconv.ParseInt(userIDStr, 10, 64)
+	if err != nil {
+		jsonError(w, "invalid id", http.StatusBadRequest)
+		return
 	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenStr, err := token.SignedString([]byte(parleyJWTSecret))
+
+	target, err := lookupImpersonationTarget(r, targetID)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if ok, reason := impersonationTargetCheck(target); !ok {
+		log.Printf("audit: admin_impersonate_refused admin_id=%d target_user_id=%s ip=%s reason=%q", adminID, userIDStr, r.RemoteAddr, reason)
+		jsonError(w, "cannot impersonate this user type", http.StatusForbidden)
+		return
+	}
+
+	tokenStr, err := buildImpersonationToken(userIDStr, parleyJWTSecret, impersonationTTL, time.Now())
 	if err != nil {
 		jsonError(w, "token generation failed", http.StatusInternalServerError)
 		return
 	}
+
+	log.Printf("audit: admin_impersonate admin_id=%d target_user_id=%s ip=%s", adminID, userIDStr, r.RemoteAddr)
 	jsonOK(w, map[string]string{"token": tokenStr})
 }
 

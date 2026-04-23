@@ -215,45 +215,6 @@ func TestValidateTokenFullEmpty(t *testing.T) {
 	}
 }
 
-// --- GenerateImpersonationToken ---
-
-func TestGenerateImpersonationToken(t *testing.T) {
-	svc := newTestService()
-	token, err := svc.GenerateImpersonationToken("42")
-	if err != nil {
-		t.Fatalf("GenerateImpersonationToken failed: %v", err)
-	}
-	if token == "" {
-		t.Fatal("GenerateImpersonationToken returned empty string")
-	}
-
-	// Parse and check the impersonation claim
-	parsed, err := jwt.Parse(token, func(tok *jwt.Token) (interface{}, error) {
-		return []byte(svc.config.SecretKey), nil
-	})
-	if err != nil {
-		t.Fatalf("failed to parse impersonation token: %v", err)
-	}
-	claims, ok := parsed.Claims.(jwt.MapClaims)
-	if !ok {
-		t.Fatal("unexpected claims type")
-	}
-	if claims["user_id"] != "42" {
-		t.Errorf("expected user_id '42', got '%v'", claims["user_id"])
-	}
-	if claims["impersonation"] != true {
-		t.Errorf("expected impersonation=true, got '%v'", claims["impersonation"])
-	}
-}
-
-func TestGenerateImpersonationTokenEmptyID(t *testing.T) {
-	svc := newTestService()
-	_, err := svc.GenerateImpersonationToken("")
-	if err == nil {
-		t.Error("GenerateImpersonationToken should reject empty user ID")
-	}
-}
-
 // --- GenerateTokenForUser ---
 
 func TestGenerateTokenForUser(t *testing.T) {

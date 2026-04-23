@@ -794,21 +794,6 @@ func (s *AuthService) IsForceLoggedOut(ctx context.Context, userID string, issue
 	return false, nil
 }
 
-// GenerateImpersonationToken creates a short-lived JWT for admin impersonation of a user.
-func (s *AuthService) GenerateImpersonationToken(userID string) (string, error) {
-	if userID == "" {
-		return "", errors.New("user ID required")
-	}
-	claims := jwt.MapClaims{
-		"user_id":       userID,
-		"impersonation": true,
-		"exp":           time.Now().Add(1 * time.Hour).Unix(),
-		"iat":           time.Now().Unix(),
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(s.config.SecretKey))
-}
-
 // generateToken creates a new JWT token for a user
 func (s *AuthService) generateToken(userID string) (string, error) {
 	claims := jwt.MapClaims{

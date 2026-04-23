@@ -1,11 +1,8 @@
 package main
 
 import (
-	"crypto/subtle"
 	"encoding/json"
 	"net/http"
-	"os"
-	"strings"
 
 	"parley/internal/auth"
 )
@@ -226,30 +223,3 @@ func handleResetPassword(authService *auth.AuthService) http.HandlerFunc {
 	}
 }
 
-func handleImpersonateToken(authService *auth.AuthService) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		targetUserID := r.Header.Get("X-Admin-Impersonate")
-		adminSecret := r.Header.Get("X-Admin-Secret")
-
-		expectedSecret := os.Getenv("ADMIN_IMPERSONATE_SECRET")
-		if expectedSecret == "" || subtle.ConstantTimeCompare([]byte(adminSecret), []byte(expectedSecret)) != 1 {
-			jsonError(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		targetUserID = strings.TrimSpace(targetUserID)
-		if targetUserID == "" {
-			jsonError(w, "target user ID is required", http.StatusBadRequest)
-			return
-		}
-
-		token, err := authService.GenerateImpersonationToken(targetUserID)
-		if err != nil {
-			jsonError(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"token": token})
-	}
-}
