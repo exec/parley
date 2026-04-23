@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -83,12 +84,25 @@ func (rl *adminRateLimiter) cleanup() {
 	}
 }
 
+// adminRateLimitMiddleware rejects requests that exceed the limiter's threshold.
+// It keys on X-Real-IP when set by the DMZ nginx (which overwrites the header
+// to $remote_addr after real_ip_header CF-Connecting-IP, so it reflects the
+// trusted real client IP) and falls back to r.RemoteAddr otherwise. Mirrors
+// cmd/api/middleware.go rateLimitMiddleware. X-Forwarded-For is never read:
+// Cloudflare preserves client-supplied XFF as the leftmost token, making it
+// attacker-controlled (see audit finding F6). Without this, post-F1 all
+// CF-routed traffic hits r.RemoteAddr=127.0.0.1 and shares one global bucket
+// (finding F7).
 func adminRateLimitMiddleware(rl *adminRateLimiter) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+			ip := strings.TrimSpace(r.Header.Get("X-Real-IP"))
 			if ip == "" {
-				ip = r.RemoteAddr
+				var err error
+				ip, _, err = net.SplitHostPort(r.RemoteAddr)
+				if err != nil {
+					ip = r.RemoteAddr
+				}
 			}
 			if !rl.Allow(ip) {
 				jsonError(w, "too many requests, please slow down", http.StatusTooManyRequests)
