@@ -6,7 +6,12 @@ DB_HOST="${DB_HOST}"
 DB_PASSWORD="${DB_PASSWORD}"
 REDIS_HOST="${REDIS_HOST}"
 ADMIN_JWT_SECRET="${ADMIN_JWT_SECRET}"
-PARLEY_JWT_SECRET="${PARLEY_JWT_SECRET}"
+# F-admin-jwt-secret: admin container no longer holds the api's user-session
+# JWT_SECRET. It signs impersonation tokens with a dedicated key that the api
+# verifies separately. An admin-container compromise therefore can no longer
+# mint arbitrary user JWTs — only impersonation tokens, which the api's
+# denyImpersonation middleware blocks from sensitive routes.
+IMPERSONATION_JWT_SECRET="${IMPERSONATION_JWT_SECRET}"
 ADMIN_PORT="${ADMIN_PORT}"
 
 exec > >(tee -a /var/log/cloud-init-output.log) 2>&1
@@ -65,7 +70,7 @@ cat > /etc/parley/admin-env <<EOF
 DATABASE_URL=$${DATABASE_URL}
 REDIS_HOST=$${REDIS_HOST}
 ADMIN_JWT_SECRET=$${ADMIN_JWT_SECRET}
-PARLEY_JWT_SECRET=$${PARLEY_JWT_SECRET}
+IMPERSONATION_JWT_SECRET=$${IMPERSONATION_JWT_SECRET}
 ADMIN_PORT=$${ADMIN_PORT}
 # F1: bind the admin HTTP server to 127.0.0.1 so the Go process is not
 # reachable directly on :8080 from any other vmbr1 host. The container-local

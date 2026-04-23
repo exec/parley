@@ -9,11 +9,15 @@ import (
 
 // newTestService creates an AuthService with a known secret for unit tests.
 // It bypasses the DB-dependent config init by setting the config directly.
+// ImpersonationSecretKey is populated by default so the key-separation tests
+// can mint impersonation tokens; tests for the "api without admin panel" mode
+// construct a service without it.
 func newTestService() *AuthService {
 	return &AuthService{
 		config: &Config{
-			SecretKey:   "test-secret-key-for-unit-tests",
-			TokenExpiry: 24 * time.Hour,
+			SecretKey:              "test-secret-key-for-unit-tests",
+			ImpersonationSecretKey: "test-impersonation-key-for-unit-tests",
+			TokenExpiry:            24 * time.Hour,
 		},
 	}
 }
@@ -232,7 +236,9 @@ func TestValidateTokenFullImpersonation(t *testing.T) {
 		"iat":            now.Unix(),
 	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := tok.SignedString([]byte(svc.config.SecretKey))
+	// Impersonation tokens MUST be signed with the impersonation key —
+	// signing with SecretKey should be rejected (see separate test).
+	tokenString, err := tok.SignedString([]byte(svc.config.ImpersonationSecretKey))
 	if err != nil {
 		t.Fatalf("sign: %v", err)
 	}
@@ -248,6 +254,138 @@ func TestValidateTokenFullImpersonation(t *testing.T) {
 	}
 	if info.ActorAdminID != "7" {
 		t.Errorf("ActorAdminID: got %q, want \"7\"", info.ActorAdminID)
+	}
+}
+
+// --- Key separation invariant (F-admin-jwt-secret) ---
+//
+// Regular user sessions and admin-minted impersonation tokens are signed with
+// different keys. The validator must enforce that the signing key matches the
+// claim shape: a token with `impersonation: true` is only valid if signed
+// with IMPERSONATION_JWT_SECRET, and a token without that claim is only
+// valid if signed with JWT_SECRET. These tests pin that invariant so a
+// regression cannot silently re-open the cross-mint path.
+
+// User token signed with JWT_SECRET and no impersonation claim is accepted
+// as a normal session.
+func TestValidateTokenFullNormalUserSession(t *testing.T) {
+	svc := newTestService()
+	now := time.Now()
+	claims := jwt.MapClaims{
+		"user_id": "100",
+		"exp":     now.Add(1 * time.Hour).Unix(),
+		"iat":     now.Unix(),
+	}
+	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := tok.SignedString([]byte(svc.config.SecretKey))
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+	info, err := svc.ValidateTokenFull(tokenString)
+	if err != nil {
+		t.Fatalf("ValidateTokenFull: %v", err)
+	}
+	if info.UserID != "100" {
+		t.Errorf("UserID: got %q, want \"100\"", info.UserID)
+	}
+	if info.IsImpersonation {
+		t.Error("IsImpersonation: normal session flagged as impersonation")
+	}
+}
+
+// Impersonation claim signed with JWT_SECRET (not the impersonation key)
+// must be REJECTED — this is the attacker-holds-api-secret case.
+func TestValidateTokenFullImpersonationClaimSignedWithUserKeyRejected(t *testing.T) {
+	svc := newTestService()
+	now := time.Now()
+	claims := jwt.MapClaims{
+		"user_id":       "42",
+		"impersonation": true,
+		"exp":           now.Add(10 * time.Minute).Unix(),
+		"iat":           now.Unix(),
+	}
+	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := tok.SignedString([]byte(svc.config.SecretKey))
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+	if _, err := svc.ValidateTokenFull(tokenString); err == nil {
+		t.Error("impersonation claim signed with SecretKey must be rejected")
+	}
+}
+
+// Token signed with IMPERSONATION_JWT_SECRET but WITHOUT the impersonation
+// claim must be REJECTED — this is the attacker-holds-admin-secret case and
+// is the whole point of the key separation.
+func TestValidateTokenFullAdminSecretWithoutClaimRejected(t *testing.T) {
+	svc := newTestService()
+	now := time.Now()
+	claims := jwt.MapClaims{
+		"user_id": "42",
+		"exp":     now.Add(1 * time.Hour).Unix(),
+		"iat":     now.Unix(),
+	}
+	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := tok.SignedString([]byte(svc.config.ImpersonationSecretKey))
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+	if _, err := svc.ValidateTokenFull(tokenString); err == nil {
+		t.Error("token signed with ImpersonationSecretKey without impersonation claim must be rejected")
+	}
+}
+
+// Token signed with an entirely unknown key must be REJECTED regardless of
+// claim shape.
+func TestValidateTokenFullUnknownKeyRejected(t *testing.T) {
+	svc := newTestService()
+	now := time.Now()
+	claims := jwt.MapClaims{
+		"user_id": "42",
+		"exp":     now.Add(1 * time.Hour).Unix(),
+		"iat":     now.Unix(),
+	}
+	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := tok.SignedString([]byte("unrelated-rogue-key"))
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+	if _, err := svc.ValidateTokenFull(tokenString); err == nil {
+		t.Error("token signed with unknown key must be rejected")
+	}
+}
+
+// When the api has no IMPERSONATION_JWT_SECRET configured (deploy without an
+// admin panel), any token carrying the impersonation claim is rejected with
+// "impersonation unavailable" — never silently accepted.
+func TestValidateTokenFullImpersonationUnavailable(t *testing.T) {
+	svc := &AuthService{
+		config: &Config{
+			SecretKey:   "test-secret-key-for-unit-tests",
+			TokenExpiry: 24 * time.Hour,
+			// ImpersonationSecretKey intentionally empty.
+		},
+	}
+	now := time.Now()
+	claims := jwt.MapClaims{
+		"user_id":       "42",
+		"impersonation": true,
+		"exp":           now.Add(10 * time.Minute).Unix(),
+		"iat":           now.Unix(),
+	}
+	// Signed with the (missing) impersonation key doesn't matter — the
+	// validator rejects before hitting the verify step.
+	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := tok.SignedString([]byte("anything"))
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+	_, err = svc.ValidateTokenFull(tokenString)
+	if err == nil {
+		t.Fatal("impersonation token must be rejected when key is unconfigured")
+	}
+	if err.Error() != "impersonation unavailable" {
+		t.Errorf("error: got %q, want %q", err.Error(), "impersonation unavailable")
 	}
 }
 

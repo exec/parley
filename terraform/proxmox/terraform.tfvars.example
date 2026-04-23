@@ -30,6 +30,9 @@ ssh_public_key  = "~/.ssh/id_ed25519.pub"
 # Secrets — copy from production terraform.tfvars or generate fresh ones
 db_password              = "change-me"
 jwt_secret               = "change-me"
+# F-admin-jwt-secret: MUST differ from jwt_secret. Admin signs impersonation
+# tokens with this key; api verifies.
+impersonation_jwt_secret = "change-me-distinct-from-jwt-secret"
 admin_jwt_secret         = "change-me"
 admin_impersonate_secret = "change-me"
 bot_key_secret           = "change-me"

@@ -48,6 +48,7 @@ locals {
       DB_USER                  = "parley"
       DB_PASSWORD              = var.db_password
       JWT_SECRET               = var.jwt_secret
+      IMPERSONATION_JWT_SECRET = var.impersonation_jwt_secret
       PORT                     = "8080"
       REPO_URL                 = var.repo_url
       REDIS_HOST               = var.db_ip
@@ -78,7 +79,9 @@ locals {
     DB_PASSWORD              = var.db_password
     REDIS_HOST               = var.db_ip
     ADMIN_JWT_SECRET         = var.admin_jwt_secret
-    PARLEY_JWT_SECRET        = var.jwt_secret
+    # F-admin-jwt-secret: admin no longer holds JWT_SECRET. See
+    # docs/security/runbooks/admin-jwt-secret-separation.md.
+    IMPERSONATION_JWT_SECRET = var.impersonation_jwt_secret
     ADMIN_PORT               = "8080"
   })
 

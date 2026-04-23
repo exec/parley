@@ -81,9 +81,9 @@ func TestImpersonationTargetCheck(t *testing.T) {
 // and the DB-lookup hook swapped for an in-memory stub.
 func serveImpersonate(t *testing.T, userID string, target impersonationTarget, lookupErr error) *httptest.ResponseRecorder {
 	t.Helper()
-	prevSecret := parleyJWTSecret
-	parleyJWTSecret = "test-secret"
-	t.Cleanup(func() { parleyJWTSecret = prevSecret })
+	prevSecret := impersonationJWTSecret
+	impersonationJWTSecret = "test-secret"
+	t.Cleanup(func() { impersonationJWTSecret = prevSecret })
 
 	prev := lookupImpersonationTarget
 	lookupImpersonationTarget = func(r *http.Request, id int64) (impersonationTarget, error) {

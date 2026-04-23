@@ -649,17 +649,62 @@ type TokenInfo struct {
 // set the auth layer cares about. Callers that only need the userID should use
 // ValidateToken; callers that inspect iat (force-logout check) or the
 // impersonation flag (audit log / denyImpersonation middleware) use this one.
+//
+// Key selection (F-admin-jwt-secret):
+//
+//   - Normal user tokens are signed with SecretKey (JWT_SECRET). They must not
+//     carry an `impersonation: true` claim.
+//   - Impersonation tokens are signed with ImpersonationSecretKey
+//     (IMPERSONATION_JWT_SECRET) and must carry `impersonation: true`.
+//
+// The validator peeks at the `impersonation` claim first (unverified), then
+// picks the signing key to check against. This enforces the invariant that a
+// compromise of one secret cannot produce the other kind of token — even if
+// an attacker with IMPERSONATION_JWT_SECRET strips the claim, the signature
+// will fail against SecretKey. Never try both keys blindly: a claim-shape
+// attack could slip past if you did.
 func (s *AuthService) ValidateTokenFull(tokenString string) (TokenInfo, error) {
 	if tokenString == "" {
 		return TokenInfo{}, errors.New("token is required")
 	}
+
+	// First pass: parse without verifying the signature so we can read the
+	// `impersonation` claim and pick the right key.
+	unverified, _, err := jwt.NewParser().ParseUnverified(tokenString, jwt.MapClaims{})
+	if err != nil {
+		return TokenInfo{}, err
+	}
+	if _, ok := unverified.Method.(*jwt.SigningMethodHMAC); !ok {
+		return TokenInfo{}, errors.New("invalid signing method")
+	}
+	unverifiedClaims, ok := unverified.Claims.(jwt.MapClaims)
+	if !ok {
+		return TokenInfo{}, errors.New("invalid token")
+	}
+	impClaim, _ := unverifiedClaims["impersonation"].(bool)
+
+	// Select the signing key based on the (unverified) impersonation claim.
+	// Mismatched signatures get rejected in the verify pass below.
+	var key []byte
+	if impClaim {
+		if s.config.ImpersonationSecretKey == "" {
+			return TokenInfo{}, errors.New("impersonation unavailable")
+		}
+		key = []byte(s.config.ImpersonationSecretKey)
+	} else {
+		key = []byte(s.config.SecretKey)
+	}
+
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("invalid signing method")
 		}
-		return []byte(s.config.SecretKey), nil
+		return key, nil
 	})
 	if err != nil {
+		if impClaim {
+			return TokenInfo{}, errors.New("invalid impersonation token")
+		}
 		return TokenInfo{}, err
 	}
 	claims, ok := token.Claims.(jwt.MapClaims)

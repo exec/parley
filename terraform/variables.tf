@@ -130,6 +130,16 @@ variable "admin_impersonate_secret" {
   default     = ""
 }
 
+# Signing key for admin-minted impersonation JWTs. MUST differ from jwt_secret
+# (see F-admin-jwt-secret / docs/security/runbooks/admin-jwt-secret-separation.md).
+# The admin container holds this key to SIGN impersonation tokens; the api
+# container holds it alongside jwt_secret to VERIFY them.
+variable "impersonation_jwt_secret" {
+  description = "JWT signing key for admin impersonation tokens (must differ from jwt_secret)"
+  type        = string
+  sensitive   = true
+}
+
 variable "giphy_api_key" {
   description = "Giphy API key for GIF search in the frontend"
   type        = string

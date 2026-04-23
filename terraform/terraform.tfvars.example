@@ -26,6 +26,10 @@ db_password = "change-me-in-production"
 # JWT secret (CHANGE THIS! - generate with: openssl rand -base64 32)
 jwt_secret = "change-me-use-openssl-rand-base64-32"
 
+# Impersonation JWT secret — MUST differ from jwt_secret (F-admin-jwt-secret).
+# Admin container signs with this; api verifies. Generate with: openssl rand -base64 32
+impersonation_jwt_secret = "change-me-use-openssl-rand-base64-32"
+
 # Git repository URL
 repo_url = "https://github.com/yourusername/parley.git"
 

@@ -14,6 +14,11 @@ DB_NAME="${DB_NAME}"
 DB_USER="${DB_USER}"
 DB_PASSWORD="${DB_PASSWORD}"
 JWT_SECRET="${JWT_SECRET}"
+# F-admin-jwt-secret: api holds IMPERSONATION_JWT_SECRET alongside JWT_SECRET.
+# It never signs with this key — it only verifies admin-minted impersonation
+# tokens. Admin holds the same key for signing. Keeping the keys split means
+# a compromise of either container can only produce one kind of token.
+IMPERSONATION_JWT_SECRET="${IMPERSONATION_JWT_SECRET}"
 PORT="${PORT}"
 REPO_URL="${REPO_URL}"
 LIVEKIT_API_KEY="${LIVEKIT_API_KEY}"
@@ -187,6 +192,7 @@ DB_PASSWORD_ENCODED=$(python3 -c "import urllib.parse, sys; print(urllib.parse.q
 cat > /etc/parley/env <<EOF
 DATABASE_URL=postgresql://${DB_USER}:$${DB_PASSWORD_ENCODED}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=disable
 JWT_SECRET=${JWT_SECRET}
+IMPERSONATION_JWT_SECRET=${IMPERSONATION_JWT_SECRET}
 PORT=${PORT}
 REDIS_URL=redis://:${REDIS_PASSWORD}@${REDIS_HOST}:6379
 PATH=/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
