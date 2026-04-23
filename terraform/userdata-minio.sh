@@ -58,13 +58,61 @@ for i in $(seq 1 30); do
   sleep 2
 done
 
-echo "=== Creating bucket ==="
+echo "=== Installing mc client ==="
 wget -q -O /usr/local/bin/mc https://dl.min.io/client/mc/release/linux-amd64/mc
 chmod +x /usr/local/bin/mc
 
 mc alias set local http://localhost:9000 "${minio_access_key}" "${minio_secret_key}"
+
+# Two buckets:
+#   ${minio_bucket}         — public CDN assets (avatars, uploads, soundboard, audio)
+#   ${minio_bucket}-backups — private backups, no anonymous access at all
+echo "=== Creating buckets ==="
 mc mb --ignore-existing "local/${minio_bucket}"
-# Allow unauthenticated GET so SPACES_CDN_URL links work without pre-signed URLs
-mc anonymous set download "local/${minio_bucket}"
+mc mb --ignore-existing "local/${minio_bucket}-backups"
+
+# Scoped public-read policy for the assets bucket.
+# - Allows anonymous s3:GetObject ONLY on the four CDN prefixes. Anything
+#   else in this bucket (including any accidental backups/* writes) is
+#   private.
+# - Explicitly does NOT grant s3:ListBucket — anonymous listing was the
+#   vulnerability that exposed backup filenames to unauthenticated callers
+#   (see docs/security/runbooks/d1-minio-hardening.md).
+echo "=== Applying scoped public-read policy to ${minio_bucket} ==="
+cat > /tmp/parley-public-policy.json <<POLICYEOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {"AWS": ["*"]},
+      "Action": ["s3:GetObject"],
+      "Resource": [
+        "arn:aws:s3:::${minio_bucket}/avatars/*",
+        "arn:aws:s3:::${minio_bucket}/uploads/*",
+        "arn:aws:s3:::${minio_bucket}/soundboard/*",
+        "arn:aws:s3:::${minio_bucket}/audio/*"
+      ]
+    }
+  ]
+}
+POLICYEOF
+mc anonymous set-json /tmp/parley-public-policy.json "local/${minio_bucket}"
+rm -f /tmp/parley-public-policy.json
+
+# Backups bucket: fully private. `mc anonymous set none` is the default for
+# a new bucket but we apply it explicitly so the provisioning is deterministic
+# and idempotent re-runs can't inherit a policy from a prior misconfiguration.
+echo "=== Locking down ${minio_bucket}-backups (private) ==="
+mc anonymous set none "local/${minio_bucket}-backups"
+
+# Sanity: anonymous listing of the assets bucket should be denied. Provisioning
+# fails loudly if a misconfiguration re-opens listing.
+echo "=== Verifying anonymous listing is denied ==="
+if curl -sf -o /dev/null "http://localhost:9000/${minio_bucket}/?list-type=2"; then
+  echo "ERROR: anonymous ListBucket on ${minio_bucket} succeeded — policy is wrong" >&2
+  exit 1
+fi
+echo "OK — anonymous ListBucket is denied."
 
 echo "=== MinIO setup complete ==="
