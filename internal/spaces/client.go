@@ -43,8 +43,22 @@ func NewClient(accessKey, secretKey, bucket, region, endpoint, cdnURL string) (*
 	}, nil
 }
 
-// Upload stores r under key in the bucket and returns the public URL.
+// Upload stores r under key in the public-assets bucket with a public-read ACL
+// and returns the CDN URL. Only use for objects safe for anonymous GET
+// (avatars, user uploads, soundboard, audio).
 func (c *Client) Upload(ctx context.Context, key string, r io.Reader, size int64) (string, error) {
+	return c.put(ctx, key, r, size, true)
+}
+
+// UploadPrivate stores r under key with a private ACL. Returned string is the
+// bucket-relative key — callers must use presigned URLs or an authenticated
+// download path to serve it. Use for anything that must not be anonymously
+// readable (e.g. database backups).
+func (c *Client) UploadPrivate(ctx context.Context, key string, r io.Reader, size int64) (string, error) {
+	return c.put(ctx, key, r, size, false)
+}
+
+func (c *Client) put(ctx context.Context, key string, r io.Reader, size int64, public bool) (string, error) {
 	contentType := mime.TypeByExtension(filepath.Ext(key))
 	if contentType == "" {
 		contentType = "application/octet-stream"
@@ -58,19 +72,27 @@ func (c *Client) Upload(ctx context.Context, key string, r io.Reader, size int64
 		contentType = "audio/webm"
 	}
 
-	_, err := c.s3.PutObject(ctx, &s3.PutObjectInput{
+	in := &s3.PutObjectInput{
 		Bucket:        aws.String(c.bucket),
 		Key:           aws.String(key),
 		Body:          r,
 		ContentLength: aws.Int64(size),
 		ContentType:   aws.String(contentType),
-		ACL:           "public-read",
-	})
-	if err != nil {
+	}
+	if public {
+		in.ACL = "public-read"
+	} else {
+		in.ACL = "private"
+	}
+
+	if _, err := c.s3.PutObject(ctx, in); err != nil {
 		return "", fmt.Errorf("spaces: put object: %w", err)
 	}
 
-	return fmt.Sprintf("%s/%s", c.cdnURL, key), nil
+	if public {
+		return fmt.Sprintf("%s/%s", c.cdnURL, key), nil
+	}
+	return key, nil
 }
 
 // ConfigureCORS sets a CORS rule on the bucket allowing GET requests from the

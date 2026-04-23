@@ -216,6 +216,12 @@ echo "PgBouncer listening on port 6432"
 # Daily database backup to /var/backups/parley
 # Retention policy: pg_dump runs at 03:00 UTC daily; backups older than 7 days
 # are automatically deleted. Dumps use custom format (-Fc) for selective restore.
+# NOTE on offsite sync: if you add a cron/systemd unit that pushes these dumps
+# to MinIO, the target MUST be the private `parley-backups` bucket (see
+# terraform/userdata-minio.sh). Never target `parley/backups/*` — the `parley`
+# bucket has a public-read policy on the CDN prefixes and any accidental listing
+# misconfig would expose them. Historical CT-101 cron wrote to parley/backups/
+# and triggered audit finding D1.
 mkdir -p /var/backups/parley
 cat > /etc/cron.d/parley-backup <<'CRON'
 0 3 * * * postgres pg_dump -Fc parley > /var/backups/parley/parley-$(date +\%Y\%m\%d).dump && find /var/backups/parley -name "*.dump" -mtime +7 -delete
