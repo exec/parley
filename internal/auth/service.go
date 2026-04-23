@@ -76,6 +76,14 @@ func (s *AuthService) InvalidateSessionCache(userID string) {
 	s.sessionCache.Delete(userID)
 }
 
+// PrimeSessionCacheForTests seeds the in-memory session-status cache with the
+// given value so GetSessionStatus short-circuits before the DB lookup. It is
+// exported solely so handler tests in other packages can drive the session
+// path without standing up a database; production callers must never use it.
+func (s *AuthService) PrimeSessionCacheForTests(userID string, st *SessionStatus) {
+	s.sessionCache.Store(userID, &cachedSessionStatus{st: st, expiresAt: time.Now().Add(time.Hour)})
+}
+
 // SetEmailClient configures the email client and site URL for sending verification emails.
 func (s *AuthService) SetEmailClient(client *email.Client, siteURL string) {
 	s.emailClient = client

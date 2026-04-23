@@ -45,14 +45,23 @@ func handleWebSocket(hub *ws.Hub, authService *auth.AuthService, repo *db.Reposi
 			}
 			userID = info.UserID
 
-			forceLoggedOut, err := authService.IsForceLoggedOut(r.Context(), userID, info.IssuedAt)
+			// Mirror the REST middleware's session-status check
+			// (internal/auth/middleware.go): reject on force-logout AND on
+			// ban. Prior to this the WS JWT-fallback path only checked
+			// force-logout, so a banned user with a still-valid JWT could
+			// open a WS — audit finding F-ws-ban-check.
+			st, err := authService.GetSessionStatus(r.Context(), userID)
 			if err != nil {
-				log.Printf("handleWebSocket: IsForceLoggedOut error for user %s: %v", userID, err)
+				log.Printf("handleWebSocket: GetSessionStatus error for user %s: %v", userID, err)
 				http.Error(w, "authorization check failed", http.StatusInternalServerError)
 				return
 			}
-			if forceLoggedOut {
+			if st.ForceLogoutAt.Valid && info.IssuedAt <= st.ForceLogoutAt.Time.Unix() {
 				http.Error(w, "session has been invalidated", http.StatusUnauthorized)
+				return
+			}
+			if st.BannedAt.Valid {
+				http.Error(w, "Account banned", http.StatusForbidden)
 				return
 			}
 		}
