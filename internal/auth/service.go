@@ -115,10 +115,17 @@ func (s *AuthService) Register(ctx context.Context, username, email_, phone, pas
 		return User{}, "", errors.New("password must be 72 characters or fewer (bcrypt limit)")
 	}
 
+	// All pre-transaction failure modes below return a single generic error
+	// to the caller so registration responses cannot be used as an oracle to
+	// enumerate existing usernames, existing emails, or valid invite codes
+	// (F-auth-4). Operators still get the precise reason via server logs.
+	const genericRegisterErr = "registration failed"
+
 	// Check if user already exists by username
 	_, err := s.repo.GetUserByUsername(ctx, username)
 	if err == nil {
-		return User{}, "", errors.New("user with this username already exists")
+		log.Printf("Register: duplicate username=%q ip=%s", username, registrationIP)
+		return User{}, "", errors.New(genericRegisterErr)
 	}
 	if err != db.ErrNotFound {
 		return User{}, "", err
@@ -141,7 +148,8 @@ func (s *AuthService) Register(ctx context.Context, username, email_, phone, pas
 	if email_ != "" {
 		_, err := s.repo.GetUserByEmail(ctx, email_)
 		if err == nil {
-			return User{}, "", errors.New("user with this email already exists")
+			log.Printf("Register: duplicate email=%q ip=%s", email_, registrationIP)
+			return User{}, "", errors.New(genericRegisterErr)
 		}
 		if err != db.ErrNotFound {
 			return User{}, "", err
@@ -195,7 +203,8 @@ func (s *AuthService) Register(ctx context.Context, username, email_, phone, pas
 		 FOR UPDATE`, inviteCode,
 	).Scan(&inviterID)
 	if err == sql.ErrNoRows {
-		return User{}, "", errors.New("invalid or already-used invite code")
+		log.Printf("Register: invalid or used invite code=%q ip=%s", inviteCode, registrationIP)
+		return User{}, "", errors.New(genericRegisterErr)
 	}
 	if err != nil {
 		return User{}, "", err
