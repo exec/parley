@@ -46,41 +46,55 @@ Not in scope: OS/SSH/hypervisor-level attacks on prod containers, attacks on the
 
 ---
 
+## Remediation status
+
+All CRIT, HIGH, MED, and LOW findings are closed as of 2026-04-23. Three INFO items are left as deployment notes.
+
+- **CRIT** 3/3 — F6, F-impersonation-claim, D1
+- **HIGH** 6/6 — F1, F2, F-admin-jwt-secret, F-theme-validator, D2, D3
+- **MED** 10/10 — F7, F-headers-smuggle, F-auth-3, F-auth-4, D4, D5, F-impersonate-no-audit, F-impersonate-any-target, F-comment-code-drift, F-no-csp
+- **LOW** 9/9 — F-admin-impersonate-optional, F-impersonate-replay, F-ws-ban-check, F-auth-removepw-race, F-ai-worker-skip-validate, F-ws-ticket-query-leak, F-admin-assets-listing, F-admin-origin-fallback, F-gitignore-gap
+- **INFO** 3 remaining — F-cert-shared-sans, F-plaintext-dmz-to-origin, F-obs-broken-redirect
+
 ## Findings at a glance
 
-| ID | Sev | Title |
-|----|-----|-------|
-| **F6** | **CRIT** | `auth.ClientIP()` trusts leftmost `X-Forwarded-For` — rate-limit & audit-log bypass, **fully remote via Cloudflare** |
-| **F-impersonation-claim** | **CRIT** | `impersonation: true` JWT claim is minted but never validated — any admin → any user for 1 h, no audit trail |
-| **D1** | **CRIT** | MinIO bucket anon-listable — Postgres backups (pg_dump custom) publicly downloadable to anyone on vmbr1 |
-| F1 | HIGH | Backends have zero network-layer ingress gating on vmbr1 |
-| F2 | HIGH | `gitwise` shares vmbr1 with `parley` — cross-tenant blast radius |
-| F-admin-jwt-secret | HIGH | Admin service holds `PARLEY_JWT_SECRET` directly; admin compromise = forever-mint every user JWT |
-| F-theme-validator | HIGH | Theme CSS validator regex only inspects `url(…)`; `@import "…"` / protocol-relative / hex-escaped all bypass; no CSP to fall back on |
-| D2 | HIGH | Kick/Ban/Leave doesn't invalidate `MembershipCache` or drop WS subscriptions — banned users keep seeing messages |
-| D3 | HIGH | Bot API keys have no scope system — leaked token = full user session for the bot |
-| F7 | MED | Admin rate-limit keys on `r.RemoteAddr` → all CF-routed admins share one bucket (global DoS of admin login) |
-| F-headers-smuggle | MED | DMZ forwards any `X-*` header unchanged; any future internal-trust header is remote-spoofable by default |
-| F-auth-3 | MED | Passkey RP origin list unconditionally includes `http://localhost:5173` and `:8080` in prod |
-| F-auth-4 | MED | `/api/auth/register` returns different error strings for "email exists" vs "invalid invite" — enumeration under F6 bypass |
-| D4 | MED | `maxBotsPerUser=10` fan-outs user-keyed msg-write rate limit by 11× |
-| D5 | MED | pgbouncer + postgres reachable from any vmbr1 host; plaintext password in `/etc/pgbouncer/userlist.txt` (F1 amplifier) |
-| F-impersonate-no-audit | MED | Admin `handleImpersonate` has no audit log (unlike sibling ban/unban paths) |
-| F-impersonate-any-target | MED | No target-class check — any admin can impersonate other admins, bots, system users |
-| F-comment-code-drift | MED | `cmd/api/middleware.go:176-178` comment claims "uses r.RemoteAddr exclusively" — code does the opposite |
-| F-no-csp | MED (hardening) | No `Content-Security-Policy` anywhere (repo-wide grep) |
-| F-admin-impersonate-optional | LOW | `ADMIN_IMPERSONATE_SECRET` is optional-with-warning in `cmd/admin/main.go:63` — fails open on misconfig |
-| F-impersonate-replay | LOW | 1 h replay window with no admin-session binding, no single-use / nonce |
-| F-ws-ban-check | LOW | WS JWT fallback skips `BannedAt` check (REST middleware does; inconsistent) |
-| F-auth-removepw-race | LOW | `handleRemovePassword` has a TOCTOU with concurrent passkey-delete → user can lock themselves out |
-| F-ai-worker-skip-validate | LOW | AI-theme worker doesn't call `validateCSS`; relies on Save re-validate |
-| F-ws-ticket-query-leak | LOW | WS ticket lands in query-string → nginx access-log leak (mitigated by single-use + 60 s TTL) |
-| F-admin-assets-listing | LOW | `r.Handle("/assets/*", http.FileServer(...))` → auto-index listing leaks bundle hashes |
-| F-admin-origin-fallback | LOW | `adminOrigin()` defaults to hardcoded stale DO IP over HTTP |
-| F-gitignore-gap | LOW | `.gitignore` misses timestamped tfstate rotations (`*.tfstate.<ts>.backup`) |
-| F-cert-shared-sans | INFO | Origin cert covers both `parley.byexec.com` and `gitwise.byexec.com` — key theft impersonates both |
-| F-plaintext-dmz-to-origin | INFO | DMZ → backends over HTTP; fine on trusted LAN |
-| F-obs-broken-redirect | INFO | `grafana` 301s to `localhost:8081/grafana/` — broken reverse-proxy config |
+| ID | Sev | Title | Status / fix |
+|----|-----|-------|--------------|
+| **F6** | **CRIT** | `auth.ClientIP()` trusts leftmost `X-Forwarded-For` — rate-limit & audit-log bypass, **fully remote via Cloudflare** | closed `63bc1eb` (code: drops XFF reading) + live api deploy |
+| **F-impersonation-claim** | **CRIT** | `impersonation: true` JWT claim is minted but never validated — any admin → any user for 1 h, no audit trail | closed `3a9549e` (damage control) + `5b9d548` (middleware enforcement, denyImpersonation on sensitive routes) + live deploy |
+| **D1** | **CRIT** | MinIO bucket anon-listable — Postgres backups (pg_dump custom) publicly downloadable to anyone on vmbr1 | closed `9470d92` (code + provisioning) + live MinIO bucket policy scope + `parley-backups` private bucket + backup relocation |
+| F1 | HIGH | Backends have zero network-layer ingress gating on vmbr1 | closed `0a93fb9` + live nginx allow/deny on api/admin + admin Go bound loopback; MinIO gate superseded by F2 |
+| F2 | HIGH | `gitwise` shares vmbr1 with `parley` — cross-tenant blast radius | closed `78667b7` (runbook) + live PVE cluster firewall `parley`/`gitwise` ipsets + per-CT `firewall=1` |
+| F-admin-jwt-secret | HIGH | Admin service holds `PARLEY_JWT_SECRET` directly; admin compromise = forever-mint every user JWT | closed `9924593` — separate `IMPERSONATION_JWT_SECRET` (admin signs, api verifies); claim-before-verify prevents cross-key forgery |
+| F-theme-validator | HIGH | Theme CSS validator regex only inspects `url(…)`; `@import "…"` / protocol-relative / hex-escaped all bypass; no CSP to fall back on | closed `ad01a47` — validator extracted to `internal/theme/cssvalidator`, string-form `@import` + protocol-relative + hex-escape all rejected; AI worker re-validates |
+| D2 | HIGH | Kick/Ban/Leave doesn't invalidate `MembershipCache` or drop WS subscriptions — banned users keep seeing messages | closed `19d7a62` — `InvalidateMember` + `InvalidatePermsForUser` + new `Hub.UnsubscribeUserFromServer` wired into RemoveMember/KickMember/BanMember; `-race` tested |
+| D3 | HIGH | Bot API keys have no scope system — leaked token = full user session for the bot | closed `0a2379a` — 7-scope model + `full` meta, migration 63 adds `api_keys.scopes TEXT[]` w/ backfill, `auth.RequireScope` per-route |
+| F7 | MED | Admin rate-limit keys on `r.RemoteAddr` → all CF-routed admins share one bucket (global DoS of admin login) | closed `ec7da2d` — reads `X-Real-IP` (DMZ-overwritten, non-spoofable) |
+| F-headers-smuggle | MED | DMZ forwards any `X-*` header unchanged; any future internal-trust header is remote-spoofable by default | closed live — DMZ nginx strips X-Admin-Impersonate, X-Admin-Secret, X-Bench-Secret, True-Client-IP, Forwarded (config not in-repo) |
+| F-auth-3 | MED | Passkey RP origin list unconditionally includes `http://localhost:5173` and `:8080` in prod | closed `bcd28a3` — gated on `PARLEY_ENV == "dev"` |
+| F-auth-4 | MED | `/api/auth/register` returns different error strings for "email exists" vs "invalid invite" — enumeration under F6 bypass | closed `5b230fe` — opaque `registration failed` for all pre-transaction failures; real reason still logged internally |
+| D4 | MED | `maxBotsPerUser=10` fan-outs user-keyed msg-write rate limit by 11× | closed `f3fe72f` — per-owner aggregate limiter (10 writes/2s shared across userID + all owned bots) |
+| D5 | MED | pgbouncer + postgres reachable from any vmbr1 host; plaintext password in `/etc/pgbouncer/userlist.txt` (F1 amplifier) | closed `b60b551` (bind to 127.0.0.1 + LAN IP) + `1711fbb` (auth_query via `SECURITY DEFINER user_lookup` + `pgbouncer_auth` role) + live apply |
+| F-impersonate-no-audit | MED | Admin `handleImpersonate` has no audit log (unlike sibling ban/unban paths) | closed (bundled in `3a9549e`) — audit log on issue + refusal |
+| F-impersonate-any-target | MED | No target-class check — any admin can impersonate other admins, bots, system users | closed (bundled in `3a9549e`) — rejects `is_bot` / `is_system` / `banned_at` / not-found targets with 403 |
+| F-comment-code-drift | MED | `cmd/api/middleware.go:176-178` comment claims "uses r.RemoteAddr exclusively" — code does the opposite | closed (bundled in `63bc1eb`) — comment rewritten to match new code |
+| F-no-csp | MED (hardening) | No `Content-Security-Policy` anywhere (repo-wide grep) | closed live — DMZ nginx `add_header Content-Security-Policy "default-src 'self'; ..." always;` |
+| F-admin-impersonate-optional | LOW | `ADMIN_IMPERSONATE_SECRET` is optional-with-warning in `cmd/admin/main.go:63` — fails open on misconfig | closed — secret removed entirely in `3a9549e`; replacement `IMPERSONATION_JWT_SECRET` is fail-start (`9924593`) |
+| F-impersonate-replay | LOW | 1 h replay window with no admin-session binding, no single-use / nonce | closed (bundled in `3a9549e`) — TTL 1h→10min; middleware enforcement in `5b9d548` narrows what captured tokens can do |
+| F-ws-ban-check | LOW | WS JWT fallback skips `BannedAt` check (REST middleware does; inconsistent) | closed `aa6ba94` — swapped `IsForceLoggedOut` for `GetSessionStatus`, rejects banned + force-logged-out |
+| F-auth-removepw-race | LOW | `handleRemovePassword` has a TOCTOU with concurrent passkey-delete → user can lock themselves out | closed `6759c38` — atomic `UPDATE … WHERE id=$1 AND EXISTS (SELECT 1 FROM passkeys WHERE user_id=$1)` |
+| F-ai-worker-skip-validate | LOW | AI-theme worker doesn't call `validateCSS`; relies on Save re-validate | closed (bundled in `ad01a47`) — `validateGeneratedCSS` now calls `cssvalidator.Validate` |
+| F-ws-ticket-query-leak | LOW | WS ticket lands in query-string → nginx access-log leak (mitigated by single-use + 60 s TTL) | closed `cdfd528` (runbook) + live DMZ `location = /ws { access_log off; ... }` |
+| F-admin-assets-listing | LOW | `r.Handle("/assets/*", http.FileServer(...))` → auto-index listing leaks bundle hashes | closed `fa3dce9` — `noDirListing` wrapper 404s on directory paths, preserves SPA fallback |
+| F-admin-origin-fallback | LOW | `adminOrigin()` defaults to hardcoded stale DO IP over HTTP | closed `ea02383` — `log.Fatal` on unset `ADMIN_ORIGIN`; TF var added (required, no default); live env has `ADMIN_ORIGIN=http://10.10.10.15` |
+| F-gitignore-gap | LOW | `.gitignore` misses timestamped tfstate rotations (`*.tfstate.<ts>.backup`) | closed `efc2d25` — pattern widened to `terraform/**/terraform.tfstate*`; two stale committed backups deleted |
+| F-cert-shared-sans | INFO | Origin cert covers both `parley.byexec.com` and `gitwise.byexec.com` — key theft impersonates both | open (deployment note — single origin cert acceptable for single-host multi-tenant) |
+| F-plaintext-dmz-to-origin | INFO | DMZ → backends over HTTP; fine on trusted LAN | open (trusted LAN; F2 isolation reduces sniff-surface) |
+| F-obs-broken-redirect | INFO | `grafana` 301s to `localhost:8081/grafana/` — broken reverse-proxy config | open (cosmetic grafana config smell; not a vuln) |
+
+Follow-up cleanups done alongside the audit (not originally listed as findings):
+- Admin port default 8081→8080 to match deployed env: `7cba880`
+- Inert `admin_impersonate_secret` TF var + CI secret + README row removed: `75c2738`
 
 ---
 
@@ -432,19 +446,35 @@ Ticket is in the query string of the WS upgrade — captured by nginx access log
 
 ## Manifest — changes made to prod during the audit
 
-All items tracked for rollback; as of 09:00 UTC the state is:
+As of audit closure (2026-04-23, ~13:30 UTC) the prod-state changes made during this audit are:
 
-- **CT 106 `/root/.ssh/authorized_keys`** — appended `aegis-dev@digitalocean` pubkey (one line). **Still in place.** Remove after audit closes.
-- **CT 106 `/root/audit/`** — tree of recon/bypass/dmz/app/report/manifest; probe logs + the pre-audit nginx snapshot at `/root/audit/dmz/nginx-snapshot-1776934209/`. **Still in place.** Safe to remove en bloc when done.
-- **CT 106 `/etc/nginx/sites-enabled/dmz.conf`** —
-  - `cf-scout` added `location = /_audit_hdr_a7b3c9`, reloaded, removed, reloaded. Backup at `/root/audit/dmz/dmz.conf.bak-cfprobe-be3a0afe7f2de8f6`. Diff vs snapshot is empty. **Restored.**
-  - `dmz-injector-2` added an `audit-inject.conf` in sites-enabled on port 8443 for the header-injection harness, removed + reloaded + `ss -tlnp` confirmed no :8443 listener, sites-enabled back to `dmz.conf` only. **Restored.**
-  - `dmz-injector` (first) made no nginx changes.
-- **No packages installed** on dmz. No services started. No writes to MinIO. `/tmp/dump` deleted after D1 verification.
-- **No test accounts created** — Parley registration is invite-gated (`internal/auth/service.go:99-101`); none of the agents obtained an invite. This means the live-end-to-end PoC for F-impersonation-claim and F-theme-validator was not executed; both are source-grade confirmed and cf-scout's header-pass-through PoC + `dmz-injector-2`'s compromised-DMZ PoC end-to-end confirm the feeder layers.
+**Code & provisioning** (all in-repo, reproducible on fresh deploys):
+- Merged fix branches on `main`: F6 (XFF trust) → theme-validator → D2 → impersonate-v2 → D1 → impersonation-full → F1 → F2 → admin-jwt-secret → D3 → F7 → med-batch (F-auth-3 / F-auth-4 / D4 / D5) → lows (F-ws-ban-check / F-auth-removepw-race / F-ws-ticket-query-leak runbook / F-admin-assets-listing / F-admin-origin-fallback / F-gitignore-gap) → followups (admin port / inert secret cleanup / pgbouncer auth_query).
+- DB migration 63 applied (scopes column on `api_keys`, backfill to `{'full'}`).
+- DB table ownership transferred from `postgres` to `parley` for future migrations.
 
-### To close out
-- [ ] (Owner decision) Seed invite codes for the audit team to run live PoCs of F-impersonation-claim and F-theme-validator?
-- [ ] Remove aegis-dev pubkey from `/root/.ssh/authorized_keys` on CT 106.
-- [ ] `rm -rf /root/audit/` on CT 106.
-- [ ] Commit this report (if approved).
+**Live infra** (out-of-repo edits):
+- **MinIO (CT 103)** — scoped anonymous policy on `parley` bucket; new private `parley-backups` bucket; existing backup dumps relocated.
+- **DMZ nginx (CT 106 `/etc/nginx/sites-enabled/dmz.conf`)** — F-headers-smuggle header strips + F-no-csp CSP header + F-ws-ticket-query-leak `location = /ws { access_log off; }` block. Config not in repo; pre-edit backup at `/root/audit/dmz/dmz.conf.pre-*`.
+- **parley-api (CT 102)** — nginx `allow 10.10.10.5; deny all;` + new binary (all merged fixes). Env added: `IMPERSONATION_JWT_SECRET`. Env removed: `ADMIN_IMPERSONATE_SECRET`.
+- **parley-admin (CT 100)** — nginx `allow 10.10.10.5; deny all;` + new binary + `ADMIN_BIND_LOCAL=1` + `ADMIN_ORIGIN=http://10.10.10.15`. Env swapped: `PARLEY_JWT_SECRET` removed; `IMPERSONATION_JWT_SECRET` added. `ADMIN_IMPERSONATE_SECRET` removed.
+- **parley-db (CT 101)** — pgbouncer bound to `127.0.0.1,10.10.10.10` (was `0.0.0.0`); auth_query migration (`pgbouncer_auth` role + `user_lookup` SECURITY DEFINER function); `userlist.txt` now holds only the lookup-role credential.
+- **PVE cluster firewall (`/etc/pve/firewall/cluster.fw` on `eqr`)** — `parley` + `gitwise` ipsets + `parley-tenant` / `gitwise-tenant` groups. Per-CT `.fw` files + `firewall=1` on each tenant CT's `net0`.
+
+**Not yet done — open items for operator decision:**
+- **Secret rotation** per `docs/security/runbooks/d1-minio-hardening.md` Step 6 (force pw reset for all users, rotate `JWT_SECRET` + `BOT_KEY_SECRET`). Deferred pending owner call.
+- **Audit-access cleanup** on CT 106:
+  - Remove `aegis-dev@digitalocean` pubkey from `/root/.ssh/authorized_keys`
+  - `rm -rf /root/audit/` (probe logs, nginx snapshots, backup files ~5 MB)
+
+**Repos and worktrees:** all `fix/*` branches are merged to `main`. Local `/tmp/parley-fix-*` worktrees can be pruned when convenient (`for w in /tmp/parley-fix-*; do git worktree remove "$w"; done`).
+
+## Runbooks landed alongside the audit
+
+- `docs/security/runbooks/d1-minio-hardening.md`
+- `docs/security/runbooks/f1-backend-ingress-gating.md`
+- `docs/security/runbooks/f2-tenant-isolation.md`
+- `docs/security/runbooks/d3-bot-scopes.md`
+- `docs/security/runbooks/admin-jwt-secret-separation.md`
+- `docs/security/runbooks/f-ws-ticket-query-leak.md`
+- `docs/security/runbooks/pgbouncer-auth-query-migration.md`
