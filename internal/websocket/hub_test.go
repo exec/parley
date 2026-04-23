@@ -232,3 +232,129 @@ func TestBroadcastToChannelSlowClientMinimalEviction(t *testing.T) {
 		t.Error("fast client should be unaffected")
 	}
 }
+
+// TestUnsubscribeUserFromServer verifies that dropping a user from a server
+// removes subscriptions to channels in that server while leaving subs to
+// other servers and DMs intact.
+func TestUnsubscribeUserFromServer(t *testing.T) {
+	hub := NewHub()
+	hub.SetChannelServerResolver(func(channelID string) (string, bool) {
+		switch channelID {
+		case "101", "102":
+			return "A", true
+		case "201":
+			return "B", true
+		}
+		return "", false
+	})
+
+	client := newTestClient(hub, "user1")
+	hub.RegisterClient(client)
+
+	for _, ch := range []string{"server:A", "server:B", "101", "102", "201", "dm:5"} {
+		hub.SubscribeToChannel(ch, client)
+	}
+
+	hub.UnsubscribeUserFromServer("user1", "A")
+
+	hub.mu.RLock()
+	clientSubs := make(map[string]bool, len(hub.clientChannels[client]))
+	for ch := range hub.clientChannels[client] {
+		clientSubs[ch] = true
+	}
+	_, serverAInIndex := hub.channelSubs["server:A"][client]
+	_, ch101InIndex := hub.channelSubs["101"][client]
+	_, ch102InIndex := hub.channelSubs["102"][client]
+	_, ch201InIndex := hub.channelSubs["201"][client]
+	_, serverBInIndex := hub.channelSubs["server:B"][client]
+	_, dmInIndex := hub.channelSubs["dm:5"][client]
+	_, stillConnected := hub.clients[client]
+	hub.mu.RUnlock()
+
+	if clientSubs["server:A"] || serverAInIndex {
+		t.Error("server:A subscription should have been dropped")
+	}
+	if clientSubs["101"] || ch101InIndex {
+		t.Error("channel 101 (server A) subscription should have been dropped")
+	}
+	if clientSubs["102"] || ch102InIndex {
+		t.Error("channel 102 (server A) subscription should have been dropped")
+	}
+	if !clientSubs["server:B"] || !serverBInIndex {
+		t.Error("server:B subscription must be preserved")
+	}
+	if !clientSubs["201"] || !ch201InIndex {
+		t.Error("channel 201 (server B) subscription must be preserved")
+	}
+	if !clientSubs["dm:5"] || !dmInIndex {
+		t.Error("DM subscription must be preserved")
+	}
+	if !stillConnected {
+		t.Error("UnsubscribeUserFromServer must not close the WS connection")
+	}
+}
+
+// TestUnsubscribeUserFromServer_NoResolver verifies that without a resolver,
+// only the "server:{id}" virtual channel is dropped — numeric channels
+// cannot be matched to a server and are left alone (fail-safe).
+func TestUnsubscribeUserFromServer_NoResolver(t *testing.T) {
+	hub := NewHub()
+	client := newTestClient(hub, "user1")
+	hub.RegisterClient(client)
+
+	for _, ch := range []string{"server:A", "101", "dm:5"} {
+		hub.SubscribeToChannel(ch, client)
+	}
+
+	hub.UnsubscribeUserFromServer("user1", "A")
+
+	hub.mu.RLock()
+	_, serverAIn := hub.channelSubs["server:A"][client]
+	_, ch101In := hub.channelSubs["101"][client]
+	_, dmIn := hub.channelSubs["dm:5"][client]
+	hub.mu.RUnlock()
+
+	if serverAIn {
+		t.Error("server:A should be dropped even without a resolver")
+	}
+	if !ch101In {
+		t.Error("numeric channel should be left alone when no resolver is configured")
+	}
+	if !dmIn {
+		t.Error("DM subscription must be preserved")
+	}
+}
+
+// TestUnsubscribeUserFromServer_MultipleClients verifies the method walks
+// all of a user's active WS connections (multi-tab / multi-device).
+func TestUnsubscribeUserFromServer_MultipleClients(t *testing.T) {
+	hub := NewHub()
+	hub.SetChannelServerResolver(func(channelID string) (string, bool) {
+		if channelID == "101" {
+			return "A", true
+		}
+		return "", false
+	})
+
+	c1 := newTestClient(hub, "user1")
+	c2 := newTestClient(hub, "user1")
+	hub.RegisterClient(c1)
+	hub.RegisterClient(c2)
+	hub.SubscribeToChannel("server:A", c1)
+	hub.SubscribeToChannel("101", c1)
+	hub.SubscribeToChannel("server:A", c2)
+	hub.SubscribeToChannel("101", c2)
+
+	hub.UnsubscribeUserFromServer("user1", "A")
+
+	hub.mu.RLock()
+	_, c1HasServer := hub.channelSubs["server:A"][c1]
+	_, c2HasServer := hub.channelSubs["server:A"][c2]
+	_, c1Has101 := hub.channelSubs["101"][c1]
+	_, c2Has101 := hub.channelSubs["101"][c2]
+	hub.mu.RUnlock()
+
+	if c1HasServer || c2HasServer || c1Has101 || c2Has101 {
+		t.Error("all of user1's clients should be unsubscribed from server A channels")
+	}
+}
