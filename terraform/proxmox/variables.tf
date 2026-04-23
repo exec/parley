@@ -282,6 +282,14 @@ variable "admin_jwt_secret" {
   default     = ""
 }
 
+# F-admin-origin-fallback: the admin Go server fails-closed when ADMIN_ORIGIN
+# is unset. Must be the exact origin the admin frontend will request from
+# (scheme + host + optional port, no trailing slash).
+variable "admin_origin" {
+  description = "Allowed CORS origin for the admin frontend (e.g. http://10.10.10.11)"
+  type        = string
+}
+
 variable "admin_impersonate_secret" {
   description = "Shared secret for admin impersonation"
   type        = string

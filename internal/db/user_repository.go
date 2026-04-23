@@ -594,6 +594,27 @@ func (r *Repository) UpdatePasswordHash(ctx context.Context, userID int64, hash 
 	return err
 }
 
+// ClearPasswordIfPasskeyExists atomically clears the user's password — writing
+// the unusable sentinel hash — only when at least one passkey row is still
+// associated with the user. Returns true when the UPDATE actually hit a row.
+// Collapses the list-check + update pair into one statement so a concurrent
+// passkey-delete cannot race us into a both-cleared state (F-auth-removepw-race).
+func (r *Repository) ClearPasswordIfPasskeyExists(ctx context.Context, userID int64, sentinel string) (bool, error) {
+	result, err := r.db.ExecContext(ctx,
+		`UPDATE users SET password_hash = $2, updated_at = NOW()
+		 WHERE id = $1 AND EXISTS (SELECT 1 FROM passkeys WHERE user_id = $1)`,
+		userID, sentinel,
+	)
+	if err != nil {
+		return false, err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return rows > 0, nil
+}
+
 func (r *Repository) GetPublicUser(ctx context.Context, userID int64) (*PublicUser, error) {
 	query := `
 		SELECT id, username, COALESCE(display_name, ''), COALESCE(avatar_url, ''), COALESCE(banner_url, ''), COALESCE(bio, ''), badges, created_at

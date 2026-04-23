@@ -11,25 +11,26 @@ import (
 	"parley/internal/passkey"
 )
 
-func handleRemovePassword(svc *passkey.Service, authService *auth.AuthService) http.HandlerFunc {
+func handleRemovePassword(authService *auth.AuthService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userIDStr := auth.GetUserIDFromContext(r)
 		if userIDStr == "" {
 			jsonError(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		// Require at least one passkey before allowing password removal.
-		pks, err := svc.List(r.Context(), userIDStr)
+		// Collapse the "has at least one passkey" check and the password
+		// clear into one SQL statement. A concurrent DELETE against the
+		// last passkey that ran between a prior List() and the UPDATE
+		// would otherwise leave the account with neither a password nor
+		// a passkey (F-auth-removepw-race). RowsAffected distinguishes
+		// the no-passkeys case from a successful clear.
+		cleared, err := authService.RemovePasswordIfPasskeyExists(r.Context(), userIDStr)
 		if err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if len(pks) == 0 {
+		if !cleared {
 			jsonError(w, "cannot remove password without at least one passkey set up", http.StatusBadRequest)
-			return
-		}
-		if err := authService.RemovePassword(r.Context(), userIDStr); err != nil {
-			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")

@@ -76,6 +76,14 @@ func (s *AuthService) InvalidateSessionCache(userID string) {
 	s.sessionCache.Delete(userID)
 }
 
+// PrimeSessionCacheForTests seeds the in-memory session-status cache with the
+// given value so GetSessionStatus short-circuits before the DB lookup. It is
+// exported solely so handler tests in other packages can drive the session
+// path without standing up a database; production callers must never use it.
+func (s *AuthService) PrimeSessionCacheForTests(userID string, st *SessionStatus) {
+	s.sessionCache.Store(userID, &cachedSessionStatus{st: st, expiresAt: time.Now().Add(time.Hour)})
+}
+
 // SetEmailClient configures the email client and site URL for sending verification emails.
 func (s *AuthService) SetEmailClient(client *email.Client, siteURL string) {
 	s.emailClient = client
@@ -297,6 +305,20 @@ func (s *AuthService) RemovePassword(ctx context.Context, userIDStr string) erro
 		return errors.New("invalid user ID")
 	}
 	return s.repo.UpdatePasswordHash(ctx, userID, "!")
+}
+
+// RemovePasswordIfPasskeyExists atomically clears the user's password only when
+// a passkey still exists at the instant of the UPDATE. Returns true when the
+// password was cleared and false when the user had no passkeys — callers map
+// false to a 400 ("cannot remove password without at least one passkey").
+// Closes F-auth-removepw-race, which could otherwise leave a user locked out
+// when a passkey delete raced the remove-password handler.
+func (s *AuthService) RemovePasswordIfPasskeyExists(ctx context.Context, userIDStr string) (bool, error) {
+	userID, err := strconv.ParseInt(userIDStr, 10, 64)
+	if err != nil {
+		return false, errors.New("invalid user ID")
+	}
+	return s.repo.ClearPasswordIfPasskeyExists(ctx, userID, "!")
 }
 
 // UpdateStatus updates a user's status type and status text.

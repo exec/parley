@@ -1,8 +1,11 @@
 # Terraform
 terraform/*.tfvars
 terraform/.terraform/
-terraform/terraform.tfstate
-terraform/terraform.tfstate.backup
+# F-gitignore-gap: catch the live state, the .backup rotation Terraform writes
+# on every apply, AND timestamped rotations like terraform.tfstate.<unix>.backup.
+# The previous literal patterns let timestamped backups slip through and be
+# committed by accident (two such files had to be purged).
+terraform/**/terraform.tfstate*
 
 # Go binaries
 /api
@@ -47,8 +50,8 @@ DEPLOYMENT.md
 # Proxmox terraform state and secrets
 terraform/proxmox/*.tfvars
 terraform/proxmox/.terraform/
-terraform/proxmox/terraform.tfstate
-terraform/proxmox/terraform.tfstate.backup
+# terraform.tfstate{,.*} here is covered by the terraform/**/terraform.tfstate*
+# pattern above; kept explicit in neighbouring comment for grep-ability.
 bench/parley-bench
 
 # Build artifacts / state that should never be committed

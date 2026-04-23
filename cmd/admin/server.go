@@ -14,12 +14,17 @@ import (
 )
 
 // adminOrigin is the allowed CORS origin for the admin frontend.
-// Defaults to the production admin URL but can be overridden via ADMIN_ORIGIN env.
+// ADMIN_ORIGIN MUST be set in production; we fail-closed rather than
+// silently falling back to a stale hardcoded value (F-admin-origin-fallback).
+// The previous fallback (http://<stale-DO-IP>) was both HTTP-only and
+// pointed at a DO droplet that hasn't existed since the Proxmox cutover,
+// so any request that reached the fallback was quietly broken.
 func adminOrigin() string {
-	if o := os.Getenv("ADMIN_ORIGIN"); o != "" {
-		return o
+	o := os.Getenv("ADMIN_ORIGIN")
+	if o == "" {
+		log.Fatal("ADMIN_ORIGIN is required — refusing to start without an explicit admin frontend origin")
 	}
-	return "http://167.71.242.21"
+	return o
 }
 
 // ----- simple IP-based rate limiter (reused from API pattern) -----
@@ -84,6 +89,34 @@ func (rl *adminRateLimiter) cleanup() {
 	}
 }
 
+// noDirListing wraps http.FileServer so a path that resolves to a directory
+// without an index.html returns 404 rather than nginx-style auto-generated
+// HTML listings (F-admin-assets-listing). Directories that *do* contain an
+// index.html fall through so the SPA root (`/` -> index.html) still serves.
+// Missing-file paths also fall through so http.FileServer's own 404 handling
+// stays in effect.
+func noDirListing(fs http.FileSystem) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		f, err := fs.Open(r.URL.Path)
+		if err == nil {
+			info, statErr := f.Stat()
+			f.Close()
+			if statErr == nil && info.IsDir() {
+				// Let FileServer serve index.html when present;
+				// 404 when it would have produced a listing.
+				indexPath := strings.TrimSuffix(r.URL.Path, "/") + "/index.html"
+				idx, idxErr := fs.Open(indexPath)
+				if idxErr != nil {
+					http.NotFound(w, r)
+					return
+				}
+				idx.Close()
+			}
+		}
+		http.FileServer(fs).ServeHTTP(w, r)
+	})
+}
+
 // adminRateLimitMiddleware rejects requests that exceed the limiter's threshold.
 // It keys on X-Real-IP when set by the DMZ nginx (which overwrites the header
 // to $remote_addr after real_ip_header CF-Connecting-IP, so it reflects the
@@ -145,7 +178,7 @@ func runServer() {
 	})
 
 	// Serve admin frontend static files
-	r.Handle("/assets/*", http.FileServer(http.Dir("/var/www/parley-admin")))
+	r.Handle("/assets/*", noDirListing(http.Dir("/var/www/parley-admin")))
 
 	// API routes
 	r.Route("/api", func(r chi.Router) {
@@ -200,7 +233,7 @@ func runServer() {
 	})
 
 	// Serve SPA — must be last to avoid swallowing /api routes
-	r.Handle("/*", http.FileServer(http.Dir("/var/www/parley-admin")))
+	r.Handle("/*", noDirListing(http.Dir("/var/www/parley-admin")))
 
 	// F1: when ADMIN_BIND_LOCAL=1, bind to 127.0.0.1 only so the admin Go
 	// server is not reachable directly from vmbr1. The container-local nginx

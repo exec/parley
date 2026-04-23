@@ -3,6 +3,8 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -117,5 +119,99 @@ func TestAdminRateLimitMiddleware_EnforcesLimit(t *testing.T) {
 	// IP B must still be allowed — separate bucket.
 	if got := do("198.51.100.2"); got != http.StatusOK {
 		t.Errorf("B req1: got %d, want 200 (different IP must have separate bucket)", got)
+	}
+}
+
+// --- noDirListing (F-admin-assets-listing) ---
+
+// setupDirListingFixture lays out a small static-asset tree in a t.TempDir
+// that noDirListing can be pointed at:
+//
+//	<root>/
+//	  index.html          (SPA entrypoint at root)
+//	  app.js              (real file under root)
+//	  assets/
+//	    bundle.js         (real asset file)
+//	    (no index.html)   (bare directory that FileServer would auto-list)
+func setupDirListingFixture(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	must := func(path, body string) {
+		if err := os.WriteFile(filepath.Join(root, path), []byte(body), 0o644); err != nil {
+			t.Fatalf("write %s: %v", path, err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(root, "assets"), 0o755); err != nil {
+		t.Fatalf("mkdir assets: %v", err)
+	}
+	must("index.html", "<html>spa</html>")
+	must("app.js", "// app")
+	must("assets/bundle.js", "// bundle")
+	return root
+}
+
+func TestNoDirListing_BareDirectoryReturns404(t *testing.T) {
+	root := setupDirListingFixture(t)
+	h := noDirListing(http.Dir(root))
+
+	req := httptest.NewRequest(http.MethodGet, "/assets/", nil)
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("GET /assets/: got %d, want 404 (no index.html → dir listing must be suppressed)", rr.Code)
+	}
+}
+
+func TestNoDirListing_RealAssetServes(t *testing.T) {
+	root := setupDirListingFixture(t)
+	h := noDirListing(http.Dir(root))
+
+	req := httptest.NewRequest(http.MethodGet, "/assets/bundle.js", nil)
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("GET /assets/bundle.js: got %d, want 200", rr.Code)
+	}
+	if body := rr.Body.String(); body != "// bundle" {
+		t.Errorf("body: got %q, want %q", body, "// bundle")
+	}
+}
+
+func TestNoDirListing_RootServesIndexHTML(t *testing.T) {
+	// The SPA fallback's root request must still resolve to index.html
+	// even though "/" is technically a directory. The wrapper should
+	// detect index.html in the directory and fall through to FileServer.
+	root := setupDirListingFixture(t)
+	h := noDirListing(http.Dir(root))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("GET /: got %d, want 200", rr.Code)
+	}
+	if body := rr.Body.String(); body != "<html>spa</html>" {
+		t.Errorf("body: got %q, want SPA index.html contents", body)
+	}
+}
+
+func TestNoDirListing_MissingFileReturns404(t *testing.T) {
+	// Missing file paths must still 404. The wrapper does not turn
+	// absent paths into index.html — that's the FileServer's default
+	// for absent-file requests under noDirListing (the SPA's client-
+	// side router handles unknown routes via a different mechanism if
+	// at all).
+	root := setupDirListingFixture(t)
+	h := noDirListing(http.Dir(root))
+
+	req := httptest.NewRequest(http.MethodGet, "/does-not-exist.js", nil)
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("GET /does-not-exist.js: got %d, want 404", rr.Code)
 	}
 }

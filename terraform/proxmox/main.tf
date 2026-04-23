@@ -83,6 +83,7 @@ locals {
     # docs/security/runbooks/admin-jwt-secret-separation.md.
     IMPERSONATION_JWT_SECRET = var.impersonation_jwt_secret
     ADMIN_PORT               = "8080"
+    ADMIN_ORIGIN             = var.admin_origin
   })
 
   lb_userdata = templatefile("${path.module}/../userdata-lb.sh", {
