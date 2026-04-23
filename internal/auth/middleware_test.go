@@ -326,7 +326,10 @@ func TestAuthMiddlewareSurfacesImpersonation(t *testing.T) {
 		"iat":            now.Unix(),
 	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := tok.SignedString([]byte(svc.config.SecretKey))
+	// Impersonation tokens are signed with the impersonation key
+	// (F-admin-jwt-secret); signing with SecretKey is rejected at the
+	// validator level.
+	tokenString, err := tok.SignedString([]byte(svc.config.ImpersonationSecretKey))
 	if err != nil {
 		t.Fatalf("sign: %v", err)
 	}
@@ -423,7 +426,7 @@ func TestAuthMiddlewareChainedWithDenyGuard(t *testing.T) {
 		"actor_admin_id": "7",
 		"exp":            now.Add(10 * time.Minute).Unix(),
 		"iat":            now.Unix(),
-	}).SignedString([]byte(svc.config.SecretKey))
+	}).SignedString([]byte(svc.config.ImpersonationSecretKey))
 	if err != nil {
 		t.Fatalf("sign imp: %v", err)
 	}
@@ -478,7 +481,7 @@ func TestAuthMiddlewareDedupsImpersonationAuditBurst(t *testing.T) {
 		"actor_admin_id": "222",
 		"exp":            now.Add(10 * time.Minute).Unix(),
 		"iat":            now.Unix(),
-	}).SignedString([]byte(svc.config.SecretKey))
+	}).SignedString([]byte(svc.config.ImpersonationSecretKey))
 	if err != nil {
 		t.Fatalf("sign: %v", err)
 	}

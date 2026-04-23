@@ -101,6 +101,7 @@ resource "digitalocean_droplet" "parley_api" {
     DB_USER                  = "parley"
     DB_PASSWORD              = var.db_password
     JWT_SECRET               = var.jwt_secret
+    IMPERSONATION_JWT_SECRET = var.impersonation_jwt_secret
     PORT                     = "8080"
     REPO_URL                 = var.repo_url
     REDIS_HOST               = digitalocean_droplet.parley_db.ipv4_address_private
@@ -197,7 +198,11 @@ resource "digitalocean_droplet" "parley_admin" {
     DB_PASSWORD              = var.db_password
     REDIS_HOST               = digitalocean_droplet.parley_db.ipv4_address_private
     ADMIN_JWT_SECRET         = var.admin_jwt_secret
-    PARLEY_JWT_SECRET        = var.jwt_secret
+    # F-admin-jwt-secret: admin signs impersonation tokens with its own key,
+    # never with the api's user-session JWT_SECRET. The api verifies
+    # impersonation tokens using this same key. Rotating this secret does not
+    # invalidate regular user sessions.
+    IMPERSONATION_JWT_SECRET = var.impersonation_jwt_secret
     ADMIN_PORT               = "8080"
   })
 

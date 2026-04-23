@@ -199,6 +199,9 @@ gh secret set DB_PASSWORD --body "$(openssl rand -base64 20)"
 gh secret set JWT_SECRET --body "$(openssl rand -base64 32)"
 gh secret set ADMIN_JWT_SECRET --body "$(openssl rand -base64 32)"
 gh secret set ADMIN_IMPERSONATE_SECRET --body "$(openssl rand -base64 32)"
+# Separate from JWT_SECRET — admin signs impersonation tokens with this key;
+# api verifies. See docs/security/runbooks/admin-jwt-secret-separation.md.
+gh secret set IMPERSONATION_JWT_SECRET --body "$(openssl rand -base64 32)"
 
 # Object storage (see section 6)
 gh secret set SPACES_ACCESS_KEY --body "your-spaces-key"
@@ -568,10 +571,15 @@ Admin server (native):
 ```bash
 DATABASE_URL="postgres://parley:parley@localhost:5432/parley?sslmode=disable" \
 ADMIN_JWT_SECRET=dev-admin \
+IMPERSONATION_JWT_SECRET=dev-imp \
 REDIS_HOST=localhost \
 REDIS_PASSWORD=parley \
 go run ./cmd/admin serve
 ```
+
+For impersonation to work in dev, the api must be started with the same
+`IMPERSONATION_JWT_SECRET` (append `IMPERSONATION_JWT_SECRET=dev-imp \` to
+the API server command above).
 
 ### Run the test suite
 
@@ -590,6 +598,7 @@ All variables are read at API startup. Required variables cause a fatal error if
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
 | `JWT_SECRET` | **Yes** | — | JWT signing secret for user authentication |
+| `IMPERSONATION_JWT_SECRET` | No | — | Key used to verify admin-minted impersonation tokens. Leave unset on api nodes that should refuse all impersonation traffic (e.g. deploys without an admin panel). See `docs/security/runbooks/admin-jwt-secret-separation.md`. |
 | `BOT_KEY_SECRET` | **Yes** | — | Derives the AES-256 key for bot API key encryption |
 | `DATABASE_URL` | No | `postgres://postgres:postgres@localhost:5432/parley?sslmode=disable` | PostgreSQL connection string |
 | `PORT` | No | `8080` | HTTP listen port |
@@ -618,7 +627,7 @@ All variables are read at API startup. Required variables cause a fatal error if
 |---|---|---|---|
 | `DATABASE_URL` | **Yes** | — | PostgreSQL connection string |
 | `ADMIN_JWT_SECRET` | **Yes** | — | JWT signing secret for admin panel sessions |
-| `PARLEY_JWT_SECRET` | No | — | Main app JWT secret, used when issuing impersonation tokens |
+| `IMPERSONATION_JWT_SECRET` | **Yes** | — | Signing key for user-impersonation tokens (separate from api's `JWT_SECRET`; see `docs/security/runbooks/admin-jwt-secret-separation.md`) |
 | `REDIS_HOST` | No | — | Redis address; used to broadcast force-logout events cross-node |
 | `REDIS_PASSWORD` | No | — | Redis password |
 

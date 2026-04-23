@@ -74,7 +74,7 @@ jobs:
           ssh-keyscan -H $API_HOSTS $ADMIN_HOST >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Run tests
-        run: JWT_SECRET=test-secret go test ./...
+        run: JWT_SECRET=test-secret IMPERSONATION_JWT_SECRET=test-imp go test ./...
 
       - name: Cross-compile binaries for Linux
         run: |

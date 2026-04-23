@@ -19,7 +19,14 @@ import (
 
 var repo *db.Repository
 var adminJWTSecret string
-var parleyJWTSecret string
+
+// impersonationJWTSecret signs user-impersonation tokens the admin hands to
+// operators. It is SEPARATE from the api's JWT_SECRET (see
+// F-admin-jwt-secret) so an admin-container compromise cannot mint regular
+// user sessions — only short-lived impersonation tokens, which the api's
+// denyImpersonation middleware blocks from sensitive routes.
+var impersonationJWTSecret string
+
 var redisClient *redis.Client
 
 func main() {
@@ -54,7 +61,15 @@ func main() {
 	if adminJWTSecret == "" {
 		log.Fatal("ADMIN_JWT_SECRET is required")
 	}
-	parleyJWTSecret = os.Getenv("PARLEY_JWT_SECRET")
+
+	// Impersonation signing key is required: there is no graceful fallback
+	// on the admin side. If this env is unset the operator forgot to
+	// provision it, and silently disabling impersonation would hide a
+	// deploy mistake. Fail-start so it's obvious.
+	impersonationJWTSecret = os.Getenv("IMPERSONATION_JWT_SECRET")
+	if impersonationJWTSecret == "" {
+		log.Fatal("IMPERSONATION_JWT_SECRET is required — refusing to start without an impersonation signing key")
+	}
 
 	// Optional Redis for kicking WS connections on ban/force-logout
 	if redisHost := os.Getenv("REDIS_HOST"); redisHost != "" {

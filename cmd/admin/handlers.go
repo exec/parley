@@ -229,7 +229,10 @@ var lookupImpersonationTarget = func(r *http.Request, id int64) (impersonationTa
 }
 
 func handleImpersonate(w http.ResponseWriter, r *http.Request) {
-	if parleyJWTSecret == "" {
+	// main() fatals on startup if impersonationJWTSecret is unset, so reaching
+	// the handler implies a valid signing key. The explicit check remains so
+	// tests that stub the package var to "" still surface a clean error.
+	if impersonationJWTSecret == "" {
 		jsonError(w, "impersonation not configured", http.StatusNotImplemented)
 		return
 	}
@@ -254,7 +257,7 @@ func handleImpersonate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tokenStr, err := buildImpersonationToken(userIDStr, strconv.FormatInt(adminID, 10), parleyJWTSecret, impersonationTTL, time.Now())
+	tokenStr, err := buildImpersonationToken(userIDStr, strconv.FormatInt(adminID, 10), impersonationJWTSecret, impersonationTTL, time.Now())
 	if err != nil {
 		jsonError(w, "token generation failed", http.StatusInternalServerError)
 		return
