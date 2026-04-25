@@ -543,6 +543,32 @@ func (h *Handler) ToggleDmReaction(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// GetMembers handles GET /dms/{id}/members — returns the member roster.
+func (h *Handler) GetMembers(w http.ResponseWriter, r *http.Request) {
+	userIDStr := auth.GetUserIDFromContext(r)
+	userID, _ := strconv.ParseInt(userIDStr, 10, 64)
+	channelID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		httputil.JSONError(w, "invalid channel id", http.StatusBadRequest)
+		return
+	}
+	isMember, err := h.repo.IsDmMember(r.Context(), channelID, userID)
+	if err != nil || !isMember {
+		httputil.JSONError(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	members, err := h.repo.GetDmMembers(r.Context(), channelID)
+	if err != nil {
+		httputil.InternalError(w, err)
+		return
+	}
+	if members == nil {
+		members = []db.DmChannelMember{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(members)
+}
+
 // AddMembersRequest is the body for POST /dms/{id}/members.
 type AddMembersRequest struct {
 	UserIDs []string `json:"user_ids"`

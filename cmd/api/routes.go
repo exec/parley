@@ -316,6 +316,7 @@ func registerRoutes(
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Delete("/dms/{id}/messages/{messageId}", dmHandler.DeleteDmMessage)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/messages/{messageId}/reactions", dmHandler.ToggleDmReaction)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite), userRateLimitMiddleware(msgWriteLimiter), ownerRateLimitMiddleware(msgWriteOwnerLimiter)).Post("/dms/{id}/forward", dmHandler.ForwardToDm)
+			r.With(auth.RequireScope(auth.ScopeMessagesRead)).Get("/dms/{id}/members", dmHandler.GetMembers)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/members", dmHandler.AddMembers)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/leave", dmHandler.Leave)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Delete("/dms/{id}/members/{userID}", dmHandler.RemoveMember)

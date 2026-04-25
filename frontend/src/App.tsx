@@ -822,6 +822,15 @@ function MainApp() {
     onChannelNotificationUpdate: useCallback((data: { channel_kind: 1 | 2; channel_id: string; notification_setting: 0 | 1 | 2 }) => {
       window.dispatchEvent(new CustomEvent('parley:channel_notification', { detail: data }));
     }, []),
+    onDmMemberAdd: useCallback((data: { channel_id: string; user_id: string; added_by?: string }) => {
+      window.dispatchEvent(new CustomEvent('parley:dm_member_change', { detail: { channel_id: data.channel_id, action: 'add', user_id: data.user_id } }));
+    }, []),
+    onDmMemberRemove: useCallback((data: { channel_id: string; user_id: string; kicked_by?: string }) => {
+      window.dispatchEvent(new CustomEvent('parley:dm_member_change', { detail: { channel_id: data.channel_id, action: 'remove', user_id: data.user_id } }));
+    }, []),
+    onDmChannelUpdate: useCallback((data: { channel_id: string; name?: string; avatar_url?: string }) => {
+      window.dispatchEvent(new CustomEvent('parley:dm_channel_update', { detail: data }));
+    }, []),
   });
 
   const handleSendTyping = useCallback(() => {
