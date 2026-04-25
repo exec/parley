@@ -46,18 +46,17 @@ export const LeaveGroupModal: React.FC<Props> = ({
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title="Leave Group">
       <div className="group-modal-body">
-        {isOwner ? (
+        {isOwner && others.length > 0 ? (
           <>
             <p className="group-modal-helper">
-              You're the owner of this group. You can pick a successor — or leave without transferring,
-              in which case no one will be able to kick members afterwards.
+              You're the owner. Pick a successor — they'll be the new owner once you leave.
             </p>
             <select
               className="form-input"
               value={transferTo}
               onChange={e => setTransferTo(e.target.value)}
             >
-              <option value="">Leave without transferring (kick power evaporates)</option>
+              <option value="" disabled>Select new owner…</option>
               {others.map(m => (
                 <option key={m.user_id} value={m.user_id}>
                   Transfer to {m.display_name || m.username}
@@ -65,6 +64,10 @@ export const LeaveGroupModal: React.FC<Props> = ({
               ))}
             </select>
           </>
+        ) : isOwner ? (
+          <p className="group-modal-helper">
+            You're the only member left. Leaving will close out the group.
+          </p>
         ) : (
           <p className="group-modal-helper">
             You'll stop receiving messages in this group. You can be re-added by any current member.
@@ -73,7 +76,13 @@ export const LeaveGroupModal: React.FC<Props> = ({
         {error && <div className="group-modal-error">{error}</div>}
         <div className="modal-actions">
           <Button type="button" variant="secondary" onClick={handleClose}>Cancel</Button>
-          <Button type="button" variant="danger" loading={busy} onClick={submit}>Leave</Button>
+          <Button
+            type="button"
+            variant="danger"
+            loading={busy}
+            disabled={isOwner && others.length > 0 && !transferTo}
+            onClick={submit}
+          >Leave</Button>
         </div>
       </div>
     </Modal>

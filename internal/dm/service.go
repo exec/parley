@@ -161,8 +161,10 @@ func (s *Service) AddMembers(ctx context.Context, channelID, actorUserID int64, 
 //   - transferTo non-nil: ownership moves to that user (must be a member),
 //     then the actor leaves. Emits owner_transferred + member_left system
 //     messages.
-//   - transferTo nil: owner_user_id is cleared (NULL). "Power evaporates" —
-//     no one can kick after this. Emits member_left only.
+//   - transferTo nil with other members present: rejected — owners must pick
+//     a successor before leaving.
+//   - transferTo nil with no other members: allowed; the channel is left
+//     ownerless (the actor was the last member).
 //
 // Non-owner leave: just removes member, emits member_left.
 func (s *Service) LeaveGroup(ctx context.Context, channelID, actorUserID int64, transferTo *int64) error {
@@ -210,7 +212,23 @@ func (s *Service) LeaveGroup(ctx context.Context, channelID, actorUserID int64, 
 			s.hub.BroadcastToChannel(fmt.Sprintf("dm:%d", channelID), ws.EventDmMessageCreate, sysMsgJSON)
 		}
 	} else if isOwner {
-		// Power evaporates: clear owner.
+		// Owner leaving without a transferTo. Allowed only if there are no
+		// other members to transfer to (i.e. the owner is the last person);
+		// otherwise reject so a group can never end up unkickable while
+		// people are still active in it.
+		members, _ := s.repo.GetDmMembers(ctx, channelID)
+		hasOthers := false
+		for _, m := range members {
+			if m.UserID != actorUserID {
+				hasOthers = true
+				break
+			}
+		}
+		if hasOthers {
+			return errors.New("owner must transfer ownership before leaving")
+		}
+		// Last-member-leaves path: clear owner_user_id so the (about-to-be-empty)
+		// channel doesn't carry a stale FK pointing at someone who isn't a member.
 		if err := s.repo.TransferDmGroupOwnership(ctx, channelID, nil); err != nil {
 			return err
 		}
