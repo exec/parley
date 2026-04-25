@@ -922,6 +922,39 @@ UPDATE api_keys SET scopes = ARRAY['full']::TEXT[] WHERE scopes = '{}'::TEXT[];`
     PRIMARY KEY (user_id, channel_kind, channel_id)
 );
 CREATE INDEX IF NOT EXISTS user_channel_state_user_idx ON user_channel_state(user_id);`,
+
+	// Migration #65: generalize dm_channels for group DM support. Adds is_group
+	// (false = legacy 1:1, true = group), optional name/avatar_url, and
+	// created_by/owner_user_id for group ownership. Introduces dm_channel_members
+	// as the canonical membership table so server code can query members
+	// uniformly regardless of group-vs-1:1 — the backfill seeds it from the
+	// existing user1_id/user2_id columns (those columns stay for now to keep
+	// the migration safe; later cleanup can drop them once all readers move to
+	// dm_channel_members). Also adds dm_messages.system_event JSONB to carry
+	// structured payloads for member-added / name-changed / etc. system
+	// messages in group DMs (NULL for normal messages).
+	`ALTER TABLE dm_channels
+    ADD COLUMN IF NOT EXISTS is_group           BOOLEAN     NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS name               TEXT,
+    ADD COLUMN IF NOT EXISTS avatar_url         TEXT,
+    ADD COLUMN IF NOT EXISTS created_by_user_id BIGINT      REFERENCES users(id),
+    ADD COLUMN IF NOT EXISTS owner_user_id      BIGINT      REFERENCES users(id);
+
+CREATE TABLE IF NOT EXISTS dm_channel_members (
+    dm_channel_id BIGINT      NOT NULL REFERENCES dm_channels(id) ON DELETE CASCADE,
+    user_id       BIGINT      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    joined_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (dm_channel_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS dm_channel_members_user_idx ON dm_channel_members(user_id);
+
+INSERT INTO dm_channel_members (dm_channel_id, user_id, joined_at)
+SELECT id, user1_id, created_at FROM dm_channels
+UNION ALL
+SELECT id, user2_id, created_at FROM dm_channels
+ON CONFLICT DO NOTHING;
+
+ALTER TABLE dm_messages ADD COLUMN IF NOT EXISTS system_event JSONB;`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string
