@@ -815,6 +815,12 @@ function MainApp() {
     extraChannelIds,
     onSoundboardPlay: handleSoundboardPlay,
     onNotification: receiveNotification,
+    onChannelReadStateUpdate: useCallback((data: { channel_kind: 1 | 2; channel_id: string; last_read_message_id: string }) => {
+      window.dispatchEvent(new CustomEvent('parley:channel_read_state', { detail: data }));
+    }, []),
+    onChannelNotificationUpdate: useCallback((data: { channel_kind: 1 | 2; channel_id: string; notification_setting: 0 | 1 | 2 }) => {
+      window.dispatchEvent(new CustomEvent('parley:channel_notification', { detail: data }));
+    }, []),
   });
 
   const handleSendTyping = useCallback(() => {
