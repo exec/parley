@@ -197,7 +197,7 @@ func (s *Service) IsParticipant(ctx context.Context, channelID, userID string) (
 type Activity struct {
 	Type        string          `json:"type"`
 	StartedBy   int64           `json:"started_by"`
-	StartedAtMs int64           `json:"started_at"`
+	StartedAtMs int64           `json:"started_at_ms"`
 	Params      json.RawMessage `json:"params,omitempty"`
 }
 
