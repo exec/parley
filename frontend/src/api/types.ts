@@ -162,12 +162,37 @@ export interface DmChannel {
   id: string;
   user1_id: string;
   user2_id: string;
+  is_group: boolean;
+  name?: string | null;
+  avatar_url?: string | null;
+  created_by_user_id?: string | null;
+  owner_user_id?: string | null;
   created_at: string;
-  other_username: string;
+  // Populated only on detail fetch (group DMs)
+  members?: DmChannelMember[];
+  // 1:1 fields (only meaningful when !is_group)
+  other_username?: string;
   other_display_name?: string;
-  other_user_id: string;
+  other_user_id?: string;
   other_avatar_url?: string;
 }
+
+export interface DmChannelMember {
+  dm_channel_id: string;
+  user_id: string;
+  joined_at: string;
+  username?: string;
+  display_name?: string;
+  avatar_url?: string;
+}
+
+export type SystemEvent =
+  | { type: 'group_created'; actor_user_id: string }
+  | { type: 'member_added'; actor_user_id: string; target_user_id: string }
+  | { type: 'member_left'; actor_user_id: string }
+  | { type: 'member_kicked'; actor_user_id: string; target_user_id: string }
+  | { type: 'group_name_changed'; actor_user_id: string; old_name: string; new_name: string }
+  | { type: 'owner_transferred'; actor_user_id: string; new_owner_user_id: string };
 
 export interface DmMessage {
   id: string;
@@ -187,6 +212,7 @@ export interface DmMessage {
   attachment_name?: string;
   attachment_type?: string;
   forwarded_message?: ForwardedMessage;
+  system_event?: SystemEvent | null;
 }
 
 export interface PublicUser {

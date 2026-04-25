@@ -67,7 +67,7 @@ export const ForwardModal: React.FC<ForwardModalProps> = ({
     : textChannels;
   const filteredDms = q
     ? dmChannels.filter(d =>
-        (d.other_display_name || d.other_username).toLowerCase().includes(q)
+        (d.other_display_name || d.other_username || '').toLowerCase().includes(q)
       )
     : dmChannels;
 

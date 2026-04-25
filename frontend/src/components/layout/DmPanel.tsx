@@ -109,7 +109,7 @@ const DmPanel: React.FC<DmPanelProps> = ({
           dmChannels.map(channel => {
             const unread = dmUnreadCounts[channel.id] ?? 0;
             const isActive = channel.id === activeDmChannelId;
-            const isOtherOnline = onlineUserIds?.has(channel.other_user_id) ?? false;
+            const isOtherOnline = onlineUserIds?.has(channel.other_user_id ?? '') ?? false;
             const isMuted = channelState.getNotificationSetting(CHANNEL_KIND_DM, channel.id) === 'MUTED';
             return (
               <div
@@ -121,8 +121,8 @@ const DmPanel: React.FC<DmPanelProps> = ({
                 <div className="dm-panel-avatar-wrap">
                   <div className="dm-panel-avatar">
                     {channel.other_avatar_url
-                      ? <img src={channel.other_avatar_url} alt={channel.other_username} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-                      : channel.other_username.charAt(0).toUpperCase()}
+                      ? <img src={channel.other_avatar_url} alt={channel.other_username ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                      : (channel.other_username ?? '?').charAt(0).toUpperCase()}
                   </div>
                   <span className={`dm-panel-status-dot ${isOtherOnline ? 'online' : 'offline'}`} />
                 </div>
