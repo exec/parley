@@ -297,6 +297,12 @@ func registerRoutes(
 			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Patch("/notifications/read-all", notifHandler.MarkAllRead)
 			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Patch("/notifications/{id}/read", notifHandler.MarkRead)
 
+			// Read-state + notification setting routes — per-user account state.
+			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Post("/channels/{channelID}/read", handleMarkChannelRead(repo, hub))
+			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Post("/dms/{channelID}/read", handleMarkDmRead(repo, hub))
+			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Patch("/channels/{channelID}/notifications", handleSetChannelNotifications(repo, hub))
+			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Patch("/dms/{channelID}/notifications", handleSetDmNotifications(repo, hub))
+
 			// DM routes — scoped under messages:read (channel list + history)
 			// and messages:write (open/send/delete/react/forward).
 			dmHandler := dm.NewHandler(repo, hub)
