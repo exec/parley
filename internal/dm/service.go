@@ -261,6 +261,125 @@ func (s *Service) KickMember(ctx context.Context, channelID, actorUserID, target
 	return nil
 }
 
+// UpdateGroupName: any member may rename. Emits group_name_changed system msg.
+func (s *Service) UpdateGroupName(ctx context.Context, channelID, actorUserID int64, newName string) error {
+	if newName == "" {
+		return errors.New("name cannot be empty")
+	}
+	if len(newName) > 100 {
+		return errors.New("name too long (max 100 chars)")
+	}
+	ch, err := s.repo.GetDmChannelByID(ctx, channelID)
+	if err != nil {
+		return err
+	}
+	if !ch.IsGroup {
+		return errors.New("not a group channel")
+	}
+
+	isMember, _ := s.repo.IsDmMember(ctx, channelID, actorUserID)
+	if !isMember {
+		return errors.New("not a member")
+	}
+
+	if err := s.repo.UpdateDmGroupName(ctx, channelID, newName); err != nil {
+		return err
+	}
+
+	var oldName string
+	if ch.Name != nil {
+		oldName = *ch.Name
+	}
+	eventJSON, _ := json.Marshal(map[string]any{
+		"type":          "group_name_changed",
+		"actor_user_id": strconv.FormatInt(actorUserID, 10),
+		"old_name":      oldName,
+		"new_name":      newName,
+	})
+	if sysMsg, err := s.repo.InsertSystemMessage(ctx, channelID, actorUserID, eventJSON); err == nil && s.hub != nil {
+		sysMsgJSON, _ := json.Marshal(sysMsg)
+		s.hub.BroadcastToChannel(fmt.Sprintf("dm:%d", channelID), ws.EventDmMessageCreate, sysMsgJSON)
+	}
+	if s.hub != nil {
+		updatePayload, _ := json.Marshal(map[string]any{
+			"channel_id": strconv.FormatInt(channelID, 10),
+			"name":       newName,
+		})
+		s.hub.BroadcastToChannel(fmt.Sprintf("dm:%d", channelID), ws.EventDmChannelUpdate, updatePayload)
+	}
+	return nil
+}
+
+// UpdateGroupAvatar: any member may set/clear. Pass nil avatarURL to clear.
+// No system message — too noisy; just DM_CHANNEL_UPDATE.
+func (s *Service) UpdateGroupAvatar(ctx context.Context, channelID, actorUserID int64, avatarURL *string) error {
+	ch, err := s.repo.GetDmChannelByID(ctx, channelID)
+	if err != nil {
+		return err
+	}
+	if !ch.IsGroup {
+		return errors.New("not a group channel")
+	}
+
+	isMember, _ := s.repo.IsDmMember(ctx, channelID, actorUserID)
+	if !isMember {
+		return errors.New("not a member")
+	}
+
+	if err := s.repo.UpdateDmGroupAvatar(ctx, channelID, avatarURL); err != nil {
+		return err
+	}
+
+	if s.hub != nil {
+		var url string
+		if avatarURL != nil {
+			url = *avatarURL
+		}
+		updatePayload, _ := json.Marshal(map[string]any{
+			"channel_id": strconv.FormatInt(channelID, 10),
+			"avatar_url": url,
+		})
+		s.hub.BroadcastToChannel(fmt.Sprintf("dm:%d", channelID), ws.EventDmChannelUpdate, updatePayload)
+	}
+	return nil
+}
+
+// TransferOwnership: owner-only standalone transfer (without leaving). New
+// owner must be a member.
+func (s *Service) TransferOwnership(ctx context.Context, channelID, actorUserID, newOwnerID int64) error {
+	ch, err := s.repo.GetDmChannelByID(ctx, channelID)
+	if err != nil {
+		return err
+	}
+	if !ch.IsGroup {
+		return errors.New("not a group channel")
+	}
+	if ch.OwnerUserID == nil || *ch.OwnerUserID != actorUserID {
+		return errors.New("not the owner of this group")
+	}
+	if newOwnerID == actorUserID {
+		return errors.New("you are already the owner")
+	}
+	targetIsMember, _ := s.repo.IsDmMember(ctx, channelID, newOwnerID)
+	if !targetIsMember {
+		return errors.New("target is not a member")
+	}
+
+	if err := s.repo.TransferDmGroupOwnership(ctx, channelID, &newOwnerID); err != nil {
+		return err
+	}
+	eventJSON, _ := json.Marshal(map[string]any{
+		"type":              "owner_transferred",
+		"actor_user_id":     strconv.FormatInt(actorUserID, 10),
+		"new_owner_user_id": strconv.FormatInt(newOwnerID, 10),
+	})
+	if sysMsg, err := s.repo.InsertSystemMessage(ctx, channelID, actorUserID, eventJSON); err == nil && s.hub != nil {
+		sysMsgJSON, _ := json.Marshal(sysMsg)
+		s.hub.BroadcastToChannel(fmt.Sprintf("dm:%d", channelID), ws.EventDmMessageCreate, sysMsgJSON)
+	}
+	return nil
+}
+
 func dedupeAndExcludeSelf(ids []int64, self int64) []int64 {
 	seen := map[int64]bool{}
 	out := []int64{}

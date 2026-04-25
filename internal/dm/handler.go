@@ -658,3 +658,83 @@ func (h *Handler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// UpdateGroupRequest is the body for PATCH /dms/{id}.
+type UpdateGroupRequest struct {
+	Name        *string `json:"name,omitempty"`
+	AvatarURL   *string `json:"avatar_url,omitempty"`
+	ClearAvatar bool    `json:"clear_avatar,omitempty"`
+}
+
+// UpdateGroup handles PATCH /dms/{id} — rename and/or update avatar.
+func (h *Handler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
+	userIDStr := auth.GetUserIDFromContext(r)
+	actorID, _ := strconv.ParseInt(userIDStr, 10, 64)
+	channelID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		httputil.JSONError(w, "invalid channel id", http.StatusBadRequest)
+		return
+	}
+
+	var req UpdateGroupRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Name != nil {
+		if err := h.svc.UpdateGroupName(r.Context(), channelID, actorID, *req.Name); err != nil {
+			httputil.JSONError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+	if req.AvatarURL != nil || req.ClearAvatar {
+		var avatar *string
+		if !req.ClearAvatar {
+			avatar = req.AvatarURL
+		}
+		if err := h.svc.UpdateGroupAvatar(r.Context(), channelID, actorID, avatar); err != nil {
+			httputil.JSONError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// TransferOwnershipRequest is the body for POST /dms/{id}/transfer-ownership.
+type TransferOwnershipRequest struct {
+	NewOwnerID string `json:"new_owner_id"`
+}
+
+// TransferOwnership handles POST /dms/{id}/transfer-ownership.
+func (h *Handler) TransferOwnership(w http.ResponseWriter, r *http.Request) {
+	userIDStr := auth.GetUserIDFromContext(r)
+	actorID, _ := strconv.ParseInt(userIDStr, 10, 64)
+	channelID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		httputil.JSONError(w, "invalid channel id", http.StatusBadRequest)
+		return
+	}
+
+	var req TransferOwnershipRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	newOwnerID, err := strconv.ParseInt(req.NewOwnerID, 10, 64)
+	if err != nil {
+		httputil.JSONError(w, "invalid new_owner_id", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.svc.TransferOwnership(r.Context(), channelID, actorID, newOwnerID); err != nil {
+		msg := err.Error()
+		if strings.Contains(msg, "not the owner") {
+			httputil.JSONError(w, msg, http.StatusForbidden)
+			return
+		}
+		httputil.JSONError(w, msg, http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
