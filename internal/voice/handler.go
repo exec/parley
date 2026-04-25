@@ -204,6 +204,8 @@ func (h *Handler) Leave(w http.ResponseWriter, r *http.Request) {
 				if err := h.dmCallEnder(r.Context(), vc.ID, userID, durationMs, startedAtMs); err != nil {
 					log.Printf("voice handler: EmitCallEnded failed for dm:%d: %v", vc.ID, err)
 				}
+			} else {
+				log.Printf("voice handler: dmCallEnder not wired; skipping call_ended for dm:%d", vc.ID)
 			}
 		}
 	}
