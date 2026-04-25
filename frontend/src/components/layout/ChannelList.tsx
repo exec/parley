@@ -1,6 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Volume2, Mic, MicOff, PhoneOff, Hash, Code2, X, Plus, Video, VideoOff, Monitor, MonitorOff, Headphones, HeadphoneOff } from 'lucide-react';
+import { Volume2, Mic, MicOff, PhoneOff, Hash, Code2, X, Plus, Video, VideoOff, Monitor, MonitorOff, Headphones, HeadphoneOff, BellOff } from 'lucide-react';
+import { useChannelState } from '../../context/ChannelStateContext';
+import * as readStateApi from '../../api/readState';
+import { CHANNEL_KIND_SERVER } from '../../api/types';
 import { VoiceContextMenu } from '../voice/VoiceContextMenu';
 import { muteVoiceParticipant, kickVoiceParticipant } from '../../api/voice';
 import { copyToClipboard } from '../../lib/tauri';
@@ -228,12 +231,14 @@ const ChannelContextMenu: React.FC<{
   channel: Channel;
   position: { top: number; left: number };
   canManageChannels: boolean;
+  notificationSetting: string;
   onClose: () => void;
   onRename: () => void;
   onDelete: () => void;
   onMarkAsRead: () => void;
   onChannelSettings?: () => void;
-}> = ({ channel, position, canManageChannels, onClose, onRename, onDelete, onMarkAsRead, onChannelSettings }) => {
+  onSetNotification: (setting: 'ALL' | 'MENTIONS_ONLY' | 'MUTED') => void;
+}> = ({ channel, position, canManageChannels, notificationSetting, onClose, onRename, onDelete, onMarkAsRead, onChannelSettings, onSetNotification }) => {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const handle = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose(); };
@@ -247,6 +252,21 @@ const ChannelContextMenu: React.FC<{
       <div className="cl-server-context-divider" />
       {channel.type !== 3 && <button className="cl-server-context-item" onClick={() => { onMarkAsRead(); onClose(); }}>Mark as Read</button>}
       <button className="cl-server-context-item" onClick={() => { void copyToClipboard(channel.id); onClose(); }}>Copy ID</button>
+      {channel.type !== 3 && (
+        <>
+          <div className="cl-server-context-divider" />
+          <div className="cl-channel-context-section-label">Notifications</div>
+          <button className="cl-server-context-item" onClick={() => { onSetNotification('ALL'); onClose(); }}>
+            All messages {notificationSetting === 'ALL' ? '✓' : ''}
+          </button>
+          <button className="cl-server-context-item" onClick={() => { onSetNotification('MENTIONS_ONLY'); onClose(); }}>
+            @mentions only {notificationSetting === 'MENTIONS_ONLY' ? '✓' : ''}
+          </button>
+          <button className="cl-server-context-item" onClick={() => { onSetNotification('MUTED'); onClose(); }}>
+            Muted {notificationSetting === 'MUTED' ? '✓' : ''}
+          </button>
+        </>
+      )}
       {canManageChannels && (
         <>
           <div className="cl-server-context-divider" />
@@ -281,6 +301,7 @@ const SortableChannelItem: React.FC<{
   canManageChannels: boolean;
   activeVoiceChannelId: string | null;
   voiceParticipants: Record<string, { user_id: string; username: string; avatar_url?: string }[]>;
+  isMuted?: boolean;
   onSelect: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
   onMouseEnter: () => void;
@@ -297,7 +318,7 @@ const SortableChannelItem: React.FC<{
   onParticipantClick?: (userId: string, clientX: number, clientY: number) => void;
 }> = ({
   channel, isActive, unread, hasMention, isRenaming, renameValue, renameInputRef,
-  hoveredChannel, canManageChannels, activeVoiceChannelId, voiceParticipants,
+  hoveredChannel, canManageChannels, activeVoiceChannelId, voiceParticipants, isMuted,
   onSelect, onContextMenu, onMouseEnter, onMouseLeave, onDelete, onVoiceClick,
   onRenameChange, onRenameBlur, onRenameKeyDown, isDragging,
   canMuteMembers, canKickFromVoice, onParticipantContextMenu, onParticipantClick,
@@ -377,6 +398,7 @@ const SortableChannelItem: React.FC<{
         ) : (
           <span className="channel-name">{channel.name}</span>
         )}
+        {isMuted && !isRenaming && <BellOff size={13} className="channel-row-muted" />}
         {unread > 0 && !isActive && !isRenaming && (
           <span className={`channel-unread-badge${hasMention ? ' mention' : ' plain'}`}>{unread > 99 ? '99+' : unread}</span>
         )}
@@ -507,6 +529,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
   onVcMuteToggle, onVcDeafenToggle, onVcVideoToggle, onVcScreenShareToggle, onVcLeave, onVcNavigate,
   userStatuses, onStatusChange,
 }) => {
+  const channelState = useChannelState();
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [hoveredChannel, setHoveredChannel] = useState<string | null>(null);
   const [vcParticipantMenu, setVcParticipantMenu] = useState<{ channelId: string; participantId: string; x: number; y: number } | null>(null);
@@ -604,36 +627,40 @@ const ChannelList: React.FC<ChannelListProps> = ({
     }
   }, [channels, categories, uncategorized, childrenOf, onReorderChannels]);
 
-  const renderChannelItem = (ch: Channel) => (
-    <SortableChannelItem
-      key={ch.id}
-      channel={ch}
-      isActive={ch.id === activeChannelId}
-      unread={channelUnreadCounts[ch.id] ?? 0}
-      hasMention={channelMentionCounts.has(ch.id)}
-      isRenaming={renamingChannelId === ch.id}
-      renameValue={renameValue}
-      renameInputRef={renameInputRef}
-      hoveredChannel={hoveredChannel}
-      canManageChannels={canManageChannels}
-      activeVoiceChannelId={activeVoiceChannelId}
-      voiceParticipants={voiceParticipants}
-      onSelect={() => onChannelSelect(ch.id)}
-      onContextMenu={e => { e.preventDefault(); setChannelContextMenu({ channel: ch, top: e.clientY, left: e.clientX }); }}
-      onMouseEnter={() => setHoveredChannel(ch.id)}
-      onMouseLeave={() => setHoveredChannel(null)}
-      onDelete={() => onDeleteChannel(ch.id)}
-      onVoiceClick={() => onVoiceChannelClick?.(ch.id)}
-      onRenameChange={setRenameValue}
-      onRenameBlur={() => commitRename(ch.id)}
-      onRenameKeyDown={renameKeyDown(ch.id)}
-      isDragging={activeId === ch.id}
-      canMuteMembers={canMuteMembers}
-      canKickFromVoice={canKickFromVoice}
-      onParticipantContextMenu={(channelId, participantId, x, y) => setVcParticipantMenu({ channelId, participantId, x, y })}
-      onParticipantClick={onVcParticipantClick}
-    />
-  );
+  const renderChannelItem = (ch: Channel) => {
+    const isMuted = channelState.getNotificationSetting(CHANNEL_KIND_SERVER, ch.id) === 'MUTED';
+    return (
+      <SortableChannelItem
+        key={ch.id}
+        channel={ch}
+        isActive={ch.id === activeChannelId}
+        unread={channelUnreadCounts[ch.id] ?? 0}
+        hasMention={channelMentionCounts.has(ch.id)}
+        isRenaming={renamingChannelId === ch.id}
+        renameValue={renameValue}
+        renameInputRef={renameInputRef}
+        hoveredChannel={hoveredChannel}
+        canManageChannels={canManageChannels}
+        activeVoiceChannelId={activeVoiceChannelId}
+        voiceParticipants={voiceParticipants}
+        isMuted={isMuted}
+        onSelect={() => onChannelSelect(ch.id)}
+        onContextMenu={e => { e.preventDefault(); setChannelContextMenu({ channel: ch, top: e.clientY, left: e.clientX }); }}
+        onMouseEnter={() => setHoveredChannel(ch.id)}
+        onMouseLeave={() => setHoveredChannel(null)}
+        onDelete={() => onDeleteChannel(ch.id)}
+        onVoiceClick={() => onVoiceChannelClick?.(ch.id)}
+        onRenameChange={setRenameValue}
+        onRenameBlur={() => commitRename(ch.id)}
+        onRenameKeyDown={renameKeyDown(ch.id)}
+        isDragging={activeId === ch.id}
+        canMuteMembers={canMuteMembers}
+        canKickFromVoice={canKickFromVoice}
+        onParticipantContextMenu={(channelId, participantId, x, y) => setVcParticipantMenu({ channelId, participantId, x, y })}
+        onParticipantClick={onVcParticipantClick}
+      />
+    );
+  };
 
   const activeItem = activeId ? channels.find(c => c.id === activeId) : null;
 
@@ -809,11 +836,17 @@ const ChannelList: React.FC<ChannelListProps> = ({
           channel={channelContextMenu.channel}
           position={{ top: channelContextMenu.top, left: channelContextMenu.left }}
           canManageChannels={canManageChannels}
+          notificationSetting={channelState.getNotificationSetting(CHANNEL_KIND_SERVER, channelContextMenu.channel.id)}
           onClose={() => setChannelContextMenu(null)}
           onRename={() => startRename(channelContextMenu.channel)}
           onDelete={() => onDeleteChannel(channelContextMenu.channel.id)}
           onMarkAsRead={() => onMarkChannelRead?.(channelContextMenu.channel.id)}
           onChannelSettings={onChannelSettings ? () => onChannelSettings(channelContextMenu.channel.id) : undefined}
+          onSetNotification={(setting) => {
+            const id = channelContextMenu.channel.id;
+            readStateApi.setNotificationSetting(CHANNEL_KIND_SERVER, id, setting).catch(e => console.error('Failed to set notification setting', e));
+            channelState.setNotificationSettingLocal(CHANNEL_KIND_SERVER, id, setting);
+          }}
         />,
         document.body
       )}

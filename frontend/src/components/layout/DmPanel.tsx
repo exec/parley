@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare } from 'lucide-react';
-import { DmChannel, User } from '../../api/types';
+import { MessageSquare, BellOff } from 'lucide-react';
+import { DmChannel, User, CHANNEL_KIND_DM } from '../../api/types';
+import { useChannelState } from '../../context/ChannelStateContext';
 import './DmPanel.css';
 import { ThemePopover } from '../theme/ThemePopover';
 
@@ -66,6 +67,7 @@ const DmPanel: React.FC<DmPanelProps> = ({
   onlineUserIds,
   onMarkDmRead,
 }) => {
+  const channelState = useChannelState();
   const [contextMenu, setContextMenu] = useState<{ top: number; left: number } | null>(null);
   const [dmContextMenu, setDmContextMenu] = useState<{ top: number; left: number; channelId: string } | null>(null);
   const userAreaRef = useRef<HTMLDivElement>(null);
@@ -106,6 +108,7 @@ const DmPanel: React.FC<DmPanelProps> = ({
             const unread = dmUnreadCounts[channel.id] ?? 0;
             const isActive = channel.id === activeDmChannelId;
             const isOtherOnline = onlineUserIds?.has(channel.other_user_id) ?? false;
+            const isMuted = channelState.getNotificationSetting(CHANNEL_KIND_DM, channel.id) === 'MUTED';
             return (
               <div
                 key={channel.id}
@@ -122,6 +125,7 @@ const DmPanel: React.FC<DmPanelProps> = ({
                   <span className={`dm-panel-status-dot ${isOtherOnline ? 'online' : 'offline'}`} />
                 </div>
                 <span className="dm-panel-name">{channel.other_display_name || channel.other_username}</span>
+                {isMuted && <BellOff size={14} className="dm-row-muted" />}
                 {unread > 0 && !isActive && (
                   <span
                     className="dm-unread-badge"

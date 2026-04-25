@@ -130,6 +130,12 @@
   100% { transform: scale(1); }
 }
 
+.dm-row-muted {
+  opacity: 0.5;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+
 .dm-panel-avatar {
   width: 32px;
   height: 32px;
