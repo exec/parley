@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -538,6 +539,48 @@ func (h *Handler) ToggleDmReaction(w http.ResponseWriter, r *http.Request) {
 			"emoji":         req.Emoji,
 		})
 		h.hub.BroadcastToChannel("dm:"+strconv.FormatInt(dmChannelID, 10), eventType, payload)
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// AddMembersRequest is the body for POST /dms/{id}/members.
+type AddMembersRequest struct {
+	UserIDs []string `json:"user_ids"`
+}
+
+// AddMembers handles POST /dms/{id}/members — add users to a group DM.
+func (h *Handler) AddMembers(w http.ResponseWriter, r *http.Request) {
+	userIDStr := auth.GetUserIDFromContext(r)
+	actorID, _ := strconv.ParseInt(userIDStr, 10, 64)
+	channelID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		httputil.JSONError(w, "invalid channel id", http.StatusBadRequest)
+		return
+	}
+
+	var req AddMembersRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	var newIDs []int64
+	for _, sid := range req.UserIDs {
+		n, perr := strconv.ParseInt(sid, 10, 64)
+		if perr != nil {
+			httputil.JSONError(w, "invalid user id", http.StatusBadRequest)
+			return
+		}
+		newIDs = append(newIDs, n)
+	}
+
+	if err := h.svc.AddMembers(r.Context(), channelID, actorID, newIDs); err != nil {
+		msg := err.Error()
+		if strings.Contains(msg, "not a member") || strings.Contains(msg, "not a group") || strings.Contains(msg, "capacity") {
+			httputil.JSONError(w, msg, http.StatusBadRequest)
+			return
+		}
+		httputil.InternalError(w, err)
+		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

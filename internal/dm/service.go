@@ -77,6 +77,67 @@ func (s *Service) IsMember(ctx context.Context, channelID, userID int64) (bool, 
 	return s.repo.IsDmMember(ctx, channelID, userID)
 }
 
+// AddMembers appends users to a group DM. Any existing member can add. The
+// 100-member cap is enforced. Idempotent: re-adding existing members is a
+// no-op (no system message emitted for those). Per added user a member_added
+// system message is broadcast on the dm:{id} virtual channel.
+func (s *Service) AddMembers(ctx context.Context, channelID, actorUserID int64, newMemberIDs []int64) error {
+	ch, err := s.repo.GetDmChannelByID(ctx, channelID)
+	if err != nil {
+		return err
+	}
+	if !ch.IsGroup {
+		return errors.New("not a group channel")
+	}
+
+	isMember, err := s.repo.IsDmMember(ctx, channelID, actorUserID)
+	if err != nil {
+		return err
+	}
+	if !isMember {
+		return errors.New("not a member of this channel")
+	}
+
+	existing, _ := s.repo.GetDmMembers(ctx, channelID)
+	if len(existing)+len(newMemberIDs) > 100 {
+		return errors.New("group at capacity (max 100)")
+	}
+
+	for _, uid := range newMemberIDs {
+		// Skip if already a member (idempotent)
+		if already, _ := s.repo.IsDmMember(ctx, channelID, uid); already {
+			continue
+		}
+		if err := s.repo.AddDmMember(ctx, channelID, uid); err != nil {
+			return err
+		}
+		eventJSON, _ := json.Marshal(map[string]any{
+			"type":           "member_added",
+			"actor_user_id":  strconv.FormatInt(actorUserID, 10),
+			"target_user_id": strconv.FormatInt(uid, 10),
+		})
+		sysMsg, err := s.repo.InsertSystemMessage(ctx, channelID, actorUserID, eventJSON)
+		if err != nil {
+			return err
+		}
+		if s.hub != nil {
+			virtualChannel := fmt.Sprintf("dm:%d", channelID)
+			sysMsgJSON, _ := json.Marshal(sysMsg)
+			s.hub.BroadcastToChannel(virtualChannel, ws.EventDmMessageCreate, sysMsgJSON)
+			memberAddPayload, _ := json.Marshal(map[string]any{
+				"channel_id": strconv.FormatInt(channelID, 10),
+				"user_id":    strconv.FormatInt(uid, 10),
+				"added_by":   strconv.FormatInt(actorUserID, 10),
+			})
+			s.hub.BroadcastToChannel(virtualChannel, ws.EventDmMemberAdd, memberAddPayload)
+			// The new member isn't subscribed to dm:{id} yet — send DM_CHANNEL_CREATE on their user-WS so their DM list updates.
+			channelPayload, _ := json.Marshal(map[string]any{"channel": ch})
+			s.hub.SendToUser(strconv.FormatInt(uid, 10), ws.EventDmChannelCreate, channelPayload)
+		}
+	}
+	return nil
+}
+
 func dedupeAndExcludeSelf(ids []int64, self int64) []int64 {
 	seen := map[int64]bool{}
 	out := []int64{}
