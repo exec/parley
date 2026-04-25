@@ -1268,12 +1268,24 @@ function MainApp() {
         }))
       : [];
 
+    // userId → display name map for resolving <@id> mention tokens in DM
+    // messages. Server channels use App.tsx's global memberMap built from
+    // server members; DMs need their own map sourced from dmMembers (which
+    // covers both 1:1 partners and full group rosters). Without this,
+    // MarkdownRenderer falls back to "@unknown" for every mention.
+    const dmMemberMap = new Map(
+      dmMembers
+        .filter(m => m.user_id && m.username)
+        .map(m => [m.user_id, m.display_name || m.username] as [string, string])
+    );
+
     mainContent = (
       <ChatWindow
         channel={dmChannel}
         messages={dmAsMessages}
         currentUserId={currentUser?.id}
         members={dmMembers}
+        memberMap={dmMemberMap}
         onSendMessage={sendDmMessage}
         onDelete={handleDmDelete}
         onReact={handleDmReact}
