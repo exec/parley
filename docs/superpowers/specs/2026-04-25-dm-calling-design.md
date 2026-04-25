@@ -12,9 +12,11 @@
 - 1:1 DM calls with explicit ring/accept/decline lifecycle.
 - Group DM calls without ring — open-room model with in-channel banner + system message.
 - Reuse the existing voice-channel stack (LiveKit token, Redis presence, WS events, hooks, view components).
-- Add user-on-user **local mute** (listener-side gating) — applies to DM/GC and existing server VC alike.
+- Add user-on-user **per-listener volume control** (0–200%, with mute = 0) — applies to DM/GC and existing server VC alike.
 - Add a draggable in-app **floating call window** (Discord-style) — applies to any active call.
 - Native OS-level **incoming-call window** for the desktop app when the main window is unfocused.
+- Add a connection-quality indicator on each `ParticipantTile`.
+- Plumb a stub harness for **VC activities** so games / watch-together / similar can be dropped in later (no actual activities ship in this iteration).
 - Fix bug: DM/GC participants should not receive notification sounds for their own messages.
 
 **Non-Goals**
@@ -42,7 +44,9 @@ The LiveKit room name, the Redis presence key (`voice:{vc}`), and the WS broadca
 
 **Call artifacts** live in `dm_messages.system_event` (existing JSONB column). The chat timeline doubles as the call log. No new tables, no new migrations.
 
-**Local mute** is purely client-side: `localStorage.parley.localMutes` is a `Set<userID>`. `ParticipantTile` reads the set, sets `participant.setVolume(0)`, and renders a strikethrough-speaker icon. Persists across all calls in any context.
+**Per-listener volume** is purely client-side: `localStorage.parley.localVolumes` is a `Map<userID, 0–200>` (where 0 == muted, 100 == default unity gain, up to 200% boost). `ParticipantTile` reads the value, applies via `participant.setVolume(value / 100)`, and renders a strikethrough-speaker icon when `value === 0`. Persists across all calls in any context.
+
+**VC Activities (stub)**: a registry pattern — `register({type, render: Component})` — and a Redis-tracked active-activity-per-virtual-channel state. The harness ships in this iteration with an empty registry; future activities (e.g., watch-together) plug in by calling `register(...)` and don't require backend changes.
 
 **Floating call window** is a `position: fixed` draggable React overlay rendering `<VoiceChannel layout="compact">`. Position persists to localStorage. Toggleable from the existing `VoiceControls` widget.
 
@@ -152,6 +156,16 @@ GET    /api/calls/active          -> {rings: [...], in_call: [...]}  // boot/rel
 ```
 
 Authorization on all DM call routes: `IsDmMember(dmID, userID)`.
+
+New routes for the activities stub (work for any virtual channel):
+
+```
+POST   /api/voice/{vc}/activity/start  {type, params?} -> {}
+POST   /api/voice/{vc}/activity/end    {} -> {}
+GET    /api/voice/{vc}/activity        -> {type, started_by, started_at, params?} | null
+```
+
+Authorization: caller must currently be a participant in `voice:{vc}` (HEXISTS check). The stub does not gate by activity type — backend doesn't know about specific activity types.
 
 ### 3.4 Ring service
 
@@ -264,6 +278,8 @@ CALL_ACCEPT     -> sent to caller AND target.    payload: {ring_id, accepter_use
 CALL_DECLINE    -> sent to caller.               payload: {ring_id, decliner_user_id}
 CALL_CANCEL     -> sent to target.               payload: {ring_id}
 CALL_TIMEOUT    -> sent to caller AND target.    payload: {ring_id}
+ACTIVITY_START  -> broadcast to vc.String().     payload: {vc, type, started_by, started_at, params?}
+ACTIVITY_END    -> broadcast to vc.String().     payload: {vc}
 ```
 
 Existing `VOICE_STATE_UPDATE`, `VOICE_FORCE_MUTE`, `VOICE_FORCE_DISCONNECT` are reused. Broadcast target depends on `vc.Kind`:
@@ -277,7 +293,15 @@ Existing `VOICE_STATE_UPDATE`, `VOICE_FORCE_MUTE`, `VOICE_FORCE_DISCONNECT` are 
 
 ### 3.8 Heartbeat
 
-Backend already has heartbeat keys (`voice:heartbeat:{vc}:{userID}` TTL 30s). The Explore audit was inconclusive on whether the frontend pings them. **Plan task:** verify; if absent, add `setInterval(() => POST /api/voice/{vc}/heartbeat, 15_000)` inside `useVoiceConnection`.
+Backend has heartbeat keys (`voice:heartbeat:{vc}:{userID}` TTL 30s) for stale-presence cleanup. Add a 15s heartbeat loop in `useVoiceConnection` that calls `POST /api/voice/{vc}/heartbeat` while connected. If a loop already exists from prior work, the change is a no-op; if not, this adds it. No verification branch — the plan unconditionally writes the loop.
+
+### 3.9 Activities (stub)
+
+Backend keeps the active activity per virtual channel in Redis: key `voice:{vc}:activity` is a JSON-encoded `{type, started_by, started_at, params?}` or absent (no activity). Lifetime is bound to the call: when the last participant leaves, the activity entry is deleted alongside `voice:{vc}:started_at`.
+
+`POST /activity/start` emits `ACTIVITY_START` to `vc.String()`. `POST /activity/end` deletes the key and emits `ACTIVITY_END`. The backend stores `params` opaquely — interpretation is purely a frontend concern. No registry or validation of `type` strings server-side; the frontend's registry is the source of truth for renderable types.
+
+Backend does not write `activity_*` system messages to DM history. (Activities are ephemeral; chat history doesn't need a record of every "Alice started watch-together.")
 
 ---
 
@@ -287,12 +311,18 @@ Backend already has heartbeat keys (`voice:heartbeat:{vc}:{userID}` TTL 30s). Th
 
 | File | Purpose |
 |---|---|
-| `frontend/src/api/calls.ts` | Ring lifecycle API client (initiate / accept / decline / cancel / activeRings) |
+| `frontend/src/api/calls.ts` | Ring lifecycle API client (initiate / accept / decline / cancel / activeRings). |
+| `frontend/src/api/activities.ts` | Activities stub API client (start / end / get). |
 | `frontend/src/context/CallContext.tsx` | Global call state — incoming-ring queue, outbound ringing state. Subscribes to WS call events. Handles Tauri vs web platform branching for the ring surface. |
-| `frontend/src/hooks/useLocalMutes.ts` | localStorage-backed `Set<userID>` with subscribe/toggle. |
+| `frontend/src/hooks/useLocalVolumes.ts` | localStorage-backed `Map<userID, 0–200>` with subscribe/get/set/toggle. Mute = 0. |
+| `frontend/src/activities/registry.ts` | Activity registry: `register({type, render})`, `lookup(type)`. Exported singleton. Empty in this iteration. |
 | `frontend/src/components/calls/IncomingCallModal.tsx` | Web fallback (and Tauri fallback when main is focused). Accept / Decline UI. |
 | `frontend/src/components/calls/CallBanner.tsx` | In-channel "📞 N in call · Join" strip in the DM/GC chat header. |
 | `frontend/src/components/calls/FloatingCallWindow.tsx` | Draggable in-app overlay rendering `<VoiceChannel layout="compact">`. Position persisted to localStorage. |
+| `frontend/src/components/voice/ActivitySlot.tsx` | Pane inside `VoiceChannel` that subscribes to active-activity state and renders the registered renderer (or a placeholder if no renderer registered for that type, or nothing if no activity). |
+| `frontend/src/components/voice/ActivitiesModal.tsx` | Modal listing activities from the registry. With empty registry, shows "Activities coming soon" placeholder. |
+| `frontend/src/components/voice/ConnectionQualityDot.tsx` | Tiny corner-of-tile indicator backed by `participant.connectionQuality`. |
+| `frontend/src/components/voice/VolumeSlider.tsx` | Slider control (0–200%) used inside `VoiceContextMenu`. |
 | `frontend/src/ring/main.tsx` | Standalone React entry for the Tauri secondary ring window. |
 | `frontend/src/ring/RingApp.tsx` | UI for the ring window: avatar on top, "Incoming call from <name>" text, green Answer / red Decline buttons. |
 | `frontend/ring.html` | HTML entry for the ring webview. |
@@ -303,11 +333,11 @@ Backend already has heartbeat keys (`voice:heartbeat:{vc}:{userID}` TTL 30s). Th
 | File | Change |
 |---|---|
 | `frontend/src/api/voice.ts` | All endpoints accept a virtual channel ID string (`s:N` / `dm:N`) instead of bare numeric channel ID. |
-| `frontend/src/hooks/useVoiceConnection.ts` | Accept `virtualChannelId: string`. Add 15s heartbeat ping if missing. Wire local-mute volume gating via `useLocalMutes`. |
-| `frontend/src/components/voice/VoiceChannel.tsx` | Add `layout: 'full' \| 'compact'` prop. Compact tightens tile sizing for the floating window. |
-| `frontend/src/components/voice/VoiceControls.tsx` | Add Pop-Out button next to Disconnect — toggles floating mode. |
-| `frontend/src/components/voice/VoiceContextMenu.tsx` | Two items: "Mute for me" (always available, gated by `useLocalMutes`); "Force mute" / "Disconnect" (privilege-gated via `AuthorizeMute`/`Kick` returns from server). |
-| `frontend/src/components/voice/ParticipantTile.tsx` | Apply local-mute volume; render strikethrough-speaker icon for locally-muted users. |
+| `frontend/src/hooks/useVoiceConnection.ts` | Accept `virtualChannelId: string`. Unconditionally include a 15s heartbeat loop. Wire per-listener volume gating via `useLocalVolumes`. Subscribe to `ACTIVITY_START` / `ACTIVITY_END` and expose active-activity state. |
+| `frontend/src/components/voice/VoiceChannel.tsx` | Add `layout: 'full' \| 'compact'` prop. Compact tightens tile sizing for the floating window. Render `<ActivitySlot>` between header and tile grid. |
+| `frontend/src/components/voice/VoiceControls.tsx` | Add Pop-Out button (toggles floating mode) and Activities button (opens `ActivitiesModal`). |
+| `frontend/src/components/voice/VoiceContextMenu.tsx` | Three controls: per-user `<VolumeSlider>`, "Mute for me" toggle (sets volume to 0), and the privilege-gated "Force mute" / "Disconnect" entries. |
+| `frontend/src/components/voice/ParticipantTile.tsx` | Apply per-listener volume; render strikethrough-speaker icon when volume is 0; render `<ConnectionQualityDot>` in a corner. |
 | `frontend/src/components/chat/ChatWindow.tsx` | Add 📞 Start/Join Call button to the DM/GC chat header. Render `<CallBanner>` above message list when an active call exists in this channel. |
 | `frontend/src/components/chat/SystemMessage.tsx` | Render `call_started` / `call_ended` / `call_missed` / `call_declined` events. |
 | `frontend/src/components/layout/DmPanel.tsx` | Phone icon next to DMs/GCs with active calls. |
@@ -377,20 +407,50 @@ floatingMode=true && state.kind==='connected' → render <FloatingCallWindow>
 - "Expand" button → exits floating mode, returns to full takeover (navigates to call's channel if not already there)
 - "Dock" button → exits floating mode, returns to docked widget
 
-### 4.7 Local mute persistence
+### 4.7 Per-listener volume persistence
 
-`useLocalMutes` exposes:
+`useLocalVolumes` exposes:
 
 ```typescript
-function useLocalMutes(): {
-  isMuted: (userID: bigint) => boolean;
-  toggle: (userID: bigint) => void;
+function useLocalVolumes(): {
+  getVolume: (userID: bigint) => number;     // returns 100 (unity) if no entry
+  setVolume: (userID: bigint, value: number) => void;  // 0–200
+  toggleMute: (userID: bigint) => void;      // 0 ↔ last non-zero value (default 100)
 };
 ```
 
-Backed by `localStorage.parley.localMutes` (JSON-encoded array of stringified user IDs). Cross-tab sync via the `storage` event. `ParticipantTile` reads `isMuted(participant.userID)` and applies `audioTrack.setVolume(0)` plus visual indicator. `VoiceContextMenu` has a "Mute for me" item that calls `toggle()`.
+Backed by `localStorage.parley.localVolumes` (JSON-encoded `Record<string, number>` keyed by stringified user ID). Cross-tab sync via the `storage` event. `ParticipantTile` reads `getVolume(participant.userID)`, applies via `participant.setVolume(value / 100)`, and renders the strikethrough-speaker icon when value is 0. `VoiceContextMenu` exposes a `<VolumeSlider>` (0–200%) plus a "Mute for me" toggle.
 
-Persists across all calls (server VC, GC call, DM call). Visual indicator on tiles makes "why am I getting silence" self-explanatory.
+Persists across all calls (server VC, GC call, DM call). Visual indicator on tiles for muted participants makes "why am I getting silence" self-explanatory.
+
+### 4.8 Activities registry
+
+`frontend/src/activities/registry.ts`:
+
+```typescript
+type ActivityRenderer = React.FC<{ vc: string; params: unknown }>;
+type ActivityDefinition = {
+  type: string;          // unique identifier — matches backend type strings
+  displayName: string;
+  icon?: React.ReactNode;
+  render: ActivityRenderer;
+  controls?: React.FC<{ vc: string }>;  // optional buttons to start with custom params
+};
+
+let registry = new Map<string, ActivityDefinition>();
+export const register = (a: ActivityDefinition) => registry.set(a.type, a);
+export const lookup = (type: string) => registry.get(type) ?? null;
+export const list = () => Array.from(registry.values());
+```
+
+`<ActivitySlot vc={...}>` subscribes to `useVoiceConnection`'s active-activity state (driven by `ACTIVITY_START` / `ACTIVITY_END` WS events) and renders:
+- nothing if no active activity,
+- `lookup(type).render` if the type is registered,
+- `<UnknownActivity type={type} />` placeholder if active but no renderer registered (forward-compat: a future activity is running, but this client doesn't have its renderer).
+
+`<ActivitiesModal>` opens from the Activities button in `VoiceControls`; lists registered activities (or "Activities coming soon" if empty). Clicking one calls `POST /api/voice/{vc}/activity/start`.
+
+In this iteration, no activities are registered. The harness exists; future enhancements add `register({...})` calls — no spec changes required.
 
 ---
 
@@ -519,7 +579,9 @@ In-call rehydration is out of scope. The `in_call` list is returned but only use
 | Mic permission denied at Accept | Surface toast "Mic access denied — call cannot start." Trigger immediate disconnect; emits `call_started` then `call_ended {duration_ms: 0}`. Better than blocking the accept. |
 | LiveKit token issuance fails | Toast "Couldn't connect to call service." If during Initiate, no ring is created. If during Accept, behave like mic-denied. |
 | GC member kicked from channel during call | `KickMember` flow also dispatches `VOICE_FORCE_DISCONNECT` to the kicked user. Existing client handler runs `doDisconnect()`. |
-| Stale Redis presence | Existing 30s heartbeat TTL. Frontend pings every 15s (verify; add if missing). |
+| Stale Redis presence | Existing 30s heartbeat TTL. Frontend pings every 15s — added unconditionally to `useVoiceConnection`. |
+| Backend restart with active rings | Ring service is in-memory. On restart, all in-flight rings vanish. Targets' WS reconnect → `GET /api/calls/active` returns empty → ring modals/windows close client-side after a short grace period (5s no-event timeout). Callers observe their outgoing toast eventually time out client-side. Acceptable; documented limitation. |
+| Backend restart with active calls | LiveKit room and Redis presence outlive the backend (Redis is separate; LiveKit is external). On restart, in-call clients keep talking. New joins fail until backend is back. |
 | Caller's WS dropped before Bob accepts | Server emits `CALL_ACCEPT` to Alice via `SendToUser`; if her WS is offline, the event is queued and delivered on reconnect. If her browser is gone for good, Bob ends up alone in the room → he leaves → `call_ended {duration_ms ≈ 0}`. |
 | Browser autoplay policy blocks ringtone | App-load warm-up: play a 1ms silent buffer on first user gesture in the page session to keep the audio context alive. Standard pattern. |
 | Notification setting is "muted" for the DM | Modal/secondary window still appears (visual ring) but ringtone is silent and no OS notification fires. Caller hears ringback as normal. Mirrors phone DND. |
@@ -553,8 +615,9 @@ In-call rehydration is out of scope. The `in_call` list is returned but only use
 - `internal/voice/handler_test.go` — last-leaver detects empty room, emits `call_ended` once even with concurrent leaves.
 
 **Frontend (TS)**
-- `useLocalMutes.test.ts` — localStorage roundtrip, `storage` event sync.
+- `useLocalVolumes.test.ts` — localStorage roundtrip, `storage` event sync, mute-via-zero semantics.
 - `CallContext.test.tsx` — state transitions for outgoing, incoming, glare, dual-session.
+- `activities/registry.test.ts` — register/lookup roundtrip; `lookup` of unregistered type returns null.
 - `shouldNotify.test.ts` — own-message short-circuit covered.
 
 **Integration**
@@ -569,6 +632,7 @@ In-call rehydration is out of scope. The `in_call` list is returned but only use
 - **Feature flag:** none. The 📞 button being absent until frontend ships is sufficient gating.
 - **Release version:** target `v0.5.0` (minor — new feature surface).
 - **CI release:** standard tag-push triggers GitHub Actions; do not build desktop locally (per memory).
+- **Server-VC room-name change at deploy:** the prefixed virtual-channel ID changes the LiveKit room name from `123` to `s:123` and the Redis presence key from `voice:123` to `voice:s:123`. Anyone in a server VC at the moment of deploy will be disconnected and need to rejoin once. Briefly stale Redis entries (the un-prefixed keys) age out via the existing 30s heartbeat TTL. This is a one-time cost; recommend deploying during low-traffic hours rather than building a backwards-compat bridge.
 
 ---
 
