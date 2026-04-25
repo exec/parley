@@ -86,4 +86,15 @@ const (
 
 	// Slash command / interaction events
 	EventInteractionCreate = "INTERACTION_CREATE"
+
+	// Call events (1:1 ringing)
+	EventCallRing    = "CALL_RING"
+	EventCallAccept  = "CALL_ACCEPT"
+	EventCallDecline = "CALL_DECLINE"
+	EventCallCancel  = "CALL_CANCEL"
+	EventCallTimeout = "CALL_TIMEOUT"
+
+	// VC activity events (stub harness; events fire even though the registry is empty in this iteration)
+	EventActivityStart = "ACTIVITY_START"
+	EventActivityEnd   = "ACTIVITY_END"
 )
