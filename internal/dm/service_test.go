@@ -2,7 +2,6 @@ package dm
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"testing"
 
@@ -52,7 +51,9 @@ func (r *fakeDmRepo) UpdateDmGroupName(_ context.Context, _ int64, _ string) err
 func (r *fakeDmRepo) UpdateDmGroupAvatar(_ context.Context, _ int64, _ *string) error {
 	return nil
 }
-func (r *fakeDmRepo) DB() *sql.DB { return nil }
+func (r *fakeDmRepo) GetUserDisplayName(_ context.Context, userID int64) (string, error) {
+	return "testuser", nil
+}
 
 func (r *fakeDmRepo) SeedDmChannel(id int64, isGroup bool, ownerID int64, members []int64) {
 	var owner *int64
@@ -75,17 +76,22 @@ func (r *fakeDmRepo) LastSystemMessageFor(dmID int64) *db.DmMessage {
 	return msgs[len(msgs)-1]
 }
 
-type fakeHub struct {
-	broadcasts []struct{ topic, ev string }
+type recordedBroadcast struct {
+	topic, eventType string
+	payload          []byte
 }
 
-func (h *fakeHub) BroadcastToChannel(topic, ev string, _ []byte) {
-	h.broadcasts = append(h.broadcasts, struct{ topic, ev string }{topic, ev})
+type fakeHub struct {
+	broadcasts []recordedBroadcast
+}
+
+func (h *fakeHub) BroadcastToChannel(topic, eventType string, payload []byte) {
+	h.broadcasts = append(h.broadcasts, recordedBroadcast{topic, eventType, payload})
 }
 func (h *fakeHub) SendToUser(_ string, _ string, _ []byte) error { return nil }
-func (h *fakeHub) BroadcastedTo(topic, ev string) bool {
+func (h *fakeHub) BroadcastedTo(topic, eventType string) bool {
 	for _, b := range h.broadcasts {
-		if b.topic == topic && b.ev == ev {
+		if b.topic == topic && b.eventType == eventType {
 			return true
 		}
 	}
@@ -142,18 +148,23 @@ func TestEmitCallEnded_DurationOnly(t *testing.T) {
 	repo, hub := newDmTestHarness(t)
 	svc := newTestService(repo, hub)
 	const channelID int64 = 42
+	const lastLeaver int64 = 7
 	repo.SeedDmChannel(channelID, false, 0, []int64{1, 2})
 
-	if err := svc.EmitCallEnded(context.Background(), channelID, 145000, 1714000000000); err != nil {
+	if err := svc.EmitCallEnded(context.Background(), channelID, lastLeaver, 145000, 1714000000000); err != nil {
 		t.Fatalf("EmitCallEnded: %v", err)
 	}
+	got := repo.LastSystemMessageFor(channelID)
 	var ev map[string]any
-	json.Unmarshal(*repo.LastSystemMessageFor(channelID).SystemEvent, &ev)
+	json.Unmarshal(*got.SystemEvent, &ev)
 	if ev["type"] != "call_ended" {
 		t.Errorf("type = %v", ev["type"])
 	}
 	if ev["duration_ms"] != float64(145000) {
 		t.Errorf("duration_ms = %v", ev["duration_ms"])
+	}
+	if got.AuthorID != lastLeaver {
+		t.Errorf("author = %d, want %d", got.AuthorID, lastLeaver)
 	}
 	if !hub.BroadcastedTo("dm:42", ws.EventDmMessageCreate) {
 		t.Error("expected broadcast")
@@ -176,7 +187,9 @@ func TestEmitCallMissed_NoDecliner(t *testing.T) {
 	if _, hasDecliner := ev["decliner_user_id"]; hasDecliner {
 		t.Error("missed event must not carry decliner_user_id")
 	}
-	_ = hub
+	if !hub.BroadcastedTo("dm:42", ws.EventDmMessageCreate) {
+		t.Error("expected broadcast on dm:42")
+	}
 }
 
 func TestEmitCallDeclined_HasDecliner(t *testing.T) {
@@ -192,5 +205,7 @@ func TestEmitCallDeclined_HasDecliner(t *testing.T) {
 	if ev["type"] != "call_declined" || ev["caller_user_id"] != "1" || ev["decliner_user_id"] != "2" {
 		t.Errorf("got %+v", ev)
 	}
-	_ = hub
+	if !hub.BroadcastedTo("dm:42", ws.EventDmMessageCreate) {
+		t.Error("expected broadcast on dm:42")
+	}
 }

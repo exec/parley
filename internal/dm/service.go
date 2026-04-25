@@ -2,13 +2,13 @@ package dm
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
 
 	"parley/internal/db"
+	voice "parley/internal/voice"
 	ws "parley/internal/websocket"
 )
 
@@ -26,7 +26,7 @@ type dmRepo interface {
 	TransferDmGroupOwnership(ctx context.Context, channelID int64, newOwnerID *int64) error
 	UpdateDmGroupName(ctx context.Context, channelID int64, name string) error
 	UpdateDmGroupAvatar(ctx context.Context, channelID int64, avatarURL *string) error
-	DB() *sql.DB
+	GetUserDisplayName(ctx context.Context, userID int64) (string, error)
 }
 
 // dmHub is the websocket hub surface the Service uses.
@@ -53,14 +53,7 @@ func NewService(repo *db.Repository, hub *ws.Hub) *Service {
 // rendering survives membership changes — kicked users disappear from the
 // member list, but their kick message still says "alice removed bob".
 func (s *Service) resolveDisplayName(ctx context.Context, userID int64) string {
-	if s.repo.DB() == nil {
-		return "someone"
-	}
-	var name string
-	err := s.repo.DB().QueryRowContext(ctx,
-		"SELECT COALESCE(NULLIF(display_name, ''), username) FROM users WHERE id = $1",
-		userID,
-	).Scan(&name)
+	name, err := s.repo.GetUserDisplayName(ctx, userID)
 	if err != nil || name == "" {
 		return "someone"
 	}
@@ -464,14 +457,15 @@ func (s *Service) EmitCallStarted(ctx context.Context, channelID, actorUserID, s
 	return s.broadcastSystemMessage(ctx, channelID, actorUserID, eventJSON)
 }
 
-// EmitCallEnded writes `call_ended` with the call's duration.
-func (s *Service) EmitCallEnded(ctx context.Context, channelID, durationMs, startedAtMs int64) error {
+// EmitCallEnded writes `call_ended` with the call's duration. lastLeaverUserID
+// is the user whose Leave triggered empty-room detection; used as the row's author_id.
+func (s *Service) EmitCallEnded(ctx context.Context, channelID, lastLeaverUserID, durationMs, startedAtMs int64) error {
 	eventJSON, _ := json.Marshal(map[string]any{
 		"type":          "call_ended",
 		"duration_ms":   durationMs,
 		"started_at_ms": startedAtMs,
 	})
-	return s.broadcastSystemMessage(ctx, channelID, 0, eventJSON)
+	return s.broadcastSystemMessage(ctx, channelID, lastLeaverUserID, eventJSON)
 }
 
 // EmitCallMissed writes `call_missed` for ring timeout or caller-cancel.
@@ -504,7 +498,7 @@ func (s *Service) broadcastSystemMessage(ctx context.Context, channelID, actorUs
 		return err
 	}
 	if s.hub != nil && sysMsg != nil {
-		virtualChannel := fmt.Sprintf("dm:%d", channelID)
+		virtualChannel := voice.VirtualChannel{Kind: voice.KindDM, ID: channelID}.String()
 		sysMsgJSON, _ := json.Marshal(sysMsg)
 		s.hub.BroadcastToChannel(virtualChannel, ws.EventDmMessageCreate, sysMsgJSON)
 	}

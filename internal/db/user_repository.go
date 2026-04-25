@@ -734,3 +734,13 @@ func (r *Repository) SearchUsers(ctx context.Context, query string, excludeUserI
 	}
 	return users, nil
 }
+
+// GetUserDisplayName returns the user's display_name falling back to username.
+func (r *Repository) GetUserDisplayName(ctx context.Context, userID int64) (string, error) {
+	var name string
+	err := r.db.QueryRowContext(ctx,
+		"SELECT COALESCE(NULLIF(display_name, ''), username) FROM users WHERE id = $1",
+		userID,
+	).Scan(&name)
+	return name, err
+}
