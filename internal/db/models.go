@@ -197,13 +197,20 @@ type DmChannel struct {
 	OtherAvatarURL   string `json:"other_avatar_url,omitempty" db:"-"`
 }
 
-// DmMessage represents a direct message
+// DmMessage represents a direct message.
+//
+// IDs are emitted as JSON strings (`,string` tag) so the wire format matches
+// channel `Message` (already string-typed) and the frontend's declared
+// `author_id: string` / `id: string` TS types. Without this, strict equality
+// `message.author_id === currentUserId` failed for DMs because the frontend
+// got a number while `currentUserId` is a string — the symptom was no
+// edit/delete buttons on the user's own DMs.
 type DmMessage struct {
-	ID             int64     `json:"id" db:"id"`
-	DmChannelID    int64     `json:"dm_channel_id" db:"dm_channel_id"`
-	AuthorID       int64     `json:"author_id" db:"author_id"`
+	ID             int64     `json:"id,string" db:"id"`
+	DmChannelID    int64     `json:"dm_channel_id,string" db:"dm_channel_id"`
+	AuthorID       int64     `json:"author_id,string" db:"author_id"`
 	Content        string    `json:"content" db:"content"`
-	ParentID       *int64    `json:"parent_id,omitempty" db:"parent_id"`
+	ParentID       *int64    `json:"parent_id,omitempty,string" db:"parent_id"`
 	AttachmentURL  string    `json:"attachment_url,omitempty" db:"attachment_url"`
 	AttachmentName string    `json:"attachment_name,omitempty" db:"attachment_name"`
 	AttachmentType string    `json:"attachment_type,omitempty" db:"attachment_type"`
