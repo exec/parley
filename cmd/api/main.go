@@ -189,14 +189,23 @@ func main() {
 			return result
 		}
 
-		// "dm:{dmChannelID}" virtual channels
+		// "dm:{dmChannelID}" virtual channels — both 1:1 and group DMs.
+		// Group channels have NULL user1_id/user2_id, so consult the
+		// dm_channel_members join table for them.
 		if dmIDStr, ok := strings.CutPrefix(channelID, "dm:"); ok {
 			dmID, err := strconv.ParseInt(dmIDStr, 10, 64)
 			if err != nil {
 				return false
 			}
 			ch, err := repo.GetDmChannelByID(ctx, dmID)
-			return err == nil && (ch.User1ID == uID || ch.User2ID == uID)
+			if err != nil {
+				return false
+			}
+			if ch.IsGroup {
+				isMember, err := repo.IsDmMember(ctx, dmID, uID)
+				return err == nil && isMember
+			}
+			return ch.User1ID == uID || ch.User2ID == uID
 		}
 
 		// Regular channels: check channel→server mapping (cached) then membership (cached)

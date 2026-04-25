@@ -955,6 +955,15 @@ SELECT id, user2_id, created_at FROM dm_channels
 ON CONFLICT DO NOTHING;
 
 ALTER TABLE dm_messages ADD COLUMN IF NOT EXISTS system_event JSONB;`,
+
+	// Migration #66: drop NOT NULL on dm_channels.user1_id/user2_id so group
+	// channels (where there's no canonical "two parties") can leave them
+	// NULL rather than carry placeholder values. The 1:1 paths still set
+	// both columns; the unique (user1_id, user2_id) constraint continues to
+	// prevent duplicate 1:1 pairs because Postgres treats NULLs as distinct
+	// in unique indexes — multiple (NULL, NULL) rows for groups are fine.
+	`ALTER TABLE dm_channels ALTER COLUMN user1_id DROP NOT NULL;
+ALTER TABLE dm_channels ALTER COLUMN user2_id DROP NOT NULL;`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string
