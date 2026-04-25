@@ -142,6 +142,7 @@ func (s *Service) EndIfEmpty(ctx context.Context, channelID string) (int64, bool
 	if parseErr != nil {
 		return 0, false, parseErr
 	}
+	s.rdb.Del(ctx, activityKey(channelID))
 	return startedAtMs, true, nil
 }
 
@@ -190,4 +191,61 @@ func (s *Service) IsParticipant(ctx context.Context, channelID, userID string) (
 	}
 	exists, err := s.rdb.HExists(ctx, presenceKey(channelID), userID).Result()
 	return exists, err
+}
+
+// Activity is the per-call active activity record stored in Redis.
+type Activity struct {
+	Type        string          `json:"type"`
+	StartedBy   int64           `json:"started_by"`
+	StartedAtMs int64           `json:"started_at"`
+	Params      json.RawMessage `json:"params,omitempty"`
+}
+
+func activityKey(channelID string) string {
+	return fmt.Sprintf("voice:%s:activity", channelID)
+}
+
+// StartActivity records or replaces the active activity for a call.
+func (s *Service) StartActivity(ctx context.Context, channelID, activityType string, startedBy int64, params json.RawMessage) error {
+	if s.rdb == nil {
+		return nil
+	}
+	a := Activity{
+		Type:        activityType,
+		StartedBy:   startedBy,
+		StartedAtMs: time.Now().UnixMilli(),
+		Params:      params,
+	}
+	b, err := json.Marshal(a)
+	if err != nil {
+		return err
+	}
+	return s.rdb.Set(ctx, activityKey(channelID), b, 6*time.Hour).Err()
+}
+
+// GetActivity returns the active activity for a call, or nil if none.
+func (s *Service) GetActivity(ctx context.Context, channelID string) (*Activity, error) {
+	if s.rdb == nil {
+		return nil, nil
+	}
+	raw, err := s.rdb.Get(ctx, activityKey(channelID)).Bytes()
+	if errors.Is(err, redis.Nil) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var a Activity
+	if err := json.Unmarshal(raw, &a); err != nil {
+		return nil, err
+	}
+	return &a, nil
+}
+
+// EndActivity removes the activity record. Idempotent.
+func (s *Service) EndActivity(ctx context.Context, channelID string) error {
+	if s.rdb == nil {
+		return nil
+	}
+	return s.rdb.Del(ctx, activityKey(channelID)).Err()
 }
