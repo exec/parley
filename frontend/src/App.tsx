@@ -286,7 +286,9 @@ function MainApp() {
     toggleScreenShare: vcToggleScreenShare,
     disconnect: vcDisconnect,
     retry: vcRetry,
-  } = useVoiceConnection(activeVoiceChannel, handleVcLeave);
+    receiveActivityStart: vcReceiveActivityStart,
+    receiveActivityEnd: vcReceiveActivityEnd,
+  } = useVoiceConnection(activeVoiceChannel ? serverVc(activeVoiceChannel) : null, handleVcLeave);
 
   // Reply-to state for nested replies
   const [replyTo, setReplyTo] = useState<Message | null>(null);
@@ -874,6 +876,8 @@ function MainApp() {
       applyDmChannelUpdate(data);
       window.dispatchEvent(new CustomEvent('parley:dm_channel_update', { detail: data }));
     }, [applyDmChannelUpdate]),
+    onActivityStart: vcReceiveActivityStart,
+    onActivityEnd: vcReceiveActivityEnd,
   });
 
   const handleSendTyping = useCallback(() => {
