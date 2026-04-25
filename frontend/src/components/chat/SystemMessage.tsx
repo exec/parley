@@ -22,20 +22,26 @@ function renderEvent(
   event: SystemEvent,
   resolve: (id: string) => { displayName: string }
 ): string {
-  const actor = resolve(event.actor_user_id).displayName;
+  // Prefer the snapshotted display name in the event payload (always up to
+  // date for new events); fall back to live resolution for older events
+  // emitted before names were embedded.
+  const nameOr = (embedded: string | undefined, userId: string) =>
+    embedded && embedded.length > 0 ? embedded : resolve(userId).displayName;
+
+  const actor = nameOr(event.actor_display_name, event.actor_user_id);
   switch (event.type) {
     case 'group_created':
       return `${actor} created the group`;
     case 'member_added':
-      return `${actor} added ${resolve(event.target_user_id).displayName}`;
+      return `${actor} added ${nameOr(event.target_display_name, event.target_user_id)}`;
     case 'member_left':
       return `${actor} left the group`;
     case 'member_kicked':
-      return `${actor} removed ${resolve(event.target_user_id).displayName}`;
+      return `${actor} removed ${nameOr(event.target_display_name, event.target_user_id)}`;
     case 'group_name_changed':
       return `${actor} renamed the group to "${event.new_name}"`;
     case 'owner_transferred':
-      return `${actor} transferred ownership to ${resolve(event.new_owner_user_id).displayName}`;
+      return `${actor} transferred ownership to ${nameOr(event.new_owner_display_name, event.new_owner_user_id)}`;
   }
 }
 

@@ -24,6 +24,22 @@ func NewService(repo *db.Repository, hub *ws.Hub) *Service {
 	return &Service{repo: repo, hub: hub}
 }
 
+// resolveDisplayName fetches the user's display name (falling back to username)
+// at event-emit time. We snapshot the name into the system_event payload so
+// rendering survives membership changes — kicked users disappear from the
+// member list, but their kick message still says "alice removed bob".
+func (s *Service) resolveDisplayName(ctx context.Context, userID int64) string {
+	var name string
+	err := s.repo.DB().QueryRowContext(ctx,
+		"SELECT COALESCE(NULLIF(display_name, ''), username) FROM users WHERE id = $1",
+		userID,
+	).Scan(&name)
+	if err != nil || name == "" {
+		return "someone"
+	}
+	return name
+}
+
 // CreateChannel creates a 1:1 DM if otherUserIDs has exactly one entry, or a
 // group DM otherwise. For 1:1, reuses an existing channel (via the repo's
 // GetOrCreateDmChannel). For group, the actor becomes creator + initial
@@ -53,8 +69,9 @@ func (s *Service) CreateChannel(ctx context.Context, actorUserID int64, otherUse
 	}
 
 	eventJSON, _ := json.Marshal(map[string]any{
-		"type":          "group_created",
-		"actor_user_id": strconv.FormatInt(actorUserID, 10),
+		"type":                "group_created",
+		"actor_user_id":       strconv.FormatInt(actorUserID, 10),
+		"actor_display_name":  s.resolveDisplayName(ctx, actorUserID),
 	})
 	if _, err := s.repo.InsertSystemMessage(ctx, ch.ID, actorUserID, eventJSON); err != nil {
 		return nil, fmt.Errorf("insert group_created event: %w", err)
@@ -112,9 +129,11 @@ func (s *Service) AddMembers(ctx context.Context, channelID, actorUserID int64, 
 			return err
 		}
 		eventJSON, _ := json.Marshal(map[string]any{
-			"type":           "member_added",
-			"actor_user_id":  strconv.FormatInt(actorUserID, 10),
-			"target_user_id": strconv.FormatInt(uid, 10),
+			"type":                "member_added",
+			"actor_user_id":       strconv.FormatInt(actorUserID, 10),
+			"actor_display_name":  s.resolveDisplayName(ctx, actorUserID),
+			"target_user_id":      strconv.FormatInt(uid, 10),
+			"target_display_name": s.resolveDisplayName(ctx, uid),
 		})
 		sysMsg, err := s.repo.InsertSystemMessage(ctx, channelID, actorUserID, eventJSON)
 		if err != nil {
@@ -180,9 +199,11 @@ func (s *Service) LeaveGroup(ctx context.Context, channelID, actorUserID int64, 
 			return err
 		}
 		eventJSON, _ := json.Marshal(map[string]any{
-			"type":              "owner_transferred",
-			"actor_user_id":     strconv.FormatInt(actorUserID, 10),
-			"new_owner_user_id": strconv.FormatInt(*transferTo, 10),
+			"type":                  "owner_transferred",
+			"actor_user_id":         strconv.FormatInt(actorUserID, 10),
+			"actor_display_name":    s.resolveDisplayName(ctx, actorUserID),
+			"new_owner_user_id":     strconv.FormatInt(*transferTo, 10),
+			"new_owner_display_name": s.resolveDisplayName(ctx, *transferTo),
 		})
 		if sysMsg, err := s.repo.InsertSystemMessage(ctx, channelID, actorUserID, eventJSON); err == nil && s.hub != nil {
 			sysMsgJSON, _ := json.Marshal(sysMsg)
@@ -200,8 +221,9 @@ func (s *Service) LeaveGroup(ctx context.Context, channelID, actorUserID int64, 
 	}
 
 	eventJSON, _ := json.Marshal(map[string]any{
-		"type":          "member_left",
-		"actor_user_id": strconv.FormatInt(actorUserID, 10),
+		"type":               "member_left",
+		"actor_user_id":      strconv.FormatInt(actorUserID, 10),
+		"actor_display_name": s.resolveDisplayName(ctx, actorUserID),
 	})
 	if sysMsg, err := s.repo.InsertSystemMessage(ctx, channelID, actorUserID, eventJSON); err == nil && s.hub != nil {
 		sysMsgJSON, _ := json.Marshal(sysMsg)
@@ -242,9 +264,11 @@ func (s *Service) KickMember(ctx context.Context, channelID, actorUserID, target
 		return err
 	}
 	eventJSON, _ := json.Marshal(map[string]any{
-		"type":           "member_kicked",
-		"actor_user_id":  strconv.FormatInt(actorUserID, 10),
-		"target_user_id": strconv.FormatInt(targetUserID, 10),
+		"type":                "member_kicked",
+		"actor_user_id":       strconv.FormatInt(actorUserID, 10),
+		"actor_display_name":  s.resolveDisplayName(ctx, actorUserID),
+		"target_user_id":      strconv.FormatInt(targetUserID, 10),
+		"target_display_name": s.resolveDisplayName(ctx, targetUserID),
 	})
 	if sysMsg, err := s.repo.InsertSystemMessage(ctx, channelID, actorUserID, eventJSON); err == nil && s.hub != nil {
 		sysMsgJSON, _ := json.Marshal(sysMsg)
@@ -291,10 +315,11 @@ func (s *Service) UpdateGroupName(ctx context.Context, channelID, actorUserID in
 		oldName = *ch.Name
 	}
 	eventJSON, _ := json.Marshal(map[string]any{
-		"type":          "group_name_changed",
-		"actor_user_id": strconv.FormatInt(actorUserID, 10),
-		"old_name":      oldName,
-		"new_name":      newName,
+		"type":               "group_name_changed",
+		"actor_user_id":      strconv.FormatInt(actorUserID, 10),
+		"actor_display_name": s.resolveDisplayName(ctx, actorUserID),
+		"old_name":           oldName,
+		"new_name":           newName,
 	})
 	if sysMsg, err := s.repo.InsertSystemMessage(ctx, channelID, actorUserID, eventJSON); err == nil && s.hub != nil {
 		sysMsgJSON, _ := json.Marshal(sysMsg)
@@ -369,9 +394,11 @@ func (s *Service) TransferOwnership(ctx context.Context, channelID, actorUserID,
 		return err
 	}
 	eventJSON, _ := json.Marshal(map[string]any{
-		"type":              "owner_transferred",
-		"actor_user_id":     strconv.FormatInt(actorUserID, 10),
-		"new_owner_user_id": strconv.FormatInt(newOwnerID, 10),
+		"type":                   "owner_transferred",
+		"actor_user_id":          strconv.FormatInt(actorUserID, 10),
+		"actor_display_name":     s.resolveDisplayName(ctx, actorUserID),
+		"new_owner_user_id":      strconv.FormatInt(newOwnerID, 10),
+		"new_owner_display_name": s.resolveDisplayName(ctx, newOwnerID),
 	})
 	if sysMsg, err := s.repo.InsertSystemMessage(ctx, channelID, actorUserID, eventJSON); err == nil && s.hub != nil {
 		sysMsgJSON, _ := json.Marshal(sysMsg)

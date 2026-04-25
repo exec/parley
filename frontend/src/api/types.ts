@@ -187,13 +187,18 @@ export interface DmChannelMember {
   avatar_url?: string;
 }
 
+// System event payloads include actor_display_name (and target/new_owner where
+// applicable) so the renderer doesn't need to resolve user IDs against a member
+// list — kicked / left users are gone from members but their snapshotted name
+// stays in the event. Older events stored before this change carry only IDs;
+// the renderer falls back to the resolveUser hook for those.
 export type SystemEvent =
-  | { type: 'group_created'; actor_user_id: string }
-  | { type: 'member_added'; actor_user_id: string; target_user_id: string }
-  | { type: 'member_left'; actor_user_id: string }
-  | { type: 'member_kicked'; actor_user_id: string; target_user_id: string }
-  | { type: 'group_name_changed'; actor_user_id: string; old_name: string; new_name: string }
-  | { type: 'owner_transferred'; actor_user_id: string; new_owner_user_id: string };
+  | { type: 'group_created'; actor_user_id: string; actor_display_name?: string }
+  | { type: 'member_added'; actor_user_id: string; actor_display_name?: string; target_user_id: string; target_display_name?: string }
+  | { type: 'member_left'; actor_user_id: string; actor_display_name?: string }
+  | { type: 'member_kicked'; actor_user_id: string; actor_display_name?: string; target_user_id: string; target_display_name?: string }
+  | { type: 'group_name_changed'; actor_user_id: string; actor_display_name?: string; old_name: string; new_name: string }
+  | { type: 'owner_transferred'; actor_user_id: string; actor_display_name?: string; new_owner_user_id: string; new_owner_display_name?: string };
 
 export interface DmMessage {
   id: string;
