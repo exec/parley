@@ -475,3 +475,85 @@ func (r *Repository) SendSystemDM(ctx context.Context, systemUserID, recipientID
 	`, dmChannelID, systemUserID, content)
 	return err
 }
+
+// ============ Group DM Operations ============
+
+// CreateGroupChannel creates a new group DM channel with the given creator and member set.
+// Creator is also the owner. The legacy user1_id/user2_id columns are set to 0 for group
+// channels (kept NOT NULL; readers should branch on is_group). Members are inserted in
+// the same transaction as the channel.
+func (r *Repository) CreateGroupChannel(ctx context.Context, creatorUserID int64, name string, memberUserIDs []int64) (*DmChannel, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	var ch DmChannel
+	err = tx.QueryRowContext(ctx, `
+		INSERT INTO dm_channels (user1_id, user2_id, is_group, name, created_by_user_id, owner_user_id, created_at)
+		VALUES (0, 0, TRUE, $1, $2, $2, NOW())
+		RETURNING id, is_group, name, created_by_user_id, owner_user_id, created_at
+	`, name, creatorUserID).Scan(&ch.ID, &ch.IsGroup, &ch.Name, &ch.CreatedByUserID, &ch.OwnerUserID, &ch.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, uid := range memberUserIDs {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO dm_channel_members (dm_channel_id, user_id, joined_at)
+			VALUES ($1, $2, NOW())
+			ON CONFLICT DO NOTHING
+		`, ch.ID, uid); err != nil {
+			return nil, err
+		}
+	}
+	return &ch, tx.Commit()
+}
+
+func (r *Repository) AddDmMember(ctx context.Context, channelID, userID int64) error {
+	_, err := r.db.ExecContext(ctx, `
+		INSERT INTO dm_channel_members (dm_channel_id, user_id, joined_at)
+		VALUES ($1, $2, NOW())
+		ON CONFLICT DO NOTHING
+	`, channelID, userID)
+	return err
+}
+
+func (r *Repository) RemoveDmMember(ctx context.Context, channelID, userID int64) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM dm_channel_members WHERE dm_channel_id = $1 AND user_id = $2`, channelID, userID)
+	return err
+}
+
+func (r *Repository) IsDmMember(ctx context.Context, channelID, userID int64) (bool, error) {
+	var n int
+	err := r.db.QueryRowContext(ctx, `SELECT 1 FROM dm_channel_members WHERE dm_channel_id = $1 AND user_id = $2`, channelID, userID).Scan(&n)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	return n == 1, err
+}
+
+func (r *Repository) GetDmMembers(ctx context.Context, channelID int64) ([]DmChannelMember, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT m.dm_channel_id, m.user_id, m.joined_at, u.username,
+		       COALESCE(u.display_name, u.username), COALESCE(u.avatar_url, '')
+		  FROM dm_channel_members m
+		  JOIN users u ON u.id = m.user_id
+		 WHERE m.dm_channel_id = $1
+		 ORDER BY m.joined_at
+	`, channelID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []DmChannelMember
+	for rows.Next() {
+		var m DmChannelMember
+		if err := rows.Scan(&m.DmChannelID, &m.UserID, &m.JoinedAt, &m.Username, &m.DisplayName, &m.AvatarURL); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
