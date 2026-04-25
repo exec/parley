@@ -73,6 +73,10 @@ const (
 	// DM events
 	EventDmChannelCreate = "DM_CHANNEL_CREATE"
 
+	// Cross-cutting per-channel state events (server channels + DMs)
+	EventChannelReadStateUpdate    = "CHANNEL_READ_STATE_UPDATE"
+	EventChannelNotificationUpdate = "CHANNEL_NOTIFICATION_UPDATE"
+
 	// Slash command / interaction events
 	EventInteractionCreate = "INTERACTION_CREATE"
 )
