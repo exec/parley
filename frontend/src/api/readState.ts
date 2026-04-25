@@ -18,3 +18,11 @@ export async function setNotificationSetting(
 ): Promise<void> {
   await apiClient.patch<void>(`/${pathRoot(kind)}/${channelId}/notifications`, { setting });
 }
+
+import type { UserChannelState } from './types';
+
+// Bulk-fetch all read-state + notification settings for the authenticated user.
+// Used at app mount by ChannelStateContext.
+export async function fetchAllChannelState(): Promise<UserChannelState[]> {
+  return apiClient.get<UserChannelState[]>('/me/channel-state');
+}

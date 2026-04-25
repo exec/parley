@@ -10,6 +10,7 @@ import { ResetPassword } from './pages/ResetPassword';
 import { AuthDesktop } from './pages/AuthDesktop';
 import { AppProvider, useApp } from './context/AppContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { ChannelStateProvider } from './context/ChannelStateContext';
 import { Landing } from './pages/Landing';
 import { SharedThemePage } from './pages/SharedThemePage';
 import { ThemeRepoPage } from './pages/ThemeRepoPage';
@@ -1520,9 +1521,11 @@ const ProtectedApp = (
   <ProtectedRoute>
     <ThemeProvider>
       <AppProvider>
-        <ErrorBoundary>
-          <MainApp />
-        </ErrorBoundary>
+        <ChannelStateProvider>
+          <ErrorBoundary>
+            <MainApp />
+          </ErrorBoundary>
+        </ChannelStateProvider>
       </AppProvider>
     </ThemeProvider>
   </ProtectedRoute>
