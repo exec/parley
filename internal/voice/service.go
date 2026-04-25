@@ -3,6 +3,7 @@ package voice
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -127,9 +128,11 @@ func (s *Service) EndIfEmpty(ctx context.Context, channelID string) (int64, bool
 		return 0, false, nil
 	}
 	startedAtStr, err := s.rdb.GetDel(ctx, startedAtKey(channelID)).Result()
-	if err != nil || startedAtStr == "" {
-		// already cleaned up by another caller
-		return 0, false, nil
+	if errors.Is(err, redis.Nil) {
+		return 0, false, nil // already cleaned up
+	}
+	if err != nil {
+		return 0, false, err // real failure, surface to caller
 	}
 	got, err := s.rdb.SetNX(ctx, callEndedLockKey(channelID, startedAtStr), "1", 60*time.Second).Result()
 	if err != nil || !got {

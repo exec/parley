@@ -12,7 +12,12 @@ import (
 func newRedisForTest(t *testing.T) *redis.Client {
 	t.Helper()
 	addr := "127.0.0.1:6379"
-	rdb := redis.NewClient(&redis.Options{Addr: addr, DB: 15})
+	rdb := redis.NewClient(&redis.Options{
+		Addr:        addr,
+		DB:          15,
+		MaxRetries:  -1,
+		DialTimeout: 200 * time.Millisecond,
+	})
 	if err := rdb.Ping(context.Background()).Err(); err != nil {
 		t.Skipf("redis not available at %s: %v", addr, err)
 	}
