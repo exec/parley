@@ -162,7 +162,7 @@ New routes for the activities stub (work for any virtual channel):
 ```
 POST   /api/voice/{vc}/activity/start  {type, params?} -> {}
 POST   /api/voice/{vc}/activity/end    {} -> {}
-GET    /api/voice/{vc}/activity        -> {type, started_by, started_at, params?} | null
+GET    /api/voice/{vc}/activity        -> 200 + {type, started_by, started_at_ms, params?}, or 204 if no activity
 ```
 
 Authorization: caller must currently be a participant in `voice:{vc}` (HEXISTS check). The stub does not gate by activity type — backend doesn't know about specific activity types.
@@ -210,15 +210,17 @@ On any terminal transition, the ring is removed from the maps and the timer is c
 | Transition | WS to caller | WS to target | system_event |
 |---|---|---|---|
 | accepted   | `CALL_ACCEPT` | `CALL_ACCEPT`* | `call_started` |
-| declined   | `CALL_DECLINE` | (close modal via local handler) | `call_declined` |
+| declined   | `CALL_DECLINE` | `CALL_DECLINE`* | `call_declined` |
 | canceled   | (close ringback) | `CALL_CANCEL` | `call_missed` |
 | timeout    | `CALL_TIMEOUT` | `CALL_TIMEOUT` | `call_missed` |
 
-\* `CALL_ACCEPT` to target is needed so other devices/sessions of the same target see the ring is over.
+\* `CALL_ACCEPT` and `CALL_DECLINE` are sent to BOTH the caller and the receiver so other devices/sessions of either party can dismiss their modal/ringback. `CALL_CANCEL` only goes to the receiver — the caller's other sessions never had outgoing-call state to dismiss. `CALL_ACCEPT` payload includes `accepter_user_id`; `CALL_DECLINE` includes `decliner_user_id`. Frontends compare against `currentUserID` to distinguish "I responded from another tab" from "the other user responded."
 
-`CALL_ACCEPT` payload includes `accepter_user_id` so the caller's frontend can distinguish "I accepted from another tab" from "the other user accepted."
+**`call_started` actor is the caller, not the accepter** — system message reads "Alice started a call" for an Alice→Bob call regardless of who hits Accept (matches conventional UX).
 
-**Race / concurrency:** `RingService.mu` guards all mutations. `Initiate` checks `byDM[dmID]` to reject if a ring already exists for that DM (1:1 collision); the caller's frontend should detect "call already active" and call `connect()` directly instead.
+**Race / concurrency:** `RingService.mu` guards all mutations. Glare guard: `Initiate` checks `byDM[dmID]` and returns the existing ring's ID (no error) if one is in flight — both parties end up resolving the same single ring.
+
+**Sentinel errors:** `voice.ErrRingNotFound` and `voice.ErrCancelByNonCaller` are exported. HTTP handlers use `errors.Is` to map them to 404 / 403 respectively.
 
 **Ring timer:** `time.AfterFunc(30s, ...)`. Single-process implementation. If Parley scales out, ring service must move to a Redis-backed scheduled queue.
 
@@ -240,7 +242,7 @@ func (h *Handler) Leave(...) {
         ok, _ := redis.SetNX(ctx, lockKey, "1", 60*time.Second)
         if ok && vc.Kind == KindDM {
             durationMs := time.Now().UnixMilli() - parseInt64(startedAt)
-            h.dm.EmitCallEnded(ctx, vc.ID, durationMs)
+            h.dm.EmitCallEnded(ctx, vc.ID, lastLeaverUserID, durationMs, startedAtMs)
         }
     }
 }
@@ -275,10 +277,10 @@ New event type strings in `internal/websocket/events.go`:
 ```
 CALL_RING       -> sent to target on Initiate.   payload: {ring_id, vc, caller: {user_id, username, display_name, avatar_url}}
 CALL_ACCEPT     -> sent to caller AND target.    payload: {ring_id, accepter_user_id}
-CALL_DECLINE    -> sent to caller.               payload: {ring_id, decliner_user_id}
+CALL_DECLINE    -> sent to caller AND decliner.  payload: {ring_id, decliner_user_id}    (decliner echo dismisses other sessions of the receiver)
 CALL_CANCEL     -> sent to target.               payload: {ring_id}
 CALL_TIMEOUT    -> sent to caller AND target.    payload: {ring_id}
-ACTIVITY_START  -> broadcast to vc.String().     payload: {vc, type, started_by, started_at, params?}
+ACTIVITY_START  -> broadcast to vc.String().     payload: {vc, type, started_by (string), started_at_ms, params?}
 ACTIVITY_END    -> broadcast to vc.String().     payload: {vc}
 ```
 
@@ -297,7 +299,7 @@ Backend has heartbeat keys (`voice:heartbeat:{vc}:{userID}` TTL 30s) for stale-p
 
 ### 3.9 Activities (stub)
 
-Backend keeps the active activity per virtual channel in Redis: key `voice:{vc}:activity` is a JSON-encoded `{type, started_by, started_at, params?}` or absent (no activity). Lifetime is bound to the call: when the last participant leaves, the activity entry is deleted alongside `voice:{vc}:started_at`.
+Backend keeps the active activity per virtual channel in Redis: key `voice:{vc}:activity` is a JSON-encoded `{type, started_by (string-encoded int64), started_at_ms, params?}` or absent (no activity). Lifetime is bound to the call: when the last participant leaves, the activity entry is deleted alongside `voice:{vc}:started_at`. The `started_by` field uses `,string` JSON tag so wire form is `"7"` not `7` (matches the rest of the codebase's int64-as-string convention for IDs).
 
 `POST /activity/start` emits `ACTIVITY_START` to `vc.String()`. `POST /activity/end` deletes the key and emits `ACTIVITY_END`. The backend stores `params` opaquely — interpretation is purely a frontend concern. No registry or validation of `type` strings server-side; the frontend's registry is the source of truth for renderable types.
 
@@ -654,3 +656,22 @@ These are deferred to build:
 - Call recording / transcription.
 - Mobile builds.
 - Horizontal-scale-safe ring scheduler.
+
+---
+
+## 12. Implementation deviations from initial spec (Tasks 1–15, as-built)
+
+These are corrections to type/wire shapes the spec referenced before implementation; future tasks consume the as-built shapes.
+
+- **Type names:** `db.ServerMember` (not `db.Member`); `db.DmChannelMember` with field `DmChannelID` (not `db.DmMember.ChannelID`).
+- **Permission API:** no `permissions.Repo` / `permissions.Perm` typed wrappers; `voice.Authorizer` uses `*db.Repository` directly and `int64` for the perm bitmask arg passed to `permissions.HasChannelPermission`.
+- **`EmitCallEnded` signature:** 5 params — `(ctx, channelID, lastLeaverUserID, durationMs, startedAtMs)`. The `lastLeaverUserID` is the leaving user's ID, used as the system message's `author_id` (FK to `users(id)`). JSON payload still excludes the actor; only `duration_ms` and `started_at_ms` ride.
+- **`dm.Handler.Service() *dm.Service` accessor:** added to expose the service for `cmd/api` wiring. `*dm.Service` satisfies `voice.dmServiceLike` structurally.
+- **Activity wire shape:** `{type, started_by, started_at_ms, params?}`. `started_by` uses `,string` JSON tag (string-encoded int64 — matches the codebase's int64-as-string convention for IDs). `started_at_ms` is a JSON number.
+- **Activity GET semantics:** returns 200 + JSON when present, 204 No Content when absent (not 200 + null). Get is intentionally unauthenticated (other endpoints under `/voice/{vc}/activity/*` are member-gated); locked in by `TestActivityGet_NoAuthRequired`.
+- **`/calls/active` `in_call`:** always emits `[]` (empty array, not null). The wire shape is locked for forward-compat; field unused in v0.5.0.
+- **GC `/call/start` behavior on unwired starter:** logs and returns 500 (not 503 — the unwired state is permanent until restart, not transient retry).
+- **Voice handler `dmCallEnder` unwired branch:** logs `"voice handler: dmCallEnder not wired; skipping call_ended for dm:%d"` so missed wiring shows up in production traces.
+- **`broadcastTarget` for `KindServer`:** returns `"server:" + serverID` (preserves existing server-VC sidebar behavior — DM members see `dm:{id}` topic). Uses `errors.Is(err, db.ErrNotFound)` to silent-deny missing channels; logs other errors.
+- **`ActivityHandler.Start` race fallback:** if `GetActivity` read-back after `StartActivity` returns nil/err (race with concurrent `EndActivity`), Start falls back to local-state Activity built from request inputs and broadcasts `ACTIVITY_START` anyway. Logs the race for forensics.
+- **Test harness:** `internal/voice/auth_test.go`'s `authRepoFake` is the shared fake repo for voice handler tests (extended in Tasks 12 with `GetDmMembers` / `GetUserByID`). `internal/voice/ring_test.go`'s `fakeHub` tracks both `toUser` (SendToUser) and `broadcasts` (BroadcastToChannel) with a buffered `gotMsg` channel for deterministic async assertions. `newRedisForTest` uses `MaxRetries: -1, DialTimeout: 200ms` so SKIP resolves quickly when no local Redis.
