@@ -45,12 +45,14 @@ func (h *fakeHub) sentTypes() []string {
 type fakeDmEmitter struct {
 	mu                                sync.Mutex
 	started, ended, missed, declined int
+	lastStartedActor                  int64
 }
 
-func (e *fakeDmEmitter) Started(_ context.Context, _, _, _ int64) error {
+func (e *fakeDmEmitter) Started(_ context.Context, _, actor, _ int64) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.started++
+	e.lastStartedActor = actor
 	return nil
 }
 func (e *fakeDmEmitter) Ended(_ context.Context, _, _, _, _ int64) error {
@@ -97,11 +99,7 @@ func TestInitiate_SendsRingAndStoresState(t *testing.T) {
 		t.Fatalf("rings/byDM not populated correctly: ok1=%v ok2=%v rid=%q id=%q", ok1, ok2, rid, id)
 	}
 
-	select {
-	case <-hub.gotMsg:
-	case <-time.After(time.Second):
-		t.Fatal("CALL_RING never sent")
-	}
+	// CALL_RING is sent synchronously before Initiate returns.
 	got := hub.sentTypes()
 	found := false
 	for _, ty := range got {
@@ -119,21 +117,8 @@ func TestAccept_TerminatesRingAndEmitsStarted(t *testing.T) {
 	rs, hub, dm := newRingTestService()
 	id, _ := rs.Initiate(context.Background(), 10, 1, 2, ringCallerInfo{})
 
-	// drain the CALL_RING from Initiate
-	<-hub.gotMsg
-
 	if err := rs.Accept(context.Background(), id, 2); err != nil {
 		t.Fatal(err)
-	}
-
-	// wait for both CALL_ACCEPT sends (caller + target)
-	deadline := time.After(time.Second)
-	for i := 0; i < 2; i++ {
-		select {
-		case <-hub.gotMsg:
-		case <-deadline:
-			t.Fatal("CALL_ACCEPT events not delivered in time")
-		}
 	}
 
 	rs.mu.Lock()
@@ -152,35 +137,33 @@ func TestAccept_TerminatesRingAndEmitsStarted(t *testing.T) {
 		t.Errorf("expected 2 CALL_ACCEPT (caller + target), got %d", count)
 	}
 	dm.mu.Lock()
-	if dm.started != 1 {
-		t.Errorf("expected dm.Started=1, got %d", dm.started)
-	}
+	started := dm.started
+	actor := dm.lastStartedActor
 	dm.mu.Unlock()
+	if started != 1 {
+		t.Errorf("expected dm.Started=1, got %d", started)
+	}
+	if actor != 1 { // 1 is the caller from Initiate(..., 1, 2, ...)
+		t.Errorf("Started actor = %d, want caller=1 (not accepter=2)", actor)
+	}
 }
 
 func TestDecline_TerminatesAndEmitsDeclined(t *testing.T) {
 	rs, hub, dm := newRingTestService()
 	id, _ := rs.Initiate(context.Background(), 10, 1, 2, ringCallerInfo{})
-	<-hub.gotMsg // drain CALL_RING
 
 	if err := rs.Decline(context.Background(), id, 2); err != nil {
 		t.Fatal(err)
 	}
-	select {
-	case <-hub.gotMsg:
-	case <-time.After(time.Second):
-		t.Fatal("CALL_DECLINE not sent in time")
-	}
 
-	hasDecline := false
+	count := 0
 	for _, ty := range hub.sentTypes() {
 		if ty == "CALL_DECLINE" {
-			hasDecline = true
-			break
+			count++
 		}
 	}
-	if !hasDecline {
-		t.Error("expected CALL_DECLINE to caller")
+	if count != 2 {
+		t.Errorf("expected 2 CALL_DECLINE (caller + decliner), got %d", count)
 	}
 	dm.mu.Lock()
 	if dm.declined != 1 {
@@ -192,15 +175,9 @@ func TestDecline_TerminatesAndEmitsDeclined(t *testing.T) {
 func TestCancel_TerminatesAndEmitsMissed(t *testing.T) {
 	rs, hub, dm := newRingTestService()
 	id, _ := rs.Initiate(context.Background(), 10, 1, 2, ringCallerInfo{})
-	<-hub.gotMsg // drain CALL_RING
 
 	if err := rs.Cancel(context.Background(), id, 1); err != nil {
 		t.Fatal(err)
-	}
-	select {
-	case <-hub.gotMsg:
-	case <-time.After(time.Second):
-		t.Fatal("CALL_CANCEL not sent in time")
 	}
 
 	hasCancel := false
@@ -221,9 +198,8 @@ func TestCancel_TerminatesAndEmitsMissed(t *testing.T) {
 }
 
 func TestCancel_RejectsNonCaller(t *testing.T) {
-	rs, hub, _ := newRingTestService()
+	rs, _, _ := newRingTestService()
 	id, _ := rs.Initiate(context.Background(), 10, 1, 2, ringCallerInfo{})
-	<-hub.gotMsg // drain CALL_RING
 
 	// target (user 2) attempts to cancel — must error
 	if err := rs.Cancel(context.Background(), id, 2); err == nil {
@@ -245,13 +221,10 @@ func TestAccept_RingNotFound(t *testing.T) {
 }
 
 func TestActiveRingsForUser_FiltersByTarget(t *testing.T) {
-	rs, hub, _ := newRingTestService()
+	rs, _, _ := newRingTestService()
 	rs.Initiate(context.Background(), 10, 1, 2, ringCallerInfo{Username: "alice"})
-	<-hub.gotMsg
 	rs.Initiate(context.Background(), 11, 3, 2, ringCallerInfo{Username: "charlie"})
-	<-hub.gotMsg
 	rs.Initiate(context.Background(), 12, 1, 4, ringCallerInfo{Username: "alice"})
-	<-hub.gotMsg
 
 	got := rs.ActiveRingsForUser(2)
 	if len(got) != 2 {
@@ -283,7 +256,7 @@ func TestInitiate_TimesOutAfterDuration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// timeout is 50ms; wait long enough for it to fire + both SendToUser goroutines to run.
+	// timeout is 50ms; wait for CALL_RING (already sent) + 2x CALL_TIMEOUT from timer goroutine.
 	deadline := time.After(2 * time.Second)
 	want := 3 // CALL_RING (initial) + CALL_TIMEOUT (caller) + CALL_TIMEOUT (target)
 	for {

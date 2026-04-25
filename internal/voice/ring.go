@@ -103,9 +103,7 @@ func (rs *RingService) Initiate(ctx context.Context, dmChannelID, callerID, targ
 		"vc":      VirtualChannel{Kind: KindDM, ID: dmChannelID}.String(),
 		"caller":  caller,
 	})
-	go func() {
-		_ = rs.hub.SendToUser(strconv.FormatInt(targetID, 10), ws.EventCallRing, payload)
-	}()
+	_ = rs.hub.SendToUser(strconv.FormatInt(targetID, 10), ws.EventCallRing, payload)
 	return id, nil
 }
 
@@ -152,7 +150,7 @@ func (rs *RingService) Accept(ctx context.Context, ringID string, accepterID int
 	_ = rs.hub.SendToUser(strconv.FormatInt(r.CallerID, 10), ws.EventCallAccept, payload)
 	_ = rs.hub.SendToUser(strconv.FormatInt(r.TargetID, 10), ws.EventCallAccept, payload)
 	if rs.dm != nil {
-		_ = rs.dm.Started(ctx, r.DmChannelID, accepterID, time.Now().UnixMilli())
+		_ = rs.dm.Started(ctx, r.DmChannelID, r.CallerID, time.Now().UnixMilli())
 	}
 	return nil
 }
@@ -176,6 +174,7 @@ func (rs *RingService) Decline(ctx context.Context, ringID string, declinerID in
 		"decliner_user_id": strconv.FormatInt(declinerID, 10),
 	})
 	_ = rs.hub.SendToUser(strconv.FormatInt(r.CallerID, 10), ws.EventCallDecline, payload)
+	_ = rs.hub.SendToUser(strconv.FormatInt(declinerID, 10), ws.EventCallDecline, payload)
 	if rs.dm != nil {
 		_ = rs.dm.Declined(ctx, r.DmChannelID, r.CallerID, declinerID)
 	}
