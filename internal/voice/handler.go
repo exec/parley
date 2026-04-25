@@ -3,6 +3,7 @@ package voice
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"strconv"
@@ -40,12 +41,6 @@ type DmCallEnder func(ctx context.Context, dmChannelID, lastLeaverUserID, durati
 // SetDmCallEnder is called from cmd/api wiring after both services exist.
 func (h *Handler) SetDmCallEnder(f DmCallEnder) { h.dmCallEnder = f }
 
-// nowMs is a tiny seam so tests could fake time later.
-var nowMs = func() int64 { return timeNow().UnixMilli() }
-
-// timeNow is the underlying time func; declared here to keep the import contained.
-var timeNow = func() time.Time { return time.Now() }
-
 // parseVC extracts and validates the virtual channel from the URL path.
 // All voice routes use {vc} as the path parameter name.
 func (h *Handler) parseVC(w http.ResponseWriter, r *http.Request) (VirtualChannel, string, bool) {
@@ -79,7 +74,11 @@ func (h *Handler) broadcastTarget(r *http.Request, vc VirtualChannel) (string, b
 		return vc.String(), true
 	case KindServer:
 		ch, err := h.repo.GetChannelByID(r.Context(), vc.ID)
-		if err != nil || ch == nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return "", false
+		}
+		if err != nil {
+			log.Printf("voice handler: broadcastTarget GetChannelByID failed: %v", err)
 			return "", false
 		}
 		return "server:" + strconv.FormatInt(ch.ServerID, 10), true
@@ -197,11 +196,14 @@ func (h *Handler) Leave(w http.ResponseWriter, r *http.Request) {
 	if vc.Kind == KindDM {
 		if startedAtMs, ended, err := h.svc.EndIfEmpty(r.Context(), vcStr); err == nil && ended {
 			if h.dmCallEnder != nil {
-				durationMs := nowMs() - startedAtMs
+				durationMs := time.Now().UnixMilli() - startedAtMs
+				// Clamp negative durations from clock skew across nodes.
 				if durationMs < 0 {
 					durationMs = 0
 				}
-				_ = h.dmCallEnder(r.Context(), vc.ID, userID, durationMs, startedAtMs)
+				if err := h.dmCallEnder(r.Context(), vc.ID, userID, durationMs, startedAtMs); err != nil {
+					log.Printf("voice handler: EmitCallEnded failed for dm:%d: %v", vc.ID, err)
+				}
 			}
 		}
 	}
