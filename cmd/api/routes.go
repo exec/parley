@@ -56,10 +56,10 @@ func registerRoutes(
 	binService *bin.Service,
 	tickets ticketIssuer,
 	passkeySvc *passkey.Service,
-	redisHub     *ws.RedisHub,
+	redisHub *ws.RedisHub,
 	ollamaAPIURL string,
 	ollamaAPIKey string,
-	ollamaModel  string,
+	ollamaModel string,
 	cdnHost string,
 	siteURL string,
 	botsHandler *bots.Handler,
@@ -340,22 +340,23 @@ func registerRoutes(
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Patch("/dms/{id}", dmHandler.UpdateGroup)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/transfer-ownership", dmHandler.TransferOwnership)
 
-				// 1:1 ring lifecycle + GC start + active rings rehydration.
-				ringSvc := voice.NewRingService(hub, voice.DmEmitterFromService(dmHandler.Service()), voiceSvc)
-				ringHandler := voice.NewRingHandler(ringSvc, repo)
-				ringHandler.SetCallStarter(voice.DmEmitterFromService(dmHandler.Service()))
-				r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/call/ring", ringHandler.Ring)
-				r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/call/accept", ringHandler.Accept)
-				r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/call/decline", ringHandler.Decline)
-				r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/call/cancel", ringHandler.Cancel)
-				r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/call/start", ringHandler.Start)
-				r.With(auth.RequireScope(auth.ScopeMessagesRead)).Get("/calls/active", ringHandler.Active)
+			// 1:1 ring lifecycle + GC start + active rings rehydration.
+			dmEmitter := voice.DmEmitterFromService(dmHandler.Service())
+			ringSvc := voice.NewRingService(hub, dmEmitter, voiceSvc)
+			ringHandler := voice.NewRingHandler(ringSvc, repo)
+			ringHandler.SetCallStarter(dmEmitter)
+			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/call/ring", ringHandler.Ring)
+			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/call/accept", ringHandler.Accept)
+			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/call/decline", ringHandler.Decline)
+			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/call/cancel", ringHandler.Cancel)
+			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/call/start", ringHandler.Start)
+			r.With(auth.RequireScope(auth.ScopeMessagesRead)).Get("/calls/active", ringHandler.Active)
 
-				// VC activities (works for any virtual channel — server VCs and DM/GC alike).
-				activityHandler := voice.NewActivityHandler(voiceSvc, hub)
-				r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/voice/{vc}/activity/start", activityHandler.Start)
-				r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/voice/{vc}/activity/end", activityHandler.End)
-				r.With(auth.RequireScope(auth.ScopeMessagesRead)).Get("/voice/{vc}/activity", activityHandler.Get)
+			// VC activities (works for any virtual channel — server VCs and DM/GC alike).
+			activityHandler := voice.NewActivityHandler(voiceSvc, hub)
+			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/voice/{vc}/activity/start", activityHandler.Start)
+			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/voice/{vc}/activity/end", activityHandler.End)
+			r.With(auth.RequireScope(auth.ScopeMessagesRead)).Get("/voice/{vc}/activity", activityHandler.Get)
 
 			// Friend routes — profile-level state (the bot's friends list);
 			// scoped on profile:write for all mutations, servers:read for reads.
@@ -396,7 +397,7 @@ func registerRoutes(
 			soundboardHandler := soundboard.NewHandler(sbRepo, sbSvc, repo, hub, voiceSvc)
 			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/soundboard", soundboardHandler.ListAll)
 			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/servers/{serverId}/soundboard", soundboardHandler.List)
-			r.With(auth.RequireScope(auth.ScopeProfileWrite), maxBodyMiddleware(1<<20 + 4096)).Post("/servers/{serverId}/soundboard", soundboardHandler.Upload)
+			r.With(auth.RequireScope(auth.ScopeProfileWrite), maxBodyMiddleware(1<<20+4096)).Post("/servers/{serverId}/soundboard", soundboardHandler.Upload)
 			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Patch("/servers/{serverId}/soundboard/{soundId}", soundboardHandler.UpdateSound)
 			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Delete("/servers/{serverId}/soundboard/{soundId}", soundboardHandler.DeleteSound)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/channels/{channelId}/soundboard/play", soundboardHandler.Play)
@@ -554,4 +555,3 @@ func registerRoutes(
 	// Bench provisioning endpoints — no-op in prod builds, active in stresstest builds.
 	registerBenchRoutes(router, repo, authService)
 }
-
