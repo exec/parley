@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { MessageSquare, BellOff } from 'lucide-react';
 import { DmChannel, User, CHANNEL_KIND_DM } from '../../api/types';
 import { useChannelState } from '../../context/ChannelStateContext';
+import * as readStateApi from '../../api/readState';
 import './DmPanel.css';
 import { ThemePopover } from '../theme/ThemePopover';
 
@@ -168,20 +169,39 @@ const DmPanel: React.FC<DmPanelProps> = ({
         </div>
       </div>
 
-      {dmContextMenu && (
-        <div
-          className="dm-item-context-menu"
-          style={{ position: 'fixed', top: dmContextMenu.top, left: dmContextMenu.left, zIndex: 9999 }}
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          <button
-            className="dm-item-context-option"
-            onClick={() => { onMarkDmRead?.(dmContextMenu.channelId); setDmContextMenu(null); }}
+      {dmContextMenu && (() => {
+        const dmSetting = channelState.getNotificationSetting(CHANNEL_KIND_DM, dmContextMenu.channelId);
+        const setNotif = (s: 'ALL' | 'MENTIONS_ONLY' | 'MUTED') => {
+          readStateApi.setNotificationSetting(CHANNEL_KIND_DM, dmContextMenu.channelId, s);
+          channelState.setNotificationSettingLocal(CHANNEL_KIND_DM, dmContextMenu.channelId, s);
+          setDmContextMenu(null);
+        };
+        return (
+          <div
+            className="dm-item-context-menu"
+            style={{ position: 'fixed', top: dmContextMenu.top, left: dmContextMenu.left, zIndex: 9999 }}
+            onMouseDown={(e) => e.stopPropagation()}
           >
-            Mark as Read
-          </button>
-        </div>
-      )}
+            <button
+              className="dm-item-context-option"
+              onClick={() => { onMarkDmRead?.(dmContextMenu.channelId); setDmContextMenu(null); }}
+            >
+              Mark as Read
+            </button>
+            <div className="dm-item-context-divider" />
+            <div className="dm-item-context-section-label">Notifications</div>
+            <button className="dm-item-context-option" onClick={() => setNotif('ALL')}>
+              All messages {dmSetting === 'ALL' ? '✓' : ''}
+            </button>
+            <button className="dm-item-context-option" onClick={() => setNotif('MENTIONS_ONLY')}>
+              @mentions only {dmSetting === 'MENTIONS_ONLY' ? '✓' : ''}
+            </button>
+            <button className="dm-item-context-option" onClick={() => setNotif('MUTED')}>
+              Muted {dmSetting === 'MUTED' ? '✓' : ''}
+            </button>
+          </div>
+        );
+      })()}
       {contextMenu && (
         <UserContextMenu
           position={contextMenu}
