@@ -146,12 +146,17 @@ interface UseWebSocketOptions {
   onDmChannelUpdate?: (data: { channel_id: string; name?: string; avatar_url?: string }) => void;
   onActivityStart?: (event: { vc: string; type: string; started_by: string; started_at_ms: number; params?: unknown }) => void;
   onActivityEnd?: (event: { vc: string }) => void;
+  onCallRing?: (payload: { vc: string; ring_id: string; caller: { user_id: number; username: string; display_name: string; avatar_url: string }; started_at_ms: number }) => void;
+  onCallAccept?: (payload: { vc: string; ring_id: string }) => void;
+  onCallDecline?: (payload: { vc: string; ring_id: string }) => void;
+  onCallCancel?: (payload: { vc: string; ring_id: string }) => void;
+  onCallTimeout?: (payload: { vc: string; ring_id: string }) => void;
   activeChannelId: string | null;
   extraChannelIds?: string[]; // Additional channels to subscribe to for notifications
   onConnect?: () => void; // Called on every successful (re)connect
 }
 
-export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onServerMemberLeave, onServerMemberKick, onServerMemberBan, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, onChannelCreate, onChannelUpdate, onChannelDelete, onServerUpdate, onServerDelete, onMemberRoleUpdate, onUserUpdate, onVoiceStateUpdate, onVoiceForceMute, onVoiceForceDisconnect, onBinPostCreate, onBinPostUpdate, onBinPostDelete, onChannelOverwriteUpdate, onRoleUpdate, onRoleDelete, onBotStatusUpdate, onDmMessageDelete, onDmChannelCreate, onDmReactionUpdate, onFriendRequest, onFriendAccept, onFriendRemove, onUserStatusUpdate, onSoundboardPlay, onNotification, onChannelReadStateUpdate, onChannelNotificationUpdate, onDmMemberAdd, onDmMemberRemove, onDmChannelUpdate, onActivityStart, onActivityEnd, onConnect, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
+export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onServerMemberLeave, onServerMemberKick, onServerMemberBan, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, onChannelCreate, onChannelUpdate, onChannelDelete, onServerUpdate, onServerDelete, onMemberRoleUpdate, onUserUpdate, onVoiceStateUpdate, onVoiceForceMute, onVoiceForceDisconnect, onBinPostCreate, onBinPostUpdate, onBinPostDelete, onChannelOverwriteUpdate, onRoleUpdate, onRoleDelete, onBotStatusUpdate, onDmMessageDelete, onDmChannelCreate, onDmReactionUpdate, onFriendRequest, onFriendAccept, onFriendRemove, onUserStatusUpdate, onSoundboardPlay, onNotification, onChannelReadStateUpdate, onChannelNotificationUpdate, onDmMemberAdd, onDmMemberRemove, onDmChannelUpdate, onActivityStart, onActivityEnd, onCallRing, onCallAccept, onCallDecline, onCallCancel, onCallTimeout, onConnect, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const subscribedChannelsRef = useRef<Set<string>>(new Set());
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -206,6 +211,11 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
   const onDmChannelUpdateRef = useLatest(onDmChannelUpdate);
   const onActivityStartRef = useLatest(onActivityStart);
   const onActivityEndRef = useLatest(onActivityEnd);
+  const onCallRingRef = useLatest(onCallRing);
+  const onCallAcceptRef = useLatest(onCallAccept);
+  const onCallDeclineRef = useLatest(onCallDecline);
+  const onCallCancelRef = useLatest(onCallCancel);
+  const onCallTimeoutRef = useLatest(onCallTimeout);
   const onConnectRef = useLatest(onConnect);
 
   const sendTyping = useCallback((channelId: string, username: string) => {
@@ -458,6 +468,26 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
         } else if (wsMsg.type === 'ACTIVITY_END' && onActivityEndRef.current) {
           if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
             onActivityEndRef.current(wsMsg.payload as { vc: string });
+          }
+        } else if (wsMsg.type === 'CALL_RING' && onCallRingRef.current) {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            onCallRingRef.current(wsMsg.payload as { vc: string; ring_id: string; caller: { user_id: number; username: string; display_name: string; avatar_url: string }; started_at_ms: number });
+          }
+        } else if (wsMsg.type === 'CALL_ACCEPT' && onCallAcceptRef.current) {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            onCallAcceptRef.current(wsMsg.payload as { vc: string; ring_id: string });
+          }
+        } else if (wsMsg.type === 'CALL_DECLINE' && onCallDeclineRef.current) {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            onCallDeclineRef.current(wsMsg.payload as { vc: string; ring_id: string });
+          }
+        } else if (wsMsg.type === 'CALL_CANCEL' && onCallCancelRef.current) {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            onCallCancelRef.current(wsMsg.payload as { vc: string; ring_id: string });
+          }
+        } else if (wsMsg.type === 'CALL_TIMEOUT' && onCallTimeoutRef.current) {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            onCallTimeoutRef.current(wsMsg.payload as { vc: string; ring_id: string });
           }
         }
       } catch (err) {
