@@ -337,7 +337,9 @@ export function useVoiceConnection(
   // Hydrate current activity on (re)connect.
   useEffect(() => {
     if (!connected || !virtualChannelId) return;
-    getActivity(virtualChannelId).then(setActivity).catch(() => {});
+    let ignored = false;
+    getActivity(virtualChannelId).then(a => { if (!ignored) setActivity(a); }).catch(() => {});
+    return () => { ignored = true; };
   }, [connected, virtualChannelId]);
 
   // Re-apply stored per-user volumes whenever the volume map or room changes.
