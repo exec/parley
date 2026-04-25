@@ -17,8 +17,10 @@ export async function endActivity(vc: string): Promise<void> {
 
 export async function getActivity(vc: string): Promise<ActivityRecord | null> {
   try {
-    return await apiClient.get<ActivityRecord>(`/voice/${vc}/activity`);
-  } catch {
+    const r = await apiClient.get<ActivityRecord>(`/voice/${vc}/activity`);
+    return r ?? null;
+  } catch (err) {
+    console.error('getActivity failed', err);
     return null;
   }
 }
