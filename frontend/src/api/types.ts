@@ -298,3 +298,21 @@ export interface InteractionInvokeResponse {
   status: 'pending' | 'responded' | 'expired';
   expires_at: string;
 }
+
+// Cross-cutting per-(user, channel) read-state and notification settings.
+// Applies to both server channels (kind=1) and DM channels (kind=2).
+export type NotificationSetting = 'ALL' | 'MENTIONS_ONLY' | 'MUTED';
+export const NOTIFICATION_SETTINGS: NotificationSetting[] = ['ALL', 'MENTIONS_ONLY', 'MUTED'];
+
+export type ChannelKind = 1 | 2; // 1=server, 2=dm
+export const CHANNEL_KIND_SERVER: ChannelKind = 1;
+export const CHANNEL_KIND_DM: ChannelKind = 2;
+
+export interface UserChannelState {
+  user_id: string;
+  channel_kind: ChannelKind;
+  channel_id: string;
+  last_read_message_id: string | null;
+  notification_setting: 0 | 1 | 2;
+  updated_at: string;
+}
