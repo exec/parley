@@ -627,3 +627,34 @@ func (h *Handler) Leave(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// RemoveMember handles DELETE /dms/{id}/members/{userID} — owner-only kick.
+func (h *Handler) RemoveMember(w http.ResponseWriter, r *http.Request) {
+	userIDStr := auth.GetUserIDFromContext(r)
+	actorID, _ := strconv.ParseInt(userIDStr, 10, 64)
+	channelID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		httputil.JSONError(w, "invalid channel id", http.StatusBadRequest)
+		return
+	}
+	targetID, err := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
+	if err != nil {
+		httputil.JSONError(w, "invalid user id", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.svc.KickMember(r.Context(), channelID, actorID, targetID); err != nil {
+		msg := err.Error()
+		if strings.Contains(msg, "not the owner") {
+			httputil.JSONError(w, msg, http.StatusForbidden)
+			return
+		}
+		if strings.Contains(msg, "yourself") || strings.Contains(msg, "not a member") || strings.Contains(msg, "not a group") {
+			httputil.JSONError(w, msg, http.StatusBadRequest)
+			return
+		}
+		httputil.InternalError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+

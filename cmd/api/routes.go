@@ -318,6 +318,7 @@ func registerRoutes(
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite), userRateLimitMiddleware(msgWriteLimiter), ownerRateLimitMiddleware(msgWriteOwnerLimiter)).Post("/dms/{id}/forward", dmHandler.ForwardToDm)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/members", dmHandler.AddMembers)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/leave", dmHandler.Leave)
+			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Delete("/dms/{id}/members/{userID}", dmHandler.RemoveMember)
 
 			// Friend routes — profile-level state (the bot's friends list);
 			// scoped on profile:write for all mutations, servers:read for reads.

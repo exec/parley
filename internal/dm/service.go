@@ -217,6 +217,50 @@ func (s *Service) LeaveGroup(ctx context.Context, channelID, actorUserID int64, 
 	return nil
 }
 
+// KickMember removes a target user from a group DM. Owner-only. The owner
+// cannot kick themselves (they should use LeaveGroup instead).
+func (s *Service) KickMember(ctx context.Context, channelID, actorUserID, targetUserID int64) error {
+	ch, err := s.repo.GetDmChannelByID(ctx, channelID)
+	if err != nil {
+		return err
+	}
+	if !ch.IsGroup {
+		return errors.New("not a group channel")
+	}
+	if ch.OwnerUserID == nil || *ch.OwnerUserID != actorUserID {
+		return errors.New("not the owner of this group")
+	}
+	if actorUserID == targetUserID {
+		return errors.New("cannot kick yourself; use leave instead")
+	}
+	isMember, _ := s.repo.IsDmMember(ctx, channelID, targetUserID)
+	if !isMember {
+		return errors.New("target is not a member")
+	}
+
+	if err := s.repo.RemoveDmMember(ctx, channelID, targetUserID); err != nil {
+		return err
+	}
+	eventJSON, _ := json.Marshal(map[string]any{
+		"type":           "member_kicked",
+		"actor_user_id":  strconv.FormatInt(actorUserID, 10),
+		"target_user_id": strconv.FormatInt(targetUserID, 10),
+	})
+	if sysMsg, err := s.repo.InsertSystemMessage(ctx, channelID, actorUserID, eventJSON); err == nil && s.hub != nil {
+		sysMsgJSON, _ := json.Marshal(sysMsg)
+		s.hub.BroadcastToChannel(fmt.Sprintf("dm:%d", channelID), ws.EventDmMessageCreate, sysMsgJSON)
+	}
+	if s.hub != nil {
+		memberRemovePayload, _ := json.Marshal(map[string]any{
+			"channel_id": strconv.FormatInt(channelID, 10),
+			"user_id":    strconv.FormatInt(targetUserID, 10),
+			"kicked_by":  strconv.FormatInt(actorUserID, 10),
+		})
+		s.hub.BroadcastToChannel(fmt.Sprintf("dm:%d", channelID), ws.EventDmMemberRemove, memberRemovePayload)
+	}
+	return nil
+}
+
 func dedupeAndExcludeSelf(ids []int64, self int64) []int64 {
 	seen := map[int64]bool{}
 	out := []int64{}
