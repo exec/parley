@@ -2,6 +2,7 @@ package voice
 
 import (
 	"context"
+	"errors"
 
 	"parley/internal/db"
 	"parley/internal/permissions"
@@ -44,14 +45,20 @@ func (a *Authorizer) AuthorizeJoin(ctx context.Context, vc VirtualChannel, userI
 		return a.repo.IsDmMember(ctx, vc.ID, userID)
 	case KindServer:
 		ch, err := a.repo.GetChannelByID(ctx, vc.ID)
-		if err != nil || ch == nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return false, nil
+		}
+		if err != nil {
 			return false, err
 		}
 		m, err := a.repo.GetMember(ctx, ch.ServerID, userID)
-		if err != nil || m == nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return false, nil
+		}
+		if err != nil {
 			return false, err
 		}
-		return true, nil
+		return m != nil, nil
 	}
 	return false, nil
 }
@@ -67,7 +74,10 @@ func (a *Authorizer) AuthorizeMute(ctx context.Context, vc VirtualChannel, actor
 	switch vc.Kind {
 	case KindDM:
 		dm, err := a.repo.GetDmChannelByID(ctx, vc.ID)
-		if err != nil || dm == nil || !dm.IsGroup {
+		if errors.Is(err, db.ErrNotFound) {
+			return false, nil
+		}
+		if err != nil || !dm.IsGroup {
 			return false, err
 		}
 		if dm.OwnerUserID == nil {
@@ -88,7 +98,10 @@ func (a *Authorizer) AuthorizeKick(ctx context.Context, vc VirtualChannel, actor
 	switch vc.Kind {
 	case KindDM:
 		dm, err := a.repo.GetDmChannelByID(ctx, vc.ID)
-		if err != nil || dm == nil || !dm.IsGroup {
+		if errors.Is(err, db.ErrNotFound) {
+			return false, nil
+		}
+		if err != nil || !dm.IsGroup {
 			return false, err
 		}
 		if dm.OwnerUserID == nil {
@@ -103,11 +116,17 @@ func (a *Authorizer) AuthorizeKick(ctx context.Context, vc VirtualChannel, actor
 
 func (a *Authorizer) serverChannelPerm(ctx context.Context, channelID, userID int64, perm int64) (bool, error) {
 	ch, err := a.repo.GetChannelByID(ctx, channelID)
-	if err != nil || ch == nil {
+	if errors.Is(err, db.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
 		return false, err
 	}
 	srv, err := a.repo.GetServerByID(ctx, ch.ServerID)
-	if err != nil || srv == nil {
+	if errors.Is(err, db.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
 		return false, err
 	}
 	return a.hasChannelPerm(ctx, a.permRepo, ch.ServerID, userID, srv.OwnerID, channelID, perm)

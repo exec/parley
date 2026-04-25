@@ -9,19 +9,19 @@ import (
 
 // authRepoFake is a hand-rolled stub implementing the small surface we need.
 type authRepoFake struct {
-	dmMembers     map[int64]map[int64]bool       // dmID -> userID -> isMember
-	dmOwnerByID   map[int64]int64                // dmID -> ownerUserID
-	dmIsGroupByID map[int64]bool                 // dmID -> is_group
+	dmMembers     map[int64]map[int64]bool            // dmID -> userID -> isMember
+	dmOwnerByID   map[int64]*int64                    // dmID -> *ownerUserID, nil if no owner
+	dmIsGroupByID map[int64]bool                      // dmID -> is_group
 	srvMember     map[int64]map[int64]*db.ServerMember // serverID -> userID -> member
-	srvOwner      map[int64]int64                // serverID -> ownerID
-	chByID        map[int64]*db.Channel          // channelID -> channel
+	srvOwner      map[int64]int64                     // serverID -> ownerID
+	chByID        map[int64]*db.Channel               // channelID -> channel
 }
 
 func (r *authRepoFake) IsDmMember(_ context.Context, dmID, uid int64) (bool, error) {
 	return r.dmMembers[dmID][uid], nil
 }
 func (r *authRepoFake) GetDmChannelByID(_ context.Context, dmID int64) (*db.DmChannel, error) {
-	return &db.DmChannel{ID: dmID, IsGroup: r.dmIsGroupByID[dmID], OwnerUserID: ptrInt64(r.dmOwnerByID[dmID])}, nil
+	return &db.DmChannel{ID: dmID, IsGroup: r.dmIsGroupByID[dmID], OwnerUserID: r.dmOwnerByID[dmID]}, nil
 }
 func (r *authRepoFake) GetMember(_ context.Context, serverID, uid int64) (*db.ServerMember, error) {
 	return r.srvMember[serverID][uid], nil
@@ -66,24 +66,33 @@ func TestAuthorizeJoin_DM(t *testing.T) {
 func TestAuthorizeMute_DM_GC_OwnerOnly(t *testing.T) {
 	repo := &authRepoFake{
 		dmMembers:     map[int64]map[int64]bool{10: {1: true, 2: true, 3: true}},
-		dmOwnerByID:   map[int64]int64{10: 1},
+		dmOwnerByID:   map[int64]*int64{10: ptrInt64(1)},
 		dmIsGroupByID: map[int64]bool{10: true},
 	}
 	a := &Authorizer{repo: repo}
 	vc := VirtualChannel{Kind: KindDM, ID: 10}
 
 	// owner (1) muting any other GC member is allowed
-	ok, _ := a.AuthorizeMute(context.Background(), vc, 1, 2)
+	ok, err := a.AuthorizeMute(context.Background(), vc, 1, 2)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
 	if !ok {
 		t.Fatal("owner should be allowed to mute member")
 	}
 	// non-owner (2) muting member (3) is denied
-	ok, _ = a.AuthorizeMute(context.Background(), vc, 2, 3)
+	ok, err = a.AuthorizeMute(context.Background(), vc, 2, 3)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
 	if ok {
 		t.Fatal("non-owner must not mute")
 	}
 	// owner cannot mute themselves
-	ok, _ = a.AuthorizeMute(context.Background(), vc, 1, 1)
+	ok, err = a.AuthorizeMute(context.Background(), vc, 1, 1)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
 	if ok {
 		t.Fatal("self-mute via force-mute is nonsense")
 	}
@@ -96,8 +105,40 @@ func TestAuthorizeMute_DM_OneOnOne_Denied(t *testing.T) {
 	}
 	a := &Authorizer{repo: repo}
 	vc := VirtualChannel{Kind: KindDM, ID: 10}
-	ok, _ := a.AuthorizeMute(context.Background(), vc, 1, 2)
+	ok, err := a.AuthorizeMute(context.Background(), vc, 1, 2)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
 	if ok {
 		t.Fatal("force-mute is not allowed in 1:1 DM")
+	}
+}
+
+func TestAuthorizeMute_DM_GC_NoOwner_Denied(t *testing.T) {
+	repo := &authRepoFake{
+		dmMembers:     map[int64]map[int64]bool{10: {1: true, 2: true}},
+		dmOwnerByID:   map[int64]*int64{10: nil}, // owner absent
+		dmIsGroupByID: map[int64]bool{10: true},
+	}
+	a := &Authorizer{repo: repo}
+	vc := VirtualChannel{Kind: KindDM, ID: 10}
+	if ok, _ := a.AuthorizeMute(context.Background(), vc, 1, 2); ok {
+		t.Fatal("must deny when GC has no owner")
+	}
+}
+
+func TestAuthorizeKick_DM_GC_OwnerOnly(t *testing.T) {
+	repo := &authRepoFake{
+		dmMembers:     map[int64]map[int64]bool{10: {1: true, 2: true}},
+		dmOwnerByID:   map[int64]*int64{10: ptrInt64(1)},
+		dmIsGroupByID: map[int64]bool{10: true},
+	}
+	a := &Authorizer{repo: repo}
+	vc := VirtualChannel{Kind: KindDM, ID: 10}
+	if ok, err := a.AuthorizeKick(context.Background(), vc, 1, 2); err != nil || !ok {
+		t.Fatalf("owner kick: ok=%v err=%v", ok, err)
+	}
+	if ok, _ := a.AuthorizeKick(context.Background(), vc, 2, 1); ok {
+		t.Fatal("non-owner kick: must deny")
 	}
 }
