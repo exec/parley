@@ -8,12 +8,18 @@ import (
 )
 
 type fakeHub struct {
-	mu     sync.Mutex
-	toUser []sentToUser
-	gotMsg chan struct{}
+	mu         sync.Mutex
+	toUser     []sentToUser
+	broadcasts []broadcastSent
+	gotMsg     chan struct{}
 }
 type sentToUser struct {
 	userID    string
+	eventType string
+	payload   []byte
+}
+type broadcastSent struct {
+	channelID string
 	eventType string
 	payload   []byte
 }
@@ -31,6 +37,15 @@ func (h *fakeHub) SendToUser(userID, eventType string, payload []byte) error {
 	default:
 	}
 	return nil
+}
+func (h *fakeHub) BroadcastToChannel(channelID, eventType string, payload []byte) {
+	h.mu.Lock()
+	h.broadcasts = append(h.broadcasts, broadcastSent{channelID, eventType, payload})
+	h.mu.Unlock()
+	select {
+	case h.gotMsg <- struct{}{}:
+	default:
+	}
 }
 func (h *fakeHub) sentTypes() []string {
 	h.mu.Lock()
