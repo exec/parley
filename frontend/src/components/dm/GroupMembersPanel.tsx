@@ -3,12 +3,14 @@ import { useGroupMembers } from '../../hooks/useGroupMembers';
 import { AddPeopleModal } from './AddPeopleModal';
 import { LeaveGroupModal } from './LeaveGroupModal';
 import { TransferOwnershipModal } from './TransferOwnershipModal';
+import { RenameGroupModal } from './RenameGroupModal';
 import { kickDmMember } from '../../api/dms';
-import { X, UserPlus, UserCog, LogOut } from 'lucide-react';
+import { X, UserPlus, UserCog, LogOut, Pencil } from 'lucide-react';
 import './GroupMembersPanel.css';
 
 interface Props {
   channelId: string;
+  groupName?: string | null;
   ownerId: string | null | undefined;
   currentUserId: string;
   isOpen: boolean;
@@ -18,6 +20,7 @@ interface Props {
 
 export const GroupMembersPanel: React.FC<Props> = ({
   channelId,
+  groupName,
   ownerId,
   currentUserId,
   isOpen,
@@ -28,6 +31,7 @@ export const GroupMembersPanel: React.FC<Props> = ({
   const [showAdd, setShowAdd] = useState(false);
   const [showLeave, setShowLeave] = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
+  const [showRename, setShowRename] = useState(false);
 
   const isOwner = ownerId != null && ownerId === currentUserId;
 
@@ -57,6 +61,10 @@ export const GroupMembersPanel: React.FC<Props> = ({
           <button className="gmp-action" onClick={() => setShowAdd(true)}>
             <UserPlus size={16} />
             <span>Add People</span>
+          </button>
+          <button className="gmp-action" onClick={() => setShowRename(true)}>
+            <Pencil size={16} />
+            <span>Rename Group</span>
           </button>
           {isOwner && (
             <button className="gmp-action" onClick={() => setShowTransfer(true)}>
@@ -143,6 +151,19 @@ export const GroupMembersPanel: React.FC<Props> = ({
         onTransferred={() => {
           setShowTransfer(false);
           void refetch();
+        }}
+      />
+
+      <RenameGroupModal
+        isOpen={showRename}
+        onClose={() => setShowRename(false)}
+        channelId={channelId}
+        currentName={groupName}
+        onRenamed={() => {
+          setShowRename(false);
+          // The DM_CHANNEL_UPDATE WS event will refresh the chat header /
+          // DM panel name. The system message lands via the standard
+          // dm_message broadcast.
         }}
       />
     </>

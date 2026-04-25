@@ -391,6 +391,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     {isGroupDm && (
       <GroupMembersPanel
         channelId={channel.id}
+        groupName={channel.name}
         ownerId={groupOwnerId ?? null}
         currentUserId={currentUserId ?? ''}
         isOpen={showGroupMembersPanel}
