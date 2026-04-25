@@ -2,6 +2,7 @@ package dm
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,13 +12,36 @@ import (
 	ws "parley/internal/websocket"
 )
 
+// dmRepo is the repository surface the Service uses. Defined as an interface
+// so tests can inject an in-memory fake without needing a real database.
+type dmRepo interface {
+	IsDmMember(ctx context.Context, channelID, userID int64) (bool, error)
+	InsertSystemMessage(ctx context.Context, channelID, actorUserID int64, eventJSON []byte) (*db.DmMessage, error)
+	GetDmChannelByID(ctx context.Context, id int64) (*db.DmChannel, error)
+	GetDmMembers(ctx context.Context, channelID int64) ([]db.DmChannelMember, error)
+	GetOrCreateDmChannel(ctx context.Context, user1ID, user2ID int64) (*db.DmChannel, error)
+	CreateGroupChannel(ctx context.Context, ownerID int64, name string, memberIDs []int64) (*db.DmChannel, error)
+	AddDmMember(ctx context.Context, channelID, userID int64) error
+	RemoveDmMember(ctx context.Context, channelID, userID int64) error
+	TransferDmGroupOwnership(ctx context.Context, channelID int64, newOwnerID *int64) error
+	UpdateDmGroupName(ctx context.Context, channelID int64, name string) error
+	UpdateDmGroupAvatar(ctx context.Context, channelID int64, avatarURL *string) error
+	DB() *sql.DB
+}
+
+// dmHub is the websocket hub surface the Service uses.
+type dmHub interface {
+	BroadcastToChannel(channelID string, messageType string, payload []byte)
+	SendToUser(userID string, messageType string, payload []byte) error
+}
+
 // Service is the DM business-logic layer. Methods enforce membership rules,
 // emit system messages, and fan out WS events. Handlers should call into
 // Service rather than touching the repository directly for any state-mutating
 // operation that has cross-cutting concerns.
 type Service struct {
-	repo *db.Repository
-	hub  *ws.Hub
+	repo dmRepo
+	hub  dmHub
 }
 
 func NewService(repo *db.Repository, hub *ws.Hub) *Service {
@@ -29,6 +53,9 @@ func NewService(repo *db.Repository, hub *ws.Hub) *Service {
 // rendering survives membership changes — kicked users disappear from the
 // member list, but their kick message still says "alice removed bob".
 func (s *Service) resolveDisplayName(ctx context.Context, userID int64) string {
+	if s.repo.DB() == nil {
+		return "someone"
+	}
 	var name string
 	err := s.repo.DB().QueryRowContext(ctx,
 		"SELECT COALESCE(NULLIF(display_name, ''), username) FROM users WHERE id = $1",
@@ -421,6 +448,65 @@ func (s *Service) TransferOwnership(ctx context.Context, channelID, actorUserID,
 	if sysMsg, err := s.repo.InsertSystemMessage(ctx, channelID, actorUserID, eventJSON); err == nil && s.hub != nil {
 		sysMsgJSON, _ := json.Marshal(sysMsg)
 		s.hub.BroadcastToChannel(fmt.Sprintf("dm:%d", channelID), ws.EventDmMessageCreate, sysMsgJSON)
+	}
+	return nil
+}
+
+// EmitCallStarted writes a `call_started` system_event into the DM channel and
+// broadcasts the resulting message on the dm:{id} virtual channel.
+func (s *Service) EmitCallStarted(ctx context.Context, channelID, actorUserID, startedAtMs int64) error {
+	eventJSON, _ := json.Marshal(map[string]any{
+		"type":               "call_started",
+		"actor_user_id":      strconv.FormatInt(actorUserID, 10),
+		"actor_display_name": s.resolveDisplayName(ctx, actorUserID),
+		"started_at_ms":      startedAtMs,
+	})
+	return s.broadcastSystemMessage(ctx, channelID, actorUserID, eventJSON)
+}
+
+// EmitCallEnded writes `call_ended` with the call's duration.
+func (s *Service) EmitCallEnded(ctx context.Context, channelID, durationMs, startedAtMs int64) error {
+	eventJSON, _ := json.Marshal(map[string]any{
+		"type":          "call_ended",
+		"duration_ms":   durationMs,
+		"started_at_ms": startedAtMs,
+	})
+	return s.broadcastSystemMessage(ctx, channelID, 0, eventJSON)
+}
+
+// EmitCallMissed writes `call_missed` for ring timeout or caller-cancel.
+func (s *Service) EmitCallMissed(ctx context.Context, channelID, callerUserID int64) error {
+	eventJSON, _ := json.Marshal(map[string]any{
+		"type":                "call_missed",
+		"caller_user_id":      strconv.FormatInt(callerUserID, 10),
+		"caller_display_name": s.resolveDisplayName(ctx, callerUserID),
+	})
+	return s.broadcastSystemMessage(ctx, channelID, callerUserID, eventJSON)
+}
+
+// EmitCallDeclined writes `call_declined`.
+func (s *Service) EmitCallDeclined(ctx context.Context, channelID, callerUserID, declinerUserID int64) error {
+	eventJSON, _ := json.Marshal(map[string]any{
+		"type":                  "call_declined",
+		"caller_user_id":        strconv.FormatInt(callerUserID, 10),
+		"caller_display_name":   s.resolveDisplayName(ctx, callerUserID),
+		"decliner_user_id":      strconv.FormatInt(declinerUserID, 10),
+		"decliner_display_name": s.resolveDisplayName(ctx, declinerUserID),
+	})
+	return s.broadcastSystemMessage(ctx, channelID, callerUserID, eventJSON)
+}
+
+// broadcastSystemMessage is the shared persist-and-broadcast routine used by
+// the call emit helpers.
+func (s *Service) broadcastSystemMessage(ctx context.Context, channelID, actorUserID int64, eventJSON []byte) error {
+	sysMsg, err := s.repo.InsertSystemMessage(ctx, channelID, actorUserID, eventJSON)
+	if err != nil {
+		return err
+	}
+	if s.hub != nil && sysMsg != nil {
+		virtualChannel := fmt.Sprintf("dm:%d", channelID)
+		sysMsgJSON, _ := json.Marshal(sysMsg)
+		s.hub.BroadcastToChannel(virtualChannel, ws.EventDmMessageCreate, sysMsgJSON)
 	}
 	return nil
 }
