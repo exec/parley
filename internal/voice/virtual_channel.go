@@ -2,6 +2,7 @@ package voice
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 )
@@ -29,17 +30,19 @@ func (v VirtualChannel) String() string {
 	case KindDM:
 		return "dm:" + strconv.FormatInt(v.ID, 10)
 	}
-	return ""
+	panic(fmt.Sprintf("voice: unknown VirtualChannel kind %d", v.Kind))
 }
 
 // ParseVirtualChannel parses an "s:N" or "dm:N" string into a VirtualChannel.
 func ParseVirtualChannel(s string) (VirtualChannel, error) {
-	var prefix, rest string
-	if r, ok := strings.CutPrefix(s, "dm:"); ok {
-		prefix, rest = "dm", r
-	} else if r, ok := strings.CutPrefix(s, "s:"); ok {
-		prefix, rest = "s", r
-	} else {
+	var kind Kind
+	var rest string
+	switch {
+	case strings.HasPrefix(s, "dm:"):
+		kind, rest = KindDM, s[3:]
+	case strings.HasPrefix(s, "s:"):
+		kind, rest = KindServer, s[2:]
+	default:
 		return VirtualChannel{}, errors.New("invalid virtual channel id: missing prefix")
 	}
 	if rest == "" {
@@ -47,13 +50,7 @@ func ParseVirtualChannel(s string) (VirtualChannel, error) {
 	}
 	id, err := strconv.ParseInt(rest, 10, 64)
 	if err != nil {
-		return VirtualChannel{}, errors.New("invalid virtual channel id: " + err.Error())
+		return VirtualChannel{}, fmt.Errorf("invalid virtual channel id: %w", err)
 	}
-	switch prefix {
-	case "s":
-		return VirtualChannel{Kind: KindServer, ID: id}, nil
-	case "dm":
-		return VirtualChannel{Kind: KindDM, ID: id}, nil
-	}
-	return VirtualChannel{}, errors.New("unreachable")
+	return VirtualChannel{Kind: kind, ID: id}, nil
 }
