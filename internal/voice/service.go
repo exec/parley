@@ -196,7 +196,7 @@ func (s *Service) IsParticipant(ctx context.Context, channelID, userID string) (
 // Activity is the per-call active activity record stored in Redis.
 type Activity struct {
 	Type        string          `json:"type"`
-	StartedBy   int64           `json:"started_by"`
+	StartedBy   int64           `json:"started_by,string"`
 	StartedAtMs int64           `json:"started_at_ms"`
 	Params      json.RawMessage `json:"params,omitempty"`
 }

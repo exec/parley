@@ -129,3 +129,70 @@ func TestActivityGet_NoActivityReturns204(t *testing.T) {
 		t.Errorf("expected 204, got %d", rec.Code)
 	}
 }
+
+func TestActivityEnd_RequiresParticipation(t *testing.T) {
+	rdb := newRedisForTest(t)
+	svc := &Service{rdb: rdb}
+	hub := newFakeHub()
+	h := NewActivityHandler(svc, hub)
+
+	// non-participant attempts End — must 403
+	req := httptest.NewRequest(http.MethodPost, "/api/voice/dm:1/activity/end", nil)
+	req = req.WithContext(withFakeUserID(req.Context(), 99))
+	req.SetPathValue("vc", "dm:1")
+	rec := httptest.NewRecorder()
+	h.End(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("non-participant must be 403, got %d", rec.Code)
+	}
+}
+
+func TestActivityStart_BroadcastsActivityStart(t *testing.T) {
+	rdb := newRedisForTest(t)
+	svc := &Service{rdb: rdb}
+	_ = svc.Join(context.Background(), "dm:1", "7", "alice", "")
+	hub := newFakeHub()
+	h := NewActivityHandler(svc, hub)
+
+	body, _ := json.Marshal(map[string]any{"type": "watch_party", "params": map[string]any{"url": "x"}})
+	req := httptest.NewRequest(http.MethodPost, "/api/voice/dm:1/activity/start", bytes.NewReader(body))
+	req = req.WithContext(withFakeUserID(req.Context(), 7))
+	req.SetPathValue("vc", "dm:1")
+	rec := httptest.NewRecorder()
+	h.Start(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status %d", rec.Code)
+	}
+
+	hub.mu.Lock()
+	defer hub.mu.Unlock()
+	found := false
+	for _, b := range hub.broadcasts {
+		if b.channelID == "dm:1" && b.eventType == "ACTIVITY_START" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("ACTIVITY_START broadcast missing")
+	}
+}
+
+func TestActivityGet_NoAuthRequired(t *testing.T) {
+	// Locks in the intentional no-auth choice for Get. Future "let me add
+	// auth" changes need to be deliberate — they'll have to update this test.
+	rdb := newRedisForTest(t)
+	svc := &Service{rdb: rdb}
+	_ = svc.StartActivity(context.Background(), "dm:1", "watch_party", 7, nil)
+	hub := newFakeHub()
+	h := NewActivityHandler(svc, hub)
+
+	// no withFakeUserID — request has no auth context
+	req := httptest.NewRequest(http.MethodGet, "/api/voice/dm:1/activity", nil)
+	req.SetPathValue("vc", "dm:1")
+	rec := httptest.NewRecorder()
+	h.Get(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("Get must work without auth, got %d", rec.Code)
+	}
+}

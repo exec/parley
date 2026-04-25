@@ -2,8 +2,10 @@ package voice
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"parley/internal/httputil"
 	ws "parley/internal/websocket"
@@ -50,10 +52,19 @@ func (h *ActivityHandler) Start(w http.ResponseWriter, r *http.Request) {
 		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
-	a, _ := h.svc.GetActivity(r.Context(), vcStr)
-	if a == nil {
-		w.WriteHeader(http.StatusNoContent)
-		return
+	a, err := h.svc.GetActivity(r.Context(), vcStr)
+	if err != nil || a == nil {
+		// Race: another caller raced an EndActivity between our StartActivity
+		// and this read-back. Fall back to local state so the broadcast still
+		// fires; the canonical Activity record will be whatever wins the race
+		// in Redis. Log so this is visible if it ever fires.
+		log.Printf("activity handler: read-back missed in Start for vc=%s err=%v; falling back to local state", vcStr, err)
+		a = &Activity{
+			Type:        body.Type,
+			StartedBy:   userID,
+			StartedAtMs: time.Now().UnixMilli(),
+			Params:      body.Params,
+		}
 	}
 	payload, _ := json.Marshal(map[string]any{
 		"vc":            vcStr,
