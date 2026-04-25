@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	lkauth "github.com/livekit/protocol/auth"
@@ -77,8 +78,19 @@ func heartbeatKey(channelID, userID string) string {
 	return fmt.Sprintf("voice:heartbeat:%s:%s", channelID, userID)
 }
 
-// Join records a participant joining a voice channel.
-// A per-user heartbeat key is set with a TTL so stale entries can be detected.
+// startedAtKey is the call-start timestamp key for the room.
+func startedAtKey(channelID string) string {
+	return fmt.Sprintf("voice:%s:started_at", channelID)
+}
+
+// callEndedLockKey gates duplicate call_ended emissions on the same call instance.
+func callEndedLockKey(channelID, startedAt string) string {
+	return fmt.Sprintf("call_ended:%s:%s", channelID, startedAt)
+}
+
+// Join records a participant joining a voice channel. The first joiner
+// atomically stamps voice:{channelID}:started_at with the current ms time
+// (with a 6h fallback TTL in case Leave never fires).
 // NOTE: clients must periodically call RefreshHeartbeat to keep the key alive.
 func (s *Service) Join(ctx context.Context, channelID, userID, username, avatarURL string) error {
 	if s.rdb == nil {
@@ -89,7 +101,45 @@ func (s *Service) Join(ctx context.Context, channelID, userID, username, avatarU
 	if err := s.rdb.HSet(ctx, presenceKey(channelID), userID, string(b)).Err(); err != nil {
 		return err
 	}
-	return s.rdb.Set(ctx, heartbeatKey(channelID, userID), "1", voiceHeartbeatTTL).Err()
+	if err := s.rdb.Set(ctx, heartbeatKey(channelID, userID), "1", voiceHeartbeatTTL).Err(); err != nil {
+		return err
+	}
+	// First-joiner wins the SET NX. Subsequent joiners no-op.
+	startedAtMs := time.Now().UnixMilli()
+	s.rdb.SetNX(ctx, startedAtKey(channelID), strconv.FormatInt(startedAtMs, 10), 6*time.Hour)
+	return nil
+}
+
+// EndIfEmpty atomically checks whether the room is empty and, if so, removes
+// the started_at key and acquires a 60s NX lock to single-emit call_ended.
+// Returns (startedAtMs, true, nil) iff the caller should emit call_ended.
+// Returns (0, false, nil) when the room is non-empty or another emitter has
+// already claimed the lock.
+func (s *Service) EndIfEmpty(ctx context.Context, channelID string) (int64, bool, error) {
+	if s.rdb == nil {
+		return 0, false, nil
+	}
+	remaining, err := s.rdb.HLen(ctx, presenceKey(channelID)).Result()
+	if err != nil {
+		return 0, false, err
+	}
+	if remaining > 0 {
+		return 0, false, nil
+	}
+	startedAtStr, err := s.rdb.GetDel(ctx, startedAtKey(channelID)).Result()
+	if err != nil || startedAtStr == "" {
+		// already cleaned up by another caller
+		return 0, false, nil
+	}
+	got, err := s.rdb.SetNX(ctx, callEndedLockKey(channelID, startedAtStr), "1", 60*time.Second).Result()
+	if err != nil || !got {
+		return 0, false, err
+	}
+	startedAtMs, parseErr := strconv.ParseInt(startedAtStr, 10, 64)
+	if parseErr != nil {
+		return 0, false, parseErr
+	}
+	return startedAtMs, true, nil
 }
 
 // Leave removes a participant from a voice channel.
