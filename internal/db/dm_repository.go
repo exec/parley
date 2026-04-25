@@ -303,7 +303,7 @@ func (r *Repository) GetDmMessages(ctx context.Context, dmChannelID int64, limit
 				SELECT m.id, m.dm_channel_id, m.author_id, m.content, m.parent_id,
 				       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
 				       m.created_at, m.updated_at, u.username, COALESCE(u.avatar_url, ''), COALESCE(u.display_name, ''),
-				       m.forwarded_data
+				       m.forwarded_data, m.system_event
 				FROM dm_messages m
 				JOIN users u ON u.id = m.author_id
 				WHERE m.dm_channel_id = $1 AND m.id < $3
@@ -319,7 +319,7 @@ func (r *Repository) GetDmMessages(ctx context.Context, dmChannelID int64, limit
 				SELECT m.id, m.dm_channel_id, m.author_id, m.content, m.parent_id,
 				       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
 				       m.created_at, m.updated_at, u.username, COALESCE(u.avatar_url, ''), COALESCE(u.display_name, ''),
-				       m.forwarded_data
+				       m.forwarded_data, m.system_event
 				FROM dm_messages m
 				JOIN users u ON u.id = m.author_id
 				WHERE m.dm_channel_id = $1
@@ -339,6 +339,7 @@ func (r *Repository) GetDmMessages(ctx context.Context, dmChannelID int64, limit
 	for rows.Next() {
 		var msg DmMessage
 		var fwdJSON []byte
+		var sysJSON []byte
 		err := rows.Scan(
 			&msg.ID,
 			&msg.DmChannelID,
@@ -354,6 +355,7 @@ func (r *Repository) GetDmMessages(ctx context.Context, dmChannelID int64, limit
 			&msg.AuthorAvatarURL,
 			&msg.AuthorDisplayName,
 			&fwdJSON,
+			&sysJSON,
 		)
 		if err != nil {
 			return nil, err
@@ -363,6 +365,10 @@ func (r *Repository) GetDmMessages(ctx context.Context, dmChannelID int64, limit
 			if err := json.Unmarshal(fwdJSON, &fwd); err == nil {
 				msg.ForwardedMessage = &fwd
 			}
+		}
+		if len(sysJSON) > 0 {
+			raw := json.RawMessage(sysJSON)
+			msg.SystemEvent = &raw
 		}
 		messages = append(messages, msg)
 	}
