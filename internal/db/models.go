@@ -394,3 +394,33 @@ type BinChannelTag struct {
 	Name      string `json:"name" db:"name"`
 	Color     string `json:"color" db:"color"`
 }
+
+// ChannelKind discriminates the two channel families that share user_channel_state.
+type ChannelKind int16
+
+const (
+	ChannelKindServer ChannelKind = 1
+	ChannelKindDM     ChannelKind = 2
+)
+
+// NotificationSetting is the per-(user, channel) notification preference.
+type NotificationSetting int16
+
+const (
+	NotificationAll          NotificationSetting = 0 // default: every message notifies
+	NotificationMentionsOnly NotificationSetting = 1 // only @mentions notify
+	NotificationMuted        NotificationSetting = 2 // no notify; unread still increments
+)
+
+// UserChannelState is the per-(user, channel) read-marker + notification setting.
+// Rows exist only when the user has marked something read or changed setting from default.
+// Rows for a (user, channel_kind, channel_id) tuple are written by UpsertReadMarker
+// and UpsertNotificationSetting, both of which preserve the other column.
+type UserChannelState struct {
+	UserID              int64               `json:"user_id,string" db:"user_id"`
+	ChannelKind         ChannelKind         `json:"channel_kind" db:"channel_kind"`
+	ChannelID           int64               `json:"channel_id,string" db:"channel_id"`
+	LastReadMessageID   *int64              `json:"last_read_message_id,omitempty,string" db:"last_read_message_id"`
+	NotificationSetting NotificationSetting `json:"notification_setting" db:"notification_setting"`
+	UpdatedAt           time.Time           `json:"updated_at" db:"updated_at"`
+}
