@@ -309,7 +309,9 @@ func (h *Handler) SendDmMessage(w http.ResponseWriter, r *http.Request) {
 	// a `created` flag through GetOrCreateDmChannel, because the channel is
 	// typically created earlier by POST /dms (open-without-sending) — the true
 	// "new surfacing" signal is the first inbound message, not channel creation.
-	if h.hub != nil {
+	if h.hub != nil && !channel.IsGroup {
+		// First-message surfacing for legacy 1:1 channels only — group DMs
+		// already get DM_CHANNEL_CREATE fan-out at creation time in service.CreateChannel.
 		count, cerr := h.repo.CountDmMessages(r.Context(), dmChannelID)
 		if cerr == nil && count == 1 {
 			recipientID := channel.User1ID
@@ -329,18 +331,36 @@ func (h *Handler) SendDmMessage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Notify the recipient asynchronously
+	// Notify recipients asynchronously. For 1:1 DMs notify the other user;
+	// for group DMs fan out to all members minus the author.
 	if h.dmNotify != nil {
-		recipientID := channel.User1ID
-		if channel.User1ID == currentUserID {
-			recipientID = channel.User2ID
-		}
 		var senderUsername, senderAvatarURL string
 		h.repo.DB().QueryRowContext(r.Context(),
 			"SELECT username, COALESCE(avatar_url,'') FROM users WHERE id=$1", currentUserID,
 		).Scan(&senderUsername, &senderAvatarURL)
 		notifyFn := h.dmNotify
-		go notifyFn(context.Background(), recipientID, senderUsername, senderAvatarURL, dmChannelID)
+
+		if channel.IsGroup {
+			// Fan out to every member except the author.
+			members, merr := h.repo.GetDmMembers(r.Context(), dmChannelID)
+			if merr != nil {
+				log.Printf("SendDmMessage: failed to load group members for notify fan-out: %v", merr)
+			} else {
+				for _, m := range members {
+					if m.UserID == currentUserID {
+						continue
+					}
+					recipientID := m.UserID
+					go notifyFn(context.Background(), recipientID, senderUsername, senderAvatarURL, dmChannelID)
+				}
+			}
+		} else {
+			recipientID := channel.User1ID
+			if channel.User1ID == currentUserID {
+				recipientID = channel.User2ID
+			}
+			go notifyFn(context.Background(), recipientID, senderUsername, senderAvatarURL, dmChannelID)
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
