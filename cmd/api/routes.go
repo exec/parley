@@ -340,6 +340,23 @@ func registerRoutes(
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Patch("/dms/{id}", dmHandler.UpdateGroup)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/transfer-ownership", dmHandler.TransferOwnership)
 
+				// 1:1 ring lifecycle + GC start + active rings rehydration.
+				ringSvc := voice.NewRingService(hub, voice.DmEmitterFromService(dmHandler.Service()), voiceSvc)
+				ringHandler := voice.NewRingHandler(ringSvc, repo)
+				ringHandler.SetCallStarter(voice.DmEmitterFromService(dmHandler.Service()))
+				r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/call/ring", ringHandler.Ring)
+				r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/call/accept", ringHandler.Accept)
+				r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/call/decline", ringHandler.Decline)
+				r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/call/cancel", ringHandler.Cancel)
+				r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/call/start", ringHandler.Start)
+				r.With(auth.RequireScope(auth.ScopeMessagesRead)).Get("/calls/active", ringHandler.Active)
+
+				// VC activities (works for any virtual channel — server VCs and DM/GC alike).
+				activityHandler := voice.NewActivityHandler(voiceSvc, hub)
+				r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/voice/{vc}/activity/start", activityHandler.Start)
+				r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/voice/{vc}/activity/end", activityHandler.End)
+				r.With(auth.RequireScope(auth.ScopeMessagesRead)).Get("/voice/{vc}/activity", activityHandler.Get)
+
 			// Friend routes — profile-level state (the bot's friends list);
 			// scoped on profile:write for all mutations, servers:read for reads.
 			friendSvc := friend.NewService(repo, hub)
