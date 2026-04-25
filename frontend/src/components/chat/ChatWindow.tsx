@@ -1,4 +1,5 @@
 import React, { useCallback, useState, useRef, useEffect } from 'react';
+import { Users } from 'lucide-react';
 import { Channel, Message as MessageType, ServerMember } from '../../api/types';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
@@ -8,6 +9,7 @@ import { PERM_MANAGE_MESSAGES, PERM_ADD_REACTIONS, PERM_PIN_MESSAGES } from '../
 import MiniProfile from '../layout/MiniProfile';
 import { SearchPanel } from '../search/SearchPanel';
 import { PinnedPanel, PinIcon } from './PinnedPanel';
+import { GroupMembersPanel } from '../dm/GroupMembersPanel';
 import { pinMessage, unpinMessage } from '../../api/messages';
 import './Chat.css';
 
@@ -46,6 +48,9 @@ interface ChatWindowProps {
   onToggleChannelList?: () => void;
   headerPrefix?: string;
   headerAvatar?: string;
+  headerAvatarNode?: React.ReactNode;
+  isGroupDm?: boolean;
+  groupOwnerId?: string | null;
   isOnline?: boolean;
   onlineUserIds?: Set<string>;
   hideRoles?: boolean;
@@ -89,6 +94,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onToggleChannelList,
   headerPrefix = '#',
   headerAvatar,
+  headerAvatarNode,
+  isGroupDm,
+  groupOwnerId,
   isOnline,
   onlineUserIds,
   hideRoles,
@@ -140,6 +148,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   const [showSearch, setShowSearch] = useState(false);
   const [showPins, setShowPins] = useState(false);
+  const [showGroupMembersPanel, setShowGroupMembersPanel] = useState(false);
 
   const replySnippet = replyTo
     ? (() => {
@@ -194,7 +203,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         onClick={startEditTopic}
         title={canManageChannels ? 'Click to edit topic' : undefined}
       >
-        {headerAvatar ? (
+        {headerAvatarNode ? (
+          <div className="chat-header-avatar-node">{headerAvatarNode}</div>
+        ) : headerAvatar ? (
           <div className="chat-header-avatar">
             <img src={headerAvatar} alt={channel.name} />
           </div>
@@ -204,6 +215,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           <span className="chat-header-name">{headerPrefix} {channel.name}</span>
           {isOnline !== undefined && (
             <span className={`chat-header-status-dot ${isOnline ? 'online' : 'offline'}`} title={isOnline ? 'Online' : 'Offline'} />
+          )}
+          {isGroupDm && (
+            <button
+              type="button"
+              className="chat-header-members-btn"
+              onClick={(e) => { e.stopPropagation(); setShowGroupMembersPanel(true); }}
+              title="View members"
+            >
+              <Users size={16} />
+            </button>
           )}
           <div className="chat-header-actions" onClick={e => e.stopPropagation()} data-tauri-drag-region="false">
             {/* Hamburger — mobile only, always shown when callback provided */}
@@ -365,6 +386,15 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           onNavigateToChannel?.(channelId);
           setShowSearch(false);
         }}
+      />
+    )}
+    {isGroupDm && (
+      <GroupMembersPanel
+        channelId={channel.id}
+        ownerId={groupOwnerId ?? null}
+        currentUserId={currentUserId ?? ''}
+        isOpen={showGroupMembersPanel}
+        onClose={() => setShowGroupMembersPanel(false)}
       />
     )}
     </div>

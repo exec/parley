@@ -533,6 +533,29 @@
   flex-shrink: 0;
 }
 
+.chat-header-avatar-node {
+  display: flex;
+  align-items: center;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.chat-header-members-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary, var(--parley-text-muted));
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  margin-left: 8px;
+}
+.chat-header-members-btn:hover {
+  background: var(--bg-tertiary, var(--parley-bg-secondary));
+  color: var(--text-primary, var(--parley-text));
+}
+
 .chat-header-avatar img {
   width: 100%;
   height: 100%;

@@ -146,6 +146,7 @@ export interface Message {
   is_pinned?: boolean;
   pinned_at?: string;
   forwarded_message?: ForwardedMessage;
+  system_event?: SystemEvent | null;
 }
 
 export interface AuthResponse {

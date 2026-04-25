@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { MessageSquare, BellOff } from 'lucide-react';
+import { MessageSquare, BellOff, Plus } from 'lucide-react';
 import { DmChannel, User, CHANNEL_KIND_DM } from '../../api/types';
 import { useChannelState } from '../../context/ChannelStateContext';
 import * as readStateApi from '../../api/readState';
+import { MosaicAvatar } from '../dm/MosaicAvatar';
 import './DmPanel.css';
 import { ThemePopover } from '../theme/ThemePopover';
 
@@ -55,6 +56,7 @@ interface DmPanelProps {
   dmUnreadCounts?: Record<string, number>;
   onlineUserIds?: Set<string>;
   onMarkDmRead?: (dmChannelId: string) => void;
+  onCreateGroup?: () => void;
 }
 
 const DmPanel: React.FC<DmPanelProps> = ({
@@ -68,6 +70,7 @@ const DmPanel: React.FC<DmPanelProps> = ({
   dmUnreadCounts = {},
   onlineUserIds,
   onMarkDmRead,
+  onCreateGroup,
 }) => {
   const channelState = useChannelState();
   const [contextMenu, setContextMenu] = useState<{ top: number; left: number } | null>(null);
@@ -96,6 +99,15 @@ const DmPanel: React.FC<DmPanelProps> = ({
     <div className="dm-panel">
       <div className="dm-panel-header">
         <span className="dm-panel-title">Direct Messages</span>
+        <button
+          type="button"
+          className="dm-panel-new-group-btn"
+          onClick={() => onCreateGroup?.()}
+          title="New Group DM"
+          aria-label="Create new group DM"
+        >
+          <Plus size={16} />
+        </button>
       </div>
 
       <div className="dm-panel-list">
@@ -119,14 +131,30 @@ const DmPanel: React.FC<DmPanelProps> = ({
                 onContextMenu={(e) => handleDmContextMenu(e, channel.id)}
               >
                 <div className="dm-panel-avatar-wrap">
-                  <div className="dm-panel-avatar">
-                    {channel.other_avatar_url
-                      ? <img src={channel.other_avatar_url} alt={channel.other_username ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-                      : (channel.other_username ?? '?').charAt(0).toUpperCase()}
-                  </div>
-                  <span className={`dm-panel-status-dot ${isOtherOnline ? 'online' : 'offline'}`} />
+                  {channel.is_group ? (
+                    <MosaicAvatar
+                      tiles={(channel.members ?? []).slice(0, 4).map(m => ({
+                        avatarUrl: m.avatar_url,
+                        displayName: m.display_name || m.username || '?',
+                      }))}
+                      size={32}
+                    />
+                  ) : (
+                    <div className="dm-panel-avatar">
+                      {channel.other_avatar_url
+                        ? <img src={channel.other_avatar_url} alt={channel.other_username ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                        : (channel.other_username ?? '?').charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  {!channel.is_group && (
+                    <span className={`dm-panel-status-dot ${isOtherOnline ? 'online' : 'offline'}`} />
+                  )}
                 </div>
-                <span className="dm-panel-name">{channel.other_display_name || channel.other_username}</span>
+                <span className="dm-panel-name">
+                  {channel.is_group
+                    ? (channel.name ?? '(unnamed group)')
+                    : (channel.other_display_name || channel.other_username)}
+                </span>
                 {isMuted && <BellOff size={14} className="dm-row-muted" />}
                 {unread > 0 && !isActive && (
                   <span
