@@ -1,6 +1,8 @@
 import React, { useRef, useEffect, useMemo, useState } from 'react';
-import { Participant, Track, ParticipantEvent } from 'livekit-client';
-import { MicOff, Monitor } from 'lucide-react';
+import { Participant, Track, ParticipantEvent, RemoteAudioTrack } from 'livekit-client';
+import { MicOff, Monitor, VolumeX } from 'lucide-react';
+import { useLocalVolumes } from '../../hooks/useLocalVolumes';
+import { ConnectionQualityDot } from './ConnectionQualityDot';
 import './ParticipantTile.css';
 
 const GREEN = '74, 222, 128'; // speaking ring colour (rgb)
@@ -128,6 +130,18 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
   const name = displayName || participant.name || participant.identity || '?';
   const initial = name.charAt(0).toUpperCase() || '?';
 
+  const { getVolume } = useLocalVolumes();
+  const localVol = getVolume(participant.identity);
+  const isLocallyMuted = localVol === 0;
+
+  useEffect(() => {
+    participant.audioTrackPublications.forEach(pub => {
+      if (pub.track && pub.track.kind === Track.Kind.Audio) {
+        (pub.track as RemoteAudioTrack).setVolume(localVol / 100);
+      }
+    });
+  }, [localVol, participant]);
+
   return (
     <div className={`participant-tile ${isSpeaking ? 'participant-tile--speaking' : ''} ${isScreenShare ? 'participant-tile--screen' : ''}`} onContextMenu={onContextMenu} onClick={onClick}>
       <div className="participant-tile-media">
@@ -154,6 +168,12 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
             )}
           </div>
         )}
+        {isLocallyMuted && !isLocal && (
+          <span className="participant-tile-locally-muted" title="Muted for me">
+            <VolumeX size={14} />
+          </span>
+        )}
+        <ConnectionQualityDot participant={participant} />
       </div>
 
       <div className="participant-tile-footer">

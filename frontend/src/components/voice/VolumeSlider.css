@@ -1,0 +1,3 @@
+.vol-slider { display: flex; align-items: center; gap: 8px; padding: 6px 8px; }
+.vol-slider input[type="range"] { flex: 1; }
+.vol-slider-value { font-size: 12px; color: var(--parley-text-muted); min-width: 36px; text-align: right; }
