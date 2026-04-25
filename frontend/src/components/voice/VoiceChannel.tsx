@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { RemoteParticipant, LocalParticipant, Track, TrackPublication } from 'livekit-client';
 import { LayoutGrid, Maximize2, MessageSquare, Mic, MicOff, Headphones, HeadphoneOff, Video, VideoOff, Monitor, MonitorOff, PhoneOff, Volume2, X, Expand, Music2 } from 'lucide-react';
 import { Channel } from '../../api/types';
-import { VoiceParticipant, kickVoiceParticipant } from '../../api/voice';
+import { VoiceParticipant, kickVoiceParticipant, serverVc } from '../../api/voice';
 import { ParticipantTile } from './ParticipantTile';
 import { VoiceContextMenu } from './VoiceContextMenu';
 import { SoundboardPanel } from './SoundboardPanel';
@@ -381,7 +381,7 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
           onMute={() => { onMuteParticipant?.(contextMenu.participantId); setContextMenu(null); }}
           onKick={async () => {
             const id = contextMenu.participantId;
-            try { await kickVoiceParticipant(channel.id, id); } catch (e) { console.error(e); }
+            try { await kickVoiceParticipant(serverVc(channel.id), id); } catch (e) { console.error(e); }
             setContextMenu(null);
           }}
           onClose={() => setContextMenu(null)}

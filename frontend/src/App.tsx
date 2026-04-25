@@ -24,7 +24,7 @@ import { ForwardModal } from './components/chat/ForwardModal';
 import * as serversApi from './api/servers';
 import * as channelsApi from './api/channels';
 import * as dmsApi from './api/dms';
-import { getVoiceParticipants, muteVoiceParticipant } from './api/voice';
+import { getVoiceParticipants, muteVoiceParticipant, serverVc } from './api/voice';
 import { getTags } from './api/bin';
 import MainLayout from './components/layout/MainLayout';
 import ChannelList from './components/layout/ChannelList';
@@ -516,7 +516,7 @@ function MainApp() {
     if (voiceChannels.length === 0) return;
     Promise.all(
       voiceChannels.map(ch =>
-        getVoiceParticipants(ch.id)
+        getVoiceParticipants(serverVc(ch.id))
           .then(ps => ({ channelId: ch.id, participants: ps }))
           .catch(() => ({ channelId: ch.id, participants: [] }))
       )
@@ -1267,7 +1267,7 @@ function MainApp() {
         onRetry={vcRetry}
         canMuteMembers={canMuteMembers}
         canKickFromVoice={canKickFromVoice}
-        onMuteParticipant={async (userId) => { try { await muteVoiceParticipant(activeVoiceChannel!, userId); } catch(e) { console.error(e); } }}
+        onMuteParticipant={async (userId) => { try { await muteVoiceParticipant(serverVc(activeVoiceChannel!), userId); } catch(e) { console.error(e); } }}
         vcChatOpen={vcChatOpen}
         onToggleVcChat={() => setVcChatOpen(v => !v)}
         onParticipantClick={(userId, e) => handleVcParticipantClick(userId, e.clientX, e.clientY)}

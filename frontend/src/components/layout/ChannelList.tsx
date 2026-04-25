@@ -5,7 +5,7 @@ import { useChannelState } from '../../context/ChannelStateContext';
 import * as readStateApi from '../../api/readState';
 import { CHANNEL_KIND_SERVER } from '../../api/types';
 import { VoiceContextMenu } from '../voice/VoiceContextMenu';
-import { muteVoiceParticipant, kickVoiceParticipant } from '../../api/voice';
+import { muteVoiceParticipant, kickVoiceParticipant, serverVc } from '../../api/voice';
 import { copyToClipboard } from '../../lib/tauri';
 import {
   DndContext,
@@ -857,12 +857,12 @@ const ChannelList: React.FC<ChannelListProps> = ({
           canMute={!!canMuteMembers}
           canKick={!!canKickFromVoice}
           onMute={async () => {
-            try { await muteVoiceParticipant(vcParticipantMenu.channelId, vcParticipantMenu.participantId); } catch (e) { console.error(e); }
+            try { await muteVoiceParticipant(serverVc(vcParticipantMenu.channelId), vcParticipantMenu.participantId); } catch (e) { console.error(e); }
             setVcParticipantMenu(null);
           }}
           onKick={async () => {
             const id = vcParticipantMenu.participantId;
-            try { await kickVoiceParticipant(vcParticipantMenu.channelId, id); } catch (e) { console.error(e); }
+            try { await kickVoiceParticipant(serverVc(vcParticipantMenu.channelId), id); } catch (e) { console.error(e); }
             setVcParticipantMenu(null);
           }}
           onClose={() => setVcParticipantMenu(null)}

@@ -12,7 +12,7 @@ import {
   Participant,
 } from 'livekit-client';
 import { MicVAD } from '@ricky0123/vad-web';
-import { getVoiceToken, joinVoiceChannel, leaveVoiceChannel } from '../api/voice';
+import { getVoiceToken, joinVoiceChannel, leaveVoiceChannel, serverVc } from '../api/voice';
 
 export interface VoiceSettings {
   micDeviceId?: string;
@@ -176,7 +176,7 @@ export function useVoiceConnection(
   const doDisconnect = useCallback(() => {
     const cid = channelIdRef.current;
     channelIdRef.current = null; // null first so Disconnected handler is a no-op
-    if (cid) leaveVoiceChannel(cid).catch(() => {});
+    if (cid) leaveVoiceChannel(serverVc(cid)).catch(() => {});
     const room = roomRef.current;
     doCleanup();
     room?.disconnect(); // call disconnect AFTER cleanup (room ref already nulled in doCleanup)
@@ -190,7 +190,7 @@ export function useVoiceConnection(
 
     let stream: MediaStream | null = null;
     try {
-      const { token, url } = await getVoiceToken(cid);
+      const { token, url } = await getVoiceToken(serverVc(cid));
 
       const bc = new BroadcastChannel('parley_voice');
       bcRef.current = bc;
@@ -244,7 +244,7 @@ export function useVoiceConnection(
       room.on(RoomEvent.Disconnected, () => {
         if (!channelIdRef.current) return; // user-initiated, already handled
         const serverCid = channelIdRef.current;
-        leaveVoiceChannel(serverCid).catch(() => {});
+        leaveVoiceChannel(serverVc(serverCid)).catch(() => {});
         doCleanup();
       });
 
@@ -286,7 +286,7 @@ export function useVoiceConnection(
       room.remoteParticipants.forEach(p => attachAudio(p));
       if (s.speakerDeviceId) applyOutputDevice(s.speakerDeviceId);
 
-      await joinVoiceChannel(cid);
+      await joinVoiceChannel(serverVc(cid));
       updateParticipantList();
       setConnected(true);
     } catch (err) {
