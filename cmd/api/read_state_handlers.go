@@ -181,14 +181,15 @@ func channelMembershipCheck(repo *db.Repository) func(ctx context.Context, userI
 }
 
 // dmMembershipCheck returns "user is in the dm_channel_members for this DM channel."
-// Phase A: uses user1_id/user2_id check (Phase B will replace with join-table read).
+// Migration #65 backfilled dm_channel_members for all 1:1 channels, so a single
+// IsDmMember lookup serves both legacy 1:1 and group channels uniformly.
 func dmMembershipCheck(repo *db.Repository) func(ctx context.Context, userID, channelID int64) error {
 	return func(ctx context.Context, userID, channelID int64) error {
-		ch, err := repo.GetDmChannelByID(ctx, channelID)
+		isMember, err := repo.IsDmMember(ctx, channelID, userID)
 		if err != nil {
 			return err
 		}
-		if ch.User1ID != userID && ch.User2ID != userID {
+		if !isMember {
 			return errors.New("not a member")
 		}
 		return nil

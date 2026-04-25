@@ -71,7 +71,14 @@ const (
 	EventNotificationCreate = "NOTIFICATION_CREATE"
 
 	// DM events
-	EventDmChannelCreate = "DM_CHANNEL_CREATE"
+	EventDmChannelCreate  = "DM_CHANNEL_CREATE"
+	EventDmChannelUpdate  = "DM_CHANNEL_UPDATE"
+	EventDmMessageCreate  = "dm_message" // wire-compatible with existing literal in SendDmMessage broadcast
+	EventDmMessageDelete  = "dm_message_delete"
+	EventDmReactionAdd    = "dm_reaction_add"
+	EventDmReactionRemove = "dm_reaction_remove"
+	EventDmMemberAdd      = "DM_MEMBER_ADD"
+	EventDmMemberRemove   = "DM_MEMBER_REMOVE"
 
 	// Cross-cutting per-channel state events (server channels + DMs)
 	EventChannelReadStateUpdate    = "CHANNEL_READ_STATE_UPDATE"
