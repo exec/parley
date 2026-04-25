@@ -99,6 +99,7 @@ interface AppActions {
   applyDmReactionUpdate: (update: ReactionUpdate) => void;
   receiveDmMessageDelete: (messageId: string) => void;
   receiveDmChannelCreate: (channel: DmChannel) => void;
+  applyDmChannelUpdate: (update: { channel_id: string; name?: string; avatar_url?: string }) => void;
   addServer: (server: Server) => void;
   updateCurrentUser: (user: User) => void;
   loadServers: () => Promise<void>;
@@ -607,6 +608,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const applyDmChannelUpdate = useCallback((update: { channel_id: string; name?: string; avatar_url?: string }) => {
+    const id = String(update.channel_id);
+    const patch = (c: DmChannel): DmChannel => {
+      if (String(c.id) !== id) return c;
+      // Only mutate fields that arrived in the payload — null/undefined means
+      // "unchanged" (avoiding accidental clears).
+      const next: DmChannel = { ...c };
+      if (update.name !== undefined) next.name = update.name;
+      if (update.avatar_url !== undefined) next.avatar_url = update.avatar_url;
+      return next;
+    };
+    setDmChannels(prev => prev.map(patch));
+    setActiveDmChannel(prev => (prev ? patch(prev) : prev));
+  }, []);
+
   const toggleReaction = useCallback(async (messageId: string, emoji: string) => {
     await messagesApi.toggleReaction(messageId, emoji);
   }, []);
@@ -901,6 +917,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       applyDmReactionUpdate,
       receiveDmMessageDelete,
       receiveDmChannelCreate,
+      applyDmChannelUpdate,
       updateCurrentUser,
       loadServers,
       receiveChannelCreate,

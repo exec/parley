@@ -90,6 +90,7 @@ function MainApp() {
     applyDmReactionUpdate,
     receiveDmMessageDelete,
     receiveDmChannelCreate,
+    applyDmChannelUpdate,
     logout,
     dmChannels,
     activeDmChannel,
@@ -845,8 +846,9 @@ function MainApp() {
       window.dispatchEvent(new CustomEvent('parley:dm_member_change', { detail: { channel_id: data.channel_id, action: 'remove', user_id: data.user_id } }));
     }, []),
     onDmChannelUpdate: useCallback((data: { channel_id: string; name?: string; avatar_url?: string }) => {
+      applyDmChannelUpdate(data);
       window.dispatchEvent(new CustomEvent('parley:dm_channel_update', { detail: data }));
-    }, []),
+    }, [applyDmChannelUpdate]),
   });
 
   const handleSendTyping = useCallback(() => {
