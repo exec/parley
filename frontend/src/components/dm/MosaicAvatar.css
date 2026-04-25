@@ -1,0 +1,34 @@
+.mosaic-avatar {
+  position: relative;
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  gap: 1px;
+  background: var(--bg-tertiary, var(--parley-bg-floating, #2b2d31));
+  flex-shrink: 0;
+}
+
+.mosaic-1 { grid-template: 1fr / 1fr; }
+.mosaic-2 { grid-template: 1fr / 1fr 1fr; }
+.mosaic-3 { grid-template: 1fr 1fr / 1fr 1fr; }
+.mosaic-3 .mosaic-tile:nth-child(1) { grid-row: 1 / span 2; }
+.mosaic-4 { grid-template: 1fr 1fr / 1fr 1fr; }
+
+.mosaic-tile {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-tertiary, #2b2d31);
+  color: var(--text-secondary, #b5bac1);
+  font-size: 11px;
+  font-weight: 600;
+  overflow: hidden;
+}
+
+.mosaic-initials {
+  text-transform: uppercase;
+  user-select: none;
+}
