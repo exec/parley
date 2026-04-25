@@ -25,6 +25,7 @@ import * as serversApi from './api/servers';
 import * as channelsApi from './api/channels';
 import * as dmsApi from './api/dms';
 import { getVoiceParticipants, muteVoiceParticipant, serverVc } from './api/voice';
+import { getActiveCalls, type ActiveRing } from './api/calls';
 import { getTags } from './api/bin';
 import MainLayout from './components/layout/MainLayout';
 import ChannelList from './components/layout/ChannelList';
@@ -233,6 +234,13 @@ function MainApp() {
   // Load in-app notifications on mount
   useEffect(() => {
     if (currentUser) loadNotifications();
+  }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Rehydrate any active rings on boot so CallContext (Task 25) can show banners.
+  const [_bootRings, setBootRings] = useState<ActiveRing[]>([]);
+  useEffect(() => {
+    if (!currentUser) return;
+    getActiveCalls().then(r => setBootRings(r.rings)).catch(() => { /* offline ok */ });
   }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleNotifNavigate = useCallback((notif: AppNotification) => {
