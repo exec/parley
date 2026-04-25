@@ -143,6 +143,28 @@ func notificationsHandler(repo *db.Repository, hub *ws.Hub, kind db.ChannelKind,
 	}
 }
 
+// handleGetMyChannelState — GET /api/me/channel-state
+// Returns every user_channel_state row for the authenticated user. The frontend
+// hydrates its bulk read-state + notification-setting cache from this on app
+// mount; subsequent updates flow via WS events.
+func handleGetMyChannelState(repo *db.Repository) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userIDStr := auth.GetUserIDFromContext(r)
+		userID, _ := strconv.ParseInt(userIDStr, 10, 64)
+
+		rows, err := repo.BulkGetUserChannelState(r.Context(), userID)
+		if err != nil {
+			httputil.InternalError(w, err)
+			return
+		}
+		if rows == nil {
+			rows = []db.UserChannelState{}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(rows)
+	}
+}
+
 // channelMembershipCheck returns "user is a member of the server containing this channel."
 func channelMembershipCheck(repo *db.Repository) func(ctx context.Context, userID, channelID int64) error {
 	return func(ctx context.Context, userID, channelID int64) error {

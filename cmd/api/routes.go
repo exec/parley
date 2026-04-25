@@ -302,6 +302,8 @@ func registerRoutes(
 			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Post("/dms/{channelID}/read", handleMarkDmRead(repo, hub))
 			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Patch("/channels/{channelID}/notifications", handleSetChannelNotifications(repo, hub))
 			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Patch("/dms/{channelID}/notifications", handleSetDmNotifications(repo, hub))
+			// Bulk read-state hydration on app mount.
+			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/me/channel-state", handleGetMyChannelState(repo))
 
 			// DM routes — scoped under messages:read (channel list + history)
 			// and messages:write (open/send/delete/react/forward).
