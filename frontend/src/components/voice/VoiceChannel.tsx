@@ -375,10 +375,10 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
       {contextMenu && (
         <VoiceContextMenu
           position={{ x: contextMenu.x, y: contextMenu.y }}
-          participantId={contextMenu.participantId}
-          canMute={!!canMuteMembers}
+          targetUserID={contextMenu.participantId}
+          canForceMute={!!canMuteMembers}
           canKick={!!canKickFromVoice}
-          onMute={() => { onMuteParticipant?.(contextMenu.participantId); setContextMenu(null); }}
+          onForceMute={() => { onMuteParticipant?.(contextMenu.participantId); setContextMenu(null); }}
           onKick={async () => {
             const id = contextMenu.participantId;
             try { await kickVoiceParticipant(serverVc(channel.id), id); } catch (e) { console.error(e); }

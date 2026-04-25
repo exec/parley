@@ -36,3 +36,8 @@
   background: rgba(var(--parley-danger-rgb), 0.15);
   color: var(--parley-danger);
 }
+
+.vc-context-menu-divider { height: 1px; margin: 4px 0; background: var(--parley-border); }
+.vc-context-menu-item--mod { color: var(--parley-text-muted); }
+.vc-context-menu-backdrop { position: fixed; inset: 0; z-index: 999; }
+.vc-context-menu { z-index: 1000; }

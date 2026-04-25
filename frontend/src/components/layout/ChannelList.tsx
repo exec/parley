@@ -850,13 +850,13 @@ const ChannelList: React.FC<ChannelListProps> = ({
         />,
         document.body
       )}
-      {vcParticipantMenu && createPortal(
+      {vcParticipantMenu && (
         <VoiceContextMenu
           position={{ x: vcParticipantMenu.x, y: vcParticipantMenu.y }}
-          participantId={vcParticipantMenu.participantId}
-          canMute={!!canMuteMembers}
+          targetUserID={vcParticipantMenu.participantId}
+          canForceMute={!!canMuteMembers}
           canKick={!!canKickFromVoice}
-          onMute={async () => {
+          onForceMute={async () => {
             try { await muteVoiceParticipant(serverVc(vcParticipantMenu.channelId), vcParticipantMenu.participantId); } catch (e) { console.error(e); }
             setVcParticipantMenu(null);
           }}
@@ -866,8 +866,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
             setVcParticipantMenu(null);
           }}
           onClose={() => setVcParticipantMenu(null)}
-        />,
-        document.body
+        />
       )}
     </div>
   );
