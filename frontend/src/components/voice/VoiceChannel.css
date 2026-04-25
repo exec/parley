@@ -307,3 +307,9 @@
 .vc-soundboard-wrapper {
   position: relative;
 }
+
+.vc-view--compact .vc-grid { gap: 4px; }
+.vc-view--compact .participant-tile { min-height: 96px; }
+
+.activity-slot { padding: 8px 12px; border-bottom: 1px solid var(--parley-border); }
+.activity-slot--unknown { color: var(--parley-text-muted); font-style: italic; }

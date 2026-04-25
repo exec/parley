@@ -6,10 +6,13 @@ import { VoiceParticipant, kickVoiceParticipant, serverVc } from '../../api/voic
 import { ParticipantTile } from './ParticipantTile';
 import { VoiceContextMenu } from './VoiceContextMenu';
 import { SoundboardPanel } from './SoundboardPanel';
+import { ActivitySlot } from './ActivitySlot';
+import type { ActivityRecord } from '../../api/activities';
 import './VoiceChannel.css';
 
 interface VoiceChannelProps {
   channel: Channel;
+  vc?: string;
   currentUser: { id: string; username: string; avatar_url?: string };
   participants: RemoteParticipant[];
   localParticipant: LocalParticipant | null;
@@ -22,6 +25,8 @@ interface VoiceChannelProps {
   deafened: boolean;
   videoEnabled: boolean;
   screenSharing: boolean;
+  activity?: ActivityRecord | null;
+  layout?: 'full' | 'compact';
   onToggleMute: () => void;
   onToggleDeafen: () => void;
   onToggleVideo: () => Promise<void>;
@@ -41,6 +46,7 @@ type ViewMode = 'grid' | 'speaker';
 
 export const VoiceChannel: React.FC<VoiceChannelProps> = ({
   channel,
+  vc,
   currentUser,
   participants,
   localParticipant,
@@ -53,6 +59,8 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
   deafened,
   videoEnabled,
   screenSharing,
+  activity = null,
+  layout = 'full',
   onToggleMute,
   onToggleDeafen,
   onToggleVideo,
@@ -138,7 +146,7 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
   const statusLabel = connected ? 'Connected' : connecting ? 'Connecting…' : 'Disconnected';
 
   return (
-    <div className="vc-view">
+    <div className={`vc-view vc-view--${layout}`}>
       {/* Header */}
       <div className="vc-header">
         <div className="vc-header-left">
@@ -180,6 +188,8 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
           {error} — <button onClick={onRetry} className="vc-retry-btn">Retry</button>
         </div>
       )}
+
+      {vc && <ActivitySlot vc={vc} activity={activity} />}
 
       {/* Main area */}
       {viewMode === 'grid' ? (

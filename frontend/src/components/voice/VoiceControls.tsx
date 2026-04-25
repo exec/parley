@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mic, MicOff, Headphones, HeadphoneOff, Video, VideoOff, Monitor, MonitorOff, PhoneOff } from 'lucide-react';
+import { Mic, MicOff, Headphones, HeadphoneOff, Video, VideoOff, Monitor, MonitorOff, PhoneOff, Maximize2, Minimize2, Sparkles } from 'lucide-react';
 import './VoiceControls.css';
 
 interface VoiceControlsProps {
@@ -10,12 +10,15 @@ interface VoiceControlsProps {
   screenSharing: boolean;
   vadMode: 'vad' | 'ptt' | 'always';
   pttKey: string;
+  floatingMode: boolean;
   onNavigate: () => void;
   onToggleMute: () => void;
   onToggleDeafen: () => void;
   onToggleVideo: () => void;
   onToggleScreenShare: () => void;
   onDisconnect: () => void;
+  onPopOut: () => void;
+  onOpenActivities: () => void;
 }
 
 export const VoiceControls: React.FC<VoiceControlsProps> = ({
@@ -26,12 +29,15 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
   screenSharing,
   vadMode,
   pttKey,
+  floatingMode,
   onNavigate,
   onToggleMute,
   onToggleDeafen,
   onToggleVideo,
   onToggleScreenShare,
   onDisconnect,
+  onPopOut,
+  onOpenActivities,
 }) => {
   const pttLabel = pttKey.replace('Key', '').replace('Digit', '').replace('Space', 'SPACE');
 
@@ -86,6 +92,12 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
           aria-pressed={screenSharing}
         >
           {screenSharing ? <Monitor size={16} color="var(--parley-accent)" /> : <MonitorOff size={16} color="var(--parley-text-muted)" />}
+        </button>
+        <button className="vw-btn" onClick={onPopOut} title={floatingMode ? 'Restore' : 'Pop out'} aria-label={floatingMode ? 'Restore voice window' : 'Pop out voice window'}>
+          {floatingMode ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+        </button>
+        <button className="vw-btn" onClick={onOpenActivities} title="Activities" aria-label="Open activities">
+          <Sparkles size={16} />
         </button>
         <button className="vw-btn vw-btn--leave" onClick={onDisconnect} title="Disconnect" aria-label="Disconnect from voice">
           <PhoneOff size={16} color="var(--parley-danger)" />
