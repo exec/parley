@@ -548,6 +548,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (prev.some(m => m.id === msg.id)) return prev;
       return [...prev, msg];
     });
+    // Bump this DM to the top of the list — the WS broadcast also reaches the
+    // sender (BroadcastToChannel sends to all subscribers) which would also
+    // trigger the reorder via receiveDmMessage, but doing it here too makes the
+    // ordering update synchronous with the send instead of waiting on the
+    // round-trip.
+    const sentChannelId = activeDmChannel.id;
+    setDmChannels(prev => {
+      const idx = prev.findIndex(c => String(c.id) === String(sentChannelId));
+      if (idx <= 0) return prev;
+      const next = prev.slice();
+      const [bumped] = next.splice(idx, 1);
+      return [bumped, ...next];
+    });
   }, [activeDmChannel]);
 
   const deleteDmMessage = useCallback(async (dmChannelId: string, messageId: string) => {
