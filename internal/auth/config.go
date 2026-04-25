@@ -39,10 +39,23 @@ func DefaultConfig() *Config {
 	// impersonation tokens at all.
 	impersonationKey := os.Getenv("IMPERSONATION_JWT_SECRET")
 
+	// JWT_EXPIRY accepts any time.ParseDuration string ("720h", "30d" is NOT
+	// supported by stdlib — use hours). Default is 30 days for a user-friendly
+	// session length; the force_logout_at mechanism (isUserForceLoggedOut)
+	// remains the revocation path for compromised accounts.
+	tokenExpiry := 30 * 24 * time.Hour
+	if v := os.Getenv("JWT_EXPIRY"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			tokenExpiry = d
+		} else {
+			log.Printf("auth: ignoring invalid JWT_EXPIRY=%q (want e.g. 720h); using default %s", v, tokenExpiry)
+		}
+	}
+
 	return &Config{
 		SecretKey:              secretKey,
 		ImpersonationSecretKey: impersonationKey,
-		TokenExpiry:            24 * time.Hour,
+		TokenExpiry:            tokenExpiry,
 	}
 }
 
