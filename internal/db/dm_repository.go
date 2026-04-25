@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
+	"time"
 
 	pq "github.com/lib/pq"
 )
@@ -67,18 +69,33 @@ func (r *Repository) GetOrCreateDmChannel(ctx context.Context, userAID, userBID 
 }
 
 func (r *Repository) GetUserDmChannels(ctx context.Context, userID int64) ([]DmChannel, error) {
-	// 1:1 channels: matched by user1_id/user2_id columns. Other-user fields
-	// are populated via JOIN.
+	// Each row returns the channel plus its last-activity timestamp:
+	// max(dm_messages.created_at) for the channel, falling back to the
+	// channel's own created_at when there are no messages yet. The two
+	// queries (1:1 and group) sort independently; we merge + re-sort by
+	// last_activity_at after scanning so the final list is uniformly
+	// ordered most-recent-first regardless of channel kind.
+	type rowWithActivity struct {
+		ch     DmChannel
+		lastAt time.Time
+	}
+	var rows []rowWithActivity
+
 	oneToOneQuery := `
 		SELECT dc.id, COALESCE(dc.user1_id, 0), COALESCE(dc.user2_id, 0), dc.created_at,
 		       dc.is_group, dc.name, dc.avatar_url, dc.created_by_user_id, dc.owner_user_id,
 		       u.id as other_user_id, u.username as other_username,
 		       COALESCE(u.avatar_url, '') as other_avatar_url,
-		       COALESCE(u.display_name, '') as other_display_name
+		       COALESCE(u.display_name, '') as other_display_name,
+		       COALESCE(lm.last_at, dc.created_at) AS last_activity_at
 		FROM dm_channels dc
 		JOIN users u ON u.id = CASE WHEN dc.user1_id = $1 THEN dc.user2_id ELSE dc.user1_id END
+		LEFT JOIN (
+		    SELECT dm_channel_id, MAX(created_at) AS last_at
+		    FROM dm_messages
+		    GROUP BY dm_channel_id
+		) lm ON lm.dm_channel_id = dc.id
 		WHERE dc.is_group = FALSE AND (dc.user1_id = $1 OR dc.user2_id = $1)
-		ORDER BY dc.created_at DESC
 	`
 	oneToOneRows, err := r.db.QueryContext(ctx, oneToOneQuery, userID)
 	if err != nil {
@@ -86,43 +103,45 @@ func (r *Repository) GetUserDmChannels(ctx context.Context, userID int64) ([]DmC
 	}
 	defer oneToOneRows.Close()
 
-	var channels []DmChannel
 	for oneToOneRows.Next() {
-		var channel DmChannel
+		var entry rowWithActivity
 		err := oneToOneRows.Scan(
-			&channel.ID,
-			&channel.User1ID,
-			&channel.User2ID,
-			&channel.CreatedAt,
-			&channel.IsGroup,
-			&channel.Name,
-			&channel.AvatarURL,
-			&channel.CreatedByUserID,
-			&channel.OwnerUserID,
-			&channel.OtherUserID,
-			&channel.OtherUsername,
-			&channel.OtherAvatarURL,
-			&channel.OtherDisplayName,
+			&entry.ch.ID,
+			&entry.ch.User1ID,
+			&entry.ch.User2ID,
+			&entry.ch.CreatedAt,
+			&entry.ch.IsGroup,
+			&entry.ch.Name,
+			&entry.ch.AvatarURL,
+			&entry.ch.CreatedByUserID,
+			&entry.ch.OwnerUserID,
+			&entry.ch.OtherUserID,
+			&entry.ch.OtherUsername,
+			&entry.ch.OtherAvatarURL,
+			&entry.ch.OtherDisplayName,
+			&entry.lastAt,
 		)
 		if err != nil {
 			return nil, err
 		}
-		channels = append(channels, channel)
+		rows = append(rows, entry)
 	}
 	if err := oneToOneRows.Err(); err != nil {
 		return nil, err
 	}
 
-	// Group channels: matched via dm_channel_members. Other-* fields are
-	// left empty; the frontend branches on is_group and uses members[]
-	// for header rendering.
 	groupQuery := `
 		SELECT dc.id, COALESCE(dc.user1_id, 0), COALESCE(dc.user2_id, 0), dc.created_at,
-		       dc.is_group, dc.name, dc.avatar_url, dc.created_by_user_id, dc.owner_user_id
+		       dc.is_group, dc.name, dc.avatar_url, dc.created_by_user_id, dc.owner_user_id,
+		       COALESCE(lm.last_at, dc.created_at) AS last_activity_at
 		FROM dm_channels dc
 		JOIN dm_channel_members m ON m.dm_channel_id = dc.id
+		LEFT JOIN (
+		    SELECT dm_channel_id, MAX(created_at) AS last_at
+		    FROM dm_messages
+		    GROUP BY dm_channel_id
+		) lm ON lm.dm_channel_id = dc.id
 		WHERE dc.is_group = TRUE AND m.user_id = $1
-		ORDER BY dc.created_at DESC
 	`
 	groupRows, err := r.db.QueryContext(ctx, groupQuery, userID)
 	if err != nil {
@@ -131,31 +150,40 @@ func (r *Repository) GetUserDmChannels(ctx context.Context, userID int64) ([]DmC
 	defer groupRows.Close()
 
 	for groupRows.Next() {
-		var channel DmChannel
+		var entry rowWithActivity
 		err := groupRows.Scan(
-			&channel.ID,
-			&channel.User1ID,
-			&channel.User2ID,
-			&channel.CreatedAt,
-			&channel.IsGroup,
-			&channel.Name,
-			&channel.AvatarURL,
-			&channel.CreatedByUserID,
-			&channel.OwnerUserID,
+			&entry.ch.ID,
+			&entry.ch.User1ID,
+			&entry.ch.User2ID,
+			&entry.ch.CreatedAt,
+			&entry.ch.IsGroup,
+			&entry.ch.Name,
+			&entry.ch.AvatarURL,
+			&entry.ch.CreatedByUserID,
+			&entry.ch.OwnerUserID,
+			&entry.lastAt,
 		)
 		if err != nil {
 			return nil, err
 		}
-		members, merr := r.GetDmMembers(ctx, channel.ID)
+		members, merr := r.GetDmMembers(ctx, entry.ch.ID)
 		if merr == nil {
-			channel.Members = members
+			entry.ch.Members = members
 		}
-		channels = append(channels, channel)
+		rows = append(rows, entry)
 	}
 	if err := groupRows.Err(); err != nil {
 		return nil, err
 	}
 
+	sort.Slice(rows, func(i, j int) bool {
+		return rows[i].lastAt.After(rows[j].lastAt)
+	})
+
+	channels := make([]DmChannel, len(rows))
+	for i, r := range rows {
+		channels[i] = r.ch
+	}
 	return channels, nil
 }
 

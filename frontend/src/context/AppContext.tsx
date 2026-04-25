@@ -564,6 +564,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return [...prev, msg];
       });
     }
+    // Bump the channel to the top of the DM list. The backend orders by
+    // last-activity on initial fetch; this keeps that ordering live as
+    // new messages stream in (sent or received).
+    setDmChannels(prev => {
+      const idx = prev.findIndex(c => String(c.id) === String(msg.dm_channel_id));
+      if (idx <= 0) return prev; // already at top, or not in our list
+      const next = prev.slice();
+      const [bumped] = next.splice(idx, 1);
+      return [bumped, ...next];
+    });
   }, []);
 
   const logout = useCallback(() => {
