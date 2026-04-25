@@ -4,8 +4,49 @@ import {
   requestNotificationPermission,
   sendDesktopNotification,
 } from '../lib/tauri';
+import type { ChannelKind, NotificationSetting } from '../api/types';
 
 const SOUND_URL = 'https://raw.githubusercontent.com/exec/parley/main/assets/audio/ping.mp3';
+
+// In-memory per-(kind, channelId) cache of notification settings. Populated by
+// a top-level listener on the parley:channel_notification CustomEvent (which
+// App.tsx dispatches from the WS update event). Defaults to ALL when missing.
+const notificationSettingCache = new Map<string, NotificationSetting>();
+
+function cacheKey(kind: ChannelKind, channelId: string): string {
+  return `${kind}:${channelId}`;
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('parley:channel_notification', (e: Event) => {
+    const detail = (e as CustomEvent<{channel_kind: ChannelKind; channel_id: string; notification_setting: 0 | 1 | 2}>).detail;
+    const map: Record<0 | 1 | 2, NotificationSetting> = { 0: 'ALL', 1: 'MENTIONS_ONLY', 2: 'MUTED' };
+    notificationSettingCache.set(cacheKey(detail.channel_kind, detail.channel_id), map[detail.notification_setting]);
+  });
+}
+
+export function getNotificationSettingForChannel(kind: ChannelKind, channelId: string): NotificationSetting {
+  return notificationSettingCache.get(cacheKey(kind, channelId)) ?? 'ALL';
+}
+
+interface NotifyContext {
+  channelKind: ChannelKind;
+  channelId: string;
+  authorId: string;
+  mentions: string[];   // user ids @mentioned in the message
+  currentUserId: string;
+}
+
+// shouldNotify decides whether a per-channel notification should fire client-side.
+// Backend always fans out the message; this gate only suppresses toasts/sounds.
+// Self-authored messages never notify; muted channels never notify; mentions-only
+// channels notify only when the current user is in the mentions list.
+export function shouldNotify(ctx: NotifyContext, setting: NotificationSetting): boolean {
+  if (setting === 'MUTED') return false;
+  if (ctx.authorId === ctx.currentUserId) return false;
+  if (setting === 'MENTIONS_ONLY') return ctx.mentions.includes(ctx.currentUserId);
+  return true;
+}
 
 export function useNotifications() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -99,8 +140,26 @@ export function useNotifications() {
     // foreground — otherwise we still fire so a minimized/backgrounded user
     // is alerted.
     forActiveChannel: boolean = false,
+    // Optional per-channel gate. When provided, applies the shouldNotify
+    // rules (mute / mentions-only / self-authored) before firing. Callers
+    // that don't pass this fall through to the legacy behavior and always
+    // ping (subject to forActiveChannel + foreground rules above).
+    notifyGate?: { kind: ChannelKind; channelId: string; authorId: string; mentions: string[]; currentUserId: string },
   ) => {
     if (forActiveChannel && inForegroundRef.current) return;
+
+    if (notifyGate) {
+      const setting = getNotificationSettingForChannel(notifyGate.kind, notifyGate.channelId);
+      if (!shouldNotify({
+        channelKind: notifyGate.kind,
+        channelId: notifyGate.channelId,
+        authorId: notifyGate.authorId,
+        mentions: notifyGate.mentions,
+        currentUserId: notifyGate.currentUserId,
+      }, setting)) {
+        return;
+      }
+    }
 
     const audio = audioRef.current;
     if (audio) {
