@@ -907,6 +907,63 @@ UPDATE users SET invite_count = 1 WHERE is_system = FALSE AND is_bot = FALSE AND
 	// no-scopes (HasScope always false), which is the safe failure mode.
 	`ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS scopes TEXT[] NOT NULL DEFAULT '{}';
 UPDATE api_keys SET scopes = ARRAY['full']::TEXT[] WHERE scopes = '{}'::TEXT[];`,
+
+	// Migration #64: cross-cutting per-(user, channel) read-state and notification
+	// settings. Used by both server channels (channel_kind = 1) and DM channels
+	// (channel_kind = 2). Rows are written only when a user marks-read or changes
+	// notification setting; default state (no row) = NotificationAll, never-read.
+	`CREATE TABLE IF NOT EXISTS user_channel_state (
+    user_id              BIGINT      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    channel_kind         SMALLINT    NOT NULL CHECK (channel_kind IN (1, 2)),
+    channel_id           BIGINT      NOT NULL,
+    last_read_message_id BIGINT,
+    notification_setting SMALLINT    NOT NULL DEFAULT 0,
+    updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, channel_kind, channel_id)
+);
+CREATE INDEX IF NOT EXISTS user_channel_state_user_idx ON user_channel_state(user_id);`,
+
+	// Migration #65: generalize dm_channels for group DM support. Adds is_group
+	// (false = legacy 1:1, true = group), optional name/avatar_url, and
+	// created_by/owner_user_id for group ownership. Introduces dm_channel_members
+	// as the canonical membership table so server code can query members
+	// uniformly regardless of group-vs-1:1 — the backfill seeds it from the
+	// existing user1_id/user2_id columns (those columns stay for now to keep
+	// the migration safe; later cleanup can drop them once all readers move to
+	// dm_channel_members). Also adds dm_messages.system_event JSONB to carry
+	// structured payloads for member-added / name-changed / etc. system
+	// messages in group DMs (NULL for normal messages).
+	`ALTER TABLE dm_channels
+    ADD COLUMN IF NOT EXISTS is_group           BOOLEAN     NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS name               TEXT,
+    ADD COLUMN IF NOT EXISTS avatar_url         TEXT,
+    ADD COLUMN IF NOT EXISTS created_by_user_id BIGINT      REFERENCES users(id),
+    ADD COLUMN IF NOT EXISTS owner_user_id      BIGINT      REFERENCES users(id);
+
+CREATE TABLE IF NOT EXISTS dm_channel_members (
+    dm_channel_id BIGINT      NOT NULL REFERENCES dm_channels(id) ON DELETE CASCADE,
+    user_id       BIGINT      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    joined_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (dm_channel_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS dm_channel_members_user_idx ON dm_channel_members(user_id);
+
+INSERT INTO dm_channel_members (dm_channel_id, user_id, joined_at)
+SELECT id, user1_id, created_at FROM dm_channels
+UNION ALL
+SELECT id, user2_id, created_at FROM dm_channels
+ON CONFLICT DO NOTHING;
+
+ALTER TABLE dm_messages ADD COLUMN IF NOT EXISTS system_event JSONB;`,
+
+	// Migration #66: drop NOT NULL on dm_channels.user1_id/user2_id so group
+	// channels (where there's no canonical "two parties") can leave them
+	// NULL rather than carry placeholder values. The 1:1 paths still set
+	// both columns; the unique (user1_id, user2_id) constraint continues to
+	// prevent duplicate 1:1 pairs because Postgres treats NULLs as distinct
+	// in unique indexes — multiple (NULL, NULL) rows for groups are fine.
+	`ALTER TABLE dm_channels ALTER COLUMN user1_id DROP NOT NULL;
+ALTER TABLE dm_channels ALTER COLUMN user2_id DROP NOT NULL;`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

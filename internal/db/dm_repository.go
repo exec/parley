@@ -21,8 +21,8 @@ func (r *Repository) GetOrCreateDmChannel(ctx context.Context, userAID, userBID 
 	}
 
 	insertQuery := `
-		INSERT INTO dm_channels (user1_id, user2_id, created_at)
-		VALUES ($1, $2, NOW())
+		INSERT INTO dm_channels (user1_id, user2_id, is_group, created_at)
+		VALUES ($1, $2, FALSE, NOW())
 		ON CONFLICT DO NOTHING
 	`
 	_, err := r.db.ExecContext(ctx, insertQuery, user1ID, user2ID)
@@ -31,9 +31,9 @@ func (r *Repository) GetOrCreateDmChannel(ctx context.Context, userAID, userBID 
 	}
 
 	query := `
-		SELECT id, user1_id, user2_id, created_at
+		SELECT id, COALESCE(user1_id, 0), COALESCE(user2_id, 0), created_at
 		FROM dm_channels
-		WHERE user1_id = $1 AND user2_id = $2
+		WHERE user1_id = $1 AND user2_id = $2 AND is_group = FALSE
 	`
 	var channel DmChannel
 	err = r.db.QueryRowContext(ctx, query, user1ID, user2ID).Scan(
@@ -67,30 +67,38 @@ func (r *Repository) GetOrCreateDmChannel(ctx context.Context, userAID, userBID 
 }
 
 func (r *Repository) GetUserDmChannels(ctx context.Context, userID int64) ([]DmChannel, error) {
-	query := `
-		SELECT dc.id, dc.user1_id, dc.user2_id, dc.created_at,
-			   u.id as other_user_id, u.username as other_username, COALESCE(u.avatar_url, '') as other_avatar_url,
-			   COALESCE(u.display_name, '') as other_display_name
+	// 1:1 channels: matched by user1_id/user2_id columns. Other-user fields
+	// are populated via JOIN.
+	oneToOneQuery := `
+		SELECT dc.id, COALESCE(dc.user1_id, 0), COALESCE(dc.user2_id, 0), dc.created_at,
+		       dc.is_group, dc.name, dc.avatar_url, dc.created_by_user_id, dc.owner_user_id,
+		       u.id as other_user_id, u.username as other_username,
+		       COALESCE(u.avatar_url, '') as other_avatar_url,
+		       COALESCE(u.display_name, '') as other_display_name
 		FROM dm_channels dc
 		JOIN users u ON u.id = CASE WHEN dc.user1_id = $1 THEN dc.user2_id ELSE dc.user1_id END
-		WHERE dc.user1_id = $1 OR dc.user2_id = $1
+		WHERE dc.is_group = FALSE AND (dc.user1_id = $1 OR dc.user2_id = $1)
 		ORDER BY dc.created_at DESC
 	`
-
-	rows, err := r.db.QueryContext(ctx, query, userID)
+	oneToOneRows, err := r.db.QueryContext(ctx, oneToOneQuery, userID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer oneToOneRows.Close()
 
 	var channels []DmChannel
-	for rows.Next() {
+	for oneToOneRows.Next() {
 		var channel DmChannel
-		err := rows.Scan(
+		err := oneToOneRows.Scan(
 			&channel.ID,
 			&channel.User1ID,
 			&channel.User2ID,
 			&channel.CreatedAt,
+			&channel.IsGroup,
+			&channel.Name,
+			&channel.AvatarURL,
+			&channel.CreatedByUserID,
+			&channel.OwnerUserID,
 			&channel.OtherUserID,
 			&channel.OtherUsername,
 			&channel.OtherAvatarURL,
@@ -101,9 +109,53 @@ func (r *Repository) GetUserDmChannels(ctx context.Context, userID int64) ([]DmC
 		}
 		channels = append(channels, channel)
 	}
-	if err := rows.Err(); err != nil {
+	if err := oneToOneRows.Err(); err != nil {
 		return nil, err
 	}
+
+	// Group channels: matched via dm_channel_members. Other-* fields are
+	// left empty; the frontend branches on is_group and uses members[]
+	// for header rendering.
+	groupQuery := `
+		SELECT dc.id, COALESCE(dc.user1_id, 0), COALESCE(dc.user2_id, 0), dc.created_at,
+		       dc.is_group, dc.name, dc.avatar_url, dc.created_by_user_id, dc.owner_user_id
+		FROM dm_channels dc
+		JOIN dm_channel_members m ON m.dm_channel_id = dc.id
+		WHERE dc.is_group = TRUE AND m.user_id = $1
+		ORDER BY dc.created_at DESC
+	`
+	groupRows, err := r.db.QueryContext(ctx, groupQuery, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer groupRows.Close()
+
+	for groupRows.Next() {
+		var channel DmChannel
+		err := groupRows.Scan(
+			&channel.ID,
+			&channel.User1ID,
+			&channel.User2ID,
+			&channel.CreatedAt,
+			&channel.IsGroup,
+			&channel.Name,
+			&channel.AvatarURL,
+			&channel.CreatedByUserID,
+			&channel.OwnerUserID,
+		)
+		if err != nil {
+			return nil, err
+		}
+		members, merr := r.GetDmMembers(ctx, channel.ID)
+		if merr == nil {
+			channel.Members = members
+		}
+		channels = append(channels, channel)
+	}
+	if err := groupRows.Err(); err != nil {
+		return nil, err
+	}
+
 	return channels, nil
 }
 
@@ -111,12 +163,14 @@ func (r *Repository) GetUserDmChannels(ctx context.Context, userID int64) ([]DmC
 // given viewer's perspective — same shape as GetUserDmChannels rows. Used to
 // broadcast the DM_CHANNEL_CREATE event with display info for the recipient.
 func (r *Repository) GetDmChannelForUser(ctx context.Context, dmChannelID, viewerID int64) (*DmChannel, error) {
+	// Only meaningful for 1:1 channels; group channels surface via the
+	// CreateChannel fan-out which already includes the full ch object.
 	query := `
-		SELECT dc.id, dc.user1_id, dc.user2_id, dc.created_at,
+		SELECT dc.id, COALESCE(dc.user1_id, 0), COALESCE(dc.user2_id, 0), dc.created_at,
 		       u.id, u.username, COALESCE(u.avatar_url, ''), COALESCE(u.display_name, '')
 		FROM dm_channels dc
 		JOIN users u ON u.id = CASE WHEN dc.user1_id = $2 THEN dc.user2_id ELSE dc.user1_id END
-		WHERE dc.id = $1
+		WHERE dc.id = $1 AND dc.is_group = FALSE
 	`
 	var channel DmChannel
 	err := r.db.QueryRowContext(ctx, query, dmChannelID, viewerID).Scan(
@@ -149,8 +203,14 @@ func (r *Repository) CountDmMessages(ctx context.Context, dmChannelID int64) (in
 }
 
 func (r *Repository) GetDmChannelByID(ctx context.Context, id int64) (*DmChannel, error) {
+	// Select all columns including the group-related fields so the service
+	// layer can branch on is_group / owner_user_id without a second roundtrip.
+	// COALESCE on user1_id/user2_id maps NULL (group channels post-migration #66)
+	// to 0 — call sites that read these branch on IsGroup first, so the
+	// sentinel never leaks into business logic.
 	query := `
-		SELECT id, user1_id, user2_id, created_at
+		SELECT id, COALESCE(user1_id, 0), COALESCE(user2_id, 0), created_at,
+		       is_group, name, avatar_url, created_by_user_id, owner_user_id
 		FROM dm_channels
 		WHERE id = $1
 	`
@@ -161,6 +221,11 @@ func (r *Repository) GetDmChannelByID(ctx context.Context, id int64) (*DmChannel
 		&channel.User1ID,
 		&channel.User2ID,
 		&channel.CreatedAt,
+		&channel.IsGroup,
+		&channel.Name,
+		&channel.AvatarURL,
+		&channel.CreatedByUserID,
+		&channel.OwnerUserID,
 	)
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
@@ -238,7 +303,7 @@ func (r *Repository) GetDmMessages(ctx context.Context, dmChannelID int64, limit
 				SELECT m.id, m.dm_channel_id, m.author_id, m.content, m.parent_id,
 				       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
 				       m.created_at, m.updated_at, u.username, COALESCE(u.avatar_url, ''), COALESCE(u.display_name, ''),
-				       m.forwarded_data
+				       m.forwarded_data, m.system_event
 				FROM dm_messages m
 				JOIN users u ON u.id = m.author_id
 				WHERE m.dm_channel_id = $1 AND m.id < $3
@@ -254,7 +319,7 @@ func (r *Repository) GetDmMessages(ctx context.Context, dmChannelID int64, limit
 				SELECT m.id, m.dm_channel_id, m.author_id, m.content, m.parent_id,
 				       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''), COALESCE(m.attachment_type, ''),
 				       m.created_at, m.updated_at, u.username, COALESCE(u.avatar_url, ''), COALESCE(u.display_name, ''),
-				       m.forwarded_data
+				       m.forwarded_data, m.system_event
 				FROM dm_messages m
 				JOIN users u ON u.id = m.author_id
 				WHERE m.dm_channel_id = $1
@@ -274,6 +339,7 @@ func (r *Repository) GetDmMessages(ctx context.Context, dmChannelID int64, limit
 	for rows.Next() {
 		var msg DmMessage
 		var fwdJSON []byte
+		var sysJSON []byte
 		err := rows.Scan(
 			&msg.ID,
 			&msg.DmChannelID,
@@ -289,6 +355,7 @@ func (r *Repository) GetDmMessages(ctx context.Context, dmChannelID int64, limit
 			&msg.AuthorAvatarURL,
 			&msg.AuthorDisplayName,
 			&fwdJSON,
+			&sysJSON,
 		)
 		if err != nil {
 			return nil, err
@@ -298,6 +365,10 @@ func (r *Repository) GetDmMessages(ctx context.Context, dmChannelID int64, limit
 			if err := json.Unmarshal(fwdJSON, &fwd); err == nil {
 				msg.ForwardedMessage = &fwd
 			}
+		}
+		if len(sysJSON) > 0 {
+			raw := json.RawMessage(sysJSON)
+			msg.SystemEvent = &raw
 		}
 		messages = append(messages, msg)
 	}
@@ -474,4 +545,113 @@ func (r *Repository) SendSystemDM(ctx context.Context, systemUserID, recipientID
 		VALUES ($1, $2, $3, NOW(), NOW())
 	`, dmChannelID, systemUserID, content)
 	return err
+}
+
+// ============ Group DM Operations ============
+
+// CreateGroupChannel creates a new group DM channel with the given creator and member set.
+// Creator is also the owner. The legacy user1_id/user2_id columns are set to NULL for
+// group channels — readers should branch on is_group rather than relying on those.
+// Members are inserted in the same transaction as the channel.
+func (r *Repository) CreateGroupChannel(ctx context.Context, creatorUserID int64, name string, memberUserIDs []int64) (*DmChannel, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	var ch DmChannel
+	err = tx.QueryRowContext(ctx, `
+		INSERT INTO dm_channels (user1_id, user2_id, is_group, name, created_by_user_id, owner_user_id, created_at)
+		VALUES (NULL, NULL, TRUE, $1, $2, $2, NOW())
+		RETURNING id, is_group, name, created_by_user_id, owner_user_id, created_at
+	`, name, creatorUserID).Scan(&ch.ID, &ch.IsGroup, &ch.Name, &ch.CreatedByUserID, &ch.OwnerUserID, &ch.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, uid := range memberUserIDs {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO dm_channel_members (dm_channel_id, user_id, joined_at)
+			VALUES ($1, $2, NOW())
+			ON CONFLICT DO NOTHING
+		`, ch.ID, uid); err != nil {
+			return nil, err
+		}
+	}
+	return &ch, tx.Commit()
+}
+
+func (r *Repository) AddDmMember(ctx context.Context, channelID, userID int64) error {
+	_, err := r.db.ExecContext(ctx, `
+		INSERT INTO dm_channel_members (dm_channel_id, user_id, joined_at)
+		VALUES ($1, $2, NOW())
+		ON CONFLICT DO NOTHING
+	`, channelID, userID)
+	return err
+}
+
+func (r *Repository) RemoveDmMember(ctx context.Context, channelID, userID int64) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM dm_channel_members WHERE dm_channel_id = $1 AND user_id = $2`, channelID, userID)
+	return err
+}
+
+func (r *Repository) IsDmMember(ctx context.Context, channelID, userID int64) (bool, error) {
+	var n int
+	err := r.db.QueryRowContext(ctx, `SELECT 1 FROM dm_channel_members WHERE dm_channel_id = $1 AND user_id = $2`, channelID, userID).Scan(&n)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	return n == 1, err
+}
+
+func (r *Repository) GetDmMembers(ctx context.Context, channelID int64) ([]DmChannelMember, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT m.dm_channel_id, m.user_id, m.joined_at, u.username,
+		       COALESCE(u.display_name, u.username), COALESCE(u.avatar_url, '')
+		  FROM dm_channel_members m
+		  JOIN users u ON u.id = m.user_id
+		 WHERE m.dm_channel_id = $1
+		 ORDER BY m.joined_at
+	`, channelID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []DmChannelMember
+	for rows.Next() {
+		var m DmChannelMember
+		if err := rows.Scan(&m.DmChannelID, &m.UserID, &m.JoinedAt, &m.Username, &m.DisplayName, &m.AvatarURL); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+func (r *Repository) UpdateDmGroupName(ctx context.Context, channelID int64, name string) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE dm_channels SET name = $1 WHERE id = $2 AND is_group = TRUE`, name, channelID)
+	return err
+}
+
+func (r *Repository) UpdateDmGroupAvatar(ctx context.Context, channelID int64, avatarURL *string) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE dm_channels SET avatar_url = $1 WHERE id = $2 AND is_group = TRUE`, avatarURL, channelID)
+	return err
+}
+
+func (r *Repository) TransferDmGroupOwnership(ctx context.Context, channelID int64, newOwnerID *int64) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE dm_channels SET owner_user_id = $1 WHERE id = $2 AND is_group = TRUE`, newOwnerID, channelID)
+	return err
+}
+
+// InsertSystemMessage adds a synthetic dm_messages row carrying the given system event.
+// content is empty; system_event is the JSONB payload.
+func (r *Repository) InsertSystemMessage(ctx context.Context, channelID int64, actorUserID int64, eventJSON []byte) (*DmMessage, error) {
+	var m DmMessage
+	err := r.db.QueryRowContext(ctx, `
+		INSERT INTO dm_messages (dm_channel_id, author_id, content, system_event, created_at, updated_at)
+		VALUES ($1, $2, '', $3::jsonb, NOW(), NOW())
+		RETURNING id, dm_channel_id, author_id, content, system_event, created_at, updated_at
+	`, channelID, actorUserID, eventJSON).Scan(&m.ID, &m.DmChannelID, &m.AuthorID, &m.Content, &m.SystemEvent, &m.CreatedAt, &m.UpdatedAt)
+	return &m, err
 }

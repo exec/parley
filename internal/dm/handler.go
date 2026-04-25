@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -23,14 +24,15 @@ type DmNotifyFunc func(ctx context.Context, recipientID int64, authorUsername, a
 
 // Handler handles HTTP requests for DMs
 type Handler struct {
-	repo       *db.Repository
-	hub        *ws.Hub
-	dmNotify   DmNotifyFunc
+	repo     *db.Repository
+	hub      *ws.Hub
+	svc      *Service
+	dmNotify DmNotifyFunc
 }
 
 // NewHandler creates a new DM handler
 func NewHandler(repo *db.Repository, hub *ws.Hub) *Handler {
-	return &Handler{repo: repo, hub: hub}
+	return &Handler{repo: repo, hub: hub, svc: NewService(repo, hub)}
 }
 
 // SetDmNotify registers a function to call after a DM is sent.
@@ -38,9 +40,13 @@ func (h *Handler) SetDmNotify(fn DmNotifyFunc) {
 	h.dmNotify = fn
 }
 
-// OpenDmChannelRequest represents the request to open/start a DM
+// OpenDmChannelRequest represents the request to open/start a DM.
+// Supports both single (`user_id`) and multi (`user_ids`) shapes;
+// when len(user_ids) > 1 a group DM is created.
 type OpenDmChannelRequest struct {
-	UserID string `json:"user_id"`
+	UserID  string   `json:"user_id,omitempty"`
+	UserIDs []string `json:"user_ids,omitempty"`
+	Name    string   `json:"name,omitempty"`
 }
 
 // GetDmChannels handles GET /dms
@@ -91,24 +97,34 @@ func (h *Handler) OpenDmChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.UserID == "" {
-		httputil.JSONError(w, "user_id is required", http.StatusBadRequest)
+	var otherIDs []int64
+	if len(req.UserIDs) > 0 {
+		for _, s := range req.UserIDs {
+			id, perr := strconv.ParseInt(s, 10, 64)
+			if perr != nil {
+				httputil.JSONError(w, "invalid user_ids entry", http.StatusBadRequest)
+				return
+			}
+			otherIDs = append(otherIDs, id)
+		}
+	} else if req.UserID != "" {
+		id, perr := strconv.ParseInt(req.UserID, 10, 64)
+		if perr != nil {
+			httputil.JSONError(w, "invalid user_id", http.StatusBadRequest)
+			return
+		}
+		otherIDs = append(otherIDs, id)
+	} else {
+		httputil.JSONError(w, "user_id or user_ids is required", http.StatusBadRequest)
 		return
 	}
 
-	otherUserID, err := strconv.ParseInt(req.UserID, 10, 64)
+	channel, err := h.svc.CreateChannel(r.Context(), currentUserID, otherIDs, req.Name)
 	if err != nil {
-		httputil.JSONError(w, "invalid user_id", http.StatusBadRequest)
-		return
-	}
-
-	if currentUserID == otherUserID {
-		httputil.JSONError(w, "cannot DM yourself", http.StatusBadRequest)
-		return
-	}
-
-	channel, err := h.repo.GetOrCreateDmChannel(r.Context(), currentUserID, otherUserID)
-	if err != nil {
+		if err.Error() == "must include at least one other user" {
+			httputil.JSONError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		httputil.InternalError(w, err)
 		return
 	}
@@ -144,13 +160,13 @@ func (h *Handler) GetDmMessages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify user is part of this DM channel
-	channel, err := h.repo.GetDmChannelByID(r.Context(), dmChannelID)
-	if err != nil {
+	if _, err := h.repo.GetDmChannelByID(r.Context(), dmChannelID); err != nil {
 		httputil.JSONError(w, "DM channel not found", http.StatusNotFound)
 		return
 	}
 
-	if channel.User1ID != userID && channel.User2ID != userID {
+	isMember, err := h.svc.IsMember(r.Context(), dmChannelID, userID)
+	if err != nil || !isMember {
 		httputil.JSONError(w, "not authorized to view this DM channel", http.StatusForbidden)
 		return
 	}
@@ -230,7 +246,8 @@ func (h *Handler) SendDmMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if channel.User1ID != currentUserID && channel.User2ID != currentUserID {
+	isMember, err := h.svc.IsMember(r.Context(), dmChannelID, currentUserID)
+	if err != nil || !isMember {
 		httputil.JSONError(w, "not authorized to send messages in this DM channel", http.StatusForbidden)
 		return
 	}
@@ -268,6 +285,12 @@ func (h *Handler) SendDmMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Implicit author read-marker for the DM channel — saves a client round-trip.
+	// Non-fatal: read-state is best-effort metadata, not a part of the send contract.
+	if err := h.repo.UpsertReadMarker(r.Context(), currentUserID, db.ChannelKindDM, dmChannelID, msg.ID); err != nil {
+		log.Printf("dm: failed to upsert author read marker: %v", err)
+	}
+
 	// Broadcast to all participants via the dm:{id} virtual channel.
 	if h.hub != nil {
 		msgJSON, err := json.Marshal(msg)
@@ -275,7 +298,7 @@ func (h *Handler) SendDmMessage(w http.ResponseWriter, r *http.Request) {
 			log.Printf("SendDmMessage: failed to marshal message for broadcast: %v", err)
 		} else {
 			virtualChannelID := "dm:" + strconv.FormatInt(dmChannelID, 10)
-			h.hub.BroadcastToChannel(virtualChannelID, "dm_message", msgJSON)
+			h.hub.BroadcastToChannel(virtualChannelID, ws.EventDmMessageCreate, msgJSON)
 		}
 	}
 
@@ -286,7 +309,9 @@ func (h *Handler) SendDmMessage(w http.ResponseWriter, r *http.Request) {
 	// a `created` flag through GetOrCreateDmChannel, because the channel is
 	// typically created earlier by POST /dms (open-without-sending) — the true
 	// "new surfacing" signal is the first inbound message, not channel creation.
-	if h.hub != nil {
+	if h.hub != nil && !channel.IsGroup {
+		// First-message surfacing for legacy 1:1 channels only — group DMs
+		// already get DM_CHANNEL_CREATE fan-out at creation time in service.CreateChannel.
 		count, cerr := h.repo.CountDmMessages(r.Context(), dmChannelID)
 		if cerr == nil && count == 1 {
 			recipientID := channel.User1ID
@@ -306,18 +331,36 @@ func (h *Handler) SendDmMessage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Notify the recipient asynchronously
+	// Notify recipients asynchronously. For 1:1 DMs notify the other user;
+	// for group DMs fan out to all members minus the author.
 	if h.dmNotify != nil {
-		recipientID := channel.User1ID
-		if channel.User1ID == currentUserID {
-			recipientID = channel.User2ID
-		}
 		var senderUsername, senderAvatarURL string
 		h.repo.DB().QueryRowContext(r.Context(),
 			"SELECT username, COALESCE(avatar_url,'') FROM users WHERE id=$1", currentUserID,
 		).Scan(&senderUsername, &senderAvatarURL)
 		notifyFn := h.dmNotify
-		go notifyFn(context.Background(), recipientID, senderUsername, senderAvatarURL, dmChannelID)
+
+		if channel.IsGroup {
+			// Fan out to every member except the author.
+			members, merr := h.repo.GetDmMembers(r.Context(), dmChannelID)
+			if merr != nil {
+				log.Printf("SendDmMessage: failed to load group members for notify fan-out: %v", merr)
+			} else {
+				for _, m := range members {
+					if m.UserID == currentUserID {
+						continue
+					}
+					recipientID := m.UserID
+					go notifyFn(context.Background(), recipientID, senderUsername, senderAvatarURL, dmChannelID)
+				}
+			}
+		} else {
+			recipientID := channel.User1ID
+			if channel.User1ID == currentUserID {
+				recipientID = channel.User2ID
+			}
+			go notifyFn(context.Background(), recipientID, senderUsername, senderAvatarURL, dmChannelID)
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -358,12 +401,12 @@ func (h *Handler) ForwardToDm(w http.ResponseWriter, r *http.Request) {
 		httputil.JSONError(w, "invalid DM channel ID", http.StatusBadRequest)
 		return
 	}
-	channel, err := h.repo.GetDmChannelByID(r.Context(), dmChannelID)
-	if err != nil {
+	if _, err := h.repo.GetDmChannelByID(r.Context(), dmChannelID); err != nil {
 		httputil.JSONError(w, "DM channel not found", http.StatusNotFound)
 		return
 	}
-	if channel.User1ID != currentUserID && channel.User2ID != currentUserID {
+	isMember, err := h.svc.IsMember(r.Context(), dmChannelID, currentUserID)
+	if err != nil || !isMember {
 		httputil.JSONError(w, "not authorized", http.StatusForbidden)
 		return
 	}
@@ -401,7 +444,7 @@ func (h *Handler) ForwardToDm(w http.ResponseWriter, r *http.Request) {
 	if h.hub != nil {
 		msgJSON, _ := json.Marshal(msg)
 		virtualChannelID := "dm:" + strconv.FormatInt(dmChannelID, 10)
-		h.hub.BroadcastToChannel(virtualChannelID, "dm_message", msgJSON)
+		h.hub.BroadcastToChannel(virtualChannelID, ws.EventDmMessageCreate, msgJSON)
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -431,12 +474,12 @@ func (h *Handler) DeleteDmMessage(w http.ResponseWriter, r *http.Request) {
 		httputil.JSONError(w, "invalid DM channel id", http.StatusBadRequest)
 		return
 	}
-	channel, err := h.repo.GetDmChannelByID(r.Context(), dmChannelID)
-	if err != nil {
+	if _, err := h.repo.GetDmChannelByID(r.Context(), dmChannelID); err != nil {
 		httputil.JSONError(w, "DM channel not found", http.StatusNotFound)
 		return
 	}
-	if channel.User1ID != currentUserID && channel.User2ID != currentUserID {
+	isMember, err := h.svc.IsMember(r.Context(), dmChannelID, currentUserID)
+	if err != nil || !isMember {
 		httputil.JSONError(w, "forbidden", http.StatusForbidden)
 		return
 	}
@@ -454,7 +497,7 @@ func (h *Handler) DeleteDmMessage(w http.ResponseWriter, r *http.Request) {
 			"message_id":    strconv.FormatInt(messageID, 10),
 			"dm_channel_id": strconv.FormatInt(dmChannelID, 10),
 		})
-		h.hub.BroadcastToChannel("dm:"+strconv.FormatInt(dmChannelID, 10), "dm_message_delete", payload)
+		h.hub.BroadcastToChannel("dm:"+strconv.FormatInt(dmChannelID, 10), ws.EventDmMessageDelete, payload)
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -482,12 +525,12 @@ func (h *Handler) ToggleDmReaction(w http.ResponseWriter, r *http.Request) {
 		httputil.JSONError(w, "invalid DM channel id", http.StatusBadRequest)
 		return
 	}
-	channel, err := h.repo.GetDmChannelByID(r.Context(), dmChannelID)
-	if err != nil {
+	if _, err := h.repo.GetDmChannelByID(r.Context(), dmChannelID); err != nil {
 		httputil.JSONError(w, "DM channel not found", http.StatusNotFound)
 		return
 	}
-	if channel.User1ID != currentUserID && channel.User2ID != currentUserID {
+	isMember, err := h.svc.IsMember(r.Context(), dmChannelID, currentUserID)
+	if err != nil || !isMember {
 		httputil.JSONError(w, "forbidden", http.StatusForbidden)
 		return
 	}
@@ -505,9 +548,9 @@ func (h *Handler) ToggleDmReaction(w http.ResponseWriter, r *http.Request) {
 	}
 	// Broadcast to both participants via dm virtual channel
 	if h.hub != nil {
-		eventType := "dm_reaction_remove"
+		eventType := ws.EventDmReactionRemove
 		if added {
-			eventType = "dm_reaction_add"
+			eventType = ws.EventDmReactionAdd
 		}
 		payload, _ := json.Marshal(map[string]string{
 			"message_id":    strconv.FormatInt(messageID, 10),
@@ -516,6 +559,227 @@ func (h *Handler) ToggleDmReaction(w http.ResponseWriter, r *http.Request) {
 			"emoji":         req.Emoji,
 		})
 		h.hub.BroadcastToChannel("dm:"+strconv.FormatInt(dmChannelID, 10), eventType, payload)
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// GetMembers handles GET /dms/{id}/members — returns the member roster.
+func (h *Handler) GetMembers(w http.ResponseWriter, r *http.Request) {
+	userIDStr := auth.GetUserIDFromContext(r)
+	userID, _ := strconv.ParseInt(userIDStr, 10, 64)
+	channelID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		httputil.JSONError(w, "invalid channel id", http.StatusBadRequest)
+		return
+	}
+	isMember, err := h.repo.IsDmMember(r.Context(), channelID, userID)
+	if err != nil || !isMember {
+		httputil.JSONError(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	members, err := h.repo.GetDmMembers(r.Context(), channelID)
+	if err != nil {
+		httputil.InternalError(w, err)
+		return
+	}
+	if members == nil {
+		members = []db.DmChannelMember{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(members)
+}
+
+// AddMembersRequest is the body for POST /dms/{id}/members.
+type AddMembersRequest struct {
+	UserIDs []string `json:"user_ids"`
+}
+
+// AddMembers handles POST /dms/{id}/members — add users to a group DM.
+func (h *Handler) AddMembers(w http.ResponseWriter, r *http.Request) {
+	userIDStr := auth.GetUserIDFromContext(r)
+	actorID, _ := strconv.ParseInt(userIDStr, 10, 64)
+	channelID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		httputil.JSONError(w, "invalid channel id", http.StatusBadRequest)
+		return
+	}
+
+	var req AddMembersRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	var newIDs []int64
+	for _, sid := range req.UserIDs {
+		n, perr := strconv.ParseInt(sid, 10, 64)
+		if perr != nil {
+			httputil.JSONError(w, "invalid user id", http.StatusBadRequest)
+			return
+		}
+		newIDs = append(newIDs, n)
+	}
+
+	if err := h.svc.AddMembers(r.Context(), channelID, actorID, newIDs); err != nil {
+		msg := err.Error()
+		if strings.Contains(msg, "not a member") || strings.Contains(msg, "not a group") || strings.Contains(msg, "capacity") {
+			httputil.JSONError(w, msg, http.StatusBadRequest)
+			return
+		}
+		httputil.InternalError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// LeaveRequest is the body for POST /dms/{id}/leave. Body is optional;
+// when transfer_to is provided and the actor is the owner, ownership is
+// passed to that user before leaving.
+type LeaveRequest struct {
+	TransferTo *string `json:"transfer_to,omitempty"`
+}
+
+// Leave handles POST /dms/{id}/leave.
+func (h *Handler) Leave(w http.ResponseWriter, r *http.Request) {
+	userIDStr := auth.GetUserIDFromContext(r)
+	actorID, _ := strconv.ParseInt(userIDStr, 10, 64)
+	channelID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		httputil.JSONError(w, "invalid channel id", http.StatusBadRequest)
+		return
+	}
+
+	var req LeaveRequest
+	_ = json.NewDecoder(r.Body).Decode(&req) // body optional
+
+	var transfer *int64
+	if req.TransferTo != nil && *req.TransferTo != "" {
+		n, perr := strconv.ParseInt(*req.TransferTo, 10, 64)
+		if perr != nil {
+			httputil.JSONError(w, "invalid transfer_to", http.StatusBadRequest)
+			return
+		}
+		transfer = &n
+	}
+
+	if err := h.svc.LeaveGroup(r.Context(), channelID, actorID, transfer); err != nil {
+		msg := err.Error()
+		if strings.Contains(msg, "not a") || strings.Contains(msg, "only owner") || strings.Contains(msg, "transfer target") || strings.Contains(msg, "transfer to yourself") {
+			httputil.JSONError(w, msg, http.StatusBadRequest)
+			return
+		}
+		httputil.InternalError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// RemoveMember handles DELETE /dms/{id}/members/{userID} — owner-only kick.
+func (h *Handler) RemoveMember(w http.ResponseWriter, r *http.Request) {
+	userIDStr := auth.GetUserIDFromContext(r)
+	actorID, _ := strconv.ParseInt(userIDStr, 10, 64)
+	channelID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		httputil.JSONError(w, "invalid channel id", http.StatusBadRequest)
+		return
+	}
+	targetID, err := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
+	if err != nil {
+		httputil.JSONError(w, "invalid user id", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.svc.KickMember(r.Context(), channelID, actorID, targetID); err != nil {
+		msg := err.Error()
+		if strings.Contains(msg, "not the owner") {
+			httputil.JSONError(w, msg, http.StatusForbidden)
+			return
+		}
+		if strings.Contains(msg, "yourself") || strings.Contains(msg, "not a member") || strings.Contains(msg, "not a group") {
+			httputil.JSONError(w, msg, http.StatusBadRequest)
+			return
+		}
+		httputil.InternalError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// UpdateGroupRequest is the body for PATCH /dms/{id}.
+type UpdateGroupRequest struct {
+	Name        *string `json:"name,omitempty"`
+	AvatarURL   *string `json:"avatar_url,omitempty"`
+	ClearAvatar bool    `json:"clear_avatar,omitempty"`
+}
+
+// UpdateGroup handles PATCH /dms/{id} — rename and/or update avatar.
+func (h *Handler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
+	userIDStr := auth.GetUserIDFromContext(r)
+	actorID, _ := strconv.ParseInt(userIDStr, 10, 64)
+	channelID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		httputil.JSONError(w, "invalid channel id", http.StatusBadRequest)
+		return
+	}
+
+	var req UpdateGroupRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Name != nil {
+		if err := h.svc.UpdateGroupName(r.Context(), channelID, actorID, *req.Name); err != nil {
+			httputil.JSONError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+	if req.AvatarURL != nil || req.ClearAvatar {
+		var avatar *string
+		if !req.ClearAvatar {
+			avatar = req.AvatarURL
+		}
+		if err := h.svc.UpdateGroupAvatar(r.Context(), channelID, actorID, avatar); err != nil {
+			httputil.JSONError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// TransferOwnershipRequest is the body for POST /dms/{id}/transfer-ownership.
+type TransferOwnershipRequest struct {
+	NewOwnerID string `json:"new_owner_id"`
+}
+
+// TransferOwnership handles POST /dms/{id}/transfer-ownership.
+func (h *Handler) TransferOwnership(w http.ResponseWriter, r *http.Request) {
+	userIDStr := auth.GetUserIDFromContext(r)
+	actorID, _ := strconv.ParseInt(userIDStr, 10, 64)
+	channelID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		httputil.JSONError(w, "invalid channel id", http.StatusBadRequest)
+		return
+	}
+
+	var req TransferOwnershipRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	newOwnerID, err := strconv.ParseInt(req.NewOwnerID, 10, 64)
+	if err != nil {
+		httputil.JSONError(w, "invalid new_owner_id", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.svc.TransferOwnership(r.Context(), channelID, actorID, newOwnerID); err != nil {
+		msg := err.Error()
+		if strings.Contains(msg, "not the owner") {
+			httputil.JSONError(w, msg, http.StatusForbidden)
+			return
+		}
+		httputil.JSONError(w, msg, http.StatusBadRequest)
+		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

@@ -297,6 +297,14 @@ func registerRoutes(
 			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Patch("/notifications/read-all", notifHandler.MarkAllRead)
 			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Patch("/notifications/{id}/read", notifHandler.MarkRead)
 
+			// Read-state + notification setting routes — per-user account state.
+			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Post("/channels/{channelID}/read", handleMarkChannelRead(repo, hub))
+			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Post("/dms/{channelID}/read", handleMarkDmRead(repo, hub))
+			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Patch("/channels/{channelID}/notifications", handleSetChannelNotifications(repo, hub))
+			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Patch("/dms/{channelID}/notifications", handleSetDmNotifications(repo, hub))
+			// Bulk read-state hydration on app mount.
+			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/me/channel-state", handleGetMyChannelState(repo))
+
 			// DM routes — scoped under messages:read (channel list + history)
 			// and messages:write (open/send/delete/react/forward).
 			dmHandler := dm.NewHandler(repo, hub)
@@ -308,6 +316,12 @@ func registerRoutes(
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Delete("/dms/{id}/messages/{messageId}", dmHandler.DeleteDmMessage)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/messages/{messageId}/reactions", dmHandler.ToggleDmReaction)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite), userRateLimitMiddleware(msgWriteLimiter), ownerRateLimitMiddleware(msgWriteOwnerLimiter)).Post("/dms/{id}/forward", dmHandler.ForwardToDm)
+			r.With(auth.RequireScope(auth.ScopeMessagesRead)).Get("/dms/{id}/members", dmHandler.GetMembers)
+			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/members", dmHandler.AddMembers)
+			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/leave", dmHandler.Leave)
+			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Delete("/dms/{id}/members/{userID}", dmHandler.RemoveMember)
+			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Patch("/dms/{id}", dmHandler.UpdateGroup)
+			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/transfer-ownership", dmHandler.TransferOwnership)
 
 			// Friend routes — profile-level state (the bot's friends list);
 			// scoped on profile:write for all mutations, servers:read for reads.

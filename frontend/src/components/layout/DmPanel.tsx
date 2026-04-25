@@ -1,6 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare } from 'lucide-react';
-import { DmChannel, User } from '../../api/types';
+import { createPortal } from 'react-dom';
+import { MessageSquare, BellOff, Plus } from 'lucide-react';
+import { DmChannel, User, CHANNEL_KIND_DM } from '../../api/types';
+import { useChannelState } from '../../context/ChannelStateContext';
+import * as readStateApi from '../../api/readState';
+import { MosaicAvatar } from '../dm/MosaicAvatar';
 import './DmPanel.css';
 import { ThemePopover } from '../theme/ThemePopover';
 
@@ -52,6 +56,7 @@ interface DmPanelProps {
   dmUnreadCounts?: Record<string, number>;
   onlineUserIds?: Set<string>;
   onMarkDmRead?: (dmChannelId: string) => void;
+  onCreateGroup?: () => void;
 }
 
 const DmPanel: React.FC<DmPanelProps> = ({
@@ -65,7 +70,9 @@ const DmPanel: React.FC<DmPanelProps> = ({
   dmUnreadCounts = {},
   onlineUserIds,
   onMarkDmRead,
+  onCreateGroup,
 }) => {
+  const channelState = useChannelState();
   const [contextMenu, setContextMenu] = useState<{ top: number; left: number } | null>(null);
   const [dmContextMenu, setDmContextMenu] = useState<{ top: number; left: number; channelId: string } | null>(null);
   const userAreaRef = useRef<HTMLDivElement>(null);
@@ -92,6 +99,15 @@ const DmPanel: React.FC<DmPanelProps> = ({
     <div className="dm-panel">
       <div className="dm-panel-header">
         <span className="dm-panel-title">Direct Messages</span>
+        <button
+          type="button"
+          className="dm-panel-new-group-btn"
+          onClick={() => onCreateGroup?.()}
+          title="New Group DM"
+          aria-label="Create new group DM"
+        >
+          <Plus size={16} />
+        </button>
       </div>
 
       <div className="dm-panel-list">
@@ -105,7 +121,8 @@ const DmPanel: React.FC<DmPanelProps> = ({
           dmChannels.map(channel => {
             const unread = dmUnreadCounts[channel.id] ?? 0;
             const isActive = channel.id === activeDmChannelId;
-            const isOtherOnline = onlineUserIds?.has(channel.other_user_id) ?? false;
+            const isOtherOnline = onlineUserIds?.has(channel.other_user_id ?? '') ?? false;
+            const isMuted = channelState.getNotificationSetting(CHANNEL_KIND_DM, channel.id) === 'MUTED';
             return (
               <div
                 key={channel.id}
@@ -114,14 +131,31 @@ const DmPanel: React.FC<DmPanelProps> = ({
                 onContextMenu={(e) => handleDmContextMenu(e, channel.id)}
               >
                 <div className="dm-panel-avatar-wrap">
-                  <div className="dm-panel-avatar">
-                    {channel.other_avatar_url
-                      ? <img src={channel.other_avatar_url} alt={channel.other_username} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-                      : channel.other_username.charAt(0).toUpperCase()}
-                  </div>
-                  <span className={`dm-panel-status-dot ${isOtherOnline ? 'online' : 'offline'}`} />
+                  {channel.is_group ? (
+                    <MosaicAvatar
+                      tiles={(channel.members ?? []).slice(0, 4).map(m => ({
+                        avatarUrl: m.avatar_url,
+                        displayName: m.display_name || m.username || '?',
+                      }))}
+                      size={32}
+                    />
+                  ) : (
+                    <div className="dm-panel-avatar">
+                      {channel.other_avatar_url
+                        ? <img src={channel.other_avatar_url} alt={channel.other_username ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                        : (channel.other_username ?? '?').charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  {!channel.is_group && (
+                    <span className={`dm-panel-status-dot ${isOtherOnline ? 'online' : 'offline'}`} />
+                  )}
                 </div>
-                <span className="dm-panel-name">{channel.other_display_name || channel.other_username}</span>
+                <span className="dm-panel-name">
+                  {channel.is_group
+                    ? (channel.name ?? '(unnamed group)')
+                    : (channel.other_display_name || channel.other_username)}
+                </span>
+                {isMuted && <BellOff size={14} className="dm-row-muted" />}
                 {unread > 0 && !isActive && (
                   <span
                     className="dm-unread-badge"
@@ -164,20 +198,43 @@ const DmPanel: React.FC<DmPanelProps> = ({
         </div>
       </div>
 
-      {dmContextMenu && (
-        <div
-          className="dm-item-context-menu"
-          style={{ position: 'fixed', top: dmContextMenu.top, left: dmContextMenu.left, zIndex: 9999 }}
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          <button
-            className="dm-item-context-option"
-            onClick={() => { onMarkDmRead?.(dmContextMenu.channelId); setDmContextMenu(null); }}
+      {dmContextMenu && (() => {
+        const dmSetting = channelState.getNotificationSetting(CHANNEL_KIND_DM, dmContextMenu.channelId);
+        const setNotif = (s: 'ALL' | 'MENTIONS_ONLY' | 'MUTED') => {
+          readStateApi.setNotificationSetting(CHANNEL_KIND_DM, dmContextMenu.channelId, s);
+          channelState.setNotificationSettingLocal(CHANNEL_KIND_DM, dmContextMenu.channelId, s);
+          setDmContextMenu(null);
+        };
+        // Portal to document.body so the menu escapes the .dm-panel
+        // backdrop-filter stacking context (otherwise z-index can't lift the
+        // menu above sibling DM rows).
+        return createPortal(
+          <div
+            className="dm-item-context-menu"
+            style={{ position: 'fixed', top: dmContextMenu.top, left: dmContextMenu.left, zIndex: 9999 }}
+            onMouseDown={(e) => e.stopPropagation()}
           >
-            Mark as Read
-          </button>
-        </div>
-      )}
+            <button
+              className="dm-item-context-option"
+              onClick={() => { onMarkDmRead?.(dmContextMenu.channelId); setDmContextMenu(null); }}
+            >
+              Mark as Read
+            </button>
+            <div className="dm-item-context-divider" />
+            <div className="dm-item-context-section-label">Notifications</div>
+            <button className="dm-item-context-option" onClick={() => setNotif('ALL')}>
+              All messages {dmSetting === 'ALL' ? '✓' : ''}
+            </button>
+            <button className="dm-item-context-option" onClick={() => setNotif('MENTIONS_ONLY')}>
+              @mentions only {dmSetting === 'MENTIONS_ONLY' ? '✓' : ''}
+            </button>
+            <button className="dm-item-context-option" onClick={() => setNotif('MUTED')}>
+              Muted {dmSetting === 'MUTED' ? '✓' : ''}
+            </button>
+          </div>,
+          document.body,
+        );
+      })()}
       {contextMenu && (
         <UserContextMenu
           position={contextMenu}

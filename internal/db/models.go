@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	"github.com/lib/pq"
@@ -192,14 +193,38 @@ type Message struct {
 // `Set<string>.has(channel.other_user_id)` for the online-status lookup,
 // which silently fails if the wire format is a number.
 type DmChannel struct {
-	ID            int64     `json:"id,string" db:"id"`
-	User1ID       int64     `json:"user1_id,string" db:"user1_id"`
-	User2ID       int64     `json:"user2_id,string" db:"user2_id"`
-	CreatedAt     time.Time `json:"created_at" db:"created_at"`
-	OtherUsername    string `json:"other_username" db:"-"`
+	ID              int64     `json:"id,string" db:"id"`
+	User1ID         int64     `json:"user1_id,string" db:"user1_id"`
+	User2ID         int64     `json:"user2_id,string" db:"user2_id"`
+	IsGroup         bool      `json:"is_group" db:"is_group"`
+	Name            *string   `json:"name,omitempty" db:"name"`
+	AvatarURL       *string   `json:"avatar_url,omitempty" db:"avatar_url"`
+	CreatedByUserID *int64    `json:"created_by_user_id,omitempty,string" db:"created_by_user_id"`
+	OwnerUserID     *int64    `json:"owner_user_id,omitempty,string" db:"owner_user_id"`
+	CreatedAt       time.Time `json:"created_at" db:"created_at"`
+
+	// Populated only when fetched with members (group DMs)
+	Members []DmChannelMember `json:"members,omitempty" db:"-"`
+
+	// Populated only for 1:1 DMs (!IsGroup)
+	OtherUsername    string `json:"other_username,omitempty" db:"-"`
 	OtherDisplayName string `json:"other_display_name,omitempty" db:"-"`
-	OtherUserID      int64  `json:"other_user_id,string" db:"-"`
+	OtherUserID      int64  `json:"other_user_id,omitempty,string" db:"-"`
 	OtherAvatarURL   string `json:"other_avatar_url,omitempty" db:"-"`
+}
+
+// DmChannelMember represents a member of a (group or 1:1) DM channel.
+// Populated by the join-table dm_channel_members. Username/DisplayName/
+// AvatarURL are populated when fetched via a JOIN with users; raw row
+// reads leave them empty.
+type DmChannelMember struct {
+	DmChannelID int64     `json:"dm_channel_id,string" db:"dm_channel_id"`
+	UserID      int64     `json:"user_id,string" db:"user_id"`
+	JoinedAt    time.Time `json:"joined_at" db:"joined_at"`
+
+	Username    string `json:"username,omitempty" db:"-"`
+	DisplayName string `json:"display_name,omitempty" db:"-"`
+	AvatarURL   string `json:"avatar_url,omitempty" db:"-"`
 }
 
 // DmMessage represents a direct message.
@@ -228,6 +253,7 @@ type DmMessage struct {
 	ParentAuthorDisplayName string         `json:"parent_author_display_name,omitempty" db:"-"`
 	Reactions               []ReactionGroup `json:"reactions" db:"-"`
 	ForwardedMessage        *ForwardedMessageData `json:"forwarded_message,omitempty"`
+	SystemEvent             *json.RawMessage `json:"system_event,omitempty" db:"system_event"`
 }
 
 // PublicUser represents public user profile info
@@ -393,4 +419,34 @@ type BinChannelTag struct {
 	ChannelID int64  `json:"channel_id" db:"channel_id"`
 	Name      string `json:"name" db:"name"`
 	Color     string `json:"color" db:"color"`
+}
+
+// ChannelKind discriminates the two channel families that share user_channel_state.
+type ChannelKind int16
+
+const (
+	ChannelKindServer ChannelKind = 1
+	ChannelKindDM     ChannelKind = 2
+)
+
+// NotificationSetting is the per-(user, channel) notification preference.
+type NotificationSetting int16
+
+const (
+	NotificationAll          NotificationSetting = 0 // default: every message notifies
+	NotificationMentionsOnly NotificationSetting = 1 // only @mentions notify
+	NotificationMuted        NotificationSetting = 2 // no notify; unread still increments
+)
+
+// UserChannelState is the per-(user, channel) read-marker + notification setting.
+// Rows exist only when the user has marked something read or changed setting from default.
+// Rows for a (user, channel_kind, channel_id) tuple are written by UpsertReadMarker
+// and UpsertNotificationSetting, both of which preserve the other column.
+type UserChannelState struct {
+	UserID              int64               `json:"user_id,string" db:"user_id"`
+	ChannelKind         ChannelKind         `json:"channel_kind" db:"channel_kind"`
+	ChannelID           int64               `json:"channel_id,string" db:"channel_id"`
+	LastReadMessageID   *int64              `json:"last_read_message_id,omitempty,string" db:"last_read_message_id"`
+	NotificationSetting NotificationSetting `json:"notification_setting" db:"notification_setting"`
+	UpdatedAt           time.Time           `json:"updated_at" db:"updated_at"`
 }

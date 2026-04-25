@@ -10,6 +10,7 @@ import { ResetPassword } from './pages/ResetPassword';
 import { AuthDesktop } from './pages/AuthDesktop';
 import { AppProvider, useApp } from './context/AppContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { ChannelStateProvider } from './context/ChannelStateContext';
 import { Landing } from './pages/Landing';
 import { SharedThemePage } from './pages/SharedThemePage';
 import { ThemeRepoPage } from './pages/ThemeRepoPage';
@@ -32,6 +33,8 @@ import FriendsView from './components/layout/FriendsView';
 import UserSidebar from './components/layout/UserSidebar';
 import MiniProfile from './components/layout/MiniProfile';
 import { ChatWindow } from './components/chat/ChatWindow';
+import { MosaicAvatar } from './components/dm/MosaicAvatar';
+import { CreateGroupModal } from './components/dm/CreateGroupModal';
 import { BinChannel } from './components/bin/BinChannel';
 import { PostView } from './components/bin/PostView';
 import { CreatePostModal } from './components/bin/CreatePostModal';
@@ -87,6 +90,7 @@ function MainApp() {
     applyDmReactionUpdate,
     receiveDmMessageDelete,
     receiveDmChannelCreate,
+    applyDmChannelUpdate,
     logout,
     dmChannels,
     activeDmChannel,
@@ -96,6 +100,7 @@ function MainApp() {
     selectDmChannel,
     sendDmMessage,
     openDmChannel,
+    loadDmChannels,
     updateCurrentUser,
     loadServers,
     hasMoreMessages,
@@ -139,6 +144,7 @@ function MainApp() {
 
   const [showCreateServer, setShowCreateServer] = useState(false);
   const [showCreateChannel, setShowCreateChannel] = useState(false);
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
   const [vcMiniProfile, setVcMiniProfile] = useState<{ member: ServerMember; position: { top: number; left: number } } | null>(null);
@@ -154,6 +160,18 @@ function MainApp() {
 
   // Forward message modal
   const [forwardMessage, setForwardMessage] = useState<Message | null>(null);
+
+  // Pending DM channel select (used after creating a group DM — refetch
+  // populates dmChannels asynchronously, then this effect picks up and selects).
+  const [pendingDmSelect, setPendingDmSelect] = useState<string | null>(null);
+  useEffect(() => {
+    if (!pendingDmSelect) return;
+    if (dmChannels.find(c => c.id === pendingDmSelect)) {
+      const id = pendingDmSelect;
+      setPendingDmSelect(null);
+      void selectDmChannel(id);
+    }
+  }, [pendingDmSelect, dmChannels, selectDmChannel]);
 
   const handleJumpToMessage = useCallback((channelId: string, messageId: string) => {
     if (activeChannel?.id === channelId) {
@@ -815,6 +833,22 @@ function MainApp() {
     extraChannelIds,
     onSoundboardPlay: handleSoundboardPlay,
     onNotification: receiveNotification,
+    onChannelReadStateUpdate: useCallback((data: { channel_kind: 1 | 2; channel_id: string; last_read_message_id: string }) => {
+      window.dispatchEvent(new CustomEvent('parley:channel_read_state', { detail: data }));
+    }, []),
+    onChannelNotificationUpdate: useCallback((data: { channel_kind: 1 | 2; channel_id: string; notification_setting: 0 | 1 | 2 }) => {
+      window.dispatchEvent(new CustomEvent('parley:channel_notification', { detail: data }));
+    }, []),
+    onDmMemberAdd: useCallback((data: { channel_id: string; user_id: string; added_by?: string }) => {
+      window.dispatchEvent(new CustomEvent('parley:dm_member_change', { detail: { channel_id: data.channel_id, action: 'add', user_id: data.user_id } }));
+    }, []),
+    onDmMemberRemove: useCallback((data: { channel_id: string; user_id: string; kicked_by?: string }) => {
+      window.dispatchEvent(new CustomEvent('parley:dm_member_change', { detail: { channel_id: data.channel_id, action: 'remove', user_id: data.user_id } }));
+    }, []),
+    onDmChannelUpdate: useCallback((data: { channel_id: string; name?: string; avatar_url?: string }) => {
+      applyDmChannelUpdate(data);
+      window.dispatchEvent(new CustomEvent('parley:dm_channel_update', { detail: data }));
+    }, [applyDmChannelUpdate]),
   });
 
   const handleSendTyping = useCallback(() => {
@@ -960,6 +994,7 @@ function MainApp() {
         setUnreadCounts(prev => { const next = { ...prev }; delete next[dmChannelId]; return next; });
         setMentionCounts(prev => { const next = new Set(prev); next.delete(dmChannelId); return next; });
       }}
+      onCreateGroup={() => setShowCreateGroup(true)}
     />
   );
 
@@ -1161,10 +1196,13 @@ function MainApp() {
       </div>
     );
   } else if (view === 'dm' && activeDmChannel) {
+    const isGroup = activeDmChannel.is_group;
     const dmChannel = {
       id: activeDmChannel.id,
       server_id: '',
-      name: activeDmChannel.other_display_name || activeDmChannel.other_username,
+      name: isGroup
+        ? (activeDmChannel.name ?? '(unnamed group)')
+        : (activeDmChannel.other_display_name || activeDmChannel.other_username || ''),
       type: 0,
       position: 0,
       created_at: activeDmChannel.created_at,
@@ -1187,38 +1225,69 @@ function MainApp() {
       parent_author_username: dm.parent_author_username,
       parent_author_display_name: dm.parent_author_display_name,
       reactions: dm.reactions ?? [],
+      system_event: dm.system_event,
     }));
-    const dmMembers = [
-      // Other participant — use what DmChannel provides
-      {
-        id: activeDmChannel.other_user_id,
-        server_id: '',
-        user_id: activeDmChannel.other_user_id,
-        username: activeDmChannel.other_username,
-        display_name: activeDmChannel.other_display_name,
-        avatar_url: activeDmChannel.other_avatar_url,
-        joined_at: '',
-      },
-      // Current user — full profile available
-      ...(currentUser ? [{
-        id: currentUser.id,
-        server_id: '',
-        user_id: currentUser.id,
-        username: currentUser.username,
-        display_name: currentUser.display_name,
-        avatar_url: currentUser.avatar_url,
-        banner_url: currentUser.banner_url,
-        bio: currentUser.bio,
-        badges: currentUser.badges,
-        joined_at: '',
-      }] : []),
-    ];
+    // For groups, use the full members list. For 1:1, fall back to the
+    // existing pair construction.
+    const dmMembers = isGroup
+      ? (activeDmChannel.members ?? []).map(m => ({
+          id: m.user_id,
+          server_id: '',
+          user_id: m.user_id,
+          username: m.username ?? '',
+          display_name: m.display_name,
+          avatar_url: m.avatar_url,
+          joined_at: m.joined_at,
+        }))
+      : [
+          {
+            id: activeDmChannel.other_user_id ?? '',
+            server_id: '',
+            user_id: activeDmChannel.other_user_id ?? '',
+            username: activeDmChannel.other_username ?? '',
+            display_name: activeDmChannel.other_display_name,
+            avatar_url: activeDmChannel.other_avatar_url,
+            joined_at: '',
+          },
+          ...(currentUser ? [{
+            id: currentUser.id,
+            server_id: '',
+            user_id: currentUser.id,
+            username: currentUser.username,
+            display_name: currentUser.display_name,
+            avatar_url: currentUser.avatar_url,
+            banner_url: currentUser.banner_url,
+            bio: currentUser.bio,
+            badges: currentUser.badges,
+            joined_at: '',
+          }] : []),
+        ];
+
+    const groupAvatarTiles = isGroup
+      ? (activeDmChannel.members ?? []).slice(0, 4).map(m => ({
+          avatarUrl: m.avatar_url,
+          displayName: m.display_name || m.username || '?',
+        }))
+      : [];
+
+    // userId → display name map for resolving <@id> mention tokens in DM
+    // messages. Server channels use App.tsx's global memberMap built from
+    // server members; DMs need their own map sourced from dmMembers (which
+    // covers both 1:1 partners and full group rosters). Without this,
+    // MarkdownRenderer falls back to "@unknown" for every mention.
+    const dmMemberMap = new Map(
+      dmMembers
+        .filter(m => m.user_id && m.username)
+        .map(m => [m.user_id, m.display_name || m.username] as [string, string])
+    );
+
     mainContent = (
       <ChatWindow
         channel={dmChannel}
         messages={dmAsMessages}
         currentUserId={currentUser?.id}
         members={dmMembers}
+        memberMap={dmMemberMap}
         onSendMessage={sendDmMessage}
         onDelete={handleDmDelete}
         onReact={handleDmReact}
@@ -1229,9 +1298,12 @@ function MainApp() {
         hasMore={hasMoreDmMessages}
         isLoading={isLoadingDms}
         onViewProfile={handleViewProfile}
-        headerPrefix="@"
-        headerAvatar={activeDmChannel.other_avatar_url}
-        isOnline={onlineUsers.has(activeDmChannel.other_user_id)}
+        headerPrefix={isGroup ? '' : '@'}
+        headerAvatar={isGroup ? undefined : activeDmChannel.other_avatar_url}
+        headerAvatarNode={isGroup ? <MosaicAvatar tiles={groupAvatarTiles} size={28} /> : undefined}
+        isGroupDm={isGroup}
+        groupOwnerId={activeDmChannel.owner_user_id ?? null}
+        isOnline={isGroup ? undefined : onlineUsers.has(activeDmChannel.other_user_id ?? '')}
         onlineUserIds={onlineUsers}
         hideRoles={true}
         onToggleChannelList={() => setShowChannelList(c => !c)}
@@ -1388,6 +1460,17 @@ function MainApp() {
         onClose={() => setShowCreateChannel(false)}
         onCreate={createChannel}
       />
+      <CreateGroupModal
+        isOpen={showCreateGroup}
+        onClose={() => setShowCreateGroup(false)}
+        onCreated={(channelId) => {
+          setShowCreateGroup(false);
+          // Refetch the DM list, then select the new channel once it appears.
+          // The WS DM_CHANNEL_CREATE event may also race in to populate it.
+          void loadDmChannels();
+          setPendingDmSelect(channelId);
+        }}
+      />
       <UserProfileModal
         isOpen={showProfile}
         onClose={() => setShowProfile(false)}
@@ -1514,9 +1597,11 @@ const ProtectedApp = (
   <ProtectedRoute>
     <ThemeProvider>
       <AppProvider>
-        <ErrorBoundary>
-          <MainApp />
-        </ErrorBoundary>
+        <ChannelStateProvider>
+          <ErrorBoundary>
+            <MainApp />
+          </ErrorBoundary>
+        </ChannelStateProvider>
       </AppProvider>
     </ThemeProvider>
   </ProtectedRoute>

@@ -45,3 +45,35 @@ export async function deleteDmMessage(dmChannelId: string, messageId: string): P
 export async function toggleDmReaction(dmChannelId: string, messageId: string, emoji: string): Promise<void> {
   return apiClient.post(`/dms/${dmChannelId}/messages/${messageId}/reactions`, { emoji });
 }
+
+export async function createGroupDm(userIds: string[], name?: string): Promise<DmChannel> {
+  return apiClient.post<DmChannel>('/dms', { user_ids: userIds, name });
+}
+
+export async function addDmMembers(dmChannelId: string, userIds: string[]): Promise<void> {
+  await apiClient.post(`/dms/${dmChannelId}/members`, { user_ids: userIds });
+}
+
+export async function kickDmMember(dmChannelId: string, userId: string): Promise<void> {
+  await apiClient.delete(`/dms/${dmChannelId}/members/${userId}`);
+}
+
+export async function leaveDm(dmChannelId: string, transferTo?: string): Promise<void> {
+  await apiClient.post(`/dms/${dmChannelId}/leave`, transferTo ? { transfer_to: transferTo } : {});
+}
+
+export async function renameDmGroup(dmChannelId: string, name: string): Promise<void> {
+  await apiClient.patch(`/dms/${dmChannelId}`, { name });
+}
+
+export async function setDmGroupAvatar(dmChannelId: string, avatarUrl: string): Promise<void> {
+  await apiClient.patch(`/dms/${dmChannelId}`, { avatar_url: avatarUrl });
+}
+
+export async function clearDmGroupAvatar(dmChannelId: string): Promise<void> {
+  await apiClient.patch(`/dms/${dmChannelId}`, { clear_avatar: true });
+}
+
+export async function transferDmOwnership(dmChannelId: string, userId: string): Promise<void> {
+  await apiClient.post(`/dms/${dmChannelId}/transfer-ownership`, { new_owner_id: userId });
+}

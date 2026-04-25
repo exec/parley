@@ -139,12 +139,17 @@ interface UseWebSocketOptions {
   onUserStatusUpdate?: (userId: string, statusType: string, statusText: string) => void;
   onSoundboardPlay?: (event: SoundboardPlayEvent) => void;
   onNotification?: (notif: AppNotification) => void;
+  onChannelReadStateUpdate?: (data: { channel_kind: 1 | 2; channel_id: string; last_read_message_id: string }) => void;
+  onChannelNotificationUpdate?: (data: { channel_kind: 1 | 2; channel_id: string; notification_setting: 0 | 1 | 2 }) => void;
+  onDmMemberAdd?: (data: { channel_id: string; user_id: string; added_by?: string }) => void;
+  onDmMemberRemove?: (data: { channel_id: string; user_id: string; kicked_by?: string }) => void;
+  onDmChannelUpdate?: (data: { channel_id: string; name?: string; avatar_url?: string }) => void;
   activeChannelId: string | null;
   extraChannelIds?: string[]; // Additional channels to subscribe to for notifications
   onConnect?: () => void; // Called on every successful (re)connect
 }
 
-export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onServerMemberLeave, onServerMemberKick, onServerMemberBan, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, onChannelCreate, onChannelUpdate, onChannelDelete, onServerUpdate, onServerDelete, onMemberRoleUpdate, onUserUpdate, onVoiceStateUpdate, onVoiceForceMute, onVoiceForceDisconnect, onBinPostCreate, onBinPostUpdate, onBinPostDelete, onChannelOverwriteUpdate, onRoleUpdate, onRoleDelete, onBotStatusUpdate, onDmMessageDelete, onDmChannelCreate, onDmReactionUpdate, onFriendRequest, onFriendAccept, onFriendRemove, onUserStatusUpdate, onSoundboardPlay, onNotification, onConnect, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
+export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onServerMemberLeave, onServerMemberKick, onServerMemberBan, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, onChannelCreate, onChannelUpdate, onChannelDelete, onServerUpdate, onServerDelete, onMemberRoleUpdate, onUserUpdate, onVoiceStateUpdate, onVoiceForceMute, onVoiceForceDisconnect, onBinPostCreate, onBinPostUpdate, onBinPostDelete, onChannelOverwriteUpdate, onRoleUpdate, onRoleDelete, onBotStatusUpdate, onDmMessageDelete, onDmChannelCreate, onDmReactionUpdate, onFriendRequest, onFriendAccept, onFriendRemove, onUserStatusUpdate, onSoundboardPlay, onNotification, onChannelReadStateUpdate, onChannelNotificationUpdate, onDmMemberAdd, onDmMemberRemove, onDmChannelUpdate, onConnect, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const subscribedChannelsRef = useRef<Set<string>>(new Set());
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -192,6 +197,11 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
   const onUserStatusUpdateRef = useLatest(onUserStatusUpdate);
   const onSoundboardPlayRef = useLatest(onSoundboardPlay);
   const onNotificationRef = useLatest(onNotification);
+  const onChannelReadStateUpdateRef = useLatest(onChannelReadStateUpdate);
+  const onChannelNotificationUpdateRef = useLatest(onChannelNotificationUpdate);
+  const onDmMemberAddRef = useLatest(onDmMemberAdd);
+  const onDmMemberRemoveRef = useLatest(onDmMemberRemove);
+  const onDmChannelUpdateRef = useLatest(onDmChannelUpdate);
   const onConnectRef = useLatest(onConnect);
 
   const sendTyping = useCallback((channelId: string, username: string) => {
@@ -427,6 +437,16 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
             const p = wsMsg.payload as DmChannelCreateEvent;
             if (p.channel) onDmChannelCreateRef.current(p);
           }
+        } else if (wsMsg.type === 'CHANNEL_READ_STATE_UPDATE' && onChannelReadStateUpdateRef.current) {
+          onChannelReadStateUpdateRef.current(wsMsg.payload as { channel_kind: 1 | 2; channel_id: string; last_read_message_id: string });
+        } else if (wsMsg.type === 'CHANNEL_NOTIFICATION_UPDATE' && onChannelNotificationUpdateRef.current) {
+          onChannelNotificationUpdateRef.current(wsMsg.payload as { channel_kind: 1 | 2; channel_id: string; notification_setting: 0 | 1 | 2 });
+        } else if (wsMsg.type === 'DM_MEMBER_ADD' && onDmMemberAddRef.current) {
+          onDmMemberAddRef.current(wsMsg.payload as { channel_id: string; user_id: string; added_by?: string });
+        } else if (wsMsg.type === 'DM_MEMBER_REMOVE' && onDmMemberRemoveRef.current) {
+          onDmMemberRemoveRef.current(wsMsg.payload as { channel_id: string; user_id: string; kicked_by?: string });
+        } else if (wsMsg.type === 'DM_CHANNEL_UPDATE' && onDmChannelUpdateRef.current) {
+          onDmChannelUpdateRef.current(wsMsg.payload as { channel_id: string; name?: string; avatar_url?: string });
         }
       } catch (err) {
         console.error('[WebSocket] Failed to parse message:', err);

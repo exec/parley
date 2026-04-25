@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useCallback, useMemo, useSta
 import { ChevronDown } from 'lucide-react';
 import { Message as MessageType } from '../../api/types';
 import { Message } from './Message';
+import { SystemMessage } from './SystemMessage';
 import './Chat.css';
 
 interface MessageListProps {
@@ -93,6 +94,14 @@ export const MessageList: React.FC<MessageListProps> = ({
   const [unreadCount, setUnreadCount] = useState(0);
   // Track the last message ID to detect new appended messages vs prepended history
   const prevLastMsgIdRef = useRef<string | undefined>(undefined);
+
+  const resolveUser = useCallback((userId: string): { displayName: string } => {
+    const fromMap = memberMap?.get(userId);
+    if (fromMap) return { displayName: fromMap };
+    const found = messages.find(m => m.author_id === userId);
+    if (found) return { displayName: found.author_display_name || found.author_username };
+    return { displayName: 'Someone' };
+  }, [memberMap, messages]);
 
   const handleScrollToMessage = useCallback((messageId: string) => {
     const el = document.getElementById(`message-${messageId}`);
@@ -312,36 +321,48 @@ export const MessageList: React.FC<MessageListProps> = ({
                 <span className="date-divider-text">{formatDateHeader(date)}</span>
                 <div className="date-divider-line" />
               </div>
-              {dateMessages.map((message, idx) => (
-                <Message
-                  key={message.id}
-                  message={message}
-                  currentUserId={currentUserId}
-                  isGrouped={groupedFlags[idx]}
-                  memberMap={memberMap}
-                  channelMap={channelMap}
-                  messages={allMessages}
-                  onEdit={onEdit}
-                  onDelete={onDelete}
-                  onReact={onReact}
-                  onReply={onReply}
-                  onViewProfile={onViewProfile}
-                  onSendMessage={onSendMessage}
-                  onMiniProfile={onMiniProfile}
-                  onScrollToMessage={onScrollToMessageProp ?? handleScrollToMessage}
-                  canManageMessages={canManageMessages}
-                  canAddReactions={canAddReactions}
-                  canKickMembers={canKickMembers}
-                  canBanMembers={canBanMembers}
-                  canPin={canPin}
-                  onKickMember={onKickMember}
-                  onBanMember={onBanMember}
-                  onPin={onPin}
-                  onUnpin={onUnpin}
-                  onForward={onForward}
-                  onJumpToMessage={onJumpToMessage}
-                />
-              ))}
+              {dateMessages.map((message, idx) => {
+                if (message.system_event) {
+                  return (
+                    <SystemMessage
+                      key={message.id}
+                      event={message.system_event}
+                      resolveUser={resolveUser}
+                      createdAt={message.created_at}
+                    />
+                  );
+                }
+                return (
+                  <Message
+                    key={message.id}
+                    message={message}
+                    currentUserId={currentUserId}
+                    isGrouped={groupedFlags[idx]}
+                    memberMap={memberMap}
+                    channelMap={channelMap}
+                    messages={allMessages}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                    onReact={onReact}
+                    onReply={onReply}
+                    onViewProfile={onViewProfile}
+                    onSendMessage={onSendMessage}
+                    onMiniProfile={onMiniProfile}
+                    onScrollToMessage={onScrollToMessageProp ?? handleScrollToMessage}
+                    canManageMessages={canManageMessages}
+                    canAddReactions={canAddReactions}
+                    canKickMembers={canKickMembers}
+                    canBanMembers={canBanMembers}
+                    canPin={canPin}
+                    onKickMember={onKickMember}
+                    onBanMember={onBanMember}
+                    onPin={onPin}
+                    onUnpin={onUnpin}
+                    onForward={onForward}
+                    onJumpToMessage={onJumpToMessage}
+                  />
+                );
+              })}
             </div>
           );
         })}

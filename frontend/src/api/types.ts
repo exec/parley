@@ -146,6 +146,7 @@ export interface Message {
   is_pinned?: boolean;
   pinned_at?: string;
   forwarded_message?: ForwardedMessage;
+  system_event?: SystemEvent | null;
 }
 
 export interface AuthResponse {
@@ -162,12 +163,42 @@ export interface DmChannel {
   id: string;
   user1_id: string;
   user2_id: string;
+  is_group: boolean;
+  name?: string | null;
+  avatar_url?: string | null;
+  created_by_user_id?: string | null;
+  owner_user_id?: string | null;
   created_at: string;
-  other_username: string;
+  // Populated only on detail fetch (group DMs)
+  members?: DmChannelMember[];
+  // 1:1 fields (only meaningful when !is_group)
+  other_username?: string;
   other_display_name?: string;
-  other_user_id: string;
+  other_user_id?: string;
   other_avatar_url?: string;
 }
+
+export interface DmChannelMember {
+  dm_channel_id: string;
+  user_id: string;
+  joined_at: string;
+  username?: string;
+  display_name?: string;
+  avatar_url?: string;
+}
+
+// System event payloads include actor_display_name (and target/new_owner where
+// applicable) so the renderer doesn't need to resolve user IDs against a member
+// list — kicked / left users are gone from members but their snapshotted name
+// stays in the event. Older events stored before this change carry only IDs;
+// the renderer falls back to the resolveUser hook for those.
+export type SystemEvent =
+  | { type: 'group_created'; actor_user_id: string; actor_display_name?: string }
+  | { type: 'member_added'; actor_user_id: string; actor_display_name?: string; target_user_id: string; target_display_name?: string }
+  | { type: 'member_left'; actor_user_id: string; actor_display_name?: string }
+  | { type: 'member_kicked'; actor_user_id: string; actor_display_name?: string; target_user_id: string; target_display_name?: string }
+  | { type: 'group_name_changed'; actor_user_id: string; actor_display_name?: string; old_name: string; new_name: string }
+  | { type: 'owner_transferred'; actor_user_id: string; actor_display_name?: string; new_owner_user_id: string; new_owner_display_name?: string };
 
 export interface DmMessage {
   id: string;
@@ -187,6 +218,7 @@ export interface DmMessage {
   attachment_name?: string;
   attachment_type?: string;
   forwarded_message?: ForwardedMessage;
+  system_event?: SystemEvent | null;
 }
 
 export interface PublicUser {
@@ -297,4 +329,22 @@ export interface InteractionInvokeResponse {
   interaction_id: string;
   status: 'pending' | 'responded' | 'expired';
   expires_at: string;
+}
+
+// Cross-cutting per-(user, channel) read-state and notification settings.
+// Applies to both server channels (kind=1) and DM channels (kind=2).
+export type NotificationSetting = 'ALL' | 'MENTIONS_ONLY' | 'MUTED';
+export const NOTIFICATION_SETTINGS: NotificationSetting[] = ['ALL', 'MENTIONS_ONLY', 'MUTED'];
+
+export type ChannelKind = 1 | 2; // 1=server, 2=dm
+export const CHANNEL_KIND_SERVER: ChannelKind = 1;
+export const CHANNEL_KIND_DM: ChannelKind = 2;
+
+export interface UserChannelState {
+  user_id: string;
+  channel_kind: ChannelKind;
+  channel_id: string;
+  last_read_message_id: string | null;
+  notification_setting: 0 | 1 | 2;
+  updated_at: string;
 }
