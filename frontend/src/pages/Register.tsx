@@ -307,7 +307,7 @@ export const Register: React.FC = () => {
           </form>
           <div className="auth-footer">
             <span className="auth-footer-text">Already have an account?</span>{' '}
-            <Link to="/login" className="auth-link">Login</Link>
+            <Link to={`/login${search}`} className="auth-link">Login</Link>
           </div>
         </div>
       </div>

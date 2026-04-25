@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Modal } from '../ui/Modal';
+import { Button } from '../ui/Button';
 import { UserMultiPicker } from './UserMultiPicker';
 import { createGroupDm, addDmMembers } from '../../api/dms';
 import type { PublicUser } from '../../api/types';
@@ -60,10 +61,10 @@ export const AddPeopleModal: React.FC<Props> = ({ isOpen, onClose, context, onCo
         <UserMultiPicker selected={picked} onChange={setPicked} excludeUserIds={exclude} />
         {error && <div className="group-modal-error">{error}</div>}
         <div className="modal-actions">
-          <button type="button" className="btn-secondary" onClick={handleClose}>Cancel</button>
-          <button type="button" className="btn-primary" disabled={picked.length === 0 || busy} onClick={submit}>
-            {busy ? 'Working…' : (context.kind === 'spawn-from-1to1' ? 'Create' : 'Add')}
-          </button>
+          <Button type="button" variant="secondary" onClick={handleClose}>Cancel</Button>
+          <Button type="button" variant="primary" disabled={picked.length === 0} loading={busy} onClick={submit}>
+            {context.kind === 'spawn-from-1to1' ? 'Create' : 'Add'}
+          </Button>
         </div>
       </div>
     </Modal>

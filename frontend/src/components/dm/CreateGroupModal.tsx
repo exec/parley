@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Modal } from '../ui/Modal';
+import { Button } from '../ui/Button';
 import { UserMultiPicker } from './UserMultiPicker';
 import { createGroupDm } from '../../api/dms';
 import type { PublicUser } from '../../api/types';
@@ -55,10 +56,10 @@ export const CreateGroupModal: React.FC<Props> = ({ isOpen, onClose, onCreated }
         />
         {error && <div className="group-modal-error">{error}</div>}
         <div className="modal-actions">
-          <button type="button" className="btn-secondary" onClick={handleClose}>Cancel</button>
-          <button type="button" className="btn-primary" disabled={!canSubmit} onClick={submit}>
-            {busy ? 'Creating…' : 'Create'}
-          </button>
+          <Button type="button" variant="secondary" onClick={handleClose}>Cancel</Button>
+          <Button type="button" variant="primary" disabled={!canSubmit} loading={busy} onClick={submit}>
+            Create
+          </Button>
         </div>
       </div>
     </Modal>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Modal } from '../ui/Modal';
+import { Button } from '../ui/Button';
 import { leaveDm } from '../../api/dms';
 import type { DmChannelMember } from '../../api/types';
 import './GroupModals.css';
@@ -71,10 +72,8 @@ export const LeaveGroupModal: React.FC<Props> = ({
         )}
         {error && <div className="group-modal-error">{error}</div>}
         <div className="modal-actions">
-          <button type="button" className="btn-secondary" onClick={handleClose}>Cancel</button>
-          <button type="button" className="btn-danger" disabled={busy} onClick={submit}>
-            {busy ? 'Leaving…' : 'Leave'}
-          </button>
+          <Button type="button" variant="secondary" onClick={handleClose}>Cancel</Button>
+          <Button type="button" variant="danger" loading={busy} onClick={submit}>Leave</Button>
         </div>
       </div>
     </Modal>

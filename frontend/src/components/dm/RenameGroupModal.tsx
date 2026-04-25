@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../ui/Modal';
+import { Button } from '../ui/Button';
 import { renameDmGroup } from '../../api/dms';
 import './GroupModals.css';
 
@@ -61,10 +62,8 @@ export const RenameGroupModal: React.FC<Props> = ({
         />
         {error && <div className="group-modal-error">{error}</div>}
         <div className="modal-actions">
-          <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button type="button" className="btn-primary" disabled={!canSubmit} onClick={submit}>
-            {busy ? 'Saving…' : 'Save'}
-          </button>
+          <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="button" variant="primary" disabled={!canSubmit} loading={busy} onClick={submit}>Save</Button>
         </div>
       </div>
     </Modal>

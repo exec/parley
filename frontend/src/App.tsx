@@ -35,6 +35,12 @@ import MiniProfile from './components/layout/MiniProfile';
 import { ChatWindow } from './components/chat/ChatWindow';
 import { MosaicAvatar } from './components/dm/MosaicAvatar';
 import { CreateGroupModal } from './components/dm/CreateGroupModal';
+import { AddPeopleModal } from './components/dm/AddPeopleModal';
+import { RenameGroupModal } from './components/dm/RenameGroupModal';
+import { LeaveGroupModal } from './components/dm/LeaveGroupModal';
+import { useGroupMembers } from './hooks/useGroupMembers';
+import { kickDmMember, transferDmOwnership } from './api/dms';
+import { UserPlus, Pencil, LogOut } from 'lucide-react';
 import { BinChannel } from './components/bin/BinChannel';
 import { PostView } from './components/bin/PostView';
 import { CreatePostModal } from './components/bin/CreatePostModal';
@@ -145,6 +151,9 @@ function MainApp() {
   const [showCreateServer, setShowCreateServer] = useState(false);
   const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [showAddPeople, setShowAddPeople] = useState(false);
+  const [showRenameGroup, setShowRenameGroup] = useState(false);
+  const [showLeaveGroup, setShowLeaveGroup] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
   const [vcMiniProfile, setVcMiniProfile] = useState<{ member: ServerMember; position: { top: number; left: number } } | null>(null);
@@ -665,6 +674,14 @@ function MainApp() {
   }, [activeDmChannel]);
 
   // userid → display name map for rendering mention tokens in messages
+  // Live-refreshed group DM members. The activeDmChannel.members snapshot
+  // from /api/dms is stale after add/kick events; this hook subscribes to
+  // parley:dm_member_change CustomEvents (dispatched by App's WS handlers
+  // on DM_MEMBER_ADD/REMOVE) and refetches /api/dms/{id}/members.
+  const { members: liveDmGroupMembers, refetch: refetchDmGroupMembers } = useGroupMembers(
+    activeDmChannel?.is_group ? activeDmChannel.id : null
+  );
+
   const memberMap = useMemo(
     () => new Map(members.map(m => [m.user_id, m.display_name || m.username])),
     [members],
@@ -1071,6 +1088,81 @@ function MainApp() {
         />
       );
     }
+  } else if (view === 'dm' && activeDmChannel?.is_group && currentUser) {
+    // Group DM members sidebar — same UserSidebar component as server channels,
+    // with channel-level actions (Add People / Rename / Leave) in the top-actions
+    // slot and per-member kick / transfer-ownership in the right-click context menu.
+    const groupOwnerId = activeDmChannel.owner_user_id ?? undefined;
+    const isCurrentUserGroupOwner = !!groupOwnerId && groupOwnerId === currentUser.id;
+
+    const groupSidebarMembers: ServerMember[] = liveDmGroupMembers.map(m => ({
+      id: m.user_id,
+      server_id: '',
+      user_id: m.user_id,
+      username: m.username ?? '',
+      display_name: m.display_name,
+      avatar_url: m.avatar_url,
+      joined_at: m.joined_at,
+    }));
+
+    const handleKickGroupMember = async (userId: string) => {
+      const target = liveDmGroupMembers.find(m => m.user_id === userId);
+      const name = target?.display_name || target?.username || 'this member';
+      if (!window.confirm(`Remove ${name} from the group?`)) return;
+      try {
+        await kickDmMember(activeDmChannel.id, userId);
+        void refetchDmGroupMembers();
+      } catch (e) {
+        window.alert(e instanceof Error ? e.message : 'Failed to remove member');
+      }
+    };
+
+    const handleTransferGroupOwnership = async (userId: string) => {
+      const target = liveDmGroupMembers.find(m => m.user_id === userId);
+      const name = target?.display_name || target?.username || 'this member';
+      if (!window.confirm(`Transfer ownership to ${name}? You'll stay in the group but ${name} will be the only one who can kick members.`)) return;
+      try {
+        await transferDmOwnership(activeDmChannel.id, userId);
+        void refetchDmGroupMembers();
+      } catch (e) {
+        window.alert(e instanceof Error ? e.message : 'Failed to transfer ownership');
+      }
+    };
+
+    const groupTopActions = (
+      <>
+        <button type="button" onClick={() => setShowAddPeople(true)}>
+          <UserPlus size={16} />
+          <span>Add People</span>
+        </button>
+        <button type="button" onClick={() => setShowRenameGroup(true)}>
+          <Pencil size={16} />
+          <span>Rename Group</span>
+        </button>
+        <button type="button" className="danger" onClick={() => setShowLeaveGroup(true)}>
+          <LogOut size={16} />
+          <span>Leave Group</span>
+        </button>
+      </>
+    );
+
+    rightPanel = (
+      <UserSidebar
+        members={groupSidebarMembers}
+        ownerId={groupOwnerId}
+        currentUserId={currentUser.id}
+        onViewProfile={handleViewProfile}
+        onSendMessage={openDmChannel}
+        onlineUserIds={onlineUsers}
+        canKickMembers={isCurrentUserGroupOwner}
+        canTransferOwnership={isCurrentUserGroupOwner}
+        onKick={handleKickGroupMember}
+        onTransferOwnership={handleTransferGroupOwnership}
+        isOpen={showMembers}
+        userStatuses={userStatuses}
+        topActions={groupTopActions}
+      />
+    );
   }
 
   // Build main content
@@ -1301,11 +1393,15 @@ function MainApp() {
         headerPrefix={isGroup ? '' : '@'}
         headerAvatar={isGroup ? undefined : activeDmChannel.other_avatar_url}
         headerAvatarNode={isGroup ? <MosaicAvatar tiles={groupAvatarTiles} size={28} /> : undefined}
-        isGroupDm={isGroup}
-        groupOwnerId={activeDmChannel.owner_user_id ?? null}
         isOnline={isGroup ? undefined : onlineUsers.has(activeDmChannel.other_user_id ?? '')}
         onlineUserIds={onlineUsers}
         hideRoles={true}
+        showMembers={isGroup ? showMembers : undefined}
+        onToggleMembers={isGroup ? () => setShowMembers(next => {
+          const v = !next;
+          localStorage.setItem('parley:showMembers', String(v));
+          return v;
+        }) : undefined}
         onToggleChannelList={() => setShowChannelList(c => !c)}
         onForward={(msg) => setForwardMessage(msg)}
         onJumpToMessage={handleJumpToMessage}
@@ -1471,6 +1567,36 @@ function MainApp() {
           setPendingDmSelect(channelId);
         }}
       />
+      {activeDmChannel?.is_group && currentUser && (
+        <>
+          <AddPeopleModal
+            isOpen={showAddPeople}
+            onClose={() => setShowAddPeople(false)}
+            context={{
+              kind: 'add-to-group',
+              channelId: activeDmChannel.id,
+              existingMemberIds: liveDmGroupMembers.map(m => m.user_id),
+            }}
+            onCompleted={() => { setShowAddPeople(false); void refetchDmGroupMembers(); }}
+          />
+          <RenameGroupModal
+            isOpen={showRenameGroup}
+            onClose={() => setShowRenameGroup(false)}
+            channelId={activeDmChannel.id}
+            currentName={activeDmChannel.name}
+            onRenamed={() => setShowRenameGroup(false)}
+          />
+          <LeaveGroupModal
+            isOpen={showLeaveGroup}
+            onClose={() => setShowLeaveGroup(false)}
+            channelId={activeDmChannel.id}
+            isOwner={!!activeDmChannel.owner_user_id && activeDmChannel.owner_user_id === currentUser.id}
+            members={liveDmGroupMembers}
+            currentUserId={currentUser.id}
+            onLeft={() => { setShowLeaveGroup(false); void loadDmChannels(); }}
+          />
+        </>
+      )}
       <UserProfileModal
         isOpen={showProfile}
         onClose={() => setShowProfile(false)}
@@ -1568,20 +1694,24 @@ function MainApp() {
 }
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const location = useLocation();
+  // Preserve the path + search so Login/Register can redirect back after
+  // auth — otherwise an unauthenticated invite visitor ends up on /.
+  const loginHref = `/login?redirect=${encodeURIComponent(location.pathname + location.search)}`;
   const token = localStorage.getItem('token');
-  if (!token) return <Navigate to="/login" replace />;
+  if (!token) return <Navigate to={loginHref} replace />;
 
   try {
     const payload = JSON.parse(atob(token.split('.')[1]));
     if (payload.exp && payload.exp < Date.now() / 1000) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      return <Navigate to="/login" replace />;
+      return <Navigate to={loginHref} replace />;
     }
   } catch {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    return <Navigate to="/login" replace />;
+    return <Navigate to={loginHref} replace />;
   }
 
   return <>{children}</>;

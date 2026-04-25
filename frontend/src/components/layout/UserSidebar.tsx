@@ -36,17 +36,19 @@ interface UserContextMenuProps {
   canManageRoles: boolean;
   canKickMembers?: boolean;
   canBanMembers?: boolean;
+  canTransferOwnership?: boolean;
   position: { top: number; left: number };
   onClose: () => void;
   onSendMessage?: (userId: string) => void;
   onManageRoles?: () => void;
   onKick?: (userId: string) => void;
   onBan?: (userId: string) => void;
+  onTransferOwnership?: (userId: string) => void;
 }
 
 const UserContextMenu: React.FC<UserContextMenuProps> = ({
-  member, isCurrentUser, isOwner, canManageRoles, canKickMembers, canBanMembers,
-  position, onClose, onSendMessage, onManageRoles, onKick, onBan,
+  member, isCurrentUser, isOwner, canManageRoles, canKickMembers, canBanMembers, canTransferOwnership,
+  position, onClose, onSendMessage, onManageRoles, onKick, onBan, onTransferOwnership,
 }) => {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -74,9 +76,18 @@ const UserContextMenu: React.FC<UserContextMenuProps> = ({
           Manage Roles
         </button>
       )}
-      {!isCurrentUser && !isOwner && (canKickMembers || canBanMembers) && (
+      {!isCurrentUser && !isOwner && (canKickMembers || canBanMembers || canTransferOwnership) && (
         <>
           <div className="user-context-menu-divider" />
+          {canTransferOwnership && (
+            <button
+              className="user-context-menu-item"
+              style={{ color: 'var(--parley-accent)' }}
+              onClick={() => { onTransferOwnership?.(member.user_id); onClose(); }}
+            >
+              Transfer Ownership
+            </button>
+          )}
           {canKickMembers && (
             <button className="user-context-menu-item" style={{ color: '#FFB347' }} onClick={() => { onKick?.(member.user_id); onClose(); }}>
               Kick Member
@@ -181,17 +192,24 @@ interface UserSidebarProps {
   currentUserIsOwner?: boolean;
   canKickMembers?: boolean;
   canBanMembers?: boolean;
+  canTransferOwnership?: boolean;
   onManageRoles?: (memberId: string) => void;
   onKick?: (userId: string) => void;
   onBan?: (userId: string) => void;
+  onTransferOwnership?: (userId: string) => void;
   isOpen?: boolean;
   userStatuses?: Record<string, { status_type: string; status_text: string }>;
+  // Optional slot rendered above the member list — used by group DMs to expose
+  // channel-level actions (Add People, Rename, Leave Group) inline with the
+  // members list instead of a separate floating panel.
+  topActions?: React.ReactNode;
 }
 
 const UserSidebar: React.FC<UserSidebarProps> = ({
   members, ownerId, currentUserId, onViewProfile, onSendMessage,
-  onlineUserIds, currentUserIsOwner, canKickMembers, canBanMembers, onManageRoles, onKick, onBan,
-  isOpen = true, userStatuses,
+  onlineUserIds, currentUserIsOwner, canKickMembers, canBanMembers, canTransferOwnership,
+  onManageRoles, onKick, onBan, onTransferOwnership,
+  isOpen = true, userStatuses, topActions,
 }) => {
   const [miniProfile, setMiniProfile] = useState<{ member: ServerMember; position: { top: number; left: number } } | null>(null);
   const [contextMenu, setContextMenu] = useState<{ member: ServerMember; position: { top: number; left: number } } | null>(null);
@@ -276,6 +294,7 @@ const UserSidebar: React.FC<UserSidebarProps> = ({
   return (
     <div className={`user-sidebar${isOpen ? ' user-sidebar--open' : ''}`}>
       <div className="user-sidebar-header">Members — {members.length}</div>
+      {topActions && <div className="user-sidebar-top-actions">{topActions}</div>}
       <div className="members-container">
         {members.length === 0 ? (
           <div className="no-members">No members yet</div>
@@ -319,12 +338,14 @@ const UserSidebar: React.FC<UserSidebarProps> = ({
           canManageRoles={currentUserIsOwner === true || canKickMembers === true}
           canKickMembers={canKickMembers}
           canBanMembers={canBanMembers}
+          canTransferOwnership={canTransferOwnership}
           position={contextMenu.position}
           onClose={() => setContextMenu(null)}
           onSendMessage={onSendMessage}
           onManageRoles={() => onManageRoles?.(contextMenu.member.user_id)}
           onKick={onKick}
           onBan={onBan}
+          onTransferOwnership={onTransferOwnership}
         />,
         document.body
       )}
