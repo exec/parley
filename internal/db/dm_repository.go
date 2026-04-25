@@ -557,3 +557,30 @@ func (r *Repository) GetDmMembers(ctx context.Context, channelID int64) ([]DmCha
 	}
 	return out, rows.Err()
 }
+
+func (r *Repository) UpdateDmGroupName(ctx context.Context, channelID int64, name string) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE dm_channels SET name = $1 WHERE id = $2 AND is_group = TRUE`, name, channelID)
+	return err
+}
+
+func (r *Repository) UpdateDmGroupAvatar(ctx context.Context, channelID int64, avatarURL *string) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE dm_channels SET avatar_url = $1 WHERE id = $2 AND is_group = TRUE`, avatarURL, channelID)
+	return err
+}
+
+func (r *Repository) TransferDmGroupOwnership(ctx context.Context, channelID, newOwnerID int64) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE dm_channels SET owner_user_id = $1 WHERE id = $2 AND is_group = TRUE`, newOwnerID, channelID)
+	return err
+}
+
+// InsertSystemMessage adds a synthetic dm_messages row carrying the given system event.
+// content is empty; system_event is the JSONB payload.
+func (r *Repository) InsertSystemMessage(ctx context.Context, channelID int64, actorUserID int64, eventJSON []byte) (*DmMessage, error) {
+	var m DmMessage
+	err := r.db.QueryRowContext(ctx, `
+		INSERT INTO dm_messages (dm_channel_id, author_id, content, system_event, created_at, updated_at)
+		VALUES ($1, $2, '', $3::jsonb, NOW(), NOW())
+		RETURNING id, dm_channel_id, author_id, content, system_event, created_at, updated_at
+	`, channelID, actorUserID, eventJSON).Scan(&m.ID, &m.DmChannelID, &m.AuthorID, &m.Content, &m.SystemEvent, &m.CreatedAt, &m.UpdatedAt)
+	return &m, err
+}
