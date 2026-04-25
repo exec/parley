@@ -45,11 +45,8 @@ func (h *RingHandler) Ring(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	dm, err := h.repo.GetDmChannelByID(r.Context(), dmID)
-	if errors.Is(err, db.ErrNotFound) || dm == nil {
-		httputil.JSONError(w, "channel not found", http.StatusNotFound)
-		return
-	}
-	if err != nil {
+	if err != nil || dm == nil {
+		// After the IsDmMember 403 above, a missing DM here is an inconsistent state.
 		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -123,6 +120,14 @@ func (h *RingHandler) terminate(w http.ResponseWriter, r *http.Request, op strin
 		err = h.rs.Cancel(r.Context(), body.RingID, userID)
 	default:
 		err = errors.New("unknown op")
+	}
+	if errors.Is(err, ErrCancelByNonCaller) {
+		httputil.JSONError(w, "only the caller may cancel", http.StatusForbidden)
+		return
+	}
+	if errors.Is(err, ErrRingNotFound) {
+		httputil.JSONError(w, "ring not found", http.StatusNotFound)
+		return
 	}
 	if err != nil {
 		httputil.JSONError(w, err.Error(), http.StatusBadRequest)

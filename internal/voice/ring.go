@@ -13,6 +13,12 @@ import (
 	ws "parley/internal/websocket"
 )
 
+// Sentinel errors returned by RingService methods. Handlers map these to HTTP status codes.
+var (
+	ErrRingNotFound      = errors.New("ring not found")
+	ErrCancelByNonCaller = errors.New("only the caller may cancel")
+)
+
 // RingHub is the small subset of *ws.Hub the ring service needs.
 type RingHub interface {
 	SendToUser(userID, eventType string, payload []byte) error
@@ -136,7 +142,7 @@ func (rs *RingService) Accept(ctx context.Context, ringID string, accepterID int
 	r, ok := rs.rings[ringID]
 	if !ok {
 		rs.mu.Unlock()
-		return errors.New("ring not found")
+		return ErrRingNotFound
 	}
 	r.timer.Stop()
 	delete(rs.rings, ringID)
@@ -162,7 +168,7 @@ func (rs *RingService) Decline(ctx context.Context, ringID string, declinerID in
 	r, ok := rs.rings[ringID]
 	if !ok {
 		rs.mu.Unlock()
-		return errors.New("ring not found")
+		return ErrRingNotFound
 	}
 	r.timer.Stop()
 	delete(rs.rings, ringID)
@@ -188,11 +194,11 @@ func (rs *RingService) Cancel(ctx context.Context, ringID string, callerID int64
 	r, ok := rs.rings[ringID]
 	if !ok {
 		rs.mu.Unlock()
-		return errors.New("ring not found")
+		return ErrRingNotFound
 	}
 	if r.CallerID != callerID {
 		rs.mu.Unlock()
-		return errors.New("only the caller may cancel")
+		return ErrCancelByNonCaller
 	}
 	r.timer.Stop()
 	delete(rs.rings, ringID)
