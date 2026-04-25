@@ -1,0 +1,592 @@
+# DM/GC Calling Design
+
+**Date:** 2026-04-25
+**Status:** Approved for plan-writing
+**Goal:** Add audio/video calling to 1:1 DMs and group DMs, reusing the existing voice-channel infrastructure (LiveKit room, presence, hub events, `useVoiceConnection`, `VoiceChannel` view) wherever possible. Add a Discord-style floating call window. Bundle a long-standing notification bug fix (don't notify on your own messages).
+
+---
+
+## 1. Goals & Non-Goals
+
+**Goals**
+- 1:1 DM calls with explicit ring/accept/decline lifecycle.
+- Group DM calls without ring — open-room model with in-channel banner + system message.
+- Reuse the existing voice-channel stack (LiveKit token, Redis presence, WS events, hooks, view components).
+- Add user-on-user **local mute** (listener-side gating) — applies to DM/GC and existing server VC alike.
+- Add a draggable in-app **floating call window** (Discord-style) — applies to any active call.
+- Native OS-level **incoming-call window** for the desktop app when the main window is unfocused.
+- Fix bug: DM/GC participants should not receive notification sounds for their own messages.
+
+**Non-Goals**
+- No new database schema. All call lifecycle artifacts go in the existing `dm_messages.system_event` JSONB (introduced in Phase B).
+- No call recording, transcription, or in-call chat overlay.
+- No mobile build considerations (no Parley mobile yet).
+- No horizontal scaling of the ring service. Single-instance backend is the existing deployment; documented as a known limitation if Parley ever scales out.
+- No cross-device, cross-tab call rehydration on page reload. Current behavior (disconnect on unload) stands.
+- No true OS-level secondary window for the *floating call window* (the in-call PiP). That's deferred. Only the *incoming-call window* is a real Tauri secondary window.
+
+---
+
+## 2. Architecture summary
+
+**One key abstraction:** *virtual channel ID* — a prefixed string identifying any voice room.
+
+| Form | Meaning |
+|---|---|
+| `s:{channelID}` | Server voice channel `channelID` |
+| `dm:{dmChannelID}` | DM or GC channel (group flag determined at parse time via `dm_channels.is_group`) |
+
+The LiveKit room name, the Redis presence key (`voice:{vc}`), and the WS broadcast topic all use this string verbatim. One parser, one auth helper, one set of routes — server VC becomes a special case of "voice in any virtual channel."
+
+**Ringing is explicit state**, not implicit on LiveKit join. The backend ring service owns the timer, emits the timeout authoritatively, and emits the missed/declined system message — necessary because "Alice rage-quit her own call" and "Bob never picked up" must be distinguishable, and the only authoritative source is the server.
+
+**Call artifacts** live in `dm_messages.system_event` (existing JSONB column). The chat timeline doubles as the call log. No new tables, no new migrations.
+
+**Local mute** is purely client-side: `localStorage.parley.localMutes` is a `Set<userID>`. `ParticipantTile` reads the set, sets `participant.setVolume(0)`, and renders a strikethrough-speaker icon. Persists across all calls in any context.
+
+**Floating call window** is a `position: fixed` draggable React overlay rendering `<VoiceChannel layout="compact">`. Position persists to localStorage. Toggleable from the existing `VoiceControls` widget.
+
+**Incoming-call window** (desktop only): a real Tauri secondary window — borderless, transparent, always-on-top, skip-taskbar, anchored bottom-right. Spawned only when the main window is unfocused at ring time. If main gains focus while a ring is active, the secondary closes and the in-app `IncomingCallModal` takes over. Web build always uses the in-app modal.
+
+---
+
+## 3. Backend
+
+### 3.1 Virtual channel namespace
+
+New file `internal/voice/virtual_channel.go`:
+
+```go
+package voice
+
+import (
+    "errors"
+    "strconv"
+    "strings"
+)
+
+type Kind int
+const (
+    KindServer Kind = iota
+    KindDM
+)
+
+type VirtualChannel struct {
+    Kind Kind
+    ID   int64 // server channel ID for KindServer; dm_channel ID for KindDM
+}
+
+func (v VirtualChannel) String() string {
+    switch v.Kind {
+    case KindServer: return "s:" + strconv.FormatInt(v.ID, 10)
+    case KindDM:     return "dm:" + strconv.FormatInt(v.ID, 10)
+    }
+    return ""
+}
+
+func ParseVirtualChannel(s string) (VirtualChannel, error) {
+    var prefix string
+    var rest string
+    if r, ok := strings.CutPrefix(s, "s:"); ok {
+        prefix, rest = "s", r
+    } else if r, ok := strings.CutPrefix(s, "dm:"); ok {
+        prefix, rest = "dm", r
+    } else {
+        return VirtualChannel{}, errors.New("invalid virtual channel id")
+    }
+    id, err := strconv.ParseInt(rest, 10, 64)
+    if err != nil { return VirtualChannel{}, err }
+    switch prefix {
+    case "s":  return VirtualChannel{Kind: KindServer, ID: id}, nil
+    case "dm": return VirtualChannel{Kind: KindDM, ID: id}, nil
+    }
+    return VirtualChannel{}, errors.New("unreachable")
+}
+```
+
+### 3.2 Authorization
+
+New file `internal/voice/auth.go` consolidates voice-related permission checks. Three exported functions:
+
+```go
+type Authorizer struct { repo Repo /* db.DmRepository, db.ChannelRepository */ }
+
+func (a *Authorizer) AuthorizeJoin(ctx, vc VirtualChannel, userID int64) (bool, error)
+// KindServer: existing GetMember(serverID, userID) + role checks
+// KindDM:     IsDmMember(vc.ID, userID)
+
+func (a *Authorizer) AuthorizeMute(ctx context.Context, vc VirtualChannel, actorID, targetID int64) (bool, error)
+// KindServer: PermMuteMembers role check (existing)
+// KindDM (1:1): always false — no in-call moderation in 1:1 (just leave)
+// KindDM (GC): owner-only — actorID == channel.OwnerUserID
+
+func (a *Authorizer) AuthorizeKick(ctx context.Context, vc VirtualChannel, actorID, targetID int64) (bool, error)
+// KindServer: PermMoveMembers role check (existing)
+// KindDM (1:1): always false
+// KindDM (GC): owner-only
+```
+
+The frontend must also know the actor's own privilege to decide whether to render the "Force mute" / "Disconnect" context-menu items at all. Privilege is computed client-side from data already in scope: for `KindServer`, check the user's role bitmask; for `KindDM` (GC), check `dmChannel.ownerUserID === currentUserID`. The server is still authoritative — these endpoints reject unauthorized requests — but the UI is consistent without an extra round-trip.
+
+Existing `internal/voice/handler.go` calls into these instead of inlining the server-only checks at lines 56–61.
+
+### 3.3 Routes
+
+The existing `/api/channels/{channelID}/voice/*` route tree is generalized to accept a virtual channel ID. Two options:
+
+**Option A (preferred):** add new route tree `/api/voice/{vc}/{token,join,leave,participants,heartbeat,participants/{userID}/mute,participants/{userID}/kick}` that takes a virtual channel ID directly. The existing `/api/channels/{id}/voice/*` becomes a thin wrapper that constructs `s:{id}` and forwards.
+
+**Option B:** repurpose the existing `{channelID}` path-segment to accept `s:N` / `dm:N` strings. Less clean (URL with `:` in a path segment is ugly).
+
+Plan will go with **A**.
+
+New routes for ring lifecycle on DMs:
+
+```
+POST   /api/dm/{id}/call/ring     {} -> {ring_id}            // 1:1 only — initiates ring
+POST   /api/dm/{id}/call/start    {} -> {}                   // GC only — emits call_started, no ring
+POST   /api/dm/{id}/call/accept   {ring_id} -> {}
+POST   /api/dm/{id}/call/decline  {ring_id} -> {}
+POST   /api/dm/{id}/call/cancel   {ring_id} -> {}
+GET    /api/calls/active          -> {rings: [...], in_call: [...]}  // boot/reload rehydration
+```
+
+Authorization on all DM call routes: `IsDmMember(dmID, userID)`.
+
+### 3.4 Ring service
+
+The ring service handles **1:1 DMs only**. GC calls have no ring layer — they emit `call_started` directly via the open-room path in 3.5.
+
+New file `internal/voice/ring.go`:
+
+```go
+type Ring struct {
+    ID           string  // ULID
+    DmChannelID  int64
+    CallerID     int64
+    TargetID     int64
+    StartedAt    time.Time
+    cancel       func()  // stops the timer
+}
+
+type RingService struct {
+    rings map[string]*Ring  // by ID
+    byDM  map[int64]string  // dmChannelID -> active ring ID (1:1 has at most one)
+    mu    sync.Mutex
+    hub   WSHub
+    dm    DmService          // emits system messages
+    repo  DmRepo
+}
+
+func (r *RingService) Initiate(ctx, dmChannelID, callerID, targetID) (string, error)
+func (r *RingService) Accept(ctx, ringID, accepterID) error
+func (r *RingService) Decline(ctx, ringID, declinerID) error
+func (r *RingService) Cancel(ctx, ringID, callerID) error
+// 30s timer fires -> emits timeout
+```
+
+State machine (one ring instance):
+
+```
+created -> { accepted | declined | canceled | timeout }
+```
+
+On any terminal transition, the ring is removed from the maps and the timer is canceled. WS events are emitted to caller and target. A system message is written to the DM via `dm.Service`:
+
+| Transition | WS to caller | WS to target | system_event |
+|---|---|---|---|
+| accepted   | `CALL_ACCEPT` | `CALL_ACCEPT`* | `call_started` |
+| declined   | `CALL_DECLINE` | (close modal via local handler) | `call_declined` |
+| canceled   | (close ringback) | `CALL_CANCEL` | `call_missed` |
+| timeout    | `CALL_TIMEOUT` | `CALL_TIMEOUT` | `call_missed` |
+
+\* `CALL_ACCEPT` to target is needed so other devices/sessions of the same target see the ring is over.
+
+`CALL_ACCEPT` payload includes `accepter_user_id` so the caller's frontend can distinguish "I accepted from another tab" from "the other user accepted."
+
+**Race / concurrency:** `RingService.mu` guards all mutations. `Initiate` checks `byDM[dmID]` to reject if a ring already exists for that DM (1:1 collision); the caller's frontend should detect "call already active" and call `connect()` directly instead.
+
+**Ring timer:** `time.AfterFunc(30s, ...)`. Single-process implementation. If Parley scales out, ring service must move to a Redis-backed scheduled queue.
+
+### 3.5 Call lifecycle (no ring layer — open-room model)
+
+The voice handler's existing join/leave already drives the room. Two changes:
+
+1. Extend **Join** to record call start time on first joiner via `SET voice:{vc}:started_at <now> NX EX 21600` (6h TTL fallback in case leave is missed).
+2. Extend **Leave** to detect "I was the last participant" and emit `call_ended`:
+
+```go
+func (h *Handler) Leave(...) {
+    // ... existing HDEL
+    remaining, _ := redis.HLen(ctx, "voice:" + vc.String())
+    if remaining == 0 {
+        // SETNX with TTL prevents duplicate emission
+        startedAt, _ := redis.GetDel(ctx, "voice:" + vc.String() + ":started_at")
+        lockKey := fmt.Sprintf("call_ended:%s:%s", vc, startedAt)
+        ok, _ := redis.SetNX(ctx, lockKey, "1", 60*time.Second)
+        if ok && vc.Kind == KindDM {
+            durationMs := time.Now().UnixMilli() - parseInt64(startedAt)
+            h.dm.EmitCallEnded(ctx, vc.ID, durationMs)
+        }
+    }
+}
+```
+
+`voice:{vc}:started_at` is set with `SET NX` on first join. `GetDel` on last leave reads + atomically deletes.
+
+### 3.6 System events
+
+Reuses the existing `dm_messages.system_event` JSONB pipeline introduced in Phase B. Four new event types:
+
+```jsonc
+// Ring accepted (1:1) OR first joiner of a GC call
+{ "type": "call_started",  "actor_user_id": "1", "actor_display_name": "Alice", "started_at_ms": 1714000000000 }
+
+// Last participant leaves
+{ "type": "call_ended",    "duration_ms": 145000, "started_at_ms": 1714000000000 }
+
+// Ring timeout OR caller cancel
+{ "type": "call_missed",   "caller_user_id": "1", "caller_display_name": "Alice" }
+
+// Receiver declined
+{ "type": "call_declined", "caller_user_id": "1", "caller_display_name": "Alice", "decliner_user_id": "2" }
+```
+
+Rendering in `frontend/src/components/chat/SystemMessage.tsx` follows the same display-name fallback pattern from Phase B (prefer embedded names; fall back to `resolveUser`; else "someone").
+
+### 3.7 WS events
+
+New event type strings in `internal/websocket/events.go`:
+
+```
+CALL_RING       -> sent to target on Initiate.   payload: {ring_id, vc, caller: {user_id, username, display_name, avatar_url}}
+CALL_ACCEPT     -> sent to caller AND target.    payload: {ring_id, accepter_user_id}
+CALL_DECLINE    -> sent to caller.               payload: {ring_id, decliner_user_id}
+CALL_CANCEL     -> sent to target.               payload: {ring_id}
+CALL_TIMEOUT    -> sent to caller AND target.    payload: {ring_id}
+```
+
+Existing `VOICE_STATE_UPDATE`, `VOICE_FORCE_MUTE`, `VOICE_FORCE_DISCONNECT` are reused. Broadcast target depends on `vc.Kind`:
+
+- **KindServer**: `"server:" + serverID` (existing behavior — unchanged so all server members continue to see green dots in the channel list without per-channel WS subscription).
+- **KindDM**: `vc.String()` (i.e., `"dm:" + dmChannelID`). All DM/GC members already subscribe to this topic for `DM_MESSAGE_NEW` events from Phase B.
+
+`VOICE_FORCE_MUTE` / `VOICE_FORCE_DISCONNECT` continue to use `SendToUser(targetID, ...)` — unchanged.
+
+**Verification step in the implementation plan:** confirm `cmd/api/main.go`'s WS subscribe-on-auth logic puts DM members on the `dm:{id}` topic for *all* events (not just `DM_MESSAGE_NEW`). If voice-state events are filtered out, the filter must be lifted.
+
+### 3.8 Heartbeat
+
+Backend already has heartbeat keys (`voice:heartbeat:{vc}:{userID}` TTL 30s). The Explore audit was inconclusive on whether the frontend pings them. **Plan task:** verify; if absent, add `setInterval(() => POST /api/voice/{vc}/heartbeat, 15_000)` inside `useVoiceConnection`.
+
+---
+
+## 4. Frontend
+
+### 4.1 New files
+
+| File | Purpose |
+|---|---|
+| `frontend/src/api/calls.ts` | Ring lifecycle API client (initiate / accept / decline / cancel / activeRings) |
+| `frontend/src/context/CallContext.tsx` | Global call state — incoming-ring queue, outbound ringing state. Subscribes to WS call events. Handles Tauri vs web platform branching for the ring surface. |
+| `frontend/src/hooks/useLocalMutes.ts` | localStorage-backed `Set<userID>` with subscribe/toggle. |
+| `frontend/src/components/calls/IncomingCallModal.tsx` | Web fallback (and Tauri fallback when main is focused). Accept / Decline UI. |
+| `frontend/src/components/calls/CallBanner.tsx` | In-channel "📞 N in call · Join" strip in the DM/GC chat header. |
+| `frontend/src/components/calls/FloatingCallWindow.tsx` | Draggable in-app overlay rendering `<VoiceChannel layout="compact">`. Position persisted to localStorage. |
+| `frontend/src/ring/main.tsx` | Standalone React entry for the Tauri secondary ring window. |
+| `frontend/src/ring/RingApp.tsx` | UI for the ring window: avatar on top, "Incoming call from <name>" text, green Answer / red Decline buttons. |
+| `frontend/ring.html` | HTML entry for the ring webview. |
+| `frontend/public/ringtone.mp3` | Ringtone audio asset. |
+
+### 4.2 Modified files
+
+| File | Change |
+|---|---|
+| `frontend/src/api/voice.ts` | All endpoints accept a virtual channel ID string (`s:N` / `dm:N`) instead of bare numeric channel ID. |
+| `frontend/src/hooks/useVoiceConnection.ts` | Accept `virtualChannelId: string`. Add 15s heartbeat ping if missing. Wire local-mute volume gating via `useLocalMutes`. |
+| `frontend/src/components/voice/VoiceChannel.tsx` | Add `layout: 'full' \| 'compact'` prop. Compact tightens tile sizing for the floating window. |
+| `frontend/src/components/voice/VoiceControls.tsx` | Add Pop-Out button next to Disconnect — toggles floating mode. |
+| `frontend/src/components/voice/VoiceContextMenu.tsx` | Two items: "Mute for me" (always available, gated by `useLocalMutes`); "Force mute" / "Disconnect" (privilege-gated via `AuthorizeMute`/`Kick` returns from server). |
+| `frontend/src/components/voice/ParticipantTile.tsx` | Apply local-mute volume; render strikethrough-speaker icon for locally-muted users. |
+| `frontend/src/components/chat/ChatWindow.tsx` | Add 📞 Start/Join Call button to the DM/GC chat header. Render `<CallBanner>` above message list when an active call exists in this channel. |
+| `frontend/src/components/chat/SystemMessage.tsx` | Render `call_started` / `call_ended` / `call_missed` / `call_declined` events. |
+| `frontend/src/components/layout/DmPanel.tsx` | Phone icon next to DMs/GCs with active calls. |
+| `frontend/src/notifications/shouldNotify.ts` | Bug fix: `if (event.actor_user_id === currentUserID) return false;` short-circuit. |
+| `frontend/src/App.tsx` | Mount `<CallProvider>` around the existing tree. Render `<IncomingCallModal>` and `<FloatingCallWindow>` from the provider. Existing voice-state plumbing now reads virtual channel IDs throughout. |
+
+### 4.3 Tauri
+
+| File | Change |
+|---|---|
+| `desktop/src-tauri/src/lib.rs` (or `src/ring_window.rs`) | New commands: `spawn_ring_window(args)`, `dismiss_ring_window(ring_id)`. |
+| `desktop/src-tauri/tauri.conf.json` | Build config to include `ring.html` as a second entry. |
+| `desktop/src-tauri/capabilities/default.json` | Allow `core:webview:create-webview-window`, `core:window:set-always-on-top`, `core:window:set-skip-taskbar`, `core:window:close`, `core:window:set-position`. |
+
+### 4.4 CallContext state model
+
+```typescript
+type CallState =
+  | { kind: 'idle' }
+  | { kind: 'outgoing'; vc: string; ring_id: string; target: User }
+  | { kind: 'connecting'; vc: string }
+  | { kind: 'connected'; vc: string };
+
+type IncomingRing = { vc: string; ring_id: string; caller: User };
+
+type CallContextValue = {
+  state: CallState;
+  incomingQueue: IncomingRing[];   // FIFO, oldest first
+  initiate: (target: User, dmChannelID: bigint) => Promise<void>;
+  accept: (ring_id: string) => Promise<void>;
+  decline: (ring_id: string) => Promise<void>;
+  cancel: () => Promise<void>;
+  // floating window controls
+  floatingMode: boolean;
+  setFloatingMode: (on: boolean) => void;
+};
+```
+
+`useVoiceConnection` continues to own `connecting` / `connected` state; CallContext watches it via the existing `voiceState` plumbing in App.tsx and treats those as the source of truth for `state.kind === 'connected'`.
+
+### 4.5 Ring surface decision
+
+`CallContext` tracks `mainFocused: boolean` via `getCurrentWindow().onFocusChanged(...)` (Tauri only). Recompute the surface on every focus change while a ring is active:
+
+```
+isTauri && !mainFocused → spawn or keep one secondary window per queued ring (visually stacked toward the top); hide all modals
+otherwise               → render IncomingCallModal for incomingQueue[0] (others remain queued); close all secondary windows
+```
+
+**Multiple concurrent rings:** in the secondary-window case, each queued ring gets its own bottom-right window (Tauri stacks them naturally by spawn order). In the modal case, only the head of the queue is shown; resolving it reveals the next.
+
+**Audio:** ringtone always plays from the main webview, regardless of which surface is showing. This avoids audio-context churn on focus flip and keeps the ring audible even while spawning the secondary window.
+
+### 4.6 Floating call window
+
+Default mode: full takeover when the user is on the call's channel; docked widget (`VoiceControls`) when navigated away. Clicking the new Pop-Out button on the docked widget enters floating mode:
+
+```
+floatingMode=true && state.kind==='connected' → render <FloatingCallWindow>
+                                                hide <VoiceControls> dock widget
+                                                hide <VoiceChannel> if user is on call's channel
+```
+
+`<FloatingCallWindow>` renders `<VoiceChannel layout="compact">` inside a `position: fixed` div with:
+- Drag handle at top (mousedown → tracks delta → updates `transform: translate(...)`)
+- Position persisted to `localStorage.parley.floatingPosition`
+- "Expand" button → exits floating mode, returns to full takeover (navigates to call's channel if not already there)
+- "Dock" button → exits floating mode, returns to docked widget
+
+### 4.7 Local mute persistence
+
+`useLocalMutes` exposes:
+
+```typescript
+function useLocalMutes(): {
+  isMuted: (userID: bigint) => boolean;
+  toggle: (userID: bigint) => void;
+};
+```
+
+Backed by `localStorage.parley.localMutes` (JSON-encoded array of stringified user IDs). Cross-tab sync via the `storage` event. `ParticipantTile` reads `isMuted(participant.userID)` and applies `audioTrack.setVolume(0)` plus visual indicator. `VoiceContextMenu` has a "Mute for me" item that calls `toggle()`.
+
+Persists across all calls (server VC, GC call, DM call). Visual indicator on tiles makes "why am I getting silence" self-explanatory.
+
+---
+
+## 5. Data flows
+
+### 5.1 1:1 happy path
+
+```
+Alice clicks 📞 in DM → POST /api/dm/{id}/call/ring
+  └─ ring service: create ring, start 30s timer, emit:
+       • CALL_RING → Bob (with ring_id, vc="dm:{id}", caller info)
+       • CallContext (Alice): outgoing state { ring_id, target: Bob }; ringback tone
+Bob receives CALL_RING:
+  • mainFocused → IncomingCallModal opens; ringtone plays
+  • !mainFocused → Tauri: spawn_ring_window(args); ringtone plays from main webview
+Bob clicks Accept → POST /api/dm/{id}/call/accept {ring_id}
+  └─ ring service: terminate, emit:
+       • CALL_ACCEPT → Alice + Bob (accepter_user_id: Bob)
+       • call_started system_event into the DM
+  └─ Both clients: useVoiceConnection.connect("dm:{id}")
+  └─ Existing LiveKit token + Redis presence flow runs unchanged
+Last participant leaves:
+  └─ Existing leaveVoiceChannel → handler detects empty room → SETNX lock → call_ended system_event
+```
+
+### 5.2 GC happy path (no ring)
+
+```
+Alice clicks 📞 in GC → POST /api/dm/{id}/call/start
+  └─ Service: emits call_started system_event (with started_at_ms = now)
+  └─ All GC members receive DM_MESSAGE_NEW with the system_event
+  └─ CallBanner appears in the GC chat; phone icon on DM list item
+Alice's client: useVoiceConnection.connect("dm:{id}")
+Other members: see banner, click Join → useVoiceConnection.connect("dm:{id}")
+Last leaves → call_ended (same logic as 1:1)
+```
+
+### 5.3 Decline (1:1)
+
+```
+Bob clicks Decline → POST /api/dm/{id}/call/decline {ring_id}
+  └─ ring service: terminate, emit:
+       • CALL_DECLINE → Alice (toast: "Bob declined")
+       • call_declined system_event
+  └─ Bob's surface (modal or secondary window) closes
+  └─ Alice's outgoing state resolves
+```
+
+### 5.4 Timeout (1:1)
+
+```
+30s timer fires → ring service:
+  • CALL_TIMEOUT → Alice + Bob
+  • call_missed system_event
+Both surfaces close; Alice toast "No answer."
+```
+
+### 5.5 Cancel (1:1)
+
+```
+Alice clicks Cancel → POST /api/dm/{id}/call/cancel {ring_id}
+  └─ ring service: terminate, emit:
+       • CALL_CANCEL → Bob (close surface)
+       • call_missed system_event (caller cancelled — Bob sees "Missed call from Alice")
+```
+
+### 5.6 Glare (Alice and Bob ring each other simultaneously)
+
+```
+Alice POST /ring → ring R1 created. Bob is the target.
+Bob POST /ring → service checks byDM map: if R1 already exists for this DM,
+                 return error 409 "ring already active" with the existing ring_id.
+Bob's frontend treats this as "incoming ring already in flight from the other party";
+               displays the existing CALL_RING from Alice instead.
+```
+
+The `byDM` map keyed by `dmChannelID` gives at-most-one ring per DM, eliminating glare at the source.
+
+### 5.7 Concurrent / busy
+
+```
+Bob is in another call when CALL_RING arrives.
+Frontend detects state.kind === 'connected' && state.vc !== ring.vc.
+IncomingCallModal renders the extra "End current & Accept" button.
+Click → useVoiceConnection.disconnect() (existing) → POST /accept (existing) → connect to new vc.
+```
+
+No backend `CALL_BUSY` event — handled fully client-side via state inspection.
+
+### 5.8 Ring on a target with multiple sessions
+
+```
+Bob is signed in on desktop and web (two WS connections).
+CALL_RING is sent via SendToUser(bobID) → fans out to all of Bob's WS connections.
+Both surfaces show a ring (modal or secondary window per platform).
+First Accept/Decline wins; ring service terminates the ring.
+CALL_ACCEPT (carrying accepter_user_id: Bob) goes back via SendToUser(bobID) →
+  fans out to all Bob's sessions. Each frontend, on receiving CALL_ACCEPT where
+  accepter_user_id === currentUserID, dismisses the modal/window without joining.
+The session that clicked Accept proceeds to connect.
+```
+
+Existing `BroadcastChannel` mutual-exclusion handles the same-tab case.
+
+### 5.9 Rehydration on page reload
+
+```
+On boot, frontend hits GET /api/calls/active.
+Response includes:
+  • rings: any active rings targeting the current user (ring_id, caller, vc, expires_at)
+  • in_call: virtual channels where Redis presence shows the current user as joined
+For each ring → CallContext shows incoming surface with remaining time
+For each in_call → ignore (current behavior is disconnect-on-unload; user simply isn't in those calls anymore)
+```
+
+In-call rehydration is out of scope. The `in_call` list is returned but only used for diagnostics / future enhancement.
+
+---
+
+## 6. Error handling
+
+| Scenario | Handling |
+|---|---|
+| WS reconnect during ring | On reconnect, frontend hits `GET /api/calls/active` → restores ring state. |
+| WS reconnect during call | Existing `useVoiceConnection` LiveKit reconnect handles it. |
+| Mic permission denied at Accept | Surface toast "Mic access denied — call cannot start." Trigger immediate disconnect; emits `call_started` then `call_ended {duration_ms: 0}`. Better than blocking the accept. |
+| LiveKit token issuance fails | Toast "Couldn't connect to call service." If during Initiate, no ring is created. If during Accept, behave like mic-denied. |
+| GC member kicked from channel during call | `KickMember` flow also dispatches `VOICE_FORCE_DISCONNECT` to the kicked user. Existing client handler runs `doDisconnect()`. |
+| Stale Redis presence | Existing 30s heartbeat TTL. Frontend pings every 15s (verify; add if missing). |
+| Caller's WS dropped before Bob accepts | Server emits `CALL_ACCEPT` to Alice via `SendToUser`; if her WS is offline, the event is queued and delivered on reconnect. If her browser is gone for good, Bob ends up alone in the room → he leaves → `call_ended {duration_ms ≈ 0}`. |
+| Browser autoplay policy blocks ringtone | App-load warm-up: play a 1ms silent buffer on first user gesture in the page session to keep the audio context alive. Standard pattern. |
+| Notification setting is "muted" for the DM | Modal/secondary window still appears (visual ring) but ringtone is silent and no OS notification fires. Caller hears ringback as normal. Mirrors phone DND. |
+| Single-call-per-channel | Frontend rule: if `voice:{vc}` has any participants (cached from `VOICE_STATE_UPDATE`), the 📞 button reads "Join" and routes to `connect()` directly — no ring. |
+| Duplicate `call_ended` from concurrent leaves | `SET NX EX 60` lock keyed by `vc:started_at` ensures single emission. |
+
+---
+
+## 7. Accessibility
+
+`IncomingCallModal`:
+- Focus trap inside modal on open; restore on close.
+- `Escape` declines. `Enter` accepts.
+- `aria-live="assertive"` announcement: "Incoming call from Alice."
+- Buttons have explicit `aria-label`: "Accept call", "Decline call".
+
+`FloatingCallWindow`:
+- Drag handle is a `<button>` with `aria-label="Drag floating call window"`; supports keyboard arrow-key positioning when focused.
+- All control buttons inherit `VoiceControls` accessibility.
+
+`SystemMessage` (call_*): each event renders with semantic text; screen reader reads "Missed call from Alice" naturally.
+
+---
+
+## 8. Testing
+
+**Backend (Go)**
+- `internal/voice/virtual_channel_test.go` — parse/format roundtrip, error cases.
+- `internal/voice/auth_test.go` — table-driven tests for KindServer / KindDM 1:1 / KindDM GC permission matrices.
+- `internal/voice/ring_test.go` — ring state machine: initiate → accept, decline, cancel, timeout. Glare rejection. Multi-session target.
+- `internal/voice/handler_test.go` — last-leaver detects empty room, emits `call_ended` once even with concurrent leaves.
+
+**Frontend (TS)**
+- `useLocalMutes.test.ts` — localStorage roundtrip, `storage` event sync.
+- `CallContext.test.tsx` — state transitions for outgoing, incoming, glare, dual-session.
+- `shouldNotify.test.ts` — own-message short-circuit covered.
+
+**Integration**
+- Manual smoke test in production after deploy: 1:1 happy, decline, timeout, GC start/join, multi-session ring, force-mute in GC, local mute persistence, floating window drag/expand/dock, Tauri ring window appears when main unfocused.
+
+---
+
+## 9. Migration & rollout
+
+- **No DB migrations.** All artifacts use the existing `dm_messages.system_event` JSONB column (Phase B).
+- **Backend first**, then frontend. New WS event types are additive — old clients ignore unknown event types. Old `/api/channels/{id}/voice/*` routes continue to work (wrap to `s:{id}`).
+- **Feature flag:** none. The 📞 button being absent until frontend ships is sufficient gating.
+- **Release version:** target `v0.5.0` (minor — new feature surface).
+- **CI release:** standard tag-push triggers GitHub Actions; do not build desktop locally (per memory).
+
+---
+
+## 10. Open implementation-time decisions (non-blocking)
+
+These are deferred to build:
+- Ringtone audio file selection (royalty-free; ~6s loop).
+- Floating window default position (likely top-right of viewport, 320×400).
+- Whether GC mute setting (Phase A `notification_setting`) silences the **system message** notification too — likely yes (it's already in scope of the existing `shouldNotify` gate).
+- Exact placement of the 📞 button in `ChatWindow.tsx` header (left of message-search vs right).
+
+---
+
+## 11. Out-of-scope follow-ups
+
+- True OS-level secondary window for the floating call window (not the ring window — that's in scope). Adds Tauri IPC complexity for cross-window LiveKit state sync.
+- In-call rehydration on page reload (currently disconnect-on-unload).
+- Per-DM custom ringtones.
+- Call recording / transcription.
+- Mobile builds.
+- Horizontal-scale-safe ring scheduler.
