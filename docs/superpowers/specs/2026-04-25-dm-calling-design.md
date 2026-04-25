@@ -50,7 +50,7 @@ The LiveKit room name, the Redis presence key (`voice:{vc}`), and the WS broadca
 
 **Floating call window** is a `position: fixed` draggable React overlay rendering `<VoiceChannel layout="compact">`. Position persists to localStorage. Toggleable from the existing `VoiceControls` widget.
 
-**Incoming-call window** (desktop only): a real Tauri secondary window — borderless, transparent, always-on-top, skip-taskbar, anchored bottom-right. Spawned only when the main window is unfocused at ring time. If main gains focus while a ring is active, the secondary closes and the in-app `IncomingCallModal` takes over. Web build always uses the in-app modal.
+**Incoming-call window** (desktop only): a real Tauri secondary window — borderless, transparent, always-on-top, skip-taskbar, anchored bottom-right. Spawned only when the main window is unfocused at ring time. If main gains focus while a ring is active, the secondary closes and the in-app `IncomingCallModal` takes over. Web build always uses the in-app modal. **Mobile Tauri builds (iOS/Android) also use the in-app modal**, never the secondary window — multi-window doesn't apply to mobile webviews. Detection uses `@tauri-apps/plugin-os` `platform()`; the Rust commands are gated with `#[cfg(not(any(target_os = "ios", target_os = "android")))]`.
 
 ---
 

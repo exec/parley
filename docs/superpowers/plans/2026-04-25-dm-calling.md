@@ -4730,6 +4730,8 @@ fn ring_window_label(ring_id: &str) -> String {
     format!("ring-{}", ring_id)
 }
 
+// Secondary ring windows are desktop-only. Mobile builds use the in-app modal.
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 #[tauri::command]
 pub async fn spawn_ring_window(app: AppHandle, args: RingWindowArgs) -> Result<(), String> {
     let label = ring_window_label(&args.ring_id);
@@ -4774,6 +4776,7 @@ pub async fn spawn_ring_window(app: AppHandle, args: RingWindowArgs) -> Result<(
     Ok(())
 }
 
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 #[tauri::command]
 pub async fn dismiss_ring_window(app: AppHandle, ring_id: String) -> Result<(), String> {
     let label = ring_window_label(&ring_id);
@@ -4783,6 +4786,19 @@ pub async fn dismiss_ring_window(app: AppHandle, ring_id: String) -> Result<(), 
     Ok(())
 }
 ```
+
+The `tauri::generate_handler![...]` macro must also gate these on desktop only:
+
+```rust
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
+.invoke_handler(tauri::generate_handler![
+    /* existing commands, */
+    ring_window::spawn_ring_window,
+    ring_window::dismiss_ring_window,
+])
+```
+
+If the existing handler list mixes desktop-only commands with cross-platform ones, split the registration via `cfg` or build the handler list conditionally before calling `invoke_handler`.
 
 - [ ] **Step 2: Add `urlencoding` to `Cargo.toml`**
 
@@ -5015,8 +5031,19 @@ Append a new effect inside `CallProvider`:
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { platform } from '@tauri-apps/plugin-os';
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+// Secondary ring windows are desktop-only. Mobile Tauri builds (iOS/Android)
+// fall back to the in-app modal — multi-window doesn't apply to mobile webviews.
+const [isDesktopTauri, setIsDesktopTauri] = useState<boolean>(false);
+useEffect(() => {
+  if (!isTauri) return;
+  platform().then(p => {
+    setIsDesktopTauri(p === 'macos' || p === 'windows' || p === 'linux');
+  }).catch(() => setIsDesktopTauri(false));
+}, []);
 
 const [mainFocused, setMainFocused] = useState<boolean>(true);
 
@@ -5035,7 +5062,7 @@ Add an effect that reconciles open ring windows with the queue:
 
 ```tsx
 useEffect(() => {
-  if (!isTauri) return;
+  if (!isDesktopTauri) return; // mobile Tauri falls through to in-app modal
   if (mainFocused) {
     // close any open ring windows; modal will render
     store.incomingQueue.forEach(r => {
@@ -5063,13 +5090,13 @@ useEffect(() => {
 
 ```tsx
 useEffect(() => {
-  if (!isTauri) return;
+  if (!isDesktopTauri) return; // ring:accept/decline only fire from the desktop secondary window
   let unsubAccept: undefined | (() => void);
   let unsubDecline: undefined | (() => void);
   listen<{ ring_id: string }>('ring:accept', e => { void accept(e.payload.ring_id); }).then(fn => { unsubAccept = fn; });
   listen<{ ring_id: string }>('ring:decline', e => { void decline(e.payload.ring_id); }).then(fn => { unsubDecline = fn; });
   return () => { unsubAccept?.(); unsubDecline?.(); };
-}, [accept, decline]);
+}, [accept, decline, isDesktopTauri]);
 ```
 
 - [ ] **Step 4: Dismiss windows when the ring is resolved server-side**
@@ -5078,7 +5105,7 @@ Whenever a ring leaves the queue (CALL_TIMEOUT / CALL_CANCEL / CALL_ACCEPT-from-
 
 ```tsx
 useEffect(() => {
-  if (!isTauri) return;
+  if (!isDesktopTauri) return;
   // emit ring:dismiss to all currently queued rings whose secondary windows
   // should close. Simpler: just dismiss any window that does NOT correspond
   // to a current queue entry. Tracked via a ref of last-spawned set.
@@ -5090,7 +5117,7 @@ Practical implementation: track previous queue in a ref; when a ring_id is in `p
 ```tsx
 const prevQueueIds = useRef<Set<string>>(new Set());
 useEffect(() => {
-  if (!isTauri) return;
+  if (!isDesktopTauri) return;
   const currentIds = new Set(store.incomingQueue.map(r => r.ring_id));
   prevQueueIds.current.forEach(id => {
     if (!currentIds.has(id)) {
@@ -5099,7 +5126,7 @@ useEffect(() => {
     }
   });
   prevQueueIds.current = currentIds;
-}, [store.incomingQueue]);
+}, [store.incomingQueue, isDesktopTauri]);
 ```
 
 - [ ] **Step 5: Hide the in-app modal when secondary window is showing**
@@ -5107,12 +5134,12 @@ useEffect(() => {
 In `<CallSurfaces>` (Task 30):
 
 ```tsx
-{!isTauri || mainFocused
+{!isDesktopTauri || mainFocused
   ? incomingQueue.length > 0 && <IncomingCallModal ... />
   : null}
 ```
 
-Export `mainFocused` from `useCall()` so `CallSurfaces` can read it (add it to `CallContextValue`).
+Export `mainFocused` and `isDesktopTauri` from `useCall()` so `CallSurfaces` can read them (add to `CallContextValue`). Mobile Tauri builds always render the in-app modal.
 
 - [ ] **Step 6: Build**
 
