@@ -200,6 +200,13 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 		return nil, err
 	}
 
+	// Implicit author read-marker — saves a client round-trip when sender
+	// and reader are the same person. Non-fatal: read-state is best-effort
+	// metadata, not a part of the message-send contract.
+	if err := s.repo.UpsertReadMarker(ctx, authorIDInt, db.ChannelKindServer, channelIDInt, dbMsg.ID); err != nil {
+		log.Printf("message: failed to upsert author read marker: %v", err)
+	}
+
 	// Look up parent author info if this is a reply
 	var parentAuthorUsername, parentAuthorDisplayName string
 	if dbMsg.ParentID != nil {

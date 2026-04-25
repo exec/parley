@@ -268,6 +268,12 @@ func (h *Handler) SendDmMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Implicit author read-marker for the DM channel — saves a client round-trip.
+	// Non-fatal: read-state is best-effort metadata, not a part of the send contract.
+	if err := h.repo.UpsertReadMarker(r.Context(), currentUserID, db.ChannelKindDM, dmChannelID, msg.ID); err != nil {
+		log.Printf("dm: failed to upsert author read marker: %v", err)
+	}
+
 	// Broadcast to all participants via the dm:{id} virtual channel.
 	if h.hub != nil {
 		msgJSON, err := json.Marshal(msg)
