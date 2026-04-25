@@ -2,6 +2,7 @@ package voice
 
 import (
 	"context"
+	"strconv"
 	"testing"
 
 	"parley/internal/db"
@@ -31,6 +32,16 @@ func (r *authRepoFake) GetServerByID(_ context.Context, serverID int64) (*db.Ser
 }
 func (r *authRepoFake) GetChannelByID(_ context.Context, channelID int64) (*db.Channel, error) {
 	return r.chByID[channelID], nil
+}
+func (r *authRepoFake) GetDmMembers(_ context.Context, dmID int64) ([]db.DmChannelMember, error) {
+	out := []db.DmChannelMember{}
+	for uid := range r.dmMembers[dmID] {
+		out = append(out, db.DmChannelMember{DmChannelID: dmID, UserID: uid})
+	}
+	return out, nil
+}
+func (r *authRepoFake) GetUserByID(_ context.Context, id int64) (*db.User, error) {
+	return &db.User{ID: id, Username: "user" + strconv.FormatInt(id, 10)}, nil
 }
 
 func ptrInt64(v int64) *int64 { return &v }
