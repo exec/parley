@@ -185,15 +185,20 @@ type Message struct {
 	ForwardedMessage        *ForwardedMessageData `json:"forwarded_message,omitempty"`
 }
 
-// DmChannel represents a direct message channel between two users
+// DmChannel represents a direct message channel between two users.
+//
+// IDs are emitted as JSON strings (`,string` tag) for the same reason as
+// DmMessage above: the frontend declares them as strings and uses
+// `Set<string>.has(channel.other_user_id)` for the online-status lookup,
+// which silently fails if the wire format is a number.
 type DmChannel struct {
-	ID            int64     `json:"id" db:"id"`
-	User1ID       int64     `json:"user1_id" db:"user1_id"`
-	User2ID       int64     `json:"user2_id" db:"user2_id"`
+	ID            int64     `json:"id,string" db:"id"`
+	User1ID       int64     `json:"user1_id,string" db:"user1_id"`
+	User2ID       int64     `json:"user2_id,string" db:"user2_id"`
 	CreatedAt     time.Time `json:"created_at" db:"created_at"`
 	OtherUsername    string `json:"other_username" db:"-"`
 	OtherDisplayName string `json:"other_display_name,omitempty" db:"-"`
-	OtherUserID      int64  `json:"other_user_id" db:"-"`
+	OtherUserID      int64  `json:"other_user_id,string" db:"-"`
 	OtherAvatarURL   string `json:"other_avatar_url,omitempty" db:"-"`
 }
 
