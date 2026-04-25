@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { MessageSquare, BellOff } from 'lucide-react';
 import { DmChannel, User, CHANNEL_KIND_DM } from '../../api/types';
 import { useChannelState } from '../../context/ChannelStateContext';
@@ -176,7 +177,10 @@ const DmPanel: React.FC<DmPanelProps> = ({
           channelState.setNotificationSettingLocal(CHANNEL_KIND_DM, dmContextMenu.channelId, s);
           setDmContextMenu(null);
         };
-        return (
+        // Portal to document.body so the menu escapes the .dm-panel
+        // backdrop-filter stacking context (otherwise z-index can't lift the
+        // menu above sibling DM rows).
+        return createPortal(
           <div
             className="dm-item-context-menu"
             style={{ position: 'fixed', top: dmContextMenu.top, left: dmContextMenu.left, zIndex: 9999 }}
@@ -199,7 +203,8 @@ const DmPanel: React.FC<DmPanelProps> = ({
             <button className="dm-item-context-option" onClick={() => setNotif('MUTED')}>
               Muted {dmSetting === 'MUTED' ? '✓' : ''}
             </button>
-          </div>
+          </div>,
+          document.body,
         );
       })()}
       {contextMenu && (
