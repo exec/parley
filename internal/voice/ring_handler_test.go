@@ -199,14 +199,20 @@ func TestRingHandler_Accept_EmptyRingID_Returns400(t *testing.T) {
 }
 
 type fakeCallStarter struct {
-	mu    sync.Mutex
-	count int
+	mu        sync.Mutex
+	count     int
+	lastChan  int64
+	lastActor int64
+	lastTs    int64
 }
 
-func (f *fakeCallStarter) Started(_ context.Context, _, _, _ int64) error {
+func (f *fakeCallStarter) Started(_ context.Context, channelID, actorID, startedAtMs int64) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.count++
+	f.lastChan = channelID
+	f.lastActor = actorID
+	f.lastTs = startedAtMs
 	return nil
 }
 
@@ -230,10 +236,18 @@ func TestStart_GC_EmitsStarted(t *testing.T) {
 		t.Errorf("status %d body=%s", rec.Code, rec.Body.String())
 	}
 	starter.mu.Lock()
-	count := starter.count
-	starter.mu.Unlock()
-	if count != 1 {
-		t.Errorf("expected starter called once, got %d", count)
+	defer starter.mu.Unlock()
+	if starter.count != 1 {
+		t.Errorf("expected starter called once, got %d", starter.count)
+	}
+	if starter.lastChan != 10 {
+		t.Errorf("starter channel = %d, want 10", starter.lastChan)
+	}
+	if starter.lastActor != 1 {
+		t.Errorf("starter actor = %d, want 1 (the user who hit /start)", starter.lastActor)
+	}
+	if starter.lastTs == 0 {
+		t.Errorf("starter ts = 0, want a real Unix-ms timestamp")
 	}
 }
 
@@ -306,5 +320,24 @@ func TestActive_ReturnsRingsForUser(t *testing.T) {
 	// in_call should be present and empty (not nil) — JSON `[]` not `null`
 	if resp.InCall == nil {
 		t.Error("in_call should be empty array, not null")
+	}
+}
+
+func TestStart_StarterNotConfigured(t *testing.T) {
+	repo := &authRepoFake{
+		dmMembers:     map[int64]map[int64]bool{10: {1: true}},
+		dmIsGroupByID: map[int64]bool{10: true},
+	}
+	rs := NewRingService(newFakeHub(), &fakeDmEmitter{}, &Service{})
+	h := NewRingHandler(rs, repo)
+	// deliberately no SetCallStarter call
+
+	req := httptest.NewRequest(http.MethodPost, "/api/dm/10/call/start", nil)
+	req = req.WithContext(withFakeUserID(req.Context(), 1))
+	req.SetPathValue("id", "10")
+	rec := httptest.NewRecorder()
+	h.Start(rec, req)
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rec.Code)
 	}
 }

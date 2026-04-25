@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -173,7 +174,8 @@ func (h *RingHandler) Start(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if h.starter == nil {
-		httputil.JSONError(w, "call starter not configured", http.StatusServiceUnavailable)
+		log.Printf("ring handler: call starter not wired; cannot start call for dm:%d", dmID)
+		httputil.JSONError(w, "call starter not configured", http.StatusInternalServerError)
 		return
 	}
 	startedAt := time.Now().UnixMilli()
