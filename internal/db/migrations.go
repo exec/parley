@@ -907,6 +907,21 @@ UPDATE users SET invite_count = 1 WHERE is_system = FALSE AND is_bot = FALSE AND
 	// no-scopes (HasScope always false), which is the safe failure mode.
 	`ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS scopes TEXT[] NOT NULL DEFAULT '{}';
 UPDATE api_keys SET scopes = ARRAY['full']::TEXT[] WHERE scopes = '{}'::TEXT[];`,
+
+	// Migration #64: cross-cutting per-(user, channel) read-state and notification
+	// settings. Used by both server channels (channel_kind = 1) and DM channels
+	// (channel_kind = 2). Rows are written only when a user marks-read or changes
+	// notification setting; default state (no row) = NotificationAll, never-read.
+	`CREATE TABLE IF NOT EXISTS user_channel_state (
+    user_id              BIGINT      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    channel_kind         SMALLINT    NOT NULL CHECK (channel_kind IN (1, 2)),
+    channel_id           BIGINT      NOT NULL,
+    last_read_message_id BIGINT,
+    notification_setting SMALLINT    NOT NULL DEFAULT 0,
+    updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, channel_kind, channel_id)
+);
+CREATE INDEX IF NOT EXISTS user_channel_state_user_idx ON user_channel_state(user_id);`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string
