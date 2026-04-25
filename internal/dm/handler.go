@@ -40,6 +40,12 @@ func (h *Handler) SetDmNotify(fn DmNotifyFunc) {
 	h.dmNotify = fn
 }
 
+// Service returns the underlying dm.Service. Used by the wiring layer to
+// reach EmitCallEnded for the voice handler's last-leaver hook.
+func (h *Handler) Service() *Service {
+	return h.svc
+}
+
 // OpenDmChannelRequest represents the request to open/start a DM.
 // Supports both single (`user_id`) and multi (`user_ids`) shapes;
 // when len(user_ids) > 1 a group DM is created.

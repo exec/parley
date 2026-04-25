@@ -275,16 +275,32 @@ func registerRoutes(
 			// Typing indicator — write (broadcasts presence into the channel)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/channels/{channelId}/typing", handleChannelTyping(repo, hub))
 
-			// Voice routes — joining a voice channel as a bot is a presence
-			// change akin to sending a typing indicator; treat as
-			// messages:write. Participant reads are servers:read.
+			// Voice — virtual-channel-namespaced routes (s:N for server VCs, dm:N for DMs).
 			voiceHandler := voice.NewHandler(voiceSvc, repo, hub)
-			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Get("/channels/{channelId}/voice/token", voiceHandler.Token)
-			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/channels/{channelId}/voice/join", voiceHandler.Join)
-			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/channels/{channelId}/voice/leave", voiceHandler.Leave)
-			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/channels/{channelId}/voice/participants", voiceHandler.Participants)
-			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Post("/channels/{channelId}/voice/participants/{targetUserId}/mute", voiceHandler.MuteParticipant)
-			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Post("/channels/{channelId}/voice/participants/{targetUserId}/kick", voiceHandler.KickParticipant)
+			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Get("/voice/{vc}/token", voiceHandler.Token)
+			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/voice/{vc}/join", voiceHandler.Join)
+			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/voice/{vc}/leave", voiceHandler.Leave)
+			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/voice/{vc}/heartbeat", voiceHandler.Heartbeat)
+			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/voice/{vc}/participants", voiceHandler.Participants)
+			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Post("/voice/{vc}/participants/{targetUserId}/mute", voiceHandler.MuteParticipant)
+			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Post("/voice/{vc}/participants/{targetUserId}/kick", voiceHandler.KickParticipant)
+
+			// Back-compat: existing /api/channels/{channelId}/voice/* routes rewrite the path
+			// param to s:{channelId} and forward to the same handlers. Frontend will migrate
+			// to /api/voice/{vc}/* and these wrappers can be removed in a future release.
+			wrapServerVoice := func(next http.HandlerFunc) http.HandlerFunc {
+				return func(w http.ResponseWriter, req *http.Request) {
+					channelID := chi.URLParam(req, "channelId")
+					req.SetPathValue("vc", "s:"+channelID)
+					next(w, req)
+				}
+			}
+			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Get("/channels/{channelId}/voice/token", wrapServerVoice(voiceHandler.Token))
+			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/channels/{channelId}/voice/join", wrapServerVoice(voiceHandler.Join))
+			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/channels/{channelId}/voice/leave", wrapServerVoice(voiceHandler.Leave))
+			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/channels/{channelId}/voice/participants", wrapServerVoice(voiceHandler.Participants))
+			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Post("/channels/{channelId}/voice/participants/{targetUserId}/mute", wrapServerVoice(voiceHandler.MuteParticipant))
+			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Post("/channels/{channelId}/voice/participants/{targetUserId}/kick", wrapServerVoice(voiceHandler.KickParticipant))
 
 			// Notification service — wired into DM, friend, and message flows.
 			// Notifications are per-user inbox reads/marks; map to servers:read
@@ -309,6 +325,7 @@ func registerRoutes(
 			// and messages:write (open/send/delete/react/forward).
 			dmHandler := dm.NewHandler(repo, hub)
 			dmHandler.SetDmNotify(notifSvc.NotifyDM)
+			voiceHandler.SetDmCallEnder(dmHandler.Service().EmitCallEnded)
 			r.With(auth.RequireScope(auth.ScopeMessagesRead)).Get("/dms", dmHandler.GetDmChannels)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms", dmHandler.OpenDmChannel)
 			r.With(auth.RequireScope(auth.ScopeMessagesRead)).Get("/dms/{id}/messages", dmHandler.GetDmMessages)
