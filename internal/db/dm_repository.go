@@ -568,7 +568,7 @@ func (r *Repository) UpdateDmGroupAvatar(ctx context.Context, channelID int64, a
 	return err
 }
 
-func (r *Repository) TransferDmGroupOwnership(ctx context.Context, channelID, newOwnerID int64) error {
+func (r *Repository) TransferDmGroupOwnership(ctx context.Context, channelID int64, newOwnerID *int64) error {
 	_, err := r.db.ExecContext(ctx, `UPDATE dm_channels SET owner_user_id = $1 WHERE id = $2 AND is_group = TRUE`, newOwnerID, channelID)
 	return err
 }

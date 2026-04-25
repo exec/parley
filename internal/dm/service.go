@@ -138,6 +138,85 @@ func (s *Service) AddMembers(ctx context.Context, channelID, actorUserID int64, 
 	return nil
 }
 
+// LeaveGroup removes the actor from a group DM. If the actor is the owner:
+//   - transferTo non-nil: ownership moves to that user (must be a member),
+//     then the actor leaves. Emits owner_transferred + member_left system
+//     messages.
+//   - transferTo nil: owner_user_id is cleared (NULL). "Power evaporates" —
+//     no one can kick after this. Emits member_left only.
+//
+// Non-owner leave: just removes member, emits member_left.
+func (s *Service) LeaveGroup(ctx context.Context, channelID, actorUserID int64, transferTo *int64) error {
+	ch, err := s.repo.GetDmChannelByID(ctx, channelID)
+	if err != nil {
+		return err
+	}
+	if !ch.IsGroup {
+		return errors.New("not a group channel")
+	}
+
+	isMember, err := s.repo.IsDmMember(ctx, channelID, actorUserID)
+	if err != nil {
+		return err
+	}
+	if !isMember {
+		return errors.New("not a member")
+	}
+
+	isOwner := ch.OwnerUserID != nil && *ch.OwnerUserID == actorUserID
+
+	if transferTo != nil {
+		if !isOwner {
+			return errors.New("only owner can transfer ownership")
+		}
+		if *transferTo == actorUserID {
+			return errors.New("cannot transfer to yourself")
+		}
+		targetIsMember, _ := s.repo.IsDmMember(ctx, channelID, *transferTo)
+		if !targetIsMember {
+			return errors.New("transfer target is not a member")
+		}
+		if err := s.repo.TransferDmGroupOwnership(ctx, channelID, transferTo); err != nil {
+			return err
+		}
+		eventJSON, _ := json.Marshal(map[string]any{
+			"type":              "owner_transferred",
+			"actor_user_id":     strconv.FormatInt(actorUserID, 10),
+			"new_owner_user_id": strconv.FormatInt(*transferTo, 10),
+		})
+		if sysMsg, err := s.repo.InsertSystemMessage(ctx, channelID, actorUserID, eventJSON); err == nil && s.hub != nil {
+			sysMsgJSON, _ := json.Marshal(sysMsg)
+			s.hub.BroadcastToChannel(fmt.Sprintf("dm:%d", channelID), ws.EventDmMessageCreate, sysMsgJSON)
+		}
+	} else if isOwner {
+		// Power evaporates: clear owner.
+		if err := s.repo.TransferDmGroupOwnership(ctx, channelID, nil); err != nil {
+			return err
+		}
+	}
+
+	if err := s.repo.RemoveDmMember(ctx, channelID, actorUserID); err != nil {
+		return err
+	}
+
+	eventJSON, _ := json.Marshal(map[string]any{
+		"type":          "member_left",
+		"actor_user_id": strconv.FormatInt(actorUserID, 10),
+	})
+	if sysMsg, err := s.repo.InsertSystemMessage(ctx, channelID, actorUserID, eventJSON); err == nil && s.hub != nil {
+		sysMsgJSON, _ := json.Marshal(sysMsg)
+		s.hub.BroadcastToChannel(fmt.Sprintf("dm:%d", channelID), ws.EventDmMessageCreate, sysMsgJSON)
+	}
+	if s.hub != nil {
+		memberRemovePayload, _ := json.Marshal(map[string]any{
+			"channel_id": strconv.FormatInt(channelID, 10),
+			"user_id":    strconv.FormatInt(actorUserID, 10),
+		})
+		s.hub.BroadcastToChannel(fmt.Sprintf("dm:%d", channelID), ws.EventDmMemberRemove, memberRemovePayload)
+	}
+	return nil
+}
+
 func dedupeAndExcludeSelf(ids []int64, self int64) []int64 {
 	seen := map[int64]bool{}
 	out := []int64{}

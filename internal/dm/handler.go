@@ -585,3 +585,45 @@ func (h *Handler) AddMembers(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// LeaveRequest is the body for POST /dms/{id}/leave. Body is optional;
+// when transfer_to is provided and the actor is the owner, ownership is
+// passed to that user before leaving.
+type LeaveRequest struct {
+	TransferTo *string `json:"transfer_to,omitempty"`
+}
+
+// Leave handles POST /dms/{id}/leave.
+func (h *Handler) Leave(w http.ResponseWriter, r *http.Request) {
+	userIDStr := auth.GetUserIDFromContext(r)
+	actorID, _ := strconv.ParseInt(userIDStr, 10, 64)
+	channelID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		httputil.JSONError(w, "invalid channel id", http.StatusBadRequest)
+		return
+	}
+
+	var req LeaveRequest
+	_ = json.NewDecoder(r.Body).Decode(&req) // body optional
+
+	var transfer *int64
+	if req.TransferTo != nil && *req.TransferTo != "" {
+		n, perr := strconv.ParseInt(*req.TransferTo, 10, 64)
+		if perr != nil {
+			httputil.JSONError(w, "invalid transfer_to", http.StatusBadRequest)
+			return
+		}
+		transfer = &n
+	}
+
+	if err := h.svc.LeaveGroup(r.Context(), channelID, actorID, transfer); err != nil {
+		msg := err.Error()
+		if strings.Contains(msg, "not a") || strings.Contains(msg, "only owner") || strings.Contains(msg, "transfer target") || strings.Contains(msg, "transfer to yourself") {
+			httputil.JSONError(w, msg, http.StatusBadRequest)
+			return
+		}
+		httputil.InternalError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
