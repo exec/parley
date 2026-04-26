@@ -1,7 +1,7 @@
 import { useEffect, useState, FormEvent } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
-import { apiClient } from '../api/client';
+import { apiClient, IS_DESKTOP } from '../api/client';
 import { loginWithPasskey } from '../api/passkeys';
 import { issueDesktopCode } from '../api/desktopAuth';
 import './Auth.css';
@@ -42,7 +42,10 @@ export const AuthDesktop: React.FC = () => {
   };
 
   useEffect(() => {
-    if (localStorage.getItem('token')) {
+    // This page is loaded in the user's browser — if they already have a
+    // valid session here (cached user blob from a previous web login),
+    // skip the form and immediately issue the desktop handoff code.
+    if (localStorage.getItem('user')) {
       issueAndRedirect();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -61,13 +64,19 @@ export const AuthDesktop: React.FC = () => {
       const resp = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(body),
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) throw new Error(data.message || 'Login failed');
-      localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
-      apiClient.setToken(data.token);
+      // This page is browser-side (not the desktop shell). Web users now
+      // get an HttpOnly session cookie via /auth/login; only the desktop
+      // build needs the token in localStorage for its Bearer header.
+      if (IS_DESKTOP) {
+        localStorage.setItem('token', data.token);
+        apiClient.setToken(data.token);
+      }
       await issueAndRedirect();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed.');
@@ -81,9 +90,11 @@ export const AuthDesktop: React.FC = () => {
     setPasskeyLoading(true);
     try {
       const data = await loginWithPasskey();
-      localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
-      apiClient.setToken(data.token);
+      if (IS_DESKTOP) {
+        localStorage.setItem('token', data.token);
+        apiClient.setToken(data.token);
+      }
       await issueAndRedirect();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Passkey authentication failed.');

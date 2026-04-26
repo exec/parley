@@ -9,11 +9,7 @@ export interface MessageVersion {
 }
 
 export async function getMessageVersions(messageId: string): Promise<MessageVersion[]> {
-  const res = await fetch(`/api/messages/${messageId}/versions`, {
-    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-  });
-  if (!res.ok) throw new Error('Failed to fetch versions');
-  return res.json();
+  return apiClient.get<MessageVersion[]>(`/messages/${messageId}/versions`);
 }
 
 export interface GetMessagesParams {

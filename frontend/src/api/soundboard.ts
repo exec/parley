@@ -34,6 +34,7 @@ export async function uploadSound(serverId: string, file: File, name: string, em
 
   const response = await fetch(apiUrl(`/servers/${serverId}/soundboard`), {
     method: 'POST',
+    credentials: 'include',
     headers,
     body: formData,
   });

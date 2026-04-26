@@ -33,14 +33,14 @@ function applyReactionToList<T extends { id: string | number; reactions?: Reacti
     return { ...msg, reactions };
   });
 }
-import { apiClient } from '../api/client';
+import { apiClient, IS_DESKTOP } from '../api/client';
 import * as serversApi from '../api/servers';
 import * as channelsApi from '../api/channels';
 import * as messagesApi from '../api/messages';
 import * as dmsApi from '../api/dms';
 import * as friendsApi from '../api/friends';
 import * as notificationsApi from '../api/notifications';
-import { getCurrentUser } from '../api/auth';
+import { getCurrentUser, logout as serverLogout } from '../api/auth';
 import { ReactionUpdate, MemberRoleUpdate, UserUpdate, BotStatusUpdate } from '../hooks/useWebSocket';
 import { resetThemeOnLogout } from './ThemeContext';
 
@@ -184,18 +184,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const unreadNotificationCount = notifications.filter(n => !n.read).length;
 
+  // Desktop ships its JWT via Bearer header, so the apiClient needs the
+  // token in memory before any request fires. Web auth lives in an HttpOnly
+  // cookie that the browser attaches automatically.
   useEffect(() => {
+    if (!IS_DESKTOP) return;
     const token = localStorage.getItem('token');
-    if (token) {
-      apiClient.setToken(token);
-    }
+    if (token) apiClient.setToken(token);
   }, []);
 
   // Refresh currentUser from the server on startup so stale localStorage data
-  // (e.g. missing display_name from an old session) is always corrected.
+  // (e.g. missing display_name from an old session) is always corrected. Skip
+  // the round trip if we have no logged-in signal at all (no cached user).
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
+    if (!localStorage.getItem('user')) return;
     getCurrentUser()
       .then(fresh => {
         setCurrentUser(fresh);
@@ -624,6 +626,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    // Tell the server to clear the session cookie. Fire-and-forget; if the
+    // request fails (offline, expired session), we still clean up locally.
+    void serverLogout().catch(() => {});
     resetThemeOnLogout();
     localStorage.removeItem('token');
     localStorage.removeItem('user');

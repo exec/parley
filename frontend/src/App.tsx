@@ -9,6 +9,7 @@ import { ForgotPassword } from './pages/ForgotPassword';
 import { ResetPassword } from './pages/ResetPassword';
 import { AuthDesktop } from './pages/AuthDesktop';
 import { AppProvider, useApp } from './context/AppContext';
+import { IS_DESKTOP } from './api/client';
 import { ThemeProvider } from './context/ThemeContext';
 import { ChannelStateProvider } from './context/ChannelStateContext';
 import { Landing } from './pages/Landing';
@@ -2001,28 +2002,39 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   // Preserve the path + search so Login/Register can redirect back after
   // auth — otherwise an unauthenticated invite visitor ends up on /.
   const loginHref = `/login?redirect=${encodeURIComponent(location.pathname + location.search)}`;
-  const token = localStorage.getItem('token');
-  if (!token) return <Navigate to={loginHref} replace />;
 
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    if (payload.exp && payload.exp < Date.now() / 1000) {
+  // The session cookie is HttpOnly so JS can't see it directly. We use the
+  // cached `user` blob as a "logged-in-ish" signal to avoid a network round
+  // trip before first paint; if the cookie has actually expired, the next
+  // API call will 401 and the apiClient redirects to /login. Desktop keeps
+  // its JWT in localStorage and we can check exp eagerly there.
+  const userCache = localStorage.getItem('user');
+  if (!userCache) return <Navigate to={loginHref} replace />;
+
+  if (IS_DESKTOP) {
+    const token = localStorage.getItem('token');
+    if (!token) return <Navigate to={loginHref} replace />;
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      if (payload.exp && payload.exp < Date.now() / 1000) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        return <Navigate to={loginHref} replace />;
+      }
+    } catch {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       return <Navigate to={loginHref} replace />;
     }
-  } catch {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    return <Navigate to={loginHref} replace />;
   }
 
   return <>{children}</>;
 };
 
 const AuthRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const token = localStorage.getItem('token');
-  if (token) return <Navigate to="/" replace />;
+  // Same heuristic as ProtectedRoute: a cached user means we're probably
+  // logged in. Server 401 will eject us from any protected route if not.
+  if (localStorage.getItem('user')) return <Navigate to="/" replace />;
   return <>{children}</>;
 };
 
@@ -2041,8 +2053,7 @@ const ProtectedApp = (
 );
 
 const HomeRoute: React.FC = () => {
-  const token = localStorage.getItem('token');
-  if (!token) {
+  if (!localStorage.getItem('user')) {
     // Landing is a marketing surface for first-time web visitors. Anyone
     // running the packaged desktop or mobile app already knows what Parley
     // is, so skip it and send them straight to login.

@@ -25,7 +25,7 @@ export const BotInviteEmbed: React.FC<Props> = ({ token }) => {
   const [error, setError] = useState('');
   const [grantedPerms, setGrantedPerms] = useState<bigint>(0n);
 
-  const isLoggedIn = !!localStorage.getItem('token');
+  const isLoggedIn = !!localStorage.getItem('user');
 
   useEffect(() => {
     resolveBotInvite(token)
@@ -38,9 +38,7 @@ export const BotInviteEmbed: React.FC<Props> = ({ token }) => {
 
   useEffect(() => {
     if (!isLoggedIn) return;
-    fetch('/api/servers', {
-      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-    })
+    fetch('/api/servers', { credentials: 'include' })
       .then(r => r.json())
       .then((data: { id: string; name: string }[]) => {
         const mapped = data.map(s => ({ id: Number(s.id), name: s.name }));

@@ -2,7 +2,7 @@ import React, { useState, useEffect, FormEvent } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { Button } from '../components/ui/Button';
-import { apiClient } from '../api/client';
+import { apiClient, IS_DESKTOP as inTauri } from '../api/client';
 import { registerPasskey } from '../api/passkeys';
 import './Auth.css';
 
@@ -86,13 +86,16 @@ export const Register: React.FC = () => {
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(body),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.message || 'Registration failed');
-      localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
-      apiClient.setToken(data.token);
+      if (inTauri) {
+        localStorage.setItem('token', data.token);
+        apiClient.setToken(data.token);
+      }
 
       if (!password) {
         // Passkey-only account: must complete setup before entering the app.

@@ -1,14 +1,19 @@
-import { apiClient } from './client';
+import { apiClient, IS_DESKTOP } from './client';
 import { AuthResponse, User } from './types';
 
-export async function login(email: string, password: string): Promise<AuthResponse> {
-  const response = await apiClient.post<AuthResponse>('/auth/login', {
-    email,
-    password,
-  });
-
-  apiClient.setToken(response.token);
+// Web users get an HttpOnly session cookie set by the server; the JWT in the
+// response body is for desktop only. Storing the token in localStorage on
+// web is exactly the XSS exfiltration target we're trying to remove.
+function adoptToken(response: AuthResponse): AuthResponse {
+  if (IS_DESKTOP) {
+    apiClient.setToken(response.token);
+    localStorage.setItem('token', response.token);
+  }
   return response;
+}
+
+export async function login(email: string, password: string): Promise<AuthResponse> {
+  return adoptToken(await apiClient.post<AuthResponse>('/auth/login', { email, password }));
 }
 
 export async function register(
@@ -16,14 +21,7 @@ export async function register(
   email: string,
   password: string
 ): Promise<AuthResponse> {
-  const response = await apiClient.post<AuthResponse>('/auth/register', {
-    username,
-    email,
-    password,
-  });
-
-  apiClient.setToken(response.token);
-  return response;
+  return adoptToken(await apiClient.post<AuthResponse>('/auth/register', { username, email, password }));
 }
 
 export async function logout(): Promise<void> {

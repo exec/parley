@@ -83,6 +83,7 @@ export const Login: React.FC = () => {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify(body),
       });
 
@@ -92,9 +93,13 @@ export const Login: React.FC = () => {
         throw new Error(data.message || 'Login failed');
       }
 
-      localStorage.setItem('token', data.token);
+      // Web: server set an HttpOnly session cookie. Don't store the token
+      // in localStorage. Desktop still needs the Bearer header.
       localStorage.setItem('user', JSON.stringify(data.user));
-      apiClient.setToken(data.token);
+      if (inTauri) {
+        localStorage.setItem('token', data.token);
+        apiClient.setToken(data.token);
+      }
 
       navigate(redirectTo);
     } catch (err) {
@@ -111,9 +116,11 @@ export const Login: React.FC = () => {
     setPasskeyLoading(true);
     try {
       const data = await loginWithPasskey();
-      localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
-      apiClient.setToken(data.token);
+      if (inTauri) {
+        localStorage.setItem('token', data.token);
+        apiClient.setToken(data.token);
+      }
       navigate(redirectTo);
     } catch (err) {
       setErrors({
@@ -157,6 +164,8 @@ export const Login: React.FC = () => {
         }
         exchangeDesktopCode(code, state)
           .then((data) => {
+            // Reached only when running in Tauri (inTauri gate above), so
+            // we always store the token + Bearer here.
             localStorage.setItem('token', data.token);
             localStorage.setItem('user', JSON.stringify(data.user));
             apiClient.setToken(data.token);

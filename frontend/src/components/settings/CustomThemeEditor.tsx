@@ -1,6 +1,16 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { UserTheme, NewTheme, publishTheme } from '../../api/themes';
-import { apiUrl } from '../../api/client';
+import { apiUrl, apiClient } from '../../api/client';
+
+// Build a fresh request init with cookie auth + Bearer fallback for desktop.
+// Used for the two endpoints in this file that bypass apiClient (multipart
+// upload + streaming AI generation).
+function authedInit(extra: RequestInit = {}): RequestInit {
+  const token = apiClient.getToken();
+  const headers: Record<string, string> = { ...(extra.headers as Record<string, string> || {}) };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  return { ...extra, credentials: 'include', headers };
+}
 import { BUILTIN_IDS } from '../../context/ThemeContext';
 import { validateCSS } from '../../lib/cssValidator';
 import { themeVarsCSS } from '../../lib/themePreview';
@@ -63,11 +73,7 @@ body{font-family:sans-serif;background:var(--parley-app-bg,var(--parley-channel-
 async function uploadFile(file: File): Promise<string> {
   const form = new FormData();
   form.append('file', file);
-  const res = await fetch(apiUrl('/upload'), {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${localStorage.getItem('token') || ''}` },
-    body: form,
-  });
+  const res = await fetch(apiUrl('/upload'), authedInit({ method: 'POST', body: form }));
   if (!res.ok) throw new Error('Upload failed');
   return (await res.json()).url as string;
 }
@@ -149,15 +155,12 @@ export const CustomThemeEditor: React.FC<Props> = ({ existing, onSave, onCancel 
     abortRef.current = new AbortController();
     setAiStatus({ type: 'generating' });
     try {
-      const resp = await fetch(apiUrl('/me/themes/generate'), {
+      const resp = await fetch(apiUrl('/me/themes/generate'), authedInit({
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: aiPrompt, current_css: aiModify ? css : '' }),
         signal: abortRef.current.signal,
-      });
+      }));
       if (!resp.ok || !resp.body) {
         const msg = resp.status === 503 ? 'AI generation not available' : 'Request failed';
         setAiStatus({ type: 'error', message: msg });

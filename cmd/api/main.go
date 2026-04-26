@@ -528,6 +528,10 @@ func corsMiddleware() func(http.Handler) http.Handler {
 			if allowedOrigins[origin] {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
 				w.Header().Set("Vary", "Origin")
+				// Required for fetch() with credentials: 'include' so the
+				// session cookie can ship from web clients and the browser
+				// will accept the response. Only set on allowlisted origins.
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
 			}
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")

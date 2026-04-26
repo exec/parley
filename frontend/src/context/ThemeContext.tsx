@@ -74,7 +74,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const cachedBase = localStorage.getItem('parley-theme-base') || null;
     applyToDOM(cached, cachedCSS, cachedBase);
 
-    if (!localStorage.getItem('token')) return;
+    // Skip server prefs fetch if there's no logged-in signal — avoids a
+    // useless 401 round trip on the login screen.
+    if (!localStorage.getItem('user')) return;
     getPreferences().then(p => {
       setActiveTheme(p.active_theme);
       setActiveCustomThemeId(p.active_custom_theme_id);
