@@ -19,6 +19,9 @@
 .incoming-text { margin: 0; text-align: center; }
 .incoming-buttons { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
 .incoming-btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 16px; border-radius: 8px; border: 0; cursor: pointer; font-weight: 600; }
-.incoming-btn--accept { background: #22c55e; color: white; }
-.incoming-btn--decline { background: #ef4444; color: white; }
+.incoming-btn--accept { background: var(--parley-success); color: white; }
+.incoming-btn--accept:hover { filter: brightness(1.1); }
+.incoming-btn--decline { background: var(--parley-danger); color: white; }
+.incoming-btn--decline:hover { background: var(--parley-danger-hover); }
 .incoming-btn--end-current { background: var(--parley-bg-tertiary); color: var(--parley-text); border: 1px solid var(--parley-border); }
+.incoming-btn--end-current:hover { background: var(--parley-bg-hover); }

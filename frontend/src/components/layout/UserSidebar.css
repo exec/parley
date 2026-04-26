@@ -36,7 +36,7 @@
     overflow-y: auto;
     border-left-width: 1px;
     transform: translateX(110%);
-    transition: transform 0.22s ease;
+    transition: transform 0.22s cubic-bezier(0.32, 0.72, 0, 1);
     padding-bottom: 10px;
   }
   /* Reset the desktop collapse — on mobile, hidden = off-screen, not width:0 */

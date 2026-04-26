@@ -1465,14 +1465,25 @@
 }
 
 @keyframes message-highlight-flash {
-  0%   { background-color: rgba(var(--accent-rgb), 0.18); }
-  60%  { background-color: rgba(var(--accent-rgb), 0.18); }
-  100% { background-color: transparent; }
+  0%   { background-color: rgba(var(--accent-rgb), 0); }
+  15%  { background-color: rgba(var(--accent-rgb), 0.18); }
+  100% { background-color: rgba(var(--accent-rgb), 0); }
 }
 
 .message-highlight {
-  animation: message-highlight-flash 1.5s ease-out forwards;
+  animation: message-highlight-flash 1.4s ease-out forwards;
   border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes message-highlight-flash {
+    0%   { background-color: rgba(var(--accent-rgb), 0.18); }
+    100% { background-color: rgba(var(--accent-rgb), 0); }
+  }
+
+  .message-highlight {
+    animation: message-highlight-flash 600ms linear forwards;
+  }
 }
 
 /* ── Pin indicator on messages ──────────────────────────────── */

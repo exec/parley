@@ -20,5 +20,7 @@ body {
 .ring-text { margin: 0; text-align: center; }
 .ring-buttons { display: flex; gap: 12px; }
 .ring-btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 16px; border: 0; border-radius: 8px; cursor: pointer; font-weight: 600; }
-.ring-btn--accept  { background: #22c55e; color: white; }
-.ring-btn--decline { background: #ef4444; color: white; }
+.ring-btn--accept  { background: var(--parley-success); color: white; }
+.ring-btn--accept:hover  { filter: brightness(1.1); }
+.ring-btn--decline { background: var(--parley-danger); color: white; }
+.ring-btn--decline:hover { background: var(--parley-danger-hover); }
