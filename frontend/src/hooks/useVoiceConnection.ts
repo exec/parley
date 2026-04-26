@@ -233,7 +233,10 @@ export function useVoiceConnection(
       r.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
         if (publication.kind === Track.Kind.Audio && track) {
           attachAudioTrack(publication.trackSid, track);
-          (track as RemoteAudioTrack).setVolume(getVolume(participant.identity) / 100);
+          const at = track as RemoteAudioTrack;
+          if (typeof at.setVolume === 'function') {
+            at.setVolume(getVolume(participant.identity) / 100);
+          }
         }
         updateParticipantList();
       });
@@ -347,8 +350,9 @@ export function useVoiceConnection(
     if (!room) return;
     room.remoteParticipants.forEach(p => {
       p.audioTrackPublications.forEach(pub => {
-        if (pub.track && pub.track.kind === Track.Kind.Audio) {
-          (pub.track as RemoteAudioTrack).setVolume(getVolume(p.identity) / 100);
+        const t = pub.track as RemoteAudioTrack | undefined;
+        if (t && t.kind === Track.Kind.Audio && typeof t.setVolume === 'function') {
+          t.setVolume(getVolume(p.identity) / 100);
         }
       });
     });

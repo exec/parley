@@ -136,8 +136,12 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
 
   useEffect(() => {
     participant.audioTrackPublications.forEach(pub => {
-      if (pub.track && pub.track.kind === Track.Kind.Audio) {
-        (pub.track as RemoteAudioTrack).setVolume(localVol / 100);
+      // setVolume only exists on RemoteAudioTrack — local mic tracks lack it
+      // and ignoring `participant.isLocal` shape differences is simpler than
+      // narrowing the union, so feature-detect.
+      const t = pub.track as RemoteAudioTrack | undefined;
+      if (t && t.kind === Track.Kind.Audio && typeof t.setVolume === 'function') {
+        t.setVolume(localVol / 100);
       }
     });
   }, [localVol, participant]);
