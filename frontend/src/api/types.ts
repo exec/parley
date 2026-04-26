@@ -185,6 +185,9 @@ export interface DmChannelMember {
   username?: string;
   display_name?: string;
   avatar_url?: string;
+  banner_url?: string;
+  bio?: string;
+  badges?: number;
 }
 
 // System event payloads include actor_display_name (and target/new_owner where

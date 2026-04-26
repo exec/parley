@@ -1190,6 +1190,9 @@ function MainApp() {
       username: m.username ?? '',
       display_name: m.display_name,
       avatar_url: m.avatar_url,
+      banner_url: m.banner_url,
+      bio: m.bio,
+      badges: m.badges,
       joined_at: m.joined_at,
     }));
 

@@ -39,6 +39,7 @@ interface UserContextMenuProps {
   canTransferOwnership?: boolean;
   position: { top: number; left: number };
   onClose: () => void;
+  onViewProfile?: (userId: string) => void;
   onSendMessage?: (userId: string) => void;
   onManageRoles?: () => void;
   onKick?: (userId: string) => void;
@@ -48,7 +49,7 @@ interface UserContextMenuProps {
 
 const UserContextMenu: React.FC<UserContextMenuProps> = ({
   member, isCurrentUser, isOwner, canManageRoles, canKickMembers, canBanMembers, canTransferOwnership,
-  position, onClose, onSendMessage, onManageRoles, onKick, onBan, onTransferOwnership,
+  position, onClose, onViewProfile, onSendMessage, onManageRoles, onKick, onBan, onTransferOwnership,
 }) => {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -66,6 +67,11 @@ const UserContextMenu: React.FC<UserContextMenuProps> = ({
     <div ref={ref} className="user-context-menu" style={{ top: position.top, left }}>
       <div className="user-context-menu-header">{member.display_name || member.username}</div>
       <div className="user-context-menu-divider" />
+      {onViewProfile && (
+        <button className="user-context-menu-item" onClick={() => { onViewProfile(member.user_id); onClose(); }}>
+          View Profile
+        </button>
+      )}
       {!isCurrentUser && (
         <button className="user-context-menu-item" onClick={() => { onSendMessage?.(member.user_id); onClose(); }}>
           Send Message
@@ -341,6 +347,7 @@ const UserSidebar: React.FC<UserSidebarProps> = ({
           canTransferOwnership={canTransferOwnership}
           position={contextMenu.position}
           onClose={() => setContextMenu(null)}
+          onViewProfile={onViewProfile}
           onSendMessage={onSendMessage}
           onManageRoles={() => onManageRoles?.(contextMenu.member.user_id)}
           onKick={onKick}

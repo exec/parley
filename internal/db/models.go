@@ -215,8 +215,8 @@ type DmChannel struct {
 
 // DmChannelMember represents a member of a (group or 1:1) DM channel.
 // Populated by the join-table dm_channel_members. Username/DisplayName/
-// AvatarURL are populated when fetched via a JOIN with users; raw row
-// reads leave them empty.
+// AvatarURL/BannerURL/Bio/Badges are populated when fetched via a JOIN with
+// users; raw row reads leave them empty.
 type DmChannelMember struct {
 	DmChannelID int64     `json:"dm_channel_id,string" db:"dm_channel_id"`
 	UserID      int64     `json:"user_id,string" db:"user_id"`
@@ -225,6 +225,9 @@ type DmChannelMember struct {
 	Username    string `json:"username,omitempty" db:"-"`
 	DisplayName string `json:"display_name,omitempty" db:"-"`
 	AvatarURL   string `json:"avatar_url,omitempty" db:"-"`
+	BannerURL   string `json:"banner_url,omitempty" db:"-"`
+	Bio         string `json:"bio,omitempty" db:"-"`
+	Badges      int    `json:"badges,omitempty" db:"-"`
 }
 
 // DmMessage represents a direct message.

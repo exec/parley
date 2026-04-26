@@ -652,7 +652,8 @@ func (r *Repository) IsDmMember(ctx context.Context, channelID, userID int64) (b
 func (r *Repository) GetDmMembers(ctx context.Context, channelID int64) ([]DmChannelMember, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT m.dm_channel_id, m.user_id, m.joined_at, u.username,
-		       COALESCE(u.display_name, u.username), COALESCE(u.avatar_url, '')
+		       COALESCE(u.display_name, u.username), COALESCE(u.avatar_url, ''),
+		       COALESCE(u.banner_url, ''), COALESCE(u.bio, ''), u.badges
 		  FROM dm_channel_members m
 		  JOIN users u ON u.id = m.user_id
 		 WHERE m.dm_channel_id = $1
@@ -665,7 +666,7 @@ func (r *Repository) GetDmMembers(ctx context.Context, channelID int64) ([]DmCha
 	var out []DmChannelMember
 	for rows.Next() {
 		var m DmChannelMember
-		if err := rows.Scan(&m.DmChannelID, &m.UserID, &m.JoinedAt, &m.Username, &m.DisplayName, &m.AvatarURL); err != nil {
+		if err := rows.Scan(&m.DmChannelID, &m.UserID, &m.JoinedAt, &m.Username, &m.DisplayName, &m.AvatarURL, &m.BannerURL, &m.Bio, &m.Badges); err != nil {
 			return nil, err
 		}
 		out = append(out, m)
