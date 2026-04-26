@@ -27,11 +27,17 @@
 .sidebar-scroll {
   flex: 1;
   overflow-y: auto;
+  /* Defensively clip any horizontal overflow — tooltips are now portal-rendered
+     to body, so nothing legitimate inside this container should extend past
+     its width. Without this, browsers default overflow-x to auto when overflow-y
+     is auto, which can produce a phantom horizontal scrollbar from rounding. */
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
   width: 100%;
+  min-width: 0;
   padding: 4px 0;
 }
 
@@ -199,27 +205,24 @@
   height: 28px;
 }
 
-.tooltip {
-  position: absolute;
-  left: 64px;
+/* Portal-rendered tooltips (see SidebarTooltip.tsx). Positioned absolutely on
+   document.body so they're never clipped by the sidebar's scroll container. */
+.sidebar-tooltip-portal {
   background-color: var(--bg-tertiary);
   color: var(--text-primary);
   padding: 8px 12px;
   border-radius: 4px;
   font-size: 14px;
   white-space: nowrap;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.2s, visibility 0.2s;
   z-index: 1000;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  animation: sidebar-tooltip-in 0.12s ease;
 }
 
-.server-icon-container:hover .tooltip,
-.add-server-button:hover .tooltip,
-.home-button:hover .tooltip {
-  opacity: 1;
-  visibility: visible;
+@keyframes sidebar-tooltip-in {
+  from { opacity: 0; transform: translateY(-50%) translateX(-4px); }
+  to   { opacity: 1; transform: translateY(-50%) translateX(0); }
 }
 
 /* ---- Server context menu ---- */
