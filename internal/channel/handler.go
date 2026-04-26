@@ -249,6 +249,11 @@ func (h *Handler) DeleteChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	json.NewDecoder(r.Body).Decode(&req) //nolint:errcheck // reason is optional; DELETE may have no body
+
 	chToDelete, _ := h.service.GetChannel(r.Context(), id)
 
 	if err := h.service.DeleteChannel(r.Context(), id, userID); err != nil {
@@ -274,6 +279,7 @@ func (h *Handler) DeleteChannel(w http.ResponseWriter, r *http.Request) {
 			TargetID:      chToDelete.ID,
 			TargetType:    "channel",
 			TargetName:    chToDelete.Name,
+			Reason:        req.Reason,
 		})
 	}
 

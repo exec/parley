@@ -107,7 +107,7 @@ func (s *ServerService) invalidateMembership(serverID, userID string, serverIDIn
 	}
 }
 
-func (s *ServerService) KickMember(ctx context.Context, serverID, userID string, actorID int64, actorUsername string) error {
+func (s *ServerService) KickMember(ctx context.Context, serverID, userID string, actorID int64, actorUsername, reason string) error {
 	if serverID == "" {
 		return errors.New("server ID is required")
 	}
@@ -153,6 +153,7 @@ func (s *ServerService) KickMember(ctx context.Context, serverID, userID string,
 		TargetID:      strconv.FormatInt(userIDInt, 10),
 		TargetType:    "user",
 		TargetName:    targetUsername,
+		Reason:        reason,
 	})
 
 	s.invalidateMembership(serverID, userID, serverIDInt, userIDInt)
@@ -220,7 +221,7 @@ func (s *ServerService) ListBans(ctx context.Context, serverID string) ([]db.Ser
 	return s.repo.ListServerBans(ctx, id)
 }
 
-func (s *ServerService) UnbanMember(ctx context.Context, serverID, userID string, actorID int64, actorUsername string) error {
+func (s *ServerService) UnbanMember(ctx context.Context, serverID, userID string, actorID int64, actorUsername, reason string) error {
 	sID, err := idToInt64(serverID)
 	if err != nil {
 		return errors.New("invalid server ID")
@@ -244,6 +245,7 @@ func (s *ServerService) UnbanMember(ctx context.Context, serverID, userID string
 		TargetID:      strconv.FormatInt(uID, 10),
 		TargetType:    "user",
 		TargetName:    targetUsername,
+		Reason:        reason,
 	})
 	return nil
 }

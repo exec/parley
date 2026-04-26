@@ -55,7 +55,7 @@ func (s *ServerService) CreateServerRole(ctx context.Context, serverID, name, co
 	return &r, nil
 }
 
-func (s *ServerService) DeleteServerRole(ctx context.Context, serverID, roleID string, actorID int64, actorUsername string) error {
+func (s *ServerService) DeleteServerRole(ctx context.Context, serverID, roleID string, actorID int64, actorUsername, reason string) error {
 	sID, err := idToInt64(serverID)
 	if err != nil {
 		return errors.New("invalid server ID")
@@ -105,6 +105,7 @@ func (s *ServerService) DeleteServerRole(ctx context.Context, serverID, roleID s
 		Action:        "role.delete",
 		TargetID:      roleID,
 		TargetType:    "role",
+		Reason:        reason,
 	})
 	return nil
 }

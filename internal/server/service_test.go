@@ -378,11 +378,11 @@ func TestRemoveMember_Validation(t *testing.T) {
 func TestKickMember_Validation(t *testing.T) {
 	svc := NewServerService(nil, nil)
 
-	err := svc.KickMember(context.Background(), "", "1", 1, "admin")
+	err := svc.KickMember(context.Background(), "", "1", 1, "admin", "")
 	if err == nil || err.Error() != "server ID is required" {
 		t.Errorf("got %v, want 'server ID is required'", err)
 	}
-	err = svc.KickMember(context.Background(), "1", "", 1, "admin")
+	err = svc.KickMember(context.Background(), "1", "", 1, "admin", "")
 	if err == nil || err.Error() != "user ID is required" {
 		t.Errorf("got %v, want 'user ID is required'", err)
 	}
@@ -525,11 +525,11 @@ func TestCreateServerRole_Validation(t *testing.T) {
 func TestDeleteServerRole_Validation(t *testing.T) {
 	svc := NewServerService(nil, nil)
 
-	err := svc.DeleteServerRole(context.Background(), "abc", "1", 1, "admin")
+	err := svc.DeleteServerRole(context.Background(), "abc", "1", 1, "admin", "")
 	if err == nil || err.Error() != "invalid server ID" {
 		t.Errorf("got %v, want 'invalid server ID'", err)
 	}
-	err = svc.DeleteServerRole(context.Background(), "1", "abc", 1, "admin")
+	err = svc.DeleteServerRole(context.Background(), "1", "abc", 1, "admin", "")
 	if err == nil || err.Error() != "invalid role ID" {
 		t.Errorf("got %v, want 'invalid role ID'", err)
 	}
@@ -669,11 +669,11 @@ func TestListBans_InvalidID(t *testing.T) {
 
 func TestUnbanMember_Validation(t *testing.T) {
 	svc := NewServerService(nil, nil)
-	err := svc.UnbanMember(context.Background(), "abc", "1", 1, "admin")
+	err := svc.UnbanMember(context.Background(), "abc", "1", 1, "admin", "")
 	if err == nil || err.Error() != "invalid server ID" {
 		t.Errorf("got %v, want 'invalid server ID'", err)
 	}
-	err = svc.UnbanMember(context.Background(), "1", "abc", 1, "admin")
+	err = svc.UnbanMember(context.Background(), "1", "abc", 1, "admin", "")
 	if err == nil || err.Error() != "invalid user ID" {
 		t.Errorf("got %v, want 'invalid user ID'", err)
 	}

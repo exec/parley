@@ -668,9 +668,14 @@ func (h *Handler) DeleteServerRole(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	json.NewDecoder(r.Body).Decode(&req) //nolint:errcheck // reason is optional
+
 	actorIDInt, _ := strconv.ParseInt(userID, 10, 64)
 	actorUsername, _ := h.service.Repo().GetUsernameByID(r.Context(), actorIDInt)
-	if err := h.service.DeleteServerRole(r.Context(), serverID, roleID, actorIDInt, actorUsername); err != nil {
+	if err := h.service.DeleteServerRole(r.Context(), serverID, roleID, actorIDInt, actorUsername, req.Reason); err != nil {
 		httputil.InternalError(w, err)
 		return
 	}
@@ -1118,9 +1123,14 @@ func (h *Handler) KickMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	json.NewDecoder(r.Body).Decode(&req) //nolint:errcheck // reason is optional
+
 	actorIDInt, _ := strconv.ParseInt(currentUserID, 10, 64)
 	actorUsername, _ := h.service.Repo().GetUsernameByID(r.Context(), actorIDInt)
-	if err := h.service.KickMember(r.Context(), serverID, targetUserID, actorIDInt, actorUsername); err != nil {
+	if err := h.service.KickMember(r.Context(), serverID, targetUserID, actorIDInt, actorUsername, req.Reason); err != nil {
 		httputil.InternalError(w, err)
 		return
 	}
@@ -1239,9 +1249,14 @@ func (h *Handler) UnbanMember(w http.ResponseWriter, r *http.Request) {
 		httputil.JSONError(w, "you do not have permission to unban members", http.StatusForbidden)
 		return
 	}
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	json.NewDecoder(r.Body).Decode(&req) //nolint:errcheck // reason is optional
+
 	actorIDInt, _ := strconv.ParseInt(currentUserID, 10, 64)
 	actorUsername, _ := h.service.Repo().GetUsernameByID(r.Context(), actorIDInt)
-	if err := h.service.UnbanMember(r.Context(), serverID, targetUserID, actorIDInt, actorUsername); err != nil {
+	if err := h.service.UnbanMember(r.Context(), serverID, targetUserID, actorIDInt, actorUsername, req.Reason); err != nil {
 		httputil.InternalError(w, err)
 		return
 	}
