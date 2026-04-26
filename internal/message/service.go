@@ -2,6 +2,7 @@ package message
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log"
@@ -877,6 +878,134 @@ func (s *MessageService) GetChannelPins(ctx context.Context, channelID, userID s
 		})
 	}
 	return msgs, nil
+}
+
+// ResolveForwardSource looks up a source message by ID, verifies the actor
+// can read it, and returns a server-derived ForwardedMessageData snapshot.
+// The caller must NOT trust client-supplied author / channel / server / content
+// fields — every value on the returned struct comes from the database.
+//
+// sourceChannelID disambiguates the lookup table:
+//   - non-empty (and parses to int64): try server `messages` table first,
+//     scoped to that channel; check actor has PermViewChannel on the source
+//     channel.
+//   - empty: try `dm_messages`; check actor IsDmMember of the source DM.
+//
+// Returns ErrNotFound if the message doesn't exist (or doesn't match the
+// channel hint), ErrForbidden if it does but the actor can't read it.
+func (s *MessageService) ResolveForwardSource(ctx context.Context, messageID, sourceChannelID, actorID string) (*db.ForwardedMessageData, error) {
+	msgIDInt, err := strconv.ParseInt(messageID, 10, 64)
+	if err != nil {
+		return nil, errors.New("invalid message ID")
+	}
+	actorIDInt, err := strconv.ParseInt(actorID, 10, 64)
+	if err != nil {
+		return nil, errors.New("invalid actor ID")
+	}
+
+	// Server-channel source: caller hinted a channel ID. Look up the source
+	// message scoped to that channel so we don't accidentally return a
+	// different-table row that happens to share the ID.
+	if sourceChannelID != "" {
+		srcChannelIDInt, err := strconv.ParseInt(sourceChannelID, 10, 64)
+		if err == nil {
+			srcMsg, err := s.repo.GetMessageByID(ctx, msgIDInt)
+			if err == nil && srcMsg != nil && srcMsg.ChannelID == srcChannelIDInt {
+				return s.buildChannelForwardSnapshot(ctx, srcMsg, actorIDInt)
+			}
+			if err != nil && !errors.Is(err, db.ErrNotFound) {
+				return nil, err
+			}
+		}
+	}
+
+	// DM source: try dm_messages.
+	var dmMsgID, dmChannelID, dmAuthorID int64
+	var dmContent, dmAttachmentName string
+	var dmCreatedAt time.Time
+	err = s.repo.DB().QueryRowContext(ctx,
+		`SELECT id, dm_channel_id, author_id, content, COALESCE(attachment_name,''), created_at
+		 FROM dm_messages WHERE id = $1`,
+		msgIDInt,
+	).Scan(&dmMsgID, &dmChannelID, &dmAuthorID, &dmContent, &dmAttachmentName, &dmCreatedAt)
+	if err == nil {
+		isMember, mErr := s.repo.IsDmMember(ctx, dmChannelID, actorIDInt)
+		if mErr != nil {
+			return nil, mErr
+		}
+		// 1:1 DMs use user1_id/user2_id, not the join table.
+		if !isMember {
+			dm, dErr := s.repo.GetDmChannelByID(ctx, dmChannelID)
+			if dErr == nil && dm != nil && !dm.IsGroup && (dm.User1ID == actorIDInt || dm.User2ID == actorIDInt) {
+				isMember = true
+			}
+		}
+		if !isMember {
+			return nil, ErrForbidden
+		}
+		var authorUsername, authorDisplayName, authorAvatarURL string
+		s.repo.DB().QueryRowContext(ctx,
+			"SELECT username, COALESCE(display_name,''), COALESCE(avatar_url,'') FROM users WHERE id = $1", dmAuthorID,
+		).Scan(&authorUsername, &authorDisplayName, &authorAvatarURL)
+		return &db.ForwardedMessageData{
+			MessageID:         strconv.FormatInt(dmMsgID, 10),
+			AuthorUsername:    authorUsername,
+			AuthorDisplayName: authorDisplayName,
+			AuthorAvatarURL:   authorAvatarURL,
+			Content:           dmContent,
+			AttachmentName:    dmAttachmentName,
+			CreatedAt:         dmCreatedAt,
+			// ChannelID/ChannelName/ServerID/ServerName intentionally empty
+			// for DM sources — see ForwardedMessageData godoc.
+		}, nil
+	}
+	if err != nil && err != sql.ErrNoRows {
+		return nil, err
+	}
+
+	return nil, ErrMessageNotFound
+}
+
+// buildChannelForwardSnapshot loads channel + server context + author info for
+// a server-channel source message and verifies the actor can view the channel.
+func (s *MessageService) buildChannelForwardSnapshot(ctx context.Context, srcMsg *db.Message, actorID int64) (*db.ForwardedMessageData, error) {
+	ch, err := s.repo.GetChannelByID(ctx, srcMsg.ChannelID)
+	if err != nil || ch == nil {
+		return nil, ErrChannelNotFound
+	}
+	srv, err := s.repo.GetServerByID(ctx, ch.ServerID)
+	if err != nil || srv == nil {
+		return nil, ErrServerNotFound
+	}
+	var canView bool
+	if s.memberCache != nil {
+		canView, err = permissions.HasChannelPermissionCached(ctx, s.repo, s.memberCache, srv.ID, actorID, srv.OwnerID, ch.ID, permissions.PermViewChannel)
+	} else {
+		canView, err = permissions.HasChannelPermission(ctx, s.repo, srv.ID, actorID, srv.OwnerID, ch.ID, permissions.PermViewChannel)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !canView {
+		return nil, ErrForbidden
+	}
+	var authorUsername, authorDisplayName, authorAvatarURL string
+	s.repo.DB().QueryRowContext(ctx,
+		"SELECT username, COALESCE(display_name,''), COALESCE(avatar_url,'') FROM users WHERE id = $1", srcMsg.AuthorID,
+	).Scan(&authorUsername, &authorDisplayName, &authorAvatarURL)
+	return &db.ForwardedMessageData{
+		MessageID:         strconv.FormatInt(srcMsg.ID, 10),
+		ChannelID:         strconv.FormatInt(ch.ID, 10),
+		ChannelName:       ch.Name,
+		ServerID:          strconv.FormatInt(srv.ID, 10),
+		ServerName:        srv.Name,
+		AuthorUsername:    authorUsername,
+		AuthorDisplayName: authorDisplayName,
+		AuthorAvatarURL:   authorAvatarURL,
+		Content:           srcMsg.Content,
+		AttachmentName:    srcMsg.AttachmentName,
+		CreatedAt:         srcMsg.CreatedAt,
+	}, nil
 }
 
 // ForwardToChannel creates a forwarded-message card in a target channel.

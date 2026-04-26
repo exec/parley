@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -22,17 +21,30 @@ import (
 // DmNotifyFunc is called after a DM is sent to create a notification for the recipient.
 type DmNotifyFunc func(ctx context.Context, recipientID int64, authorUsername, authorAvatarURL string, dmChannelID int64)
 
+// ForwardSourceResolver resolves a forward request's source message into a
+// server-derived snapshot, after verifying the actor can read the source.
+// Implemented by *message.MessageService; injected via SetForwardSourceResolver
+// to avoid pulling internal/message into internal/dm at compile time.
+type ForwardSourceResolver func(ctx context.Context, messageID, sourceChannelID, actorID string) (*db.ForwardedMessageData, error)
+
 // Handler handles HTTP requests for DMs
 type Handler struct {
-	repo     *db.Repository
-	hub      *ws.Hub
-	svc      *Service
-	dmNotify DmNotifyFunc
+	repo            *db.Repository
+	hub             *ws.Hub
+	svc             *Service
+	dmNotify        DmNotifyFunc
+	resolveForward  ForwardSourceResolver
 }
 
 // NewHandler creates a new DM handler
 func NewHandler(repo *db.Repository, hub *ws.Hub) *Handler {
 	return &Handler{repo: repo, hub: hub, svc: NewService(repo, hub)}
+}
+
+// SetForwardSourceResolver wires the cross-package resolver used by
+// ForwardToDm to verify and snapshot the source message server-side.
+func (h *Handler) SetForwardSourceResolver(fn ForwardSourceResolver) {
+	h.resolveForward = fn
 }
 
 // SetDmNotify registers a function to call after a DM is sent.
@@ -374,19 +386,24 @@ func (h *Handler) SendDmMessage(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(msg)
 }
 
-// ForwardDmRequest is the body for POST /dms/{id}/forward
+// ForwardDmRequest is the body for POST /dms/{id}/forward.
+// Only MessageID and (for server-channel sources) ChannelID are honored —
+// every other field is loaded from the source row by the server. Legacy
+// fields are still parsed off the wire so older clients don't 400.
 type ForwardDmRequest struct {
-	MessageID        string `json:"message_id"`
-	ChannelID        string `json:"channel_id,omitempty"`
-	ChannelName      string `json:"channel_name,omitempty"`
-	ServerID         string `json:"server_id,omitempty"`
-	ServerName       string `json:"server_name,omitempty"`
-	AuthorUsername   string `json:"author_username"`
+	MessageID string `json:"message_id"`
+	ChannelID string `json:"channel_id,omitempty"`
+
+	// Ignored — present for backward compat with clients that still send them.
+	ChannelName       string `json:"channel_name,omitempty"`
+	ServerID          string `json:"server_id,omitempty"`
+	ServerName        string `json:"server_name,omitempty"`
+	AuthorUsername    string `json:"author_username,omitempty"`
 	AuthorDisplayName string `json:"author_display_name,omitempty"`
-	AuthorAvatarURL  string `json:"author_avatar_url,omitempty"`
-	Content          string `json:"content,omitempty"`
-	AttachmentName   string `json:"attachment_name,omitempty"`
-	CreatedAt        string `json:"created_at"`
+	AuthorAvatarURL   string `json:"author_avatar_url,omitempty"`
+	Content           string `json:"content,omitempty"`
+	AttachmentName    string `json:"attachment_name,omitempty"`
+	CreatedAt         string `json:"created_at,omitempty"`
 }
 
 // ForwardToDm handles POST /dms/{id}/forward
@@ -425,22 +442,22 @@ func (h *Handler) ForwardToDm(w http.ResponseWriter, r *http.Request) {
 		httputil.JSONError(w, "message_id is required", http.StatusBadRequest)
 		return
 	}
-	createdAt, err := time.Parse(time.RFC3339Nano, req.CreatedAt)
-	if err != nil {
-		createdAt, _ = time.Parse(time.RFC3339, req.CreatedAt)
+	if h.resolveForward == nil {
+		// Wiring bug — refuse rather than fall back to client-supplied fields.
+		httputil.JSONError(w, "forward not available", http.StatusServiceUnavailable)
+		return
 	}
-	fwd := &db.ForwardedMessageData{
-		MessageID:        req.MessageID,
-		ChannelID:        req.ChannelID,
-		ChannelName:      req.ChannelName,
-		ServerID:         req.ServerID,
-		ServerName:       req.ServerName,
-		AuthorUsername:   req.AuthorUsername,
-		AuthorDisplayName: req.AuthorDisplayName,
-		AuthorAvatarURL:  req.AuthorAvatarURL,
-		Content:          req.Content,
-		AttachmentName:   req.AttachmentName,
-		CreatedAt:        createdAt,
+	fwd, err := h.resolveForward(r.Context(), req.MessageID, req.ChannelID, userIDStr)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrForbidden):
+			httputil.JSONError(w, "you cannot forward a message you cannot read", http.StatusForbidden)
+		case errors.Is(err, ErrNotFound):
+			httputil.JSONError(w, "source message not found", http.StatusNotFound)
+		default:
+			httputil.InternalError(w, err)
+		}
+		return
 	}
 	msg, err := h.repo.CreateForwardedDmMessage(r.Context(), dmChannelID, currentUserID, fwd)
 	if err != nil {

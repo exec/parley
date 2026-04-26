@@ -42,12 +42,15 @@ export const ForwardModal: React.FC<ForwardModalProps> = ({
     return () => document.removeEventListener('keydown', handler);
   }, [onClose]);
 
-  // Build the forwarded message snapshot from the current message
+  // Build the forwarded message reference. The server resolves the source
+  // message itself and ignores any author / content / channel-name claims
+  // we'd send — only message_id and (optionally) channel_id are honored,
+  // the latter as a hint to disambiguate server-channel vs DM source. Kept
+  // a couple of harmless display fields so older API versions still render
+  // a card while the wire is migrating; they're discarded server-side.
   const buildFwd = useCallback((): ForwardedMessage => ({
     message_id: message.id,
     channel_id: message.channel_id,
-    // channel_name and server details will be enriched by the server if needed;
-    // for display we keep the snapshot minimal — the embed renders what's stored
     author_username: message.author_username,
     author_display_name: message.author_display_name,
     author_avatar_url: message.author_avatar_url,

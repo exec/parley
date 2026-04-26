@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -185,19 +184,25 @@ func (h *Handler) GetChannelMessages(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(messages)
 }
 
-// ForwardRequest is the body for POST /channels/{channelID}/forward
+// ForwardRequest is the body for POST /channels/{channelID}/forward.
+// Only MessageID and (for server-channel sources) ChannelID are honored —
+// every other field is loaded from the source row by the server. The legacy
+// fields are still parsed off the wire so older clients don't 400, but they
+// are discarded before the snapshot is built.
 type ForwardRequest struct {
-	MessageID        string `json:"message_id"`
-	ChannelID        string `json:"channel_id,omitempty"`
-	ChannelName      string `json:"channel_name,omitempty"`
-	ServerID         string `json:"server_id,omitempty"`
-	ServerName       string `json:"server_name,omitempty"`
-	AuthorUsername   string `json:"author_username"`
+	MessageID string `json:"message_id"`
+	ChannelID string `json:"channel_id,omitempty"`
+
+	// Ignored — present for backward compat with clients that still send them.
+	ChannelName       string `json:"channel_name,omitempty"`
+	ServerID          string `json:"server_id,omitempty"`
+	ServerName        string `json:"server_name,omitempty"`
+	AuthorUsername    string `json:"author_username,omitempty"`
 	AuthorDisplayName string `json:"author_display_name,omitempty"`
-	AuthorAvatarURL  string `json:"author_avatar_url,omitempty"`
-	Content          string `json:"content,omitempty"`
-	AttachmentName   string `json:"attachment_name,omitempty"`
-	CreatedAt        string `json:"created_at"`
+	AuthorAvatarURL   string `json:"author_avatar_url,omitempty"`
+	Content           string `json:"content,omitempty"`
+	AttachmentName    string `json:"attachment_name,omitempty"`
+	CreatedAt         string `json:"created_at,omitempty"`
 }
 
 // ForwardToChannel handles POST /channels/{channelID}/forward
@@ -219,23 +224,19 @@ func (h *Handler) ForwardToChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createdAt, err := time.Parse(time.RFC3339Nano, req.CreatedAt)
+	// Resolve the source from the DB. Every field of the snapshot — author,
+	// content, source channel/server names, timestamp — comes from the row,
+	// not the request body. The actor must be able to read the source.
+	fwd, err := h.service.ResolveForwardSource(r.Context(), req.MessageID, req.ChannelID, authorID)
 	if err != nil {
-		createdAt, _ = time.Parse(time.RFC3339, req.CreatedAt)
-	}
-
-	fwd := &db.ForwardedMessageData{
-		MessageID:        req.MessageID,
-		ChannelID:        req.ChannelID,
-		ChannelName:      req.ChannelName,
-		ServerID:         req.ServerID,
-		ServerName:       req.ServerName,
-		AuthorUsername:   req.AuthorUsername,
-		AuthorDisplayName: req.AuthorDisplayName,
-		AuthorAvatarURL:  req.AuthorAvatarURL,
-		Content:          req.Content,
-		AttachmentName:   req.AttachmentName,
-		CreatedAt:        createdAt,
+		if errors.Is(err, ErrMessageNotFound) || errors.Is(err, ErrChannelNotFound) || errors.Is(err, ErrServerNotFound) {
+			httputil.JSONError(w, "source message not found", http.StatusNotFound)
+		} else if errors.Is(err, ErrForbidden) {
+			httputil.JSONError(w, "you cannot forward a message you cannot read", http.StatusForbidden)
+		} else {
+			httputil.InternalError(w, err)
+		}
+		return
 	}
 
 	msg, err := h.service.ForwardToChannel(r.Context(), channelID, authorID, fwd)

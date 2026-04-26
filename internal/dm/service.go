@@ -12,6 +12,14 @@ import (
 	ws "parley/internal/websocket"
 )
 
+// Sentinel errors returned by handlers / injected callbacks. Kept in the dm
+// package so handler 4xx mapping doesn't need to import packages that would
+// pull a dependency cycle (e.g. internal/message).
+var (
+	ErrNotFound  = errors.New("not found")
+	ErrForbidden = errors.New("forbidden")
+)
+
 // dmRepo is the repository surface the Service uses. Defined as an interface
 // so tests can inject an in-memory fake without needing a real database.
 type dmRepo interface {

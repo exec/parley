@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
 	"strings"
@@ -335,6 +336,23 @@ func registerRoutes(
 			// and messages:write (open/send/delete/react/forward).
 			dmHandler := dm.NewHandler(repo, hub)
 			dmHandler.SetDmNotify(notifSvc.NotifyDM)
+			// Wire the cross-package forward resolver: ForwardToDm needs to
+			// load + perm-check the source message via message.MessageService,
+			// but we can't import internal/message into internal/dm without a
+			// dependency cycle. Translate message-package errors into the
+			// dm-package sentinels the handler 4xx-maps on.
+			dmHandler.SetForwardSourceResolver(func(ctx context.Context, msgID, srcChannelID, actorID string) (*db.ForwardedMessageData, error) {
+				fwd, err := messageService.ResolveForwardSource(ctx, msgID, srcChannelID, actorID)
+				switch {
+				case errors.Is(err, message.ErrForbidden):
+					return nil, dm.ErrForbidden
+				case errors.Is(err, message.ErrMessageNotFound),
+					errors.Is(err, message.ErrChannelNotFound),
+					errors.Is(err, message.ErrServerNotFound):
+					return nil, dm.ErrNotFound
+				}
+				return fwd, err
+			})
 			voiceHandler.SetDmCallEnder(dmHandler.Service().EmitCallEnded)
 			r.With(auth.RequireScope(auth.ScopeMessagesRead)).Get("/dms", dmHandler.GetDmChannels)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite), userRateLimitMiddleware(dmCreateLimiter)).Post("/dms", dmHandler.OpenDmChannel)
