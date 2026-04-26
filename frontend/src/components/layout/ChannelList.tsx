@@ -156,7 +156,7 @@ const UserContextMenu: React.FC<{
             title={opt.label}
           >
             <span
-              className={`cl-ucm-status-dot ${opt.type === 'invisible' ? 'invisible' : ''}`}
+              className={`cl-ucm-status-dot ${opt.type}`}
               style={opt.type !== 'invisible' ? { backgroundColor: opt.color } : { borderColor: opt.color }}
             />
             <span className="cl-ucm-status-label">{opt.label}</span>

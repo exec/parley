@@ -29,7 +29,6 @@ export const SoundboardTab: React.FC<Props> = ({ serverId }) => {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [pickerOpensDown, setPickerOpensDown] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const emojiWrapperRef = useRef<HTMLDivElement>(null);
@@ -159,13 +158,7 @@ export const SoundboardTab: React.FC<Props> = ({ serverId }) => {
               <button
                 type="button"
                 className="soundboard-emoji-btn"
-                onClick={() => {
-                  if (!showEmojiPicker && emojiWrapperRef.current) {
-                    const rect = emojiWrapperRef.current.getBoundingClientRect();
-                    setPickerOpensDown(rect.bottom + 400 <= window.innerHeight - 16);
-                  }
-                  setShowEmojiPicker(v => !v);
-                }}
+                onClick={() => setShowEmojiPicker(v => !v)}
                 title="Pick emoji"
               >
                 {uploadEmoji ? (
@@ -185,16 +178,11 @@ export const SoundboardTab: React.FC<Props> = ({ serverId }) => {
                 </button>
               )}
               {showEmojiPicker && (
-                <div
-                  className="soundboard-emoji-picker-anchor"
-                  style={pickerOpensDown ? { top: 'calc(100% + 6px)', bottom: 'auto' } : { bottom: 'calc(100% + 6px)', top: 'auto' }}
-                >
-                  <EmojiPicker
-                    ref={emojiPickerRef}
-                    onSelect={emoji => { setUploadEmoji(emoji); setShowEmojiPicker(false); }}
-                    onClose={() => setShowEmojiPicker(false)}
-                  />
-                </div>
+                <EmojiPicker
+                  ref={emojiPickerRef}
+                  onSelect={emoji => { setUploadEmoji(emoji); setShowEmojiPicker(false); }}
+                  onClose={() => setShowEmojiPicker(false)}
+                />
               )}
             </div>
           </div>

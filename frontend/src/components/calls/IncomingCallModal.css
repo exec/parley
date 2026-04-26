@@ -25,3 +25,8 @@
 .incoming-btn--decline:hover { background: var(--parley-danger-hover); }
 .incoming-btn--end-current { background: var(--parley-bg-tertiary); color: var(--parley-text); border: 1px solid var(--parley-border); }
 .incoming-btn--end-current:hover { background: var(--parley-bg-hover); }
+
+@media (max-width: 480px) {
+  .incoming-buttons { flex-direction: column; gap: 8px; align-items: stretch; }
+  .incoming-btn { width: 100%; justify-content: center; }
+}

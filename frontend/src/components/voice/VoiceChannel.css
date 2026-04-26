@@ -287,6 +287,11 @@
   background: var(--parley-hover);
 }
 
+.vc-ctrl:focus-visible {
+  outline: 2px solid var(--parley-accent);
+  outline-offset: 2px;
+}
+
 .vc-ctrl--off {
   border-color: rgba(var(--parley-danger-rgb), 0.3);
 }

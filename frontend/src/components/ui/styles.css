@@ -116,6 +116,14 @@
 
 .btn-danger:hover:not(:disabled) {
   background-color: var(--parley-danger-hover);
+  filter: brightness(1.08);
+  box-shadow: 0 0 0 1px var(--parley-danger-hover),
+    0 4px 12px rgba(var(--parley-danger-rgb), 0.35);
+}
+
+.btn-danger:focus-visible {
+  outline: 2px solid var(--parley-danger);
+  outline-offset: 2px;
 }
 
 .btn-sm {
@@ -1113,6 +1121,11 @@
   cursor: not-allowed;
 }
 
+.send-button:focus-visible {
+  outline: 2px solid var(--parley-accent);
+  outline-offset: 2px;
+}
+
 /* Homepage Layout */
 .homepage-layout {
   display: flex;
@@ -1516,7 +1529,11 @@
 }
 
 .profile-status-dot.online { background-color: var(--parley-green); }
-.profile-status-dot.offline { background-color: var(--parley-text-muted); }
+/* Hollow ring for offline so the state is distinguishable without color. */
+.profile-status-dot.offline {
+  background-color: transparent;
+  border: 2px solid var(--parley-text-muted);
+}
 
 .user-profile-tag {
   color: var(--parley-text-muted);

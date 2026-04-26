@@ -143,12 +143,6 @@
   color: var(--parley-danger);
 }
 
-.soundboard-emoji-picker-anchor {
-  position: absolute;
-  left: 0;
-  z-index: 200;
-}
-
 .soundboard-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));

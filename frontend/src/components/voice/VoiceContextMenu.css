@@ -32,9 +32,11 @@
   color: var(--parley-danger);
 }
 
-.vc-context-menu-item--danger:hover {
-  background: rgba(var(--parley-danger-rgb), 0.15);
-  color: var(--parley-danger);
+.vc-context-menu-item--danger:hover,
+.vc-context-menu-item--danger:focus-visible {
+  background: rgba(var(--parley-danger-rgb), 0.9);
+  color: #fff;
+  outline: none;
 }
 
 .vc-context-menu-divider { height: 1px; margin: 4px 0; background: var(--parley-border); }

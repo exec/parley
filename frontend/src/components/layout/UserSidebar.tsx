@@ -76,6 +76,12 @@ const UserContextMenu: React.FC<UserContextMenuProps> = ({
       onClose();
       return;
     }
+    // Context menus are ephemeral: Tab/Shift-Tab dismisses rather than traps.
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      onClose();
+      return;
+    }
     const items = ref.current
       ? Array.from(ref.current.querySelectorAll<HTMLButtonElement>('button.user-context-menu-item:not([disabled])'))
       : [];

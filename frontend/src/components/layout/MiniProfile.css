@@ -19,6 +19,16 @@
   to   { opacity: 1; transform: scale(1); }
 }
 
+/*
+ * Banner + avatar overhang relationship:
+ *   Banner is 72px tall. Avatar is 56px (with a 4px border) and the avatar
+ *   row pulls up by -28px so exactly half of the avatar (28px) overlaps the
+ *   banner and the other half sits below it on the body surface. The status
+ *   dot's `left: 42px` is positioned relative to the 56px avatar (roughly
+ *   avatar-size minus dot-diameter, accounting for the border).
+ *   If you change banner height, avatar size, or the overlap, update all
+ *   three together to preserve the visual ratio.
+ */
 .mini-profile-banner {
   height: 72px;
   background: linear-gradient(135deg, var(--parley-bg-tertiary) 0%, var(--parley-sidebar) 50%, var(--parley-bg-tertiary) 100%);
@@ -34,7 +44,7 @@
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  margin-top: -28px;
+  margin-top: -28px; /* half of avatar height (56px / 2) — keeps avatar centered on banner edge */
   margin-bottom: 0;
   position: relative;
   z-index: 1;
@@ -75,7 +85,25 @@
 .mini-profile-status-dot.online   { background: var(--parley-green); }
 .mini-profile-status-dot.offline  { background: var(--parley-text-muted); }
 .mini-profile-status-dot.dnd      { background-color: var(--parley-danger, #f04747) !important; }
-.mini-profile-status-dot.afk      { background-color: var(--parley-yellow, #faa61a) !important; }
+.mini-profile-status-dot.afk      {
+  background-color: var(--parley-yellow, #faa61a) !important;
+  /* Colorblind-safe shape: crescent moon (cutout in upper-right). */
+  -webkit-mask-image: radial-gradient(circle at 78% 22%, transparent 36%, #000 37%);
+          mask-image: radial-gradient(circle at 78% 22%, transparent 36%, #000 37%);
+}
+.mini-profile-status-dot.dnd::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 70%;
+  height: 22%;
+  min-height: 2px;
+  background: #fff;
+  border-radius: 2px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
 .mini-profile-status-dot.invisible {
   background-color: transparent !important;
   border: 3px solid var(--parley-gray, #747f8d) !important;

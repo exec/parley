@@ -375,7 +375,8 @@ export const Message: React.FC<MessageProps> = ({
 
   useViewportAdjust(contextMenuRef, [contextMenu]);
   useViewportAdjust(userContextMenuRef, [userContextMenu]);
-  useViewportAdjust(emojiPickerRef, [showEmojiPicker]);
+  // EmojiPicker self-portals and self-clamps to the viewport (see EmojiPicker.tsx),
+  // so no useViewportAdjust here.
 
   // Keyboard navigation for the context menus.
   // Items are queried from the live DOM so we don't need to mirror the conditional render tree.
@@ -406,6 +407,12 @@ export const Message: React.FC<MessageProps> = ({
     const close = kind === 'msg' ? closeContextMenu : closeUserContextMenu;
     const items = queryMenuItems(root);
     if (e.key === 'Escape') {
+      e.preventDefault();
+      close();
+      return;
+    }
+    // Context menus are ephemeral: Tab/Shift-Tab dismisses rather than traps.
+    if (e.key === 'Tab') {
       e.preventDefault();
       close();
       return;

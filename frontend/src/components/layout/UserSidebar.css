@@ -222,20 +222,36 @@
   background-color: var(--parley-red);
 }
 
-.member-status.idle {
-  background-color: var(--parley-yellow);
+.member-status.idle,
+.member-status.status-afk {
+  background-color: var(--parley-yellow, #faa61a);
+  /* Crescent moon: carve a smaller circle out of the upper-right. */
+  -webkit-mask-image: radial-gradient(circle at 78% 22%, transparent 36%, #000 37%);
+          mask-image: radial-gradient(circle at 78% 22%, transparent 36%, #000 37%);
 }
 
 .member-status.dnd,
 .member-status.status-dnd {
   background-color: var(--parley-danger, #f04747);
 }
-
-.member-status.status-afk {
-  background-color: var(--parley-yellow, #faa61a);
+.member-status.dnd::before,
+.member-status.status-dnd::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 70%;
+  height: 22%;
+  min-height: 2px;
+  background: #fff;
+  border-radius: 2px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
 }
 
-.member-status.status-invisible {
+.member-status.status-invisible,
+.member-status.invisible {
+  /* Hollow ring (already shape-distinct from the filled-circle states). */
   background-color: transparent;
   border: 3px solid var(--parley-gray, #747f8d);
 }

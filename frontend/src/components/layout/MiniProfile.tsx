@@ -66,6 +66,48 @@ const MiniProfile: React.FC<MiniProfileProps> = ({
     return () => document.removeEventListener('keydown', handler);
   }, [onClose]);
 
+  // Focus trap: focus the first focusable element on mount, and wrap Tab / Shift-Tab
+  // between first and last so keyboard focus stays inside the popover.
+  const getFocusable = (): HTMLElement[] => {
+    if (!ref.current) return [];
+    return Array.from(
+      ref.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )
+    );
+  };
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      const focusables = getFocusable();
+      if (focusables.length > 0) focusables[0].focus();
+    });
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Tab') return;
+    const focusables = getFocusable();
+    if (focusables.length === 0) {
+      e.preventDefault();
+      return;
+    }
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    const active = document.activeElement as HTMLElement | null;
+    if (e.shiftKey) {
+      if (active === first || !ref.current?.contains(active)) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else {
+      if (active === last || !ref.current?.contains(active)) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  };
+
   // Measure actual rendered size before first paint so clamping is exact
   const [style, setStyle] = useState<React.CSSProperties>({
     top: position.top,
@@ -88,7 +130,7 @@ const MiniProfile: React.FC<MiniProfileProps> = ({
   const showAddRole = canManageRoles && !isCurrentUser;
 
   return (
-    <div ref={ref} className="mini-profile" style={style}>
+    <div ref={ref} className="mini-profile" style={style} onKeyDown={handleKeyDown} tabIndex={-1}>
       {/* Banner */}
       <div
         className="mini-profile-banner"

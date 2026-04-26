@@ -298,6 +298,11 @@
   color: var(--parley-danger);
 }
 
+.message-action-btn:focus-visible {
+  outline: 2px solid var(--parley-accent);
+  outline-offset: 2px;
+}
+
 /* Username label at the top of the user right-click context menu */
 .context-menu-username {
   padding: 6px 16px 4px;
@@ -451,6 +456,11 @@
   background-color: rgba(var(--accent-rgb), 0.3);
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+.send-button:focus-visible {
+  outline: 2px solid var(--parley-accent);
+  outline-offset: 2px;
 }
 
 /* Loading and Empty States */
@@ -613,7 +623,11 @@
 }
 
 .chat-header-status-dot.online { background-color: var(--parley-green); }
-.chat-header-status-dot.offline { background-color: var(--parley-text-muted); }
+/* Hollow ring for offline so the state is distinguishable without color. */
+.chat-header-status-dot.offline {
+  background-color: transparent;
+  border: 2px solid var(--parley-text-muted);
+}
 
 .chat-header-name {
   font-size: 16px;
@@ -715,11 +729,13 @@
 
 .context-menu-item.danger:hover,
 .context-menu-item.danger:focus-visible {
-  background-color: rgba(var(--parley-danger-rgb), 0.2);
+  background-color: rgba(var(--parley-danger-rgb), 0.9);
+  color: #fff;
 }
 
 .context-menu-item.danger:focus-visible {
   box-shadow: inset 2px 0 0 var(--parley-danger);
+  outline: none;
 }
 
 .context-menu-divider {
@@ -771,11 +787,13 @@
 
 .context-menu-item.danger:hover,
 .context-menu-item.danger:focus-visible {
-  background-color: rgba(var(--parley-danger-rgb), 0.2);
+  background-color: rgba(var(--parley-danger-rgb), 0.9);
+  color: #fff;
 }
 
 .context-menu-item.danger:focus-visible {
   box-shadow: inset 2px 0 0 var(--parley-danger);
+  outline: none;
 }
 /* Optimistic/pending message: dimmed until WS confirms */
 .message-pending {
@@ -784,8 +802,8 @@
 
 /* Grouped (continuation) message: no avatar, compact top padding */
 .message.message-grouped {
-  padding-top: 1px;
-  padding-bottom: 1px;
+  padding-top: 2px;
+  padding-bottom: 2px;
   padding-left: 16px;
   padding-right: 16px;
 }
@@ -890,6 +908,7 @@
   background: var(--parley-input);
   color: var(--text-primary);
   font-size: 13px;
+  line-height: 1;
   cursor: pointer;
   transition: all 0.15s;
 }
@@ -937,11 +956,9 @@
   background: var(--parley-border);
 }
 
-/* Full Emoji Picker */
+/* Full Emoji Picker — positioned via inline `position: fixed` from EmojiPicker.tsx
+   (portaled to document.body so it can escape clipped overflow contexts). */
 .emoji-picker-full {
-  position: absolute;
-  bottom: 100%;
-  right: 0;
   width: 340px;
   max-height: 400px;
   background: var(--parley-bg-primary);
@@ -950,7 +967,7 @@
   box-shadow: 0 8px 32px rgba(0,0,0,0.7);
   display: flex;
   flex-direction: column;
-  z-index: 100;
+  z-index: 1500;
   overflow: hidden;
 }
 
@@ -1102,6 +1119,12 @@
 .input-icon-btn:disabled {
   opacity: 0.3;
   cursor: not-allowed;
+}
+
+.input-icon-btn:focus-visible {
+  outline: 2px solid var(--parley-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .gif-btn--active {

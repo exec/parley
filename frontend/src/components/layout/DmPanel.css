@@ -197,8 +197,28 @@
   background-color: var(--parley-gray);
 }
 
-.dm-panel-status-dot.dnd { background-color: var(--parley-danger); }
-.dm-panel-status-dot.afk { background-color: var(--parley-yellow); }
+.dm-panel-status-dot.dnd {
+  background-color: var(--parley-danger);
+}
+.dm-panel-status-dot.dnd::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 70%;
+  height: 24%;
+  min-height: 2px;
+  background: #fff;
+  border-radius: 1px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.dm-panel-status-dot.afk {
+  background-color: var(--parley-yellow);
+  /* Crescent cutout in the upper-right for colorblind-safe shape variation. */
+  -webkit-mask-image: radial-gradient(circle at 78% 22%, transparent 36%, #000 37%);
+          mask-image: radial-gradient(circle at 78% 22%, transparent 36%, #000 37%);
+}
 .dm-panel-status-dot.invisible {
   background-color: transparent;
   border-color: var(--parley-gray);
