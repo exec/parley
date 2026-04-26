@@ -147,10 +147,10 @@ interface UseWebSocketOptions {
   onActivityStart?: (event: { vc: string; type: string; started_by: string; started_at_ms: number; params?: unknown }) => void;
   onActivityEnd?: (event: { vc: string }) => void;
   onCallRing?: (payload: { vc: string; ring_id: string; caller: { user_id: number; username: string; display_name: string; avatar_url: string }; started_at_ms: number }) => void;
-  onCallAccept?: (payload: { vc: string; ring_id: string }) => void;
-  onCallDecline?: (payload: { vc: string; ring_id: string }) => void;
-  onCallCancel?: (payload: { vc: string; ring_id: string }) => void;
-  onCallTimeout?: (payload: { vc: string; ring_id: string }) => void;
+  onCallAccept?: (payload: { ring_id: string; accepter_user_id?: string }) => void;
+  onCallDecline?: (payload: { ring_id: string; decliner_user_id?: string }) => void;
+  onCallCancel?: (payload: { ring_id: string }) => void;
+  onCallTimeout?: (payload: { ring_id: string }) => void;
   activeChannelId: string | null;
   extraChannelIds?: string[]; // Additional channels to subscribe to for notifications
   onConnect?: () => void; // Called on every successful (re)connect
@@ -475,19 +475,19 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
           }
         } else if (wsMsg.type === 'CALL_ACCEPT' && onCallAcceptRef.current) {
           if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
-            onCallAcceptRef.current(wsMsg.payload as { vc: string; ring_id: string });
+            onCallAcceptRef.current(wsMsg.payload as { ring_id: string; accepter_user_id?: string });
           }
         } else if (wsMsg.type === 'CALL_DECLINE' && onCallDeclineRef.current) {
           if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
-            onCallDeclineRef.current(wsMsg.payload as { vc: string; ring_id: string });
+            onCallDeclineRef.current(wsMsg.payload as { ring_id: string; decliner_user_id?: string });
           }
         } else if (wsMsg.type === 'CALL_CANCEL' && onCallCancelRef.current) {
           if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
-            onCallCancelRef.current(wsMsg.payload as { vc: string; ring_id: string });
+            onCallCancelRef.current(wsMsg.payload as { ring_id: string });
           }
         } else if (wsMsg.type === 'CALL_TIMEOUT' && onCallTimeoutRef.current) {
           if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
-            onCallTimeoutRef.current(wsMsg.payload as { vc: string; ring_id: string });
+            onCallTimeoutRef.current(wsMsg.payload as { ring_id: string });
           }
         }
       } catch (err) {

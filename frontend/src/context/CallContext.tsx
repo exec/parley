@@ -24,10 +24,10 @@ export interface CallContextValue {
   notifyDisconnected: () => void;
   setFloatingMode: (floating: boolean) => void;
   receiveCallRing: (payload: { vc: string; ring_id: string; caller: RingCaller; started_at_ms: number }) => void;
-  receiveCallAccept: (payload: { vc: string; ring_id: string }) => void;
-  receiveCallDecline: (payload: { vc: string; ring_id: string }) => void;
-  receiveCallCancel: (payload: { vc: string; ring_id: string }) => void;
-  receiveCallTimeout: (payload: { vc: string; ring_id: string }) => void;
+  receiveCallAccept: (payload: { ring_id: string; accepter_user_id?: string }) => void;
+  receiveCallDecline: (payload: { ring_id: string; decliner_user_id?: string }) => void;
+  receiveCallCancel: (payload: { ring_id: string }) => void;
+  receiveCallTimeout: (payload: { ring_id: string }) => void;
 }
 
 interface Store {
@@ -91,7 +91,8 @@ export const CallProvider: React.FC<CallProviderProps> = ({ children, bootRings 
   }, [bootRings]);
 
   const initiate = useCallback(async (dmChannelId: string | number) => {
-    dispatch({ type: 'set', state: 'outgoing', vc: null, ringId: null });
+    const vc = `dm:${dmChannelId}`;
+    dispatch({ type: 'set', state: 'outgoing', vc, ringId: null });
     try {
       const { ring_id } = await ringDm(dmChannelId);
       dispatch({ type: 'set', state: 'outgoing', ringId: ring_id });
@@ -151,29 +152,29 @@ export const CallProvider: React.FC<CallProviderProps> = ({ children, bootRings 
     dispatch({ type: 'enqueue', ring: { ring_id: payload.ring_id, vc: payload.vc, caller: payload.caller, started_at_ms: payload.started_at_ms } });
   }, []);
 
-  const receiveCallAccept = useCallback((payload: { vc: string; ring_id: string }) => {
-    // Remote peer accepted — if we're the outgoing caller for this ring, move to connecting
+  const receiveCallAccept = useCallback((payload: { ring_id: string; accepter_user_id?: string }) => {
+    // Remote peer accepted — activeVc was set in initiate; just advance the state
     if (store.activeRingId === payload.ring_id && store.state === 'outgoing') {
-      dispatch({ type: 'set', state: 'connecting', vc: payload.vc });
+      dispatch({ type: 'set', state: 'connecting' });
     }
     dispatch({ type: 'dequeue', ring_id: payload.ring_id });
   }, [store.activeRingId, store.state]);
 
-  const receiveCallDecline = useCallback((payload: { vc: string; ring_id: string }) => {
+  const receiveCallDecline = useCallback((payload: { ring_id: string; decliner_user_id?: string }) => {
     if (store.activeRingId === payload.ring_id) {
       dispatch({ type: 'set', state: 'idle', vc: null, ringId: null });
     }
     dispatch({ type: 'dequeue', ring_id: payload.ring_id });
   }, [store.activeRingId]);
 
-  const receiveCallCancel = useCallback((payload: { vc: string; ring_id: string }) => {
+  const receiveCallCancel = useCallback((payload: { ring_id: string }) => {
     dispatch({ type: 'dequeue', ring_id: payload.ring_id });
     if (store.activeRingId === payload.ring_id) {
       dispatch({ type: 'set', state: 'idle', vc: null, ringId: null });
     }
   }, [store.activeRingId]);
 
-  const receiveCallTimeout = useCallback((payload: { vc: string; ring_id: string }) => {
+  const receiveCallTimeout = useCallback((payload: { ring_id: string }) => {
     dispatch({ type: 'dequeue', ring_id: payload.ring_id });
     if (store.activeRingId === payload.ring_id) {
       dispatch({ type: 'set', state: 'idle', vc: null, ringId: null });
