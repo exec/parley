@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef, useState } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef, useState, MutableRefObject } from 'react';
+
+function useLatest<T>(value: T): MutableRefObject<T> {
+  const ref = useRef<T>(value);
+  useEffect(() => { ref.current = value; }, [value]);
+  return ref;
+}
 import { ringDm, acceptCall, declineCall, cancelCall, type ActiveRing, type RingCaller } from '../api/calls';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -226,21 +232,26 @@ export const CallProvider: React.FC<CallProviderProps> = ({ children, bootRings 
     prevQueueIds.current = currentIds;
   }, [store.incomingQueue, isDesktopTauri]);
 
-  // Handle accept/decline from the secondary ring window
+  // Handle accept/decline from the secondary ring window.
+  // Refs keep handlers current without re-registering listeners on every queue change.
+  const queueRef = useLatest(store.incomingQueue);
+  const acceptRef = useLatest(accept);
+  const declineRef = useLatest(decline);
   useEffect(() => {
     if (!isDesktopTauri) return;
     let unsubAccept: undefined | (() => void);
     let unsubDecline: undefined | (() => void);
+    let cancelled = false;
     listen<{ ring_id: string }>('ring:accept', e => {
-      const ring = store.incomingQueue.find(r => r.ring_id === e.payload.ring_id);
-      if (ring) void accept(ring);
-    }).then(fn => { unsubAccept = fn; });
+      const ring = queueRef.current.find(r => r.ring_id === e.payload.ring_id);
+      if (ring) void acceptRef.current(ring);
+    }).then(fn => { if (cancelled) fn(); else unsubAccept = fn; });
     listen<{ ring_id: string }>('ring:decline', e => {
-      const ring = store.incomingQueue.find(r => r.ring_id === e.payload.ring_id);
-      if (ring) void decline(ring);
-    }).then(fn => { unsubDecline = fn; });
-    return () => { unsubAccept?.(); unsubDecline?.(); };
-  }, [accept, decline, isDesktopTauri, store.incomingQueue]);
+      const ring = queueRef.current.find(r => r.ring_id === e.payload.ring_id);
+      if (ring) void declineRef.current(ring);
+    }).then(fn => { if (cancelled) fn(); else unsubDecline = fn; });
+    return () => { cancelled = true; unsubAccept?.(); unsubDecline?.(); };
+  }, [isDesktopTauri]);
 
   const receiveCallRing = useCallback((payload: { vc: string; ring_id: string; caller: RingCaller; started_at_ms: number }) => {
     dispatch({ type: 'enqueue', ring: { ring_id: payload.ring_id, vc: payload.vc, caller: payload.caller, started_at_ms: payload.started_at_ms } });
