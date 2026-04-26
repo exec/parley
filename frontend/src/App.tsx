@@ -1413,7 +1413,11 @@ function MainApp() {
     // For groups, use the full members list. For 1:1, fall back to the
     // existing pair construction.
     const dmMembers = isGroup
-      ? (activeDmChannel.members ?? []).map(m => ({
+      // Use the live-updating roster (refetches on DM_MEMBER_ADD/REMOVE) so
+      // mentions resolve to newly-added members without a page reload.
+      // activeDmChannel.members is a load-time snapshot that doesn't refresh
+      // when the WS member-change event fires.
+      ? liveDmGroupMembers.map(m => ({
           id: m.user_id,
           server_id: '',
           user_id: m.user_id,
