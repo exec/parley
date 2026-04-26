@@ -1,0 +1,77 @@
+/* Vertical split: voice on top, text chat on bottom, draggable hairline between. */
+
+.split-vc {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.split-vc__voice {
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.split-vc__chat {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.split-vc__chat--closed {
+  display: none;
+}
+
+/* Drag bar — visible 6px target, hairline border, centered grip handle. */
+.split-vc__resizer {
+  position: relative;
+  height: 6px;
+  flex: 0 0 6px;
+  cursor: ns-resize;
+  background: transparent;
+  border-top: 1px solid var(--parley-border);
+  border-bottom: 1px solid var(--parley-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  transition: background 0.12s ease;
+}
+
+.split-vc__resizer:hover,
+.split-vc__resizer--dragging {
+  background: rgba(var(--accent-rgb), 0.15);
+}
+
+.split-vc__grip {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--parley-border);
+  opacity: 0;
+  transition: opacity 0.12s ease, background 0.12s ease;
+  pointer-events: none;
+}
+
+.split-vc__resizer:hover .split-vc__grip,
+.split-vc__resizer--dragging .split-vc__grip {
+  opacity: 1;
+  background: var(--parley-accent);
+}
+
+/* When chat is closed, show a thin "pull up" handle at the bottom edge of voice
+   so users can rediscover the text chat. */
+.split-vc__resizer--closed {
+  border-bottom: none;
+  background: rgba(var(--accent-rgb), 0.05);
+}
+
+.split-vc__resizer--closed .split-vc__grip {
+  opacity: 0.6;
+}
