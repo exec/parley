@@ -76,6 +76,10 @@ func (s *AuthService) InvalidateSessionCache(userID string) {
 	s.sessionCache.Delete(userID)
 }
 
+// TokenTTL exposes the configured JWT lifetime so the auth handlers can
+// match the session cookie's MaxAge to the token's expiry.
+func (s *AuthService) TokenTTL() time.Duration { return s.config.TokenExpiry }
+
 // PrimeSessionCacheForTests seeds the in-memory session-status cache with the
 // given value so GetSessionStatus short-circuits before the DB lookup. It is
 // exported solely so handler tests in other packages can drive the session

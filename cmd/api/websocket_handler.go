@@ -26,12 +26,19 @@ func handleWebSocket(hub *ws.Hub, authService *auth.AuthService, repo *db.Reposi
 				return
 			}
 		} else {
-			// Authorization header only — never accept JWT via URL query params
-			// (URL query params are recorded in proxy/server access logs).
+			// Authorization header or session cookie. Never accept JWT via
+			// URL query params — those are recorded in proxy/server access
+			// logs. Cookies and headers travel through the WS Upgrade
+			// request the same way they would on a regular HTTPS request.
 			tokenString := ""
 			authHeader := r.Header.Get("Authorization")
 			if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
 				tokenString = authHeader[7:]
+			}
+			if tokenString == "" {
+				if c, err := r.Cookie(auth.SessionCookieName); err == nil && c != nil {
+					tokenString = c.Value
+				}
 			}
 			if tokenString == "" {
 				http.Error(w, "authorization required", http.StatusUnauthorized)

@@ -62,6 +62,7 @@ func handleDesktopAuthExchange(svc *desktopauth.Service, authService *auth.AuthS
 			jsonError(w, "failed to generate token", http.StatusInternalServerError)
 			return
 		}
+		auth.SetSessionCookie(w, token, int(authService.TokenTTL().Seconds()))
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(AuthResponse{User: user, Token: token})
 	}

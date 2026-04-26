@@ -128,6 +128,7 @@ func handlePasskeyLoginFinish(svc *passkey.Service, authService *auth.AuthServic
 			jsonError(w, "failed to generate token", http.StatusInternalServerError)
 			return
 		}
+		auth.SetSessionCookie(w, token, int(authService.TokenTTL().Seconds()))
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(AuthResponse{User: dbUser, Token: token})
 	}

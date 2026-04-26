@@ -98,19 +98,21 @@ func IsAPIKeyAuth(r *http.Request) bool {
 	return v
 }
 
-// extractToken extracts the JWT token from the Authorization header
+// extractToken extracts the auth token from the request. Priority:
+//  1. Authorization: Bearer <token>  — used by bot API keys (plk_…) and any
+//     legacy clients still passing the JWT in headers.
+//  2. parley_session cookie         — used by the browser SPA after login.
+//
+// Order matters: API keys must always go through the header path, since
+// they aren't valid JWTs and shouldn't be set as cookies anyway.
 func extractToken(r *http.Request) string {
 	authHeader := r.Header.Get(AuthorizationHeader)
-	if authHeader == "" {
-		return ""
-	}
-
-	// Check for Bearer prefix
 	if strings.HasPrefix(authHeader, BearerPrefix) {
-		return strings.TrimPrefix(authHeader, BearerPrefix)
+		if t := strings.TrimPrefix(authHeader, BearerPrefix); t != "" {
+			return t
+		}
 	}
-
-	return ""
+	return tokenFromCookie(r)
 }
 
 // impersonationAuditDedupInterval bounds how often the per-request audit

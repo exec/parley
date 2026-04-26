@@ -128,6 +128,9 @@ func registerRoutes(
 				r.Use(rateLimitMiddleware(authLimiter))
 				r.Post("/register", handleAuthRegister(authService))
 				r.Post("/login", handleAuthLogin(authService))
+				// Logout just clears the session cookie. Doesn't require a
+				// valid token (logout-while-expired should still succeed).
+				r.Post("/logout", handleAuthLogout())
 				r.Get("/verify-email", handleVerifyEmail(authService))
 				// Pre-registration invite-code probe. Cheap lookup gated by the
 				// same auth limiter; we don't want unauthenticated users to be

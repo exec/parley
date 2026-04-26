@@ -29,6 +29,7 @@ func handleAuthRegister(authService *auth.AuthService) http.HandlerFunc {
 			return
 		}
 
+		auth.SetSessionCookie(w, token, int(authService.TokenTTL().Seconds()))
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(AuthResponse{User: user, Token: token})
@@ -53,8 +54,21 @@ func handleAuthLogin(authService *auth.AuthService) http.HandlerFunc {
 			return
 		}
 
+		auth.SetSessionCookie(w, token, int(authService.TokenTTL().Seconds()))
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(AuthResponse{User: user, Token: token})
+	}
+}
+
+// handleAuthLogout clears the session cookie. The JWT itself remains valid
+// until natural expiry — global revocation goes through force-logout. For
+// the typical case (user clicks Sign Out on a single device) clearing the
+// cookie is sufficient: HttpOnly means the token isn't reachable from JS,
+// so once the cookie is gone the browser can't replay it.
+func handleAuthLogout() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		auth.ClearSessionCookie(w)
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
 
