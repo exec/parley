@@ -168,6 +168,17 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	actorUsername, _ := h.dbRepo.GetUsernameByID(ctx, userID)
+	h.auditSvc.Log(ctx, audit.Entry{
+		ServerID:      serverID,
+		ActorID:       &userID,
+		ActorUsername: actorUsername,
+		Action:        "soundboard.create",
+		TargetID:      strconv.FormatInt(created.ID, 10),
+		TargetType:    "sound",
+		TargetName:    created.Name,
+	})
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(created)
@@ -246,6 +257,22 @@ func (h *Handler) UpdateSound(w http.ResponseWriter, r *http.Request) {
 		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
+
+	actorUsername, _ := h.dbRepo.GetUsernameByID(ctx, userID)
+	h.auditSvc.Log(ctx, audit.Entry{
+		ServerID:      serverID,
+		ActorID:       &userID,
+		ActorUsername: actorUsername,
+		Action:        "soundboard.update",
+		TargetID:      strconv.FormatInt(soundID, 10),
+		TargetType:    "sound",
+		TargetName:    updated.Name,
+		Changes: map[string]any{
+			"before": map[string]any{"name": existing.Name, "emoji": existing.Emoji},
+			"after":  map[string]any{"name": updated.Name, "emoji": updated.Emoji},
+		},
+	})
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(updated)
 }
@@ -305,6 +332,17 @@ func (h *Handler) DeleteSound(w http.ResponseWriter, r *http.Request) {
 		log.Printf("soundboard: delete spaces object %s: %v", fileKey, err)
 		// Non-fatal: DB record is gone, CDN object will be orphaned but harmless.
 	}
+
+	actorUsername, _ := h.dbRepo.GetUsernameByID(ctx, userID)
+	h.auditSvc.Log(ctx, audit.Entry{
+		ServerID:      serverID,
+		ActorID:       &userID,
+		ActorUsername: actorUsername,
+		Action:        "soundboard.delete",
+		TargetID:      strconv.FormatInt(soundID, 10),
+		TargetType:    "sound",
+		TargetName:    existing.Name,
+	})
 
 	w.WriteHeader(http.StatusNoContent)
 }
