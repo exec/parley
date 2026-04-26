@@ -14,9 +14,14 @@ export interface ActiveRing {
   started_at_ms: number;
 }
 
+export interface InCallEntry {
+  dm_channel_id: string;
+  participant_count: number;
+}
+
 export interface ActiveCallsResponse {
   rings: ActiveRing[];
-  in_call: string[];
+  in_call: InCallEntry[];
 }
 
 export async function ringDm(dmChannelId: string | number): Promise<{ ring_id: string }> {

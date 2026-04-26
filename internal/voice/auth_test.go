@@ -43,6 +43,9 @@ func (r *authRepoFake) GetDmMembers(_ context.Context, dmID int64) ([]db.DmChann
 func (r *authRepoFake) GetUserByID(_ context.Context, id int64) (*db.User, error) {
 	return &db.User{ID: id, Username: "user" + strconv.FormatInt(id, 10)}, nil
 }
+func (r *authRepoFake) GetUserDmChannels(_ context.Context, _ int64) ([]db.DmChannel, error) {
+	return nil, nil
+}
 
 func ptrInt64(v int64) *int64 { return &v }
 

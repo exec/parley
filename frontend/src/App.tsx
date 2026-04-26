@@ -242,9 +242,24 @@ function MainApp() {
 
   // Rehydrate any active rings on boot so CallContext (Task 25) can show banners.
   const [_bootRings, setBootRings] = useState<ActiveRing[]>([]);
+  // separate from the WS-fed activeCalls below — declared after that state
+  // hook would be a circular order; we just use setActiveCalls there.
   useEffect(() => {
     if (!currentUser) return;
-    getActiveCalls().then(r => setBootRings(r.rings)).catch(() => { /* offline ok */ });
+    getActiveCalls().then(r => {
+      setBootRings(r.rings);
+      // Seed activeCalls from in_call so DM phone icons + CallBanner render
+      // immediately after a reload, before any VOICE_STATE_UPDATE event arrives.
+      if (r.in_call && r.in_call.length > 0) {
+        setActiveCalls(prev => {
+          const next = new Map(prev);
+          for (const e of r.in_call) {
+            if (e.participant_count > 0) next.set(e.dm_channel_id, e.participant_count);
+          }
+          return next;
+        });
+      }
+    }).catch(() => { /* offline ok */ });
   }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleNotifNavigate = useCallback((notif: AppNotification) => {

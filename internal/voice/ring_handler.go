@@ -19,6 +19,7 @@ type ringRepo interface {
 	IsDmMember(ctx context.Context, dmID, userID int64) (bool, error)
 	GetDmChannelByID(ctx context.Context, dmID int64) (*db.DmChannel, error)
 	GetDmMembers(ctx context.Context, dmID int64) ([]db.DmChannelMember, error)
+	GetUserDmChannels(ctx context.Context, userID int64) ([]db.DmChannel, error)
 	GetUserByID(ctx context.Context, id int64) (*db.User, error)
 }
 
@@ -212,8 +213,8 @@ func (h *RingHandler) Start(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// Active returns rings targeting the current user. Used by clients on boot/reload
-// to recover any ring that fired before the page loaded.
+// Active returns rings targeting the current user plus per-DM live participant
+// counts so the UI can rehydrate banners + phone icons after a page reload.
 // GET /api/calls/active
 func (h *RingHandler) Active(w http.ResponseWriter, r *http.Request) {
 	userID, ok := userIDFromCtx(w, r)
@@ -221,10 +222,30 @@ func (h *RingHandler) Active(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rings := h.rs.ActiveRingsForUser(userID)
+
+	type inCallEntry struct {
+		DmChannelID      string `json:"dm_channel_id"`
+		ParticipantCount int    `json:"participant_count"`
+	}
+	inCall := []inCallEntry{}
+	if dms, err := h.repo.GetUserDmChannels(r.Context(), userID); err == nil {
+		for _, dm := range dms {
+			vc := "dm:" + strconv.FormatInt(dm.ID, 10)
+			parts, err := h.rs.svc.Participants(r.Context(), vc)
+			if err != nil || len(parts) == 0 {
+				continue
+			}
+			inCall = append(inCall, inCallEntry{
+				DmChannelID:      strconv.FormatInt(dm.ID, 10),
+				ParticipantCount: len(parts),
+			})
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
 		"rings":   rings,
-		"in_call": []any{}, // populated by future enhancement; empty for now
+		"in_call": inCall,
 	})
 }
 
