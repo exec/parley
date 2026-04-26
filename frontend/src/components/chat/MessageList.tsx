@@ -301,12 +301,17 @@ export const MessageList: React.FC<MessageListProps> = ({
             const msg = dateMessages[idx];
             if (idx === 0) { groupedFlags.push(false); continue; }
             const prev = dateMessages[idx - 1];
+            // System events break message grouping — a user message right after
+            // a system event must render its full header even if the same user
+            // sent the previous chat message.
+            if (msg.system_event || prev.system_event) { groupedFlags.push(false); continue; }
             if (prev.author_id !== msg.author_id) { groupedFlags.push(false); continue; }
             if (new Date(msg.created_at).getTime() - new Date(prev.created_at).getTime() > GROUP_WINDOW_MS) {
               groupedFlags.push(false); continue;
             }
             let streakLen = 0;
             for (let i = idx - 1; i >= 0; i--) {
+              if (dateMessages[i].system_event) break;
               if (dateMessages[i].author_id !== msg.author_id) break;
               streakLen++;
               if (!groupedFlags[i]) break;
