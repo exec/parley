@@ -205,10 +205,16 @@ func (h *RingHandler) Start(w http.ResponseWriter, r *http.Request) {
 		httputil.JSONError(w, "call starter not configured", http.StatusInternalServerError)
 		return
 	}
-	startedAt := time.Now().UnixMilli()
-	if err := h.starter.Started(r.Context(), dmID, userID, startedAt); err != nil {
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
-		return
+	// Only emit the `call_started` system message when the room is empty —
+	// joining an in-progress GC call shouldn't print "started a call." Errors
+	// here are non-fatal: better to over-emit than to silently lose the event.
+	parts, _ := h.rs.svc.Participants(r.Context(), "dm:"+strconv.FormatInt(dmID, 10))
+	if len(parts) == 0 {
+		startedAt := time.Now().UnixMilli()
+		if err := h.starter.Started(r.Context(), dmID, userID, startedAt); err != nil {
+			httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
