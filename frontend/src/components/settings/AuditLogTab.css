@@ -1,0 +1,180 @@
+/* ── Filter row ────────────────────────────────────────────────────────────── */
+
+.audit-filter {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.audit-filter__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.audit-filter__label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--parley-text-muted);
+}
+
+.audit-filter__select {
+  min-width: 200px;
+}
+
+.audit-filter__input {
+  min-width: 180px;
+}
+
+/* ── States ────────────────────────────────────────────────────────────────── */
+
+.audit-error {
+  margin-bottom: 12px;
+}
+
+.audit-empty,
+.audit-loading {
+  font-size: 13px;
+  color: var(--parley-text-muted);
+  padding: 16px 0;
+}
+
+/* ── Entry list ────────────────────────────────────────────────────────────── */
+
+.audit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.audit-row {
+  display: flex;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  background: var(--parley-bg-secondary);
+  border: 1px solid var(--parley-border);
+  border-left-width: 4px;
+  border-left-style: solid;
+}
+
+/* Category-coloured left border */
+.audit-row--member     { border-left-color: #ed4245; }
+.audit-row--role       { border-left-color: #9b59b6; }
+.audit-row--channel    { border-left-color: #5865f2; }
+.audit-row--server     { border-left-color: var(--parley-text-muted); }
+.audit-row--soundboard { border-left-color: #1abc9c; }
+.audit-row--bot        { border-left-color: #e67e22; }
+.audit-row--voice      { border-left-color: #e91e63; }
+.audit-row--invite     { border-left-color: #3ba55d; }
+
+.audit-row__icon {
+  font-size: 18px;
+  flex-shrink: 0;
+  line-height: 1.4;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.audit-row__icon-img {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  object-fit: cover;
+  background: var(--parley-bg-tertiary);
+}
+
+.audit-row__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.audit-row__desc {
+  font-size: 13px;
+  color: var(--parley-text-normal);
+}
+
+.audit-row__reason {
+  font-size: 11px;
+  color: var(--parley-text-muted);
+  margin-top: 2px;
+}
+
+.audit-row__time {
+  font-size: 11px;
+  color: var(--parley-text-muted);
+  flex-shrink: 0;
+  white-space: nowrap;
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
+/* ── Diff renderer ─────────────────────────────────────────────────────────── */
+
+.audit-diff {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--parley-text-muted);
+  font-family: monospace;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.audit-diff__row {
+  display: flex;
+  gap: 4px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.audit-diff__key {
+  font-weight: 600;
+}
+
+.audit-diff__before {
+  color: var(--parley-danger);
+  text-decoration: line-through;
+}
+
+.audit-diff__after {
+  color: #3ba55d;
+}
+
+.audit-diff__perm-add {
+  color: #3ba55d;
+  margin-right: 6px;
+}
+
+.audit-diff__perm-remove {
+  color: var(--parley-danger);
+  margin-right: 6px;
+}
+
+.audit-diff__color-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.audit-diff__color-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  border: 1px solid var(--parley-border);
+  display: inline-block;
+}
+
+/* ── Load more ─────────────────────────────────────────────────────────────── */
+
+.audit-load-more {
+  margin-top: 12px;
+  text-align: center;
+}
