@@ -1,0 +1,23 @@
+.floating-call-window {
+  position: fixed;
+  width: 320px;
+  height: 240px;
+  background: var(--parley-bg-elevated);
+  border: 1px solid var(--parley-border);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+  z-index: 950;
+  display: flex; flex-direction: column;
+}
+.floating-call-handle {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 10px;
+  cursor: grab; user-select: none;
+  background: var(--parley-bg-muted);
+  border-radius: 8px 8px 0 0;
+  font-size: 12px;
+}
+.floating-call-handle:active { cursor: grabbing; }
+.floating-call-actions { display: inline-flex; gap: 4px; }
+.floating-call-actions button { background: transparent; border: 0; color: inherit; cursor: pointer; }
+.floating-call-body { flex: 1; overflow: hidden; }
