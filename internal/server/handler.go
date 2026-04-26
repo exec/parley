@@ -782,10 +782,21 @@ func (h *Handler) UpdateServerRole(w http.ResponseWriter, r *http.Request) {
 		req.Name = "@everyone"
 	}
 
-	// Non-owners can only grant permissions they themselves have.
+	// Non-owners can only grant permissions they themselves have, and can't
+	// raise the role's position to (or above) their own highest position —
+	// otherwise a mod with MANAGE_ROLES holding two roles could promote one
+	// of them to position INT_MAX and silently outrank everyone but the
+	// owner. ReorderServerRoles enforces the same bound; mirror it here so
+	// the rule holds whether the position changes via PATCH or PATCH/positions.
 	if !isOwner {
 		actorPerms, _ := permissions.GetEffectivePermissions(r.Context(), h.service.Repo(), sID, aID, ownerID)
 		req.Permissions &= actorPerms
+
+		actorHighest, _ := h.service.Repo().GetHighestRolePosition(r.Context(), sID, aID)
+		if req.Position >= actorHighest {
+			httputil.JSONError(w, "cannot move a role to or above your highest role", http.StatusForbidden)
+			return
+		}
 	}
 
 	actorIDInt, _ := strconv.ParseInt(userID, 10, 64)
