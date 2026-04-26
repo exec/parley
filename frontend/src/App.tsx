@@ -24,7 +24,7 @@ import { ForwardModal } from './components/chat/ForwardModal';
 import * as serversApi from './api/servers';
 import * as channelsApi from './api/channels';
 import * as dmsApi from './api/dms';
-import { getVoiceParticipants, muteVoiceParticipant, serverVc } from './api/voice';
+import { getVoiceParticipants, muteVoiceParticipant, serverVc, dmVc } from './api/voice';
 import { getActiveCalls, startGcCall, type ActiveRing } from './api/calls';
 import { getTags } from './api/bin';
 import { CallProvider, useCall } from './context/CallContext';
@@ -262,6 +262,9 @@ function MainApp() {
   // Voice state: channelId → list of participants
   const [voiceParticipants, setVoiceParticipants] = useState<Record<string, { user_id: string; username: string; avatar_url?: string }[]>>({});
   const [activeVoiceChannel, setActiveVoiceChannel] = useState<string | null>(null);
+  // 'server' for guild VCs, 'dm' for 1:1/GC calls. Drives whether the LiveKit
+  // room is `s:N` or `dm:N`. Reset to 'server' whenever activeVoiceChannel clears.
+  const [activeVoiceKind, setActiveVoiceKind] = useState<'server' | 'dm'>('server');
   const [activeSoundEmojis, setActiveSoundEmojis] = useState<Map<string, string>>(new Map());
 
   const handleVcLeave = useCallback(() => {
@@ -272,6 +275,7 @@ function MainApp() {
       });
     }
     setActiveVoiceChannel(null);
+    setActiveVoiceKind('server');
   }, [currentUser, activeVoiceChannel]);
 
   const {
@@ -295,7 +299,10 @@ function MainApp() {
     retry: vcRetry,
     receiveActivityStart: vcReceiveActivityStart,
     receiveActivityEnd: vcReceiveActivityEnd,
-  } = useVoiceConnection(activeVoiceChannel ? serverVc(activeVoiceChannel) : null, handleVcLeave);
+  } = useVoiceConnection(
+    activeVoiceChannel ? (activeVoiceKind === 'dm' ? dmVc(activeVoiceChannel) : serverVc(activeVoiceChannel)) : null,
+    handleVcLeave,
+  );
 
   // Reply-to state for nested replies
   const [replyTo, setReplyTo] = useState<Message | null>(null);
@@ -1442,6 +1449,7 @@ function MainApp() {
         if (isGroup) {
           try { await startGcCall(activeDmChannel.id); } catch { /* already active is fine */ }
         }
+        setActiveVoiceKind('dm');
         setActiveVoiceChannel(activeDmChannel.id);
       } else {
         // 1:1 DM with no active call — ring the other user
@@ -1779,10 +1787,19 @@ function MainApp() {
       )}
 
       <CallSurfaces onJoinCall={(vc) => {
-        // Navigate to the DM channel for this vc (dm:{id}) and connect
-        const dmId = vc.replace(/^dm:/, '');
-        selectDmChannel(dmId);
-        setActiveVoiceChannel(dmId);
+        // The accepter/initiator path lands here when CallContext transitions
+        // to 'connecting'. We need to navigate to the DM and switch the VC
+        // hook input to a `dm:` channel so LiveKit joins the right room.
+        if (vc.startsWith('dm:')) {
+          const dmId = vc.slice(3);
+          selectDmChannel(dmId);
+          setActiveVoiceKind('dm');
+          setActiveVoiceChannel(dmId);
+        } else if (vc.startsWith('s:')) {
+          const cid = vc.slice(2);
+          setActiveVoiceKind('server');
+          setActiveVoiceChannel(cid);
+        }
       }} vcDisconnect={vcDisconnect} />
 
     </>
@@ -1818,6 +1835,21 @@ const CallSurfaces: React.FC<{ onJoinCall: (vc: string) => void; vcDisconnect: (
       window.removeEventListener('parley:initiate_call', onInitiate);
     };
   }, [receiveCallRing, receiveCallAccept, receiveCallDecline, receiveCallCancel, receiveCallTimeout, initiate]);
+
+  // When the ring resolves (accept on either side) we land in 'connecting'.
+  // That's our cue to actually join the LiveKit room — useVoiceConnection
+  // does nothing until App.tsx flips activeVoiceChannel/Kind, so dispatch
+  // onJoinCall once per (state, vc) tuple.
+  const lastJoinedVc = useRef<string | null>(null);
+  useEffect(() => {
+    if (state === 'connecting' && activeVc && lastJoinedVc.current !== activeVc) {
+      lastJoinedVc.current = activeVc;
+      onJoinCall(activeVc);
+    }
+    if (state === 'idle') {
+      lastJoinedVc.current = null;
+    }
+  }, [state, activeVc, onJoinCall]);
 
   return (
     <>
