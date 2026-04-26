@@ -121,6 +121,18 @@ func (h *Handler) AddBot(w http.ResponseWriter, r *http.Request) {
 		handleSvcErr(w, r, err)
 		return
 	}
+	botUsername, _ := h.dbRepo.GetUsernameByID(r.Context(), botUserID)
+	actorUsername, _ := h.dbRepo.GetUsernameByID(r.Context(), uid)
+	actorIDCopy := uid
+	h.auditSvc.Log(r.Context(), audit.Entry{
+		ServerID:      sid,
+		ActorID:       &actorIDCopy,
+		ActorUsername: actorUsername,
+		Action:        "bot.add",
+		TargetID:      strconv.FormatInt(botUserID, 10),
+		TargetType:    "user",
+		TargetName:    botUsername,
+	})
 	if h.hub != nil {
 		payload, _ := json.Marshal(map[string]string{
 			"server_id": fmt.Sprintf("%d", sid),
@@ -148,10 +160,23 @@ func (h *Handler) RemoveBot(w http.ResponseWriter, r *http.Request) {
 		httputil.JSONError(w, "invalid bot id", http.StatusBadRequest)
 		return
 	}
+	// Lookup botUsername BEFORE removal — the user record may be detached/deleted afterwards.
+	botUsername, _ := h.dbRepo.GetUsernameByID(r.Context(), botID)
 	if err := h.svc.RemoveBot(r.Context(), sid, botID, uid); err != nil {
 		handleSvcErr(w, r, err)
 		return
 	}
+	actorUsername, _ := h.dbRepo.GetUsernameByID(r.Context(), uid)
+	actorIDCopy := uid
+	h.auditSvc.Log(r.Context(), audit.Entry{
+		ServerID:      sid,
+		ActorID:       &actorIDCopy,
+		ActorUsername: actorUsername,
+		Action:        "bot.remove",
+		TargetID:      strconv.FormatInt(botID, 10),
+		TargetType:    "user",
+		TargetName:    botUsername,
+	})
 	if h.hub != nil {
 		payload, _ := json.Marshal(map[string]string{
 			"server_id": fmt.Sprintf("%d", sid),
@@ -219,10 +244,41 @@ func (h *Handler) SetAIConfig(w http.ResponseWriter, r *http.Request) {
 	if req.PresetRole == "" {
 		req.PresetRole = "assistant"
 	}
+	// Capture before-state for audit (best-effort; nil cfg = unset).
+	beforeCfg, _ := h.svc.GetAIConfig(r.Context(), sid, uid)
 	if err := h.svc.SetAIConfig(r.Context(), sid, uid, req.Provider, req.Model, req.PresetVerbosity, req.PresetPersonality, req.PresetRole, req.APIKey); err != nil {
 		handleSvcErr(w, r, err)
 		return
 	}
+	actorUsername, _ := h.dbRepo.GetUsernameByID(r.Context(), uid)
+	actorIDCopy := uid
+	beforeMap := map[string]any{}
+	if beforeCfg != nil {
+		beforeMap = map[string]any{
+			"provider":           beforeCfg.Provider,
+			"model":              beforeCfg.Model,
+			"preset_verbosity":   beforeCfg.PresetVerbosity,
+			"preset_personality": beforeCfg.PresetPersonality,
+			"preset_role":        beforeCfg.PresetRole,
+			"has_api_key":        beforeCfg.APIKeySet,
+		}
+	}
+	afterMap := map[string]any{
+		"provider":           req.Provider,
+		"model":              req.Model,
+		"preset_verbosity":   req.PresetVerbosity,
+		"preset_personality": req.PresetPersonality,
+		"preset_role":        req.PresetRole,
+		"has_api_key":        req.APIKey != "",
+	}
+	h.auditSvc.Log(r.Context(), audit.Entry{
+		ServerID:      sid,
+		ActorID:       &actorIDCopy,
+		ActorUsername: actorUsername,
+		Action:        "bot.ai_config_update",
+		TargetType:    "server",
+		Changes:       map[string]any{"before": beforeMap, "after": afterMap},
+	})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -293,6 +349,19 @@ func (h *Handler) AcceptInvite(w http.ResponseWriter, r *http.Request) {
 		handleSvcErr(w, r, err)
 		return
 	}
+	botUsername, _ := h.dbRepo.GetUsernameByID(r.Context(), botUserID)
+	actorUsername, _ := h.dbRepo.GetUsernameByID(r.Context(), uid)
+	actorIDCopy := uid
+	h.auditSvc.Log(r.Context(), audit.Entry{
+		ServerID:      req.ServerID,
+		ActorID:       &actorIDCopy,
+		ActorUsername: actorUsername,
+		Action:        "bot.add",
+		TargetID:      strconv.FormatInt(botUserID, 10),
+		TargetType:    "user",
+		TargetName:    botUsername,
+		Changes:       map[string]any{"granted_permissions": req.GrantedPermissions},
+	})
 	if h.hub != nil {
 		payload, _ := json.Marshal(map[string]string{
 			"server_id": fmt.Sprintf("%d", req.ServerID),
