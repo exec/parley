@@ -571,6 +571,22 @@ function MainApp() {
     });
   }, [channels]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Fetch initial DM/GC voice presence when the user joins a DM call so existing
+  // participants render with their avatars + display names. Without this, those
+  // tiles only fill in via VOICE_STATE_UPDATE events — which only fire for
+  // joins/leaves AFTER you, leaving the pre-existing roster blank.
+  useEffect(() => {
+    if (activeVoiceKind !== 'dm' || !activeVoiceChannel) return;
+    let cancelled = false;
+    getVoiceParticipants(dmVc(activeVoiceChannel))
+      .then(ps => {
+        if (cancelled) return;
+        setVoiceParticipants(prev => ({ ...prev, [activeVoiceChannel]: ps }));
+      })
+      .catch(() => { /* offline ok */ });
+    return () => { cancelled = true; };
+  }, [activeVoiceKind, activeVoiceChannel]);
+
   const handleVoiceForceMute = useCallback((_event: VoiceForceMuteEvent) => {
     vcForceMute();
   }, [vcForceMute]);
