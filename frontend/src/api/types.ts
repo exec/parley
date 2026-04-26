@@ -198,7 +198,11 @@ export type SystemEvent =
   | { type: 'member_left'; actor_user_id: string; actor_display_name?: string }
   | { type: 'member_kicked'; actor_user_id: string; actor_display_name?: string; target_user_id: string; target_display_name?: string }
   | { type: 'group_name_changed'; actor_user_id: string; actor_display_name?: string; old_name: string; new_name: string }
-  | { type: 'owner_transferred'; actor_user_id: string; actor_display_name?: string; new_owner_user_id: string; new_owner_display_name?: string };
+  | { type: 'owner_transferred'; actor_user_id: string; actor_display_name?: string; new_owner_user_id: string; new_owner_display_name?: string }
+  | { type: 'call_started';  actor_user_id: string; actor_display_name?: string; started_at_ms: number }
+  | { type: 'call_ended';    duration_ms: number; started_at_ms: number }
+  | { type: 'call_missed';   caller_user_id: string; caller_display_name?: string }
+  | { type: 'call_declined'; caller_user_id: string; caller_display_name?: string; decliner_user_id: string; decliner_display_name?: string };
 
 export interface DmMessage {
   id: string;
