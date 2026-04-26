@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { MessageSquare, BellOff, Plus } from 'lucide-react';
+import { MessageSquare, BellOff, Plus, Phone } from 'lucide-react';
 import { DmChannel, User, CHANNEL_KIND_DM } from '../../api/types';
 import { useChannelState } from '../../context/ChannelStateContext';
 import * as readStateApi from '../../api/readState';
@@ -57,6 +57,7 @@ interface DmPanelProps {
   onlineUserIds?: Set<string>;
   onMarkDmRead?: (dmChannelId: string) => void;
   onCreateGroup?: () => void;
+  activeCalls?: Map<string, number>;
 }
 
 const DmPanel: React.FC<DmPanelProps> = ({
@@ -71,6 +72,7 @@ const DmPanel: React.FC<DmPanelProps> = ({
   onlineUserIds,
   onMarkDmRead,
   onCreateGroup,
+  activeCalls,
 }) => {
   const channelState = useChannelState();
   const [contextMenu, setContextMenu] = useState<{ top: number; left: number } | null>(null);
@@ -155,6 +157,9 @@ const DmPanel: React.FC<DmPanelProps> = ({
                     ? (channel.name ?? '(unnamed group)')
                     : (channel.other_display_name || channel.other_username)}
                 </span>
+                {(activeCalls?.get(channel.id) ?? 0) > 0 && (
+                  <span title="Active call" aria-label="Active call"><Phone size={12} className="dm-row-active-call" /></span>
+                )}
                 {isMuted && <BellOff size={14} className="dm-row-muted" />}
                 {unread > 0 && !isActive && (
                   <span

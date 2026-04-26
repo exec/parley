@@ -25,8 +25,12 @@ import * as serversApi from './api/servers';
 import * as channelsApi from './api/channels';
 import * as dmsApi from './api/dms';
 import { getVoiceParticipants, muteVoiceParticipant, serverVc } from './api/voice';
-import { getActiveCalls, type ActiveRing } from './api/calls';
+import { getActiveCalls, startGcCall, type ActiveRing } from './api/calls';
 import { getTags } from './api/bin';
+import { CallProvider, useCall } from './context/CallContext';
+import { IncomingCallModal } from './components/calls/IncomingCallModal';
+import { OutgoingCallToast } from './components/calls/OutgoingCallToast';
+import { FloatingCallWindow } from './components/calls/FloatingCallWindow';
 import MainLayout from './components/layout/MainLayout';
 import ChannelList from './components/layout/ChannelList';
 import DmPanel from './components/layout/DmPanel';
@@ -251,6 +255,9 @@ function MainApp() {
     }
   }, [handleJumpToMessage, selectDmChannel]); // eslint-disable-line react-hooks/exhaustive-deps
 
+
+  // Active DM calls: dmChannelId → participant count (derived from VOICE_STATE_UPDATE on dm:{id} VCs)
+  const [activeCalls, setActiveCalls] = useState<Map<string, number>>(new Map());
 
   // Voice state: channelId → list of participants
   const [voiceParticipants, setVoiceParticipants] = useState<Record<string, { user_id: string; username: string; avatar_url?: string }[]>>({});
@@ -548,6 +555,10 @@ function MainApp() {
   }, [vcDisconnect]);
 
   const handleVoiceStateUpdate = useCallback((update: VoiceStateUpdate) => {
+    // update.channel_id is the raw DM channel id or server channel id; the WS
+    // VOICE_STATE_UPDATE for DM VCs uses channel_id = "<dmChannelId>" (numeric string).
+    // We also receive a synthetic channel_id from the vc topic like "dm:123" — but the
+    // backend sends the plain id. Track activeCalls by the plain dm channel id.
     setVoiceParticipants(prev => {
       const list = prev[update.channel_id] ?? [];
       if (update.action === 'join') {
@@ -558,7 +569,24 @@ function MainApp() {
         return { ...prev, [update.channel_id]: filtered };
       }
     });
-  }, []);
+    // Maintain active call participant count for DM VCs.
+    // The channel_id for DM VC events is the plain DM channel id.
+    // We detect DM VCs by checking if a dmChannel with that id exists.
+    setActiveCalls(prev => {
+      const isDm = dmChannels.some(ch => ch.id === update.channel_id);
+      if (!isDm) return prev;
+      const next = new Map(prev);
+      const cur = next.get(update.channel_id) ?? 0;
+      if (update.action === 'join') {
+        next.set(update.channel_id, cur + 1);
+      } else {
+        const n = Math.max(0, cur - 1);
+        if (n === 0) next.delete(update.channel_id);
+        else next.set(update.channel_id, n);
+      }
+      return next;
+    });
+  }, [dmChannels]);
 
   const clearTypingUser = useCallback((channelId: string, userId: string) => {
     const key = `${channelId}:${userId}`;
@@ -878,6 +906,21 @@ function MainApp() {
     }, [applyDmChannelUpdate]),
     onActivityStart: vcReceiveActivityStart,
     onActivityEnd: vcReceiveActivityEnd,
+    onCallRing: useCallback((payload: { vc: string; ring_id: string; caller: { user_id: number; username: string; display_name: string; avatar_url: string }; started_at_ms: number }) => {
+      window.dispatchEvent(new CustomEvent('parley:call_ring', { detail: payload }));
+    }, []),
+    onCallAccept: useCallback((payload: { ring_id: string; accepter_user_id?: string }) => {
+      window.dispatchEvent(new CustomEvent('parley:call_accept', { detail: payload }));
+    }, []),
+    onCallDecline: useCallback((payload: { ring_id: string; decliner_user_id?: string }) => {
+      window.dispatchEvent(new CustomEvent('parley:call_decline', { detail: payload }));
+    }, []),
+    onCallCancel: useCallback((payload: { ring_id: string }) => {
+      window.dispatchEvent(new CustomEvent('parley:call_cancel', { detail: payload }));
+    }, []),
+    onCallTimeout: useCallback((payload: { ring_id: string }) => {
+      window.dispatchEvent(new CustomEvent('parley:call_timeout', { detail: payload }));
+    }, []),
   });
 
   const handleSendTyping = useCallback(() => {
@@ -1024,6 +1067,7 @@ function MainApp() {
         setMentionCounts(prev => { const next = new Set(prev); next.delete(dmChannelId); return next; });
       }}
       onCreateGroup={() => setShowCreateGroup(true)}
+      activeCalls={activeCalls}
     />
   );
 
@@ -1385,6 +1429,30 @@ function MainApp() {
         .map(m => [m.user_id, m.display_name || m.username] as [string, string])
     );
 
+    const dmCallParticipantCount = activeCalls.get(activeDmChannel.id) ?? 0;
+    const handleDmStartOrJoinCall = async () => {
+      if (dmCallParticipantCount > 0 || isGroup) {
+        // Active call exists (or GC) — just connect to the VC directly
+        if (isGroup) {
+          try { await startGcCall(activeDmChannel.id); } catch { /* already active is fine */ }
+        }
+        setActiveVoiceChannel(activeDmChannel.id);
+      } else {
+        // 1:1 DM with no active call — ring the other user
+        window.dispatchEvent(new CustomEvent('parley:initiate_call', {
+          detail: {
+            dmChannelId: activeDmChannel.id,
+            target: {
+              user_id: activeDmChannel.other_user_id ?? '',
+              username: activeDmChannel.other_username ?? '',
+              display_name: activeDmChannel.other_display_name,
+              avatar_url: activeDmChannel.other_avatar_url,
+            },
+          },
+        }));
+      }
+    };
+
     mainContent = (
       <ChatWindow
         channel={dmChannel}
@@ -1419,6 +1487,8 @@ function MainApp() {
         onJumpToMessage={handleJumpToMessage}
         jumpToMessageId={effectiveJumpTarget}
         onJumpClear={handleJumpClear}
+        onStartCall={handleDmStartOrJoinCall}
+        callParticipantCount={dmCallParticipantCount}
       />
     );
   } else if (activeChannel) {
@@ -1494,6 +1564,7 @@ function MainApp() {
   }
 
   return (
+    <CallProvider bootRings={_bootRings}>
     <>
       <MainLayout
         servers={servers}
@@ -1701,9 +1772,66 @@ function MainApp() {
         />
       )}
 
+      <CallSurfaces onJoinCall={(vc) => {
+        // Navigate to the DM channel for this vc (dm:{id}) and connect
+        const dmId = vc.replace(/^dm:/, '');
+        selectDmChannel(dmId);
+        setActiveVoiceChannel(dmId);
+      }} vcDisconnect={vcDisconnect} />
+
     </>
+    </CallProvider>
   );
 }
+
+const CallSurfaces: React.FC<{ onJoinCall: (vc: string) => void; vcDisconnect: () => void }> = ({ onJoinCall, vcDisconnect }) => {
+  const { state, activeVc, incomingQueue, accept, decline, initiate, receiveCallRing, receiveCallAccept, receiveCallDecline, receiveCallCancel, receiveCallTimeout } = useCall();
+
+  useEffect(() => {
+    const onRing = (e: Event) => receiveCallRing((e as CustomEvent).detail);
+    const onAccept = (e: Event) => receiveCallAccept((e as CustomEvent).detail);
+    const onDecline = (e: Event) => receiveCallDecline((e as CustomEvent).detail);
+    const onCancel = (e: Event) => receiveCallCancel((e as CustomEvent).detail);
+    const onTimeout = (e: Event) => receiveCallTimeout((e as CustomEvent).detail);
+    const onInitiate = (e: Event) => {
+      const { dmChannelId, target } = (e as CustomEvent).detail;
+      void initiate(dmChannelId, target);
+    };
+    window.addEventListener('parley:call_ring', onRing);
+    window.addEventListener('parley:call_accept', onAccept);
+    window.addEventListener('parley:call_decline', onDecline);
+    window.addEventListener('parley:call_cancel', onCancel);
+    window.addEventListener('parley:call_timeout', onTimeout);
+    window.addEventListener('parley:initiate_call', onInitiate);
+    return () => {
+      window.removeEventListener('parley:call_ring', onRing);
+      window.removeEventListener('parley:call_accept', onAccept);
+      window.removeEventListener('parley:call_decline', onDecline);
+      window.removeEventListener('parley:call_cancel', onCancel);
+      window.removeEventListener('parley:call_timeout', onTimeout);
+      window.removeEventListener('parley:initiate_call', onInitiate);
+    };
+  }, [receiveCallRing, receiveCallAccept, receiveCallDecline, receiveCallCancel, receiveCallTimeout, initiate]);
+
+  return (
+    <>
+      {incomingQueue.length > 0 && (
+        <IncomingCallModal
+          ring={incomingQueue[0]}
+          showEndCurrentAccept={state === 'connected'}
+          onAccept={() => accept(incomingQueue[0])}
+          onEndCurrentAndAccept={() => { vcDisconnect(); accept(incomingQueue[0]); }}
+          onDecline={() => decline(incomingQueue[0])}
+        />
+      )}
+      <OutgoingCallToast />
+      <FloatingCallWindow
+        renderCompact={() => null}
+        onExpand={() => { if (activeVc) onJoinCall(activeVc); }}
+      />
+    </>
+  );
+};
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();

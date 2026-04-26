@@ -9,6 +9,8 @@ import MiniProfile from '../layout/MiniProfile';
 import { SearchPanel } from '../search/SearchPanel';
 import { PinnedPanel, PinIcon } from './PinnedPanel';
 import { pinMessage, unpinMessage } from '../../api/messages';
+import { CallBanner } from '../calls/CallBanner';
+import { Phone } from 'lucide-react';
 import './Chat.css';
 
 interface TypingUser {
@@ -58,6 +60,8 @@ interface ChatWindowProps {
   onJumpToMessage?: (channelId: string, messageId: string) => void;
   jumpToMessageId?: string | null;
   onJumpClear?: () => void;
+  onStartCall?: () => void;
+  callParticipantCount?: number;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -102,6 +106,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onJumpToMessage,
   jumpToMessageId,
   onJumpClear,
+  onStartCall,
+  callParticipantCount = 0,
 }) => {
   const { hasPerm: checkPerm } = usePermissions(channel.server_id || undefined, channel.id || undefined);
   // In DMs (no server_id) users can only manage their own messages; other
@@ -244,6 +250,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 </svg>
               </button>
             )}
+            {/* Call button — DM contexts only */}
+            {onStartCall && (
+              <button
+                className="chat-header-btn chat-header-action"
+                onClick={onStartCall}
+                title={callParticipantCount > 0 ? 'Join call' : 'Start call'}
+                aria-label={callParticipantCount > 0 ? 'Join call' : 'Start call'}
+              >
+                <Phone size={16} />
+              </button>
+            )}
           </div>
         </div>
         {editingTopic ? (
@@ -264,6 +281,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         )}
         </div>
       </div>
+      {onStartCall && callParticipantCount > 0 && (
+        <CallBanner participantCount={callParticipantCount} onJoin={onStartCall} />
+      )}
       <MessageList
         messages={messages}
         channelId={channel.id}
