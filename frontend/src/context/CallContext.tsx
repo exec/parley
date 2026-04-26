@@ -10,13 +10,21 @@ export interface IncomingRing {
   started_at_ms: number;
 }
 
+export interface OutgoingTarget {
+  user_id: string;
+  username: string;
+  display_name?: string;
+  avatar_url?: string;
+}
+
 export interface CallContextValue {
   state: CallState;
   activeVc: string | null;
   activeRingId: string | null;
   incomingQueue: IncomingRing[];
   floatingMode: boolean;
-  initiate: (dmChannelId: string | number) => Promise<void>;
+  outgoingTarget?: OutgoingTarget;
+  initiate: (dmChannelId: string | number, target: OutgoingTarget) => Promise<void>;
   accept: (ring: IncomingRing) => Promise<void>;
   decline: (ring: IncomingRing) => Promise<void>;
   cancel: () => Promise<void>;
@@ -36,10 +44,11 @@ interface Store {
   activeRingId: string | null;
   incomingQueue: IncomingRing[];
   floatingMode: boolean;
+  outgoingTarget?: OutgoingTarget;
 }
 
 type Action =
-  | { type: 'set'; state: CallState; vc?: string | null; ringId?: string | null }
+  | { type: 'set'; state: CallState; vc?: string | null; ringId?: string | null; outgoingTarget?: OutgoingTarget | null }
   | { type: 'enqueue'; ring: IncomingRing }
   | { type: 'dequeue'; ring_id: string }
   | { type: 'set_floating'; floating: boolean };
@@ -52,6 +61,9 @@ function reducer(store: Store, action: Action): Store {
         state: action.state,
         activeVc: action.vc !== undefined ? action.vc : store.activeVc,
         activeRingId: action.ringId !== undefined ? action.ringId : store.activeRingId,
+        outgoingTarget: action.outgoingTarget !== undefined
+          ? (action.outgoingTarget ?? undefined)
+          : store.outgoingTarget,
       };
     case 'enqueue':
       if (store.incomingQueue.some(r => r.ring_id === action.ring.ring_id)) return store;
@@ -79,6 +91,7 @@ export const CallProvider: React.FC<CallProviderProps> = ({ children, bootRings 
     activeRingId: null,
     incomingQueue: [],
     floatingMode: false,
+    outgoingTarget: undefined,
   });
 
   const bootApplied = useRef(false);
@@ -90,14 +103,14 @@ export const CallProvider: React.FC<CallProviderProps> = ({ children, bootRings 
     }
   }, [bootRings]);
 
-  const initiate = useCallback(async (dmChannelId: string | number) => {
+  const initiate = useCallback(async (dmChannelId: string | number, target: OutgoingTarget) => {
     const vc = `dm:${dmChannelId}`;
-    dispatch({ type: 'set', state: 'outgoing', vc, ringId: null });
+    dispatch({ type: 'set', state: 'outgoing', vc, ringId: null, outgoingTarget: target });
     try {
       const { ring_id } = await ringDm(dmChannelId);
       dispatch({ type: 'set', state: 'outgoing', ringId: ring_id });
     } catch {
-      dispatch({ type: 'set', state: 'idle', vc: null, ringId: null });
+      dispatch({ type: 'set', state: 'idle', vc: null, ringId: null, outgoingTarget: null });
     }
   }, []);
 
@@ -125,7 +138,7 @@ export const CallProvider: React.FC<CallProviderProps> = ({ children, bootRings 
   const cancel = useCallback(async () => {
     const { activeVc, activeRingId } = store;
     if (!activeRingId) return;
-    dispatch({ type: 'set', state: 'idle', vc: null, ringId: null });
+    dispatch({ type: 'set', state: 'idle', vc: null, ringId: null, outgoingTarget: null });
     if (activeVc) {
       const dmChannelId = activeVc.replace(/^dm:/, '');
       try {
@@ -141,7 +154,7 @@ export const CallProvider: React.FC<CallProviderProps> = ({ children, bootRings 
   }, []);
 
   const notifyDisconnected = useCallback(() => {
-    dispatch({ type: 'set', state: 'idle', vc: null, ringId: null });
+    dispatch({ type: 'set', state: 'idle', vc: null, ringId: null, outgoingTarget: null });
   }, []);
 
   const setFloatingMode = useCallback((floating: boolean) => {
@@ -162,7 +175,7 @@ export const CallProvider: React.FC<CallProviderProps> = ({ children, bootRings 
 
   const receiveCallDecline = useCallback((payload: { ring_id: string; decliner_user_id?: string }) => {
     if (store.activeRingId === payload.ring_id) {
-      dispatch({ type: 'set', state: 'idle', vc: null, ringId: null });
+      dispatch({ type: 'set', state: 'idle', vc: null, ringId: null, outgoingTarget: null });
     }
     dispatch({ type: 'dequeue', ring_id: payload.ring_id });
   }, [store.activeRingId]);
@@ -177,7 +190,7 @@ export const CallProvider: React.FC<CallProviderProps> = ({ children, bootRings 
   const receiveCallTimeout = useCallback((payload: { ring_id: string }) => {
     dispatch({ type: 'dequeue', ring_id: payload.ring_id });
     if (store.activeRingId === payload.ring_id) {
-      dispatch({ type: 'set', state: 'idle', vc: null, ringId: null });
+      dispatch({ type: 'set', state: 'idle', vc: null, ringId: null, outgoingTarget: null });
     }
   }, [store.activeRingId]);
 
@@ -187,6 +200,7 @@ export const CallProvider: React.FC<CallProviderProps> = ({ children, bootRings 
     activeRingId: store.activeRingId,
     incomingQueue: store.incomingQueue,
     floatingMode: store.floatingMode,
+    outgoingTarget: store.outgoingTarget,
     initiate,
     accept,
     decline,
