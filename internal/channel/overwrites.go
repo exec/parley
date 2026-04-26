@@ -7,7 +7,9 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"parley/internal/audit"
 	"parley/internal/auth"
+	"parley/internal/db"
 	"parley/internal/permissions"
 	ws "parley/internal/websocket"
 )
@@ -162,6 +164,17 @@ func (h *Handler) UpsertOverwrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Snapshot the prior overwrite (if any) BEFORE the upsert so we can record before-state in the audit log.
+	beforeAllow, beforeDeny := int64(0), int64(0)
+	if priorOWs, err := h.service.repo.GetRawChannelOverwrites(r.Context(), channelIDInt); err == nil {
+		for _, prior := range priorOWs {
+			if prior.TargetType == req.TargetType && prior.TargetID == targetIDInt {
+				beforeAllow, beforeDeny = prior.Allow, prior.Deny
+				break
+			}
+		}
+	}
+
 	ow, err := h.service.repo.UpsertOverwrite(r.Context(), channelIDInt, req.TargetType, targetIDInt, req.Allow, req.Deny)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -176,6 +189,38 @@ func (h *Handler) UpsertOverwrite(w http.ResponseWriter, r *http.Request) {
 
 	// Broadcast overwrite update to channel subscribers
 	h.broadcastChannelOverwriteUpdate(r, ch.ServerID, channelIDInt)
+
+	// Audit
+	overwriteTargetName := strconv.FormatInt(targetIDInt, 10)
+	overwriteTypeStr := "role"
+	if req.TargetType == 1 {
+		overwriteTypeStr = "user"
+		if name, err := h.service.repo.GetUsernameByID(r.Context(), targetIDInt); err == nil && name != "" {
+			overwriteTargetName = name
+		}
+	} else {
+		if role, err := h.service.repo.GetServerRoleByID(r.Context(), targetIDInt); err == nil && role != nil {
+			overwriteTargetName = role.Name
+		}
+	}
+	actorIDInt := userIDInt
+	actorUsername, _ := h.service.repo.GetUsernameByID(r.Context(), actorIDInt)
+	h.auditSvc.Log(r.Context(), audit.Entry{
+		ServerID:      ch.ServerID,
+		ActorID:       &actorIDInt,
+		ActorUsername: actorUsername,
+		Action:        "channel.overwrite_set",
+		TargetID:      strconv.FormatInt(channelIDInt, 10),
+		TargetType:    "channel",
+		TargetName:    ch.Name,
+		Changes: map[string]any{
+			"overwrite_target_type": overwriteTypeStr,
+			"overwrite_target_id":   strconv.FormatInt(targetIDInt, 10),
+			"overwrite_target_name": overwriteTargetName,
+			"before":                map[string]any{"allow": beforeAllow, "deny": beforeDeny},
+			"after":                 map[string]any{"allow": req.Allow, "deny": req.Deny},
+		},
+	})
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(ow)
@@ -246,6 +291,18 @@ func (h *Handler) DeleteOverwrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Snapshot the overwrite BEFORE deletion so we can record before-state in the audit log.
+	// GetOverwriteByID does not exist; read all channel overwrites and find the matching ID.
+	var beforeOW *db.PermissionOverwrite
+	if priorOWs, err := h.service.repo.GetRawChannelOverwrites(r.Context(), channelIDInt); err == nil {
+		for i := range priorOWs {
+			if priorOWs[i].ID == overwriteIDInt {
+				beforeOW = &priorOWs[i]
+				break
+			}
+		}
+	}
+
 	if err := h.service.repo.DeleteOverwrite(r.Context(), overwriteIDInt); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -258,6 +315,39 @@ func (h *Handler) DeleteOverwrite(w http.ResponseWriter, r *http.Request) {
 
 	// Broadcast overwrite update to channel subscribers
 	h.broadcastChannelOverwriteUpdate(r, ch.ServerID, channelIDInt)
+
+	// Audit (skip if we couldn't snapshot the prior overwrite — better than logging incomplete data)
+	if beforeOW != nil {
+		overwriteTargetName := strconv.FormatInt(beforeOW.TargetID, 10)
+		overwriteTypeStr := "role"
+		if beforeOW.TargetType == 1 {
+			overwriteTypeStr = "user"
+			if name, err := h.service.repo.GetUsernameByID(r.Context(), beforeOW.TargetID); err == nil && name != "" {
+				overwriteTargetName = name
+			}
+		} else {
+			if role, err := h.service.repo.GetServerRoleByID(r.Context(), beforeOW.TargetID); err == nil && role != nil {
+				overwriteTargetName = role.Name
+			}
+		}
+		actorIDInt := userIDInt
+		actorUsername, _ := h.service.repo.GetUsernameByID(r.Context(), actorIDInt)
+		h.auditSvc.Log(r.Context(), audit.Entry{
+			ServerID:      ch.ServerID,
+			ActorID:       &actorIDInt,
+			ActorUsername: actorUsername,
+			Action:        "channel.overwrite_delete",
+			TargetID:      strconv.FormatInt(channelIDInt, 10),
+			TargetType:    "channel",
+			TargetName:    ch.Name,
+			Changes: map[string]any{
+				"overwrite_target_type": overwriteTypeStr,
+				"overwrite_target_id":   strconv.FormatInt(beforeOW.TargetID, 10),
+				"overwrite_target_name": overwriteTargetName,
+				"before":                map[string]any{"allow": beforeOW.Allow, "deny": beforeOW.Deny},
+			},
+		})
+	}
 
 	w.WriteHeader(http.StatusNoContent)
 }
