@@ -60,3 +60,6 @@ bench/parley-bench
 docs/node_modules/
 docs/.vitepress/dist/
 extras/parley/__pycache__/
+
+# Claude Code session lock file
+.claude/scheduled_tasks.lock
