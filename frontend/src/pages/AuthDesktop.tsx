@@ -3,8 +3,23 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { apiClient, IS_DESKTOP } from '../api/client';
 import { loginWithPasskey } from '../api/passkeys';
-import { issueDesktopCode } from '../api/desktopAuth';
 import './Auth.css';
+
+// Bypass apiClient.post for the desktop handoff endpoint specifically.
+// apiClient's 401 path force-redirects to /login, which on this page would
+// boot the user off the desktop-handoff flow entirely. We want a 401 here
+// to surface as "show the login form" instead.
+async function issueDesktopCodeNoRedirect(state: string): Promise<{ ok: true; code: string } | { ok: false; status: number }> {
+  const resp = await fetch('/api/auth/desktop/issue', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ state }),
+  });
+  if (!resp.ok) return { ok: false, status: resp.status };
+  const data = await resp.json().catch(() => ({}));
+  return { ok: true, code: data.code };
+}
 
 type Status = 'login' | 'issuing' | 'ready' | 'error';
 
@@ -29,22 +44,33 @@ export const AuthDesktop: React.FC = () => {
     }
     setStatus('issuing');
     setError('');
-    try {
-      const { code } = await issueDesktopCode(state);
-      const url = `parley://auth?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
-      setDeepLink(url);
-      setStatus('ready');
-      window.location.href = url;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to hand off to desktop app.');
+    const result = await issueDesktopCodeNoRedirect(state);
+    if (!result.ok) {
+      if (result.status === 401) {
+        // No valid session in THIS browser (common when user opens the
+        // /auth/desktop URL in a browser that's never been signed in,
+        // separate from where they normally use Parley). Drop the stale
+        // cached user blob and let them sign in via the form.
+        localStorage.removeItem('user');
+        setStatus('login');
+        return;
+      }
+      setError('Failed to hand off to desktop app.');
       setStatus('error');
+      return;
     }
+    const url = `parley://auth?code=${encodeURIComponent(result.code)}&state=${encodeURIComponent(state)}`;
+    setDeepLink(url);
+    setStatus('ready');
+    window.location.href = url;
   };
 
   useEffect(() => {
-    // This page is loaded in the user's browser — if they already have a
-    // valid session here (cached user blob from a previous web login),
-    // skip the form and immediately issue the desktop handoff code.
+    // Only auto-redirect when we have a strong signal of being signed in
+    // in *this* browser. localStorage('user') by itself isn't enough — it
+    // may be a cached blob from a previous session whose cookie has since
+    // been cleared / never existed in this browser. Auto-attempt anyway,
+    // but the issuer above falls back cleanly to the login form on 401.
     if (localStorage.getItem('user')) {
       issueAndRedirect();
     }
