@@ -312,7 +312,7 @@ func main() {
 	// Initialize bots service
 	botsRepo := bots.NewRepository(repo)
 	botsSvc := bots.NewService(botsRepo, config.BotKeySecret)
-	botsHandler := bots.NewHandler(botsSvc)
+	botsHandler := bots.NewHandler(botsSvc, repo, auditSvc)
 
 	// Wire hub into bots handler for SERVER_MEMBER_JOIN/LEAVE broadcasts
 	// Must happen after hub is initialized (above) and before requests are served.

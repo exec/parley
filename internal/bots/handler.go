@@ -12,7 +12,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
+	"parley/internal/audit"
 	"parley/internal/auth"
+	"parley/internal/db"
 	"parley/internal/httputil"
 	ws "parley/internal/websocket"
 )
@@ -24,13 +26,15 @@ type hub interface {
 
 // Handler holds the Service for HTTP dispatch.
 type Handler struct {
-	svc *Service
-	hub hub
+	svc      *Service
+	hub      hub
+	dbRepo   *db.Repository
+	auditSvc *audit.AuditService
 }
 
 // NewHandler creates a Handler.
-func NewHandler(svc *Service) *Handler {
-	return &Handler{svc: svc}
+func NewHandler(svc *Service, dbRepo *db.Repository, auditSvc *audit.AuditService) *Handler {
+	return &Handler{svc: svc, dbRepo: dbRepo, auditSvc: auditSvc}
 }
 
 // SetHub wires in the WebSocket hub for broadcasting bot membership events.

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"parley/internal/audit"
 	"parley/internal/auth"
 	"parley/internal/db"
 	"parley/internal/httputil"
@@ -34,11 +35,12 @@ type Handler struct {
 	dbRepo   *db.Repository
 	hub      *ws.Hub
 	voiceSvc *voice.Service
+	auditSvc *audit.AuditService
 }
 
 // NewHandler creates a new Handler.
-func NewHandler(repo *Repository, svc *Service, dbRepo *db.Repository, hub *ws.Hub, voiceSvc *voice.Service) *Handler {
-	return &Handler{repo: repo, svc: svc, dbRepo: dbRepo, hub: hub, voiceSvc: voiceSvc}
+func NewHandler(repo *Repository, svc *Service, dbRepo *db.Repository, hub *ws.Hub, voiceSvc *voice.Service, auditSvc *audit.AuditService) *Handler {
+	return &Handler{repo: repo, svc: svc, dbRepo: dbRepo, hub: hub, voiceSvc: voiceSvc, auditSvc: auditSvc}
 }
 
 // List returns all sounds for a server.

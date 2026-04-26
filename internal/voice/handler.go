@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"parley/internal/audit"
 	"parley/internal/auth"
 	"parley/internal/db"
 	"parley/internal/httputil"
@@ -22,14 +23,16 @@ type Handler struct {
 	hub         *ws.Hub
 	authz       *Authorizer
 	dmCallEnder DmCallEnder
+	auditSvc    *audit.AuditService
 }
 
-func NewHandler(svc *Service, repo *db.Repository, hub *ws.Hub) *Handler {
+func NewHandler(svc *Service, repo *db.Repository, hub *ws.Hub, auditSvc *audit.AuditService) *Handler {
 	return &Handler{
-		svc:   svc,
-		repo:  repo,
-		hub:   hub,
-		authz: NewAuthorizer(repo),
+		svc:      svc,
+		repo:     repo,
+		hub:      hub,
+		authz:    NewAuthorizer(repo),
+		auditSvc: auditSvc,
 	}
 }
 

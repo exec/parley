@@ -276,7 +276,7 @@ func registerRoutes(
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/channels/{channelId}/typing", handleChannelTyping(repo, hub))
 
 			// Voice — virtual-channel-namespaced routes (s:N for server VCs, dm:N for DMs).
-			voiceHandler := voice.NewHandler(voiceSvc, repo, hub)
+			voiceHandler := voice.NewHandler(voiceSvc, repo, hub, auditSvc)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Get("/voice/{vc}/token", voiceHandler.Token)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/voice/{vc}/join", voiceHandler.Join)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/voice/{vc}/leave", voiceHandler.Leave)
@@ -394,7 +394,7 @@ func registerRoutes(
 			// (profile:write); list + play are read/write equivalents.
 			sbRepo := soundboard.NewRepository(repo.DB())
 			sbSvc := soundboard.NewService(sbRepo, spacesClient)
-			soundboardHandler := soundboard.NewHandler(sbRepo, sbSvc, repo, hub, voiceSvc)
+			soundboardHandler := soundboard.NewHandler(sbRepo, sbSvc, repo, hub, voiceSvc, auditSvc)
 			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/soundboard", soundboardHandler.ListAll)
 			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/servers/{serverId}/soundboard", soundboardHandler.List)
 			r.With(auth.RequireScope(auth.ScopeProfileWrite), maxBodyMiddleware(1<<20+4096)).Post("/servers/{serverId}/soundboard", soundboardHandler.Upload)
