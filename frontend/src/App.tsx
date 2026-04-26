@@ -18,7 +18,7 @@ import { BotInvitePage } from './pages/BotInvitePage';
 import { useWebSocket, MemberRoleUpdate, UserUpdate, VoiceStateUpdate, VoiceForceMuteEvent, RoleUpdateEvent, RoleDeleteEvent, BotStatusUpdate, SoundboardPlayEvent } from './hooks/useWebSocket';
 import { VoiceChannel } from './components/voice/VoiceChannel';
 
-import { DmChannel, DmMessage, Message, BinChannelTag, ServerMember, AppNotification } from './api/types';
+import { DmChannel, DmMessage, Message, BinChannelTag, ServerMember, AppNotification, Channel } from './api/types';
 import NotificationPanel from './components/notifications/NotificationPanel';
 import { ForwardModal } from './components/chat/ForwardModal';
 import * as serversApi from './api/servers';
@@ -1467,44 +1467,89 @@ function MainApp() {
       }
     };
 
-    mainContent = (
-      <ChatWindow
-        channel={dmChannel}
-        messages={dmAsMessages}
-        currentUserId={currentUser?.id}
-        members={dmMembers}
-        memberMap={dmMemberMap}
-        onSendMessage={sendDmMessage}
-        onDelete={handleDmDelete}
-        onReact={handleDmReact}
-        onReply={(msg) => setReplyTo(msg)}
-        onClearReply={() => setReplyTo(null)}
-        replyTo={replyTo}
-        onLoadMore={loadMoreDmMessages}
-        hasMore={hasMoreDmMessages}
-        isLoading={isLoadingDms}
-        onViewProfile={handleViewProfile}
-        headerPrefix={isGroup ? '' : '@'}
-        headerAvatar={isGroup ? undefined : activeDmChannel.other_avatar_url}
-        headerAvatarNode={isGroup ? <MosaicAvatar tiles={groupAvatarTiles} size={28} /> : undefined}
-        isOnline={isGroup ? undefined : onlineUsers.has(activeDmChannel.other_user_id ?? '')}
-        onlineUserIds={onlineUsers}
-        hideRoles={true}
-        showMembers={isGroup ? showMembers : undefined}
-        onToggleMembers={isGroup ? () => setShowMembers(next => {
-          const v = !next;
-          localStorage.setItem('parley:showMembers', String(v));
-          return v;
-        }) : undefined}
-        onToggleChannelList={() => setShowChannelList(c => !c)}
-        onForward={(msg) => setForwardMessage(msg)}
-        onJumpToMessage={handleJumpToMessage}
-        jumpToMessageId={effectiveJumpTarget}
-        onJumpClear={handleJumpClear}
-        onStartCall={handleDmStartOrJoinCall}
-        callParticipantCount={dmCallParticipantCount}
-      />
-    );
+    const inThisDmCall = activeVoiceKind === 'dm' && activeVoiceChannel === activeDmChannel.id;
+    if (inThisDmCall && currentUser) {
+      // Synthesize a Channel for the DM so the existing VoiceChannel component
+      // can render the participant grid + controls. The chat is reachable via
+      // the in-grid chat toggle.
+      const dmAsChannel: Channel = {
+        id: activeDmChannel.id,
+        server_id: '',
+        name: isGroup ? (activeDmChannel.name || 'Group Call') : (activeDmChannel.other_display_name || activeDmChannel.other_username || 'Call'),
+        type: 2,
+        position: 0,
+        created_at: activeDmChannel.created_at ?? '',
+        updated_at: activeDmChannel.created_at ?? '',
+      };
+      mainContent = (
+        <VoiceChannel
+          channel={dmAsChannel}
+          vc={dmVc(activeDmChannel.id)}
+          currentUser={{ id: currentUser.id, username: currentUser.display_name || currentUser.username, avatar_url: currentUser.avatar_url }}
+          participants={vcParticipants}
+          localParticipant={vcLocalParticipant}
+          voiceParticipants={Object.fromEntries(
+            (voiceParticipants[activeDmChannel.id] ?? []).map(p => [p.user_id, p])
+          )}
+          activeSpeakers={vcActiveSpeakers}
+          connected={vcConnected}
+          connecting={vcConnecting}
+          error={vcError}
+          muted={vcMuted}
+          deafened={vcDeafened}
+          videoEnabled={vcVideoEnabled}
+          screenSharing={vcScreenSharing}
+          onToggleMute={vcToggleMute}
+          onToggleDeafen={vcToggleDeafen}
+          onToggleVideo={vcToggleVideo}
+          onToggleScreenShare={vcToggleScreenShare}
+          onLeave={vcDisconnect}
+          onRetry={vcRetry}
+          canMuteMembers={false}
+          canKickFromVoice={false}
+          activeSoundEmojis={activeSoundEmojis}
+        />
+      );
+    } else {
+      mainContent = (
+        <ChatWindow
+          channel={dmChannel}
+          messages={dmAsMessages}
+          currentUserId={currentUser?.id}
+          members={dmMembers}
+          memberMap={dmMemberMap}
+          onSendMessage={sendDmMessage}
+          onDelete={handleDmDelete}
+          onReact={handleDmReact}
+          onReply={(msg) => setReplyTo(msg)}
+          onClearReply={() => setReplyTo(null)}
+          replyTo={replyTo}
+          onLoadMore={loadMoreDmMessages}
+          hasMore={hasMoreDmMessages}
+          isLoading={isLoadingDms}
+          onViewProfile={handleViewProfile}
+          headerPrefix={isGroup ? '' : '@'}
+          headerAvatar={isGroup ? undefined : activeDmChannel.other_avatar_url}
+          headerAvatarNode={isGroup ? <MosaicAvatar tiles={groupAvatarTiles} size={28} /> : undefined}
+          isOnline={isGroup ? undefined : onlineUsers.has(activeDmChannel.other_user_id ?? '')}
+          onlineUserIds={onlineUsers}
+          hideRoles={true}
+          showMembers={isGroup ? showMembers : undefined}
+          onToggleMembers={isGroup ? () => setShowMembers(next => {
+            const v = !next;
+            localStorage.setItem('parley:showMembers', String(v));
+            return v;
+          }) : undefined}
+          onToggleChannelList={() => setShowChannelList(c => !c)}
+          onForward={(msg) => setForwardMessage(msg)}
+          onJumpToMessage={handleJumpToMessage}
+          jumpToMessageId={effectiveJumpTarget}
+          onJumpClear={handleJumpClear}
+          onStartCall={handleDmStartOrJoinCall}
+          callParticipantCount={dmCallParticipantCount}
+        />
+      );
+    }
   } else if (activeChannel) {
     mainContent = (
       <ChatWindow
