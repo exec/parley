@@ -1831,7 +1831,11 @@ function MainApp() {
         />
       )}
 
-      <CallSurfaces onJoinCall={(vc) => {
+      <CallSurfaces
+        vcConnected={vcConnected}
+        activeVoiceKind={activeVoiceKind}
+        activeVoiceChannel={activeVoiceChannel}
+        onJoinCall={(vc) => {
         // The accepter/initiator path lands here when CallContext transitions
         // to 'connecting'. We need to navigate to the DM and switch the VC
         // hook input to a `dm:` channel so LiveKit joins the right room.
@@ -1852,8 +1856,26 @@ function MainApp() {
   );
 }
 
-const CallSurfaces: React.FC<{ onJoinCall: (vc: string) => void; vcDisconnect: () => void }> = ({ onJoinCall, vcDisconnect }) => {
-  const { state, activeVc, incomingQueue, accept, decline, initiate, receiveCallRing, receiveCallAccept, receiveCallDecline, receiveCallCancel, receiveCallTimeout, isDesktopTauri, mainFocused } = useCall();
+const CallSurfaces: React.FC<{
+  onJoinCall: (vc: string) => void;
+  vcDisconnect: () => void;
+  vcConnected: boolean;
+  activeVoiceKind: 'server' | 'dm';
+  activeVoiceChannel: string | null;
+}> = ({ onJoinCall, vcDisconnect, vcConnected, activeVoiceKind, activeVoiceChannel }) => {
+  const { state, activeVc, incomingQueue, accept, decline, initiate, receiveCallRing, receiveCallAccept, receiveCallDecline, receiveCallCancel, receiveCallTimeout, notifyConnected, notifyDisconnected, isDesktopTauri, mainFocused } = useCall();
+
+  // Bridge LiveKit connect state into CallContext so it transitions
+  // 'connecting' → 'connected' once the room is actually joined, and back
+  // to 'idle' when we leave.
+  useEffect(() => {
+    if (state !== 'connecting' && state !== 'connected') return;
+    if (vcConnected && activeVoiceKind === 'dm' && activeVoiceChannel && activeVc === `dm:${activeVoiceChannel}`) {
+      if (state === 'connecting') notifyConnected();
+    } else if (!vcConnected && state === 'connected') {
+      notifyDisconnected();
+    }
+  }, [vcConnected, state, activeVc, activeVoiceKind, activeVoiceChannel, notifyConnected, notifyDisconnected]);
 
   useEffect(() => {
     const onRing = (e: Event) => receiveCallRing((e as CustomEvent).detail);
