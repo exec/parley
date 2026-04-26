@@ -26,7 +26,7 @@ func TestActivityStart_RequiresParticipation(t *testing.T) {
 	}
 
 	// now make the user a participant
-	_ = svc.Join(context.Background(), "dm:1", "7", "alice", "")
+	_, _ = svc.Join(context.Background(), "dm:1", "7", "alice", "")
 	body, _ = json.Marshal(map[string]any{"type": "watch_party", "params": map[string]any{"url": "x"}})
 	req = httptest.NewRequest(http.MethodPost, "/api/voice/dm:1/activity/start", bytes.NewReader(body))
 	req = req.WithContext(withFakeUserID(req.Context(), 7))
@@ -45,7 +45,7 @@ func TestActivityStart_RequiresParticipation(t *testing.T) {
 func TestActivityStart_RejectsEmptyType(t *testing.T) {
 	rdb := newRedisForTest(t)
 	svc := &Service{rdb: rdb}
-	_ = svc.Join(context.Background(), "dm:1", "7", "alice", "")
+	_, _ = svc.Join(context.Background(), "dm:1", "7", "alice", "")
 	hub := newFakeHub()
 	h := NewActivityHandler(svc, hub)
 
@@ -63,7 +63,7 @@ func TestActivityStart_RejectsEmptyType(t *testing.T) {
 func TestActivityEnd_BroadcastsAndDeletes(t *testing.T) {
 	rdb := newRedisForTest(t)
 	svc := &Service{rdb: rdb}
-	_ = svc.Join(context.Background(), "dm:1", "7", "alice", "")
+	_, _ = svc.Join(context.Background(), "dm:1", "7", "alice", "")
 	_ = svc.StartActivity(context.Background(), "dm:1", "watch_party", 7, nil)
 	hub := newFakeHub()
 	h := NewActivityHandler(svc, hub)
@@ -150,7 +150,7 @@ func TestActivityEnd_RequiresParticipation(t *testing.T) {
 func TestActivityStart_BroadcastsActivityStart(t *testing.T) {
 	rdb := newRedisForTest(t)
 	svc := &Service{rdb: rdb}
-	_ = svc.Join(context.Background(), "dm:1", "7", "alice", "")
+	_, _ = svc.Join(context.Background(), "dm:1", "7", "alice", "")
 	hub := newFakeHub()
 	h := NewActivityHandler(svc, hub)
 

@@ -23,7 +23,7 @@ func TestJoinSetsPresenceAndHeartbeat(t *testing.T) {
 	svc, mr := newTestService(t)
 	ctx := context.Background()
 
-	if err := svc.Join(ctx, "ch1", "u1", "Alice", "https://img/a.png"); err != nil {
+	if _, err := svc.Join(ctx, "ch1", "u1", "Alice", "https://img/a.png"); err != nil {
 		t.Fatalf("Join: %v", err)
 	}
 
@@ -52,7 +52,7 @@ func TestLeaveRemovesPresenceAndHeartbeat(t *testing.T) {
 	svc, mr := newTestService(t)
 	ctx := context.Background()
 
-	if err := svc.Join(ctx, "ch1", "u1", "Alice", ""); err != nil {
+	if _, err := svc.Join(ctx, "ch1", "u1", "Alice", ""); err != nil {
 		t.Fatalf("Join: %v", err)
 	}
 
@@ -200,7 +200,7 @@ func TestNilRedisNoOps(t *testing.T) {
 	svc := &Service{rdb: nil}
 	ctx := context.Background()
 
-	if err := svc.Join(ctx, "ch", "u", "n", ""); err != nil {
+	if _, err := svc.Join(ctx, "ch", "u", "n", ""); err != nil {
 		t.Errorf("Join with nil redis: %v", err)
 	}
 	if err := svc.Leave(ctx, "ch", "u"); err != nil {

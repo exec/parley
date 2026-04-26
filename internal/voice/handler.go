@@ -150,13 +150,18 @@ func (h *Handler) Join(w http.ResponseWriter, r *http.Request) {
 	if displayName == "" {
 		displayName = user.Username
 	}
-	if err := h.svc.Join(r.Context(), vcStr, userIDStr, displayName, user.AvatarURL); err != nil {
+	wasNew, err := h.svc.Join(r.Context(), vcStr, userIDStr, displayName, user.AvatarURL)
+	if err != nil {
 		log.Printf("voice handler: failed to join: %v", err)
 		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
-	if topic, ok := h.broadcastTarget(r, vc); ok {
-		h.broadcastVoiceState(topic, vcStr, userIDStr, displayName, user.AvatarURL, "join")
+	// Skip the WS broadcast on idempotent re-joins so receivers don't double-
+	// count the same participant in their activeCalls maps.
+	if wasNew {
+		if topic, ok := h.broadcastTarget(r, vc); ok {
+			h.broadcastVoiceState(topic, vcStr, userIDStr, displayName, user.AvatarURL, "join")
+		}
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

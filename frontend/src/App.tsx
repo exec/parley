@@ -1905,16 +1905,15 @@ const CallSurfaces: React.FC<{
 
   // When the ring resolves (accept on either side) we land in 'connecting'.
   // That's our cue to actually join the LiveKit room — useVoiceConnection
-  // does nothing until App.tsx flips activeVoiceChannel/Kind, so dispatch
-  // onJoinCall once per (state, vc) tuple.
-  const lastJoinedVc = useRef<string | null>(null);
+  // does nothing until App.tsx flips activeVoiceChannel/Kind. Fire on the
+  // *transition* into connecting (regardless of vc) so a back-to-back call
+  // on the same DM still triggers a join.
+  const prevStateRef = useRef(state);
   useEffect(() => {
-    if (state === 'connecting' && activeVc && lastJoinedVc.current !== activeVc) {
-      lastJoinedVc.current = activeVc;
+    const wasNotConnecting = prevStateRef.current !== 'connecting';
+    prevStateRef.current = state;
+    if (state === 'connecting' && wasNotConnecting && activeVc) {
       onJoinCall(activeVc);
-    }
-    if (state === 'idle') {
-      lastJoinedVc.current = null;
     }
   }, [state, activeVc, onJoinCall]);
 

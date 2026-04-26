@@ -31,7 +31,7 @@ func TestJoinSetsStartedAt_Once(t *testing.T) {
 	s := &Service{rdb: rdb}
 	ctx := context.Background()
 
-	if err := s.Join(ctx, "dm:1", "1", "alice", ""); err != nil {
+	if _, err := s.Join(ctx, "dm:1", "1", "alice", ""); err != nil {
 		t.Fatal(err)
 	}
 	v1, err := rdb.Get(ctx, "voice:dm:1:started_at").Result()
@@ -40,7 +40,7 @@ func TestJoinSetsStartedAt_Once(t *testing.T) {
 	}
 
 	time.Sleep(10 * time.Millisecond)
-	if err := s.Join(ctx, "dm:1", "2", "bob", ""); err != nil {
+	if _, err := s.Join(ctx, "dm:1", "2", "bob", ""); err != nil {
 		t.Fatal(err)
 	}
 	v2, _ := rdb.Get(ctx, "voice:dm:1:started_at").Result()
@@ -54,8 +54,8 @@ func TestEndIfEmpty_ReturnsStartedAtOnce(t *testing.T) {
 	s := &Service{rdb: rdb}
 	ctx := context.Background()
 
-	_ = s.Join(ctx, "dm:1", "1", "alice", "")
-	_ = s.Join(ctx, "dm:1", "2", "bob", "")
+	_, _ = s.Join(ctx, "dm:1", "1", "alice", "")
+	_, _ = s.Join(ctx, "dm:1", "2", "bob", "")
 	_ = s.Leave(ctx, "dm:1", "1")
 
 	startedAtMs, ended, err := s.EndIfEmpty(ctx, "dm:1")

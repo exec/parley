@@ -40,7 +40,7 @@ func TestEndIfEmpty_AlsoClearsActivity(t *testing.T) {
 	s := &Service{rdb: rdb}
 	ctx := context.Background()
 
-	_ = s.Join(ctx, "dm:1", "1", "alice", "")
+	_, _ = s.Join(ctx, "dm:1", "1", "alice", "")
 	_ = s.StartActivity(ctx, "dm:1", "watch_party", 1, nil)
 	_ = s.Leave(ctx, "dm:1", "1")
 

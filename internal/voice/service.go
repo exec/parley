@@ -91,24 +91,27 @@ func callEndedLockKey(channelID, startedAt string) string {
 
 // Join records a participant joining a voice channel. The first joiner
 // atomically stamps voice:{channelID}:started_at with the current ms time
-// (with a 6h fallback TTL in case Leave never fires).
+// (with a 6h fallback TTL in case Leave never fires). Returns whether this
+// was a NEW presence row (true) or an idempotent re-join (false) — handlers
+// use that signal to suppress duplicate VOICE_STATE_UPDATE broadcasts.
 // NOTE: clients must periodically call RefreshHeartbeat to keep the key alive.
-func (s *Service) Join(ctx context.Context, channelID, userID, username, avatarURL string) error {
+func (s *Service) Join(ctx context.Context, channelID, userID, username, avatarURL string) (bool, error) {
 	if s.rdb == nil {
-		return nil
+		return false, nil
 	}
 	p := Participant{UserID: userID, Username: username, AvatarURL: avatarURL}
 	b, _ := json.Marshal(p)
-	if err := s.rdb.HSet(ctx, presenceKey(channelID), userID, string(b)).Err(); err != nil {
-		return err
+	added, err := s.rdb.HSet(ctx, presenceKey(channelID), userID, string(b)).Result()
+	if err != nil {
+		return false, err
 	}
 	if err := s.rdb.Set(ctx, heartbeatKey(channelID, userID), "1", voiceHeartbeatTTL).Err(); err != nil {
-		return err
+		return false, err
 	}
 	// First-joiner wins the SET NX. Subsequent joiners no-op.
 	startedAtMs := time.Now().UnixMilli()
 	s.rdb.SetNX(ctx, startedAtKey(channelID), strconv.FormatInt(startedAtMs, 10), 6*time.Hour)
-	return nil
+	return added > 0, nil
 }
 
 // EndIfEmpty atomically checks whether the room is empty and, if so, removes
