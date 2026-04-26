@@ -377,6 +377,62 @@ export const Message: React.FC<MessageProps> = ({
   useViewportAdjust(userContextMenuRef, [userContextMenu]);
   useViewportAdjust(emojiPickerRef, [showEmojiPicker]);
 
+  // Keyboard navigation for the context menus.
+  // Items are queried from the live DOM so we don't need to mirror the conditional render tree.
+  const queryMenuItems = (root: HTMLElement | null): HTMLButtonElement[] =>
+    root ? Array.from(root.querySelectorAll<HTMLButtonElement>('button.context-menu-item:not([disabled])')) : [];
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    // Defer one frame so the items render before we focus.
+    const id = requestAnimationFrame(() => {
+      const items = queryMenuItems(contextMenuRef.current);
+      if (items.length > 0) items[0].focus();
+    });
+    return () => cancelAnimationFrame(id);
+  }, [contextMenu]);
+
+  useEffect(() => {
+    if (!userContextMenu) return;
+    const id = requestAnimationFrame(() => {
+      const items = queryMenuItems(userContextMenuRef.current);
+      if (items.length > 0) items[0].focus();
+    });
+    return () => cancelAnimationFrame(id);
+  }, [userContextMenu]);
+
+  const handleMenuKeyDown = (e: React.KeyboardEvent<HTMLDivElement>, kind: 'msg' | 'user') => {
+    const root = kind === 'msg' ? contextMenuRef.current : userContextMenuRef.current;
+    const close = kind === 'msg' ? closeContextMenu : closeUserContextMenu;
+    const items = queryMenuItems(root);
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      close();
+      return;
+    }
+    if (items.length === 0) return;
+    const currentIdx = items.findIndex(el => el === document.activeElement);
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const next = currentIdx < 0 ? 0 : (currentIdx + 1) % items.length;
+      items[next].focus();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prev = currentIdx < 0 ? items.length - 1 : (currentIdx - 1 + items.length) % items.length;
+      items[prev].focus();
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      items[0].focus();
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      items[items.length - 1].focus();
+    } else if ((e.key === 'Enter' || e.key === ' ') && !items.includes(document.activeElement as HTMLButtonElement)) {
+      // Native button click handles Enter/Space; only intervene if focus has drifted off the items.
+      e.preventDefault();
+      items[0].click();
+    }
+  };
+
   const wasEdited = message.updated_at !== message.created_at;
 
   const parentAuthor = message.parent_id && messages
@@ -646,32 +702,36 @@ export const Message: React.FC<MessageProps> = ({
           className="message-context-menu"
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={e => e.stopPropagation()}
+          onKeyDown={(e) => handleMenuKeyDown(e, 'msg')}
+          role="menu"
+          aria-orientation="vertical"
+          tabIndex={-1}
         >
-          <button className="context-menu-item" onClick={handleReply}>Reply</button>
-          <button className="context-menu-item" onClick={handleCopy} disabled={copied}>
+          <button role="menuitem" className="context-menu-item" onClick={handleReply}>Reply</button>
+          <button role="menuitem" className="context-menu-item" onClick={handleCopy} disabled={copied}>
             {copied ? 'Copied!' : 'Copy Text'}
           </button>
           {onForward && !message.forwarded_message && (
-            <button className="context-menu-item" onClick={handleForward}>Forward Message</button>
+            <button role="menuitem" className="context-menu-item" onClick={handleForward}>Forward Message</button>
           )}
           {canPin && (
             message.is_pinned
-              ? <button className="context-menu-item" onClick={handleUnpin}>Unpin Message</button>
-              : <button className="context-menu-item" onClick={handlePin}>Pin Message</button>
+              ? <button role="menuitem" className="context-menu-item" onClick={handleUnpin}>Unpin Message</button>
+              : <button role="menuitem" className="context-menu-item" onClick={handlePin}>Pin Message</button>
           )}
           {message.author_id !== currentUserId && (
             <>
-              <div className="context-menu-divider" />
-              <button className="context-menu-item" onClick={handleSendMessage}>Send Message</button>
-              <button className="context-menu-item" onClick={handleViewProfile}>View Profile</button>
+              <div className="context-menu-divider" role="separator" />
+              <button role="menuitem" className="context-menu-item" onClick={handleSendMessage}>Send Message</button>
+              <button role="menuitem" className="context-menu-item" onClick={handleViewProfile}>View Profile</button>
               {(canKickMembers || canBanMembers) && (
                 <>
-                  <div className="context-menu-divider" />
+                  <div className="context-menu-divider" role="separator" />
                   {canKickMembers && (
-                    <button className="context-menu-item" style={{ color: '#FFB347' }} onClick={() => { onKickMember?.(message.author_id); closeContextMenu(); }}>Kick Member</button>
+                    <button role="menuitem" className="context-menu-item" style={{ color: '#FFB347' }} onClick={() => { onKickMember?.(message.author_id); closeContextMenu(); }}>Kick Member</button>
                   )}
                   {canBanMembers && (
-                    <button className="context-menu-item" style={{ color: '#FF4444' }} onClick={() => { onBanMember?.(message.author_id); closeContextMenu(); }}>Ban Member</button>
+                    <button role="menuitem" className="context-menu-item" style={{ color: '#FF4444' }} onClick={() => { onBanMember?.(message.author_id); closeContextMenu(); }}>Ban Member</button>
                   )}
                 </>
               )}
@@ -679,15 +739,15 @@ export const Message: React.FC<MessageProps> = ({
           )}
           {isOwnMessage && (
             <>
-              <button className="context-menu-item" onClick={handleEdit}>Edit Message</button>
-              <div className="context-menu-divider" />
-              <button className="context-menu-item danger" onClick={handleDelete}>Delete Message</button>
+              <button role="menuitem" className="context-menu-item" onClick={handleEdit}>Edit Message</button>
+              <div className="context-menu-divider" role="separator" />
+              <button role="menuitem" className="context-menu-item danger" onClick={handleDelete}>Delete Message</button>
             </>
           )}
           {!isOwnMessage && canManageMessages && (
             <>
-              <div className="context-menu-divider" />
-              <button className="context-menu-item danger" onClick={handleDelete}>Delete Message</button>
+              <div className="context-menu-divider" role="separator" />
+              <button role="menuitem" className="context-menu-item danger" onClick={handleDelete}>Delete Message</button>
             </>
           )}
         </div>
@@ -699,21 +759,25 @@ export const Message: React.FC<MessageProps> = ({
           className="message-context-menu user-context-menu-popup"
           style={{ top: userContextMenu.y, left: userContextMenu.x }}
           onClick={e => e.stopPropagation()}
+          onKeyDown={(e) => handleMenuKeyDown(e, 'user')}
+          role="menu"
+          aria-orientation="vertical"
+          tabIndex={-1}
         >
           <div className="context-menu-username">{message.author_display_name || message.author_username}</div>
-          <div className="context-menu-divider" />
-          <button className="context-menu-item" onClick={handleViewProfile}>View Profile</button>
+          <div className="context-menu-divider" role="separator" />
+          <button role="menuitem" className="context-menu-item" onClick={handleViewProfile}>View Profile</button>
           {message.author_id !== currentUserId && (
-            <button className="context-menu-item" onClick={handleSendMessage}>Send Message</button>
+            <button role="menuitem" className="context-menu-item" onClick={handleSendMessage}>Send Message</button>
           )}
           {message.author_id !== currentUserId && (canKickMembers || canBanMembers) && (
             <>
-              <div className="context-menu-divider" />
+              <div className="context-menu-divider" role="separator" />
               {canKickMembers && (
-                <button className="context-menu-item" style={{ color: '#FFB347' }} onClick={() => { onKickMember?.(message.author_id); closeUserContextMenu(); }}>Kick Member</button>
+                <button role="menuitem" className="context-menu-item" style={{ color: '#FFB347' }} onClick={() => { onKickMember?.(message.author_id); closeUserContextMenu(); }}>Kick Member</button>
               )}
               {canBanMembers && (
-                <button className="context-menu-item" style={{ color: '#FF4444' }} onClick={() => { onBanMember?.(message.author_id); closeUserContextMenu(); }}>Ban Member</button>
+                <button role="menuitem" className="context-menu-item" style={{ color: '#FF4444' }} onClick={() => { onBanMember?.(message.author_id); closeUserContextMenu(); }}>Ban Member</button>
               )}
             </>
           )}

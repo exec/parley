@@ -35,11 +35,34 @@
   margin-bottom: 12px;
 }
 
-.audit-empty,
-.audit-loading {
+.audit-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--parley-text-muted);
+}
+
+.audit-empty__icon {
+  color: var(--parley-text-muted);
+  opacity: 0.5;
+  margin-bottom: 4px;
+}
+
+.audit-empty__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--parley-text-normal);
+}
+
+.audit-empty__subtitle {
   font-size: 13px;
   color: var(--parley-text-muted);
-  padding: 16px 0;
+  max-width: 380px;
+  line-height: 1.4;
 }
 
 /* ── Entry list ────────────────────────────────────────────────────────────── */

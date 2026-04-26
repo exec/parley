@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { getMessageVersions, MessageVersion } from '../../api/messages';
 import { useViewportAdjust } from '../../hooks/useViewportAdjust';
+import { Skeleton } from '../ui/Skeleton';
 import './EditHistoryPopover.css';
 
 interface EditHistoryPopoverProps {
@@ -58,7 +59,15 @@ export const EditHistoryPopover: React.FC<EditHistoryPopoverProps> = ({ messageI
     <div ref={popoverRef} className="edit-history-popover">
       <div className="edit-history-title">Edit History</div>
       {loading ? (
-        <div className="edit-history-timestamp">Loading...</div>
+        <div aria-busy="true" aria-label="Loading edit history">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="edit-history-version">
+              <Skeleton variant="line" width={140} height={10} style={{ marginBottom: 6 }} />
+              <Skeleton variant="line" width="92%" height={12} style={{ marginBottom: 4 }} />
+              <Skeleton variant="line" width="68%" height={12} />
+            </div>
+          ))}
+        </div>
       ) : (
         versions.map((version) => (
           <div key={version.id} className="edit-history-version">

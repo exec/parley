@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
+import { Skeleton } from '../ui/Skeleton';
 import { Role } from '../../api/types';
 import { getServerRoles, getMemberRoles, assignRoleToMember, removeRoleFromMember } from '../../api/roles';
 
@@ -62,7 +63,30 @@ export const AssignRolesModal: React.FC<AssignRolesModalProps> = ({
         {error && <div className="modal-error" style={{ marginBottom: 12 }}>{error}</div>}
 
         {loading ? (
-          <div style={{ padding: '24px', textAlign: 'center', color: '#555', fontSize: 13 }}>Loading...</div>
+          <div
+            aria-busy="true"
+            aria-label="Loading roles"
+            style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}
+          >
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div
+                key={i}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '8px 12px',
+                  background: 'var(--parley-bg-primary)',
+                  border: '1px solid var(--parley-border)',
+                  borderRadius: 4,
+                }}
+              >
+                <Skeleton variant="line" width={32} height={18} style={{ borderRadius: 9, flexShrink: 0 }} />
+                <Skeleton variant="circle" width={10} height={10} />
+                <Skeleton variant="line" width={`${50 + (i * 8) % 30}%`} height={12} />
+              </div>
+            ))}
+          </div>
         ) : roles.length === 0 ? (
           <div style={{ padding: '16px', color: '#555', fontSize: 13 }}>
             No roles exist for this server. Create some in Server Settings → Roles.

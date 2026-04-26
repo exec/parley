@@ -43,6 +43,9 @@ import {
   PERM_USE_SOUNDBOARD,
   PERM_SEND_VOICE_MESSAGES,
 } from '../../lib/permissions';
+import { ScrollText } from 'lucide-react';
+import { Skeleton } from '../ui/Skeleton';
+import { Button } from '../ui/Button';
 import './AuditLogTab.css';
 
 interface Props {
@@ -484,12 +487,36 @@ export const AuditLogTab: React.FC<Props> = ({ server, currentUserId }) => {
       {error && <div className="settings-error audit-error">{error}</div>}
 
       {loading && logs.length === 0 && (
-        <div className="audit-loading">Loading...</div>
+        <div className="audit-list" aria-busy="true" aria-label="Loading audit log">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="audit-row" style={{ borderLeftColor: 'var(--parley-border)' }}>
+              <Skeleton variant="circle" width={28} height={28} />
+              <div className="audit-row__body" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <Skeleton variant="line" width="70%" />
+                <Skeleton variant="line" width="40%" height={10} />
+              </div>
+              <Skeleton variant="line" width={48} height={10} />
+            </div>
+          ))}
+        </div>
       )}
 
-      {!loading && visibleLogs.length === 0 && (
-        <div className="audit-empty">No audit log entries found.</div>
-      )}
+      {!loading && visibleLogs.length === 0 && (() => {
+        const hasFilters = !!(action || actorFilter || targetFilter);
+        return (
+          <div className="audit-empty" role="status">
+            <ScrollText className="audit-empty__icon" size={32} strokeWidth={1.5} aria-hidden="true" />
+            <div className="audit-empty__title">
+              {hasFilters ? 'No matches for these filters' : 'No audit events yet'}
+            </div>
+            <div className="audit-empty__subtitle">
+              {hasFilters
+                ? 'Try clearing a filter to see more results.'
+                : 'Server actions like role changes, kicks, and channel edits will appear here.'}
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="audit-list">
         {visibleLogs.map(entry => (
@@ -519,13 +546,13 @@ export const AuditLogTab: React.FC<Props> = ({ server, currentUserId }) => {
 
       {logs.length < total && (
         <div className="audit-load-more">
-          <button
-            className="settings-btn settings-btn-secondary"
+          <Button
+            variant="secondary"
             onClick={handleLoadMore}
-            disabled={loading}
+            loading={loading}
           >
-            {loading ? 'Loading...' : 'Load More'}
-          </button>
+            Load More
+          </Button>
         </div>
       )}
     </div>

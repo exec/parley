@@ -75,7 +75,9 @@
   height: 4px;
   border-radius: 2px;
   background: var(--parley-accent);
-  opacity: 0;
+  /* Subtle resting affordance so users discover the drag handle without it
+     stealing attention. Brightens to full on hover / while dragging. */
+  opacity: 0.3;
   transition: opacity 0.12s ease;
   pointer-events: none;
 }

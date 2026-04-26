@@ -61,32 +61,81 @@ const UserContextMenu: React.FC<UserContextMenuProps> = ({
     return () => document.removeEventListener('mousedown', handleClick);
   }, [onClose]);
 
+  // Focus the first menu item once mounted so keyboard nav works without a manual Tab.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      const first = ref.current?.querySelector<HTMLButtonElement>('button.user-context-menu-item:not([disabled])');
+      first?.focus();
+    });
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      onClose();
+      return;
+    }
+    const items = ref.current
+      ? Array.from(ref.current.querySelectorAll<HTMLButtonElement>('button.user-context-menu-item:not([disabled])'))
+      : [];
+    if (items.length === 0) return;
+    const idx = items.findIndex(el => el === document.activeElement);
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const next = idx < 0 ? 0 : (idx + 1) % items.length;
+      items[next].focus();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prev = idx < 0 ? items.length - 1 : (idx - 1 + items.length) % items.length;
+      items[prev].focus();
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      items[0].focus();
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      items[items.length - 1].focus();
+    } else if ((e.key === 'Enter' || e.key === ' ') && !items.includes(document.activeElement as HTMLButtonElement)) {
+      e.preventDefault();
+      items[0].click();
+    }
+  };
+
   const left = Math.min(position.left, window.innerWidth - 200);
 
   return (
-    <div ref={ref} className="user-context-menu" style={{ top: position.top, left }}>
+    <div
+      ref={ref}
+      className="user-context-menu"
+      style={{ top: position.top, left }}
+      onKeyDown={handleKeyDown}
+      role="menu"
+      aria-orientation="vertical"
+      tabIndex={-1}
+    >
       <div className="user-context-menu-header">{member.display_name || member.username}</div>
-      <div className="user-context-menu-divider" />
+      <div className="user-context-menu-divider" role="separator" />
       {onViewProfile && (
-        <button className="user-context-menu-item" onClick={() => { onViewProfile(member.user_id); onClose(); }}>
+        <button role="menuitem" className="user-context-menu-item" onClick={() => { onViewProfile(member.user_id); onClose(); }}>
           View Profile
         </button>
       )}
       {!isCurrentUser && (
-        <button className="user-context-menu-item" onClick={() => { onSendMessage?.(member.user_id); onClose(); }}>
+        <button role="menuitem" className="user-context-menu-item" onClick={() => { onSendMessage?.(member.user_id); onClose(); }}>
           Send Message
         </button>
       )}
       {canManageRoles && (
-        <button className="user-context-menu-item" onClick={() => { onManageRoles?.(); onClose(); }}>
+        <button role="menuitem" className="user-context-menu-item" onClick={() => { onManageRoles?.(); onClose(); }}>
           Manage Roles
         </button>
       )}
       {!isCurrentUser && !isOwner && (canKickMembers || canBanMembers || canTransferOwnership) && (
         <>
-          <div className="user-context-menu-divider" />
+          <div className="user-context-menu-divider" role="separator" />
           {canTransferOwnership && (
             <button
+              role="menuitem"
               className="user-context-menu-item"
               style={{ color: 'var(--parley-accent)' }}
               onClick={() => { onTransferOwnership?.(member.user_id); onClose(); }}
@@ -95,12 +144,12 @@ const UserContextMenu: React.FC<UserContextMenuProps> = ({
             </button>
           )}
           {canKickMembers && (
-            <button className="user-context-menu-item" style={{ color: '#FFB347' }} onClick={() => { onKick?.(member.user_id); onClose(); }}>
+            <button role="menuitem" className="user-context-menu-item" style={{ color: '#FFB347' }} onClick={() => { onKick?.(member.user_id); onClose(); }}>
               Kick Member
             </button>
           )}
           {canBanMembers && (
-            <button className="user-context-menu-item" style={{ color: '#FF4444' }} onClick={() => { onBan?.(member.user_id); onClose(); }}>
+            <button role="menuitem" className="user-context-menu-item" style={{ color: '#FF4444' }} onClick={() => { onBan?.(member.user_id); onClose(); }}>
               Ban Member
             </button>
           )}

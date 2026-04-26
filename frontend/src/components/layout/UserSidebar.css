@@ -490,9 +490,15 @@
   transition: all 0.1s ease;
 }
 
-.user-context-menu-item:hover {
+.user-context-menu-item:hover,
+.user-context-menu-item:focus-visible {
   background-color: var(--parley-hover);
   color: var(--parley-text-normal);
+  outline: none;
+}
+
+.user-context-menu-item:focus-visible {
+  box-shadow: inset 2px 0 0 var(--parley-accent);
 }
 
 .user-context-menu-header {

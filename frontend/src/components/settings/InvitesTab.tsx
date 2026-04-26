@@ -10,6 +10,7 @@ import {
   revokeInvite,
   getInviteMembers,
 } from '../../api/servers';
+import { Skeleton } from '../ui/Skeleton';
 import './InvitesTab.css';
 
 interface Props {
@@ -78,7 +79,19 @@ const MembersPopover: React.FC<MembersPopoverProps> = ({ serverId, code, onClose
         <span>Members who used this invite</span>
         <button className="invites-members-popover-close" onClick={onClose}>×</button>
       </div>
-      {loading && <div className="invites-members-popover-empty">Loading...</div>}
+      {loading && (
+        <div aria-busy="true" aria-label="Loading members" style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '4px 0' }}>
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Skeleton variant="circle" width={24} height={24} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+                <Skeleton variant="line" width="55%" />
+                <Skeleton variant="line" width="35%" height={10} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       {!loading && members.length === 0 && (
         <div className="invites-members-popover-empty">No members have used this invite yet.</div>
       )}
@@ -250,7 +263,28 @@ export const InvitesTab: React.FC<Props> = ({ server }) => {
 
       {error && <div className="settings-error">{error}</div>}
       {loading && invites.length === 0 && (
-        <div className="invites-empty">Loading...</div>
+        <div className="invites-list" aria-busy="true" aria-label="Loading invites">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="invites-row">
+              <div className="invites-row-main">
+                <div className="invites-row-left">
+                  <Skeleton variant="line" width={84} height={14} />
+                  <Skeleton variant="line" width={60} height={10} />
+                </div>
+                <div className="invites-row-meta">
+                  <Skeleton variant="line" width={70} height={10} />
+                  <Skeleton variant="line" width={90} height={10} />
+                  <Skeleton variant="line" width={60} height={10} />
+                </div>
+                <div className="invites-row-actions">
+                  <Skeleton variant="line" width={56} height={22} />
+                  <Skeleton variant="line" width={68} height={22} />
+                  <Skeleton variant="line" width={64} height={22} />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
       {!loading && invites.length === 0 && (
         <div className="invites-empty">No active invites. Create one above!</div>
