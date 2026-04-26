@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { RemoteParticipant, LocalParticipant, Track, TrackPublication } from 'livekit-client';
-import { LayoutGrid, Maximize2, MessageSquare, Mic, MicOff, Headphones, HeadphoneOff, Video, VideoOff, Monitor, MonitorOff, PhoneOff, Volume2, X, Expand, Music2 } from 'lucide-react';
+import { LayoutGrid, Maximize2, MessageSquare, Mic, MicOff, Headphones, HeadphoneOff, Video, VideoOff, Monitor, MonitorOff, PhoneOff, Volume2, X, Expand, Music2, Users } from 'lucide-react';
 import { Channel } from '../../api/types';
 import { VoiceParticipant, kickVoiceParticipant, serverVc } from '../../api/voice';
 import { ParticipantTile } from './ParticipantTile';
@@ -40,6 +40,9 @@ interface VoiceChannelProps {
   onToggleVcChat?: () => void;
   onParticipantClick?: (userId: string, e: React.MouseEvent) => void;
   activeSoundEmojis?: Map<string, string>;
+  /** When wired, renders a members-toggle button in the header (used by DM split view). */
+  showMembers?: boolean;
+  onToggleMembers?: () => void;
 }
 
 type ViewMode = 'grid' | 'speaker';
@@ -74,6 +77,8 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
   onToggleVcChat,
   onParticipantClick,
   activeSoundEmojis,
+  showMembers,
+  onToggleMembers,
 }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [pinnedIdentity, setPinnedIdentity] = useState<string | null>(null);
@@ -178,6 +183,16 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
               title={vcChatOpen ? 'Hide chat' : 'Show chat'}
             >
               <MessageSquare size={16} />
+            </button>
+          )}
+          {onToggleMembers && (
+            <button
+              className={`vc-hdr-btn ${showMembers ? 'active' : ''}`}
+              onClick={onToggleMembers}
+              title={showMembers ? 'Hide members' : 'Show members'}
+              aria-label={showMembers ? 'Hide members' : 'Show members'}
+            >
+              <Users size={16} />
             </button>
           )}
         </div>

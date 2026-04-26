@@ -1521,6 +1521,7 @@ function MainApp() {
         onStartCall={handleDmStartOrJoinCall}
         callParticipantCount={dmCallParticipantCount}
         currentUserInCall={inThisDmCall}
+        hideHeader={inThisDmCall}
       />
     );
 
@@ -1563,6 +1564,12 @@ function MainApp() {
           canMuteMembers={false}
           canKickFromVoice={false}
           activeSoundEmojis={activeSoundEmojis}
+          showMembers={isGroup ? showMembers : undefined}
+          onToggleMembers={isGroup ? () => setShowMembers(next => {
+            const v = !next;
+            localStorage.setItem('parley:showMembers', String(v));
+            return v;
+          }) : undefined}
         />
       );
       mainContent = (

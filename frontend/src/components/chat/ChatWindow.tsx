@@ -63,6 +63,7 @@ interface ChatWindowProps {
   onStartCall?: () => void;
   callParticipantCount?: number;
   currentUserInCall?: boolean;
+  hideHeader?: boolean;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -110,6 +111,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onStartCall,
   callParticipantCount = 0,
   currentUserInCall = false,
+  hideHeader = false,
 }) => {
   const { hasPerm: checkPerm } = usePermissions(channel.server_id || undefined, channel.id || undefined);
   // In DMs (no server_id) users can only manage their own messages; other
@@ -199,6 +201,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   return (
     <div className="chat-window-outer" style={{ display: 'flex', flex: 1, overflow: 'hidden', minWidth: 0 }}>
     <div className="chat-window" style={{ flex: 1, minWidth: 0 }}>
+      {!hideHeader && (
       <div
         className={`chat-header${canManageChannels ? ' chat-header-editable' : ''}`}
         onClick={startEditTopic}
@@ -283,6 +286,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         )}
         </div>
       </div>
+      )}
       {onStartCall && callParticipantCount > 0 && !currentUserInCall && (
         <CallBanner participantCount={callParticipantCount} onJoin={onStartCall} />
       )}
