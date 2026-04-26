@@ -1554,6 +1554,7 @@ func (h *Handler) GetAuditLog(w http.ResponseWriter, r *http.Request) {
 		offset = o
 	}
 	action := q.Get("action")
+	target := q.Get("target")
 	var actorFilter *int64
 	if a := q.Get("actor_id"); a != "" {
 		if v, err := strconv.ParseInt(a, 10, 64); err == nil {
@@ -1561,24 +1562,26 @@ func (h *Handler) GetAuditLog(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	logs, total, err := h.service.Repo().ListAuditLogs(r.Context(), serverIDInt, actorFilter, action, limit, offset)
+	logs, total, err := h.service.Repo().ListAuditLogs(r.Context(), serverIDInt, actorFilter, action, target, limit, offset)
 	if err != nil {
 		httputil.InternalError(w, err)
 		return
 	}
 
 	type logEntry struct {
-		ID            int64      `json:"id,string"`
-		ServerID      int64      `json:"server_id,string"`
-		ActorID       *int64     `json:"actor_id,omitempty"`
-		ActorUsername string     `json:"actor_username"`
-		Action        string     `json:"action"`
-		TargetID      string     `json:"target_id,omitempty"`
-		TargetType    string     `json:"target_type,omitempty"`
-		TargetName    string     `json:"target_name,omitempty"`
-		Changes       json.RawMessage `json:"changes,omitempty"`
-		Reason        string     `json:"reason,omitempty"`
-		CreatedAt     time.Time  `json:"created_at"`
+		ID              int64           `json:"id,string"`
+		ServerID        int64           `json:"server_id,string"`
+		ActorID         *int64          `json:"actor_id,omitempty"`
+		ActorUsername   string          `json:"actor_username"`
+		ActorAvatarURL  string          `json:"actor_avatar_url,omitempty"`
+		Action          string          `json:"action"`
+		TargetID        string          `json:"target_id,omitempty"`
+		TargetType      string          `json:"target_type,omitempty"`
+		TargetName      string          `json:"target_name,omitempty"`
+		TargetAvatarURL string          `json:"target_avatar_url,omitempty"`
+		Changes         json.RawMessage `json:"changes,omitempty"`
+		Reason          string          `json:"reason,omitempty"`
+		CreatedAt       time.Time       `json:"created_at"`
 	}
 
 	out := make([]logEntry, len(logs))
@@ -1588,17 +1591,19 @@ func (h *Handler) GetAuditLog(w http.ResponseWriter, r *http.Request) {
 			changes = json.RawMessage(l.Changes)
 		}
 		out[i] = logEntry{
-			ID:            l.ID,
-			ServerID:      l.ServerID,
-			ActorID:       l.ActorID,
-			ActorUsername: l.ActorUsername,
-			Action:        l.Action,
-			TargetID:      l.TargetID,
-			TargetType:    l.TargetType,
-			TargetName:    l.TargetName,
-			Changes:       changes,
-			Reason:        l.Reason,
-			CreatedAt:     l.CreatedAt,
+			ID:              l.ID,
+			ServerID:        l.ServerID,
+			ActorID:         l.ActorID,
+			ActorUsername:   l.ActorUsername,
+			ActorAvatarURL:  l.ActorAvatarURL,
+			Action:          l.Action,
+			TargetID:        l.TargetID,
+			TargetType:      l.TargetType,
+			TargetName:      l.TargetName,
+			TargetAvatarURL: l.TargetAvatarURL,
+			Changes:         changes,
+			Reason:          l.Reason,
+			CreatedAt:       l.CreatedAt,
 		}
 	}
 

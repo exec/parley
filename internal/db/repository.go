@@ -247,17 +247,19 @@ func (r *Repository) GetServerRoleByID(ctx context.Context, roleID int64) (*Serv
 
 // AuditLog is the DB model for server_audit_logs.
 type AuditLog struct {
-	ID            int64
-	ServerID      int64
-	ActorID       *int64
-	ActorUsername string
-	Action        string
-	TargetID      string
-	TargetType    string
-	TargetName    string
-	Changes       []byte // raw JSONB
-	Reason        string
-	CreatedAt     time.Time
+	ID              int64
+	ServerID        int64
+	ActorID         *int64
+	ActorUsername   string
+	ActorAvatarURL  string // joined from users.avatar_url (empty if actor missing)
+	Action          string
+	TargetID        string
+	TargetType      string
+	TargetName      string
+	TargetAvatarURL string // joined from users.avatar_url (only when target_type='user')
+	Changes         []byte // raw JSONB
+	Reason          string
+	CreatedAt       time.Time
 }
 
 // CreateAuditLog inserts one audit log row.
@@ -285,38 +287,53 @@ func (r *Repository) CreateAuditLog(ctx context.Context, e audit.Entry) error {
 }
 
 // ListAuditLogs returns audit log entries for a server, newest first.
-// actorID and action are optional filters (nil / "" = no filter).
+// actorID, action, and target are optional filters (nil / "" = no filter).
+// target performs a substring (ILIKE) match on target_name.
 // Returns (entries, totalCount, error).
-func (r *Repository) ListAuditLogs(ctx context.Context, serverID int64, actorID *int64, action string, limit, offset int) ([]AuditLog, int, error) {
+func (r *Repository) ListAuditLogs(ctx context.Context, serverID int64, actorID *int64, action, target string, limit, offset int) ([]AuditLog, int, error) {
 	args := []any{serverID}
-	where := `WHERE server_id = $1`
+	where := `WHERE sal.server_id = $1`
 	idx := 2
 	if actorID != nil {
-		where += fmt.Sprintf(` AND actor_id = $%d`, idx)
+		where += fmt.Sprintf(` AND sal.actor_id = $%d`, idx)
 		args = append(args, *actorID)
 		idx++
 	}
 	if action != "" {
-		where += fmt.Sprintf(` AND action = $%d`, idx)
+		where += fmt.Sprintf(` AND sal.action = $%d`, idx)
 		args = append(args, action)
+		idx++
+	}
+	if target != "" {
+		where += fmt.Sprintf(` AND sal.target_name ILIKE $%d ESCAPE '\'`, idx)
+		args = append(args, "%"+escapeLike(target)+"%")
 		idx++
 	}
 
 	// total count
 	var total int
 	if err := r.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM server_audit_logs `+where, args...).Scan(&total); err != nil {
+		`SELECT COUNT(*) FROM server_audit_logs sal `+where, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
-	// paginated rows
+	// paginated rows. Two LEFT JOINs: actor (always-on by user id), target
+	// (only when target_type='user'; cast users.id → text since target_id is TEXT).
 	args = append(args, limit, offset)
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, server_id, actor_id, actor_username, action,
-		        COALESCE(target_id,''), COALESCE(target_type,''), COALESCE(target_name,''),
-		        changes, COALESCE(reason,''), created_at
-		 FROM server_audit_logs `+where+
-			fmt.Sprintf(` ORDER BY created_at DESC LIMIT $%d OFFSET $%d`, idx, idx+1),
+		`SELECT sal.id, sal.server_id, sal.actor_id, sal.actor_username,
+		        COALESCE(actor.avatar_url, ''),
+		        sal.action,
+		        COALESCE(sal.target_id, ''), COALESCE(sal.target_type, ''),
+		        COALESCE(sal.target_name, ''),
+		        COALESCE(target.avatar_url, ''),
+		        sal.changes, COALESCE(sal.reason, ''), sal.created_at
+		 FROM server_audit_logs sal
+		 LEFT JOIN users actor ON actor.id = sal.actor_id
+		 LEFT JOIN users target ON sal.target_type = 'user'
+		                       AND target.id::text = sal.target_id
+		 `+where+
+			fmt.Sprintf(` ORDER BY sal.created_at DESC LIMIT $%d OFFSET $%d`, idx, idx+1),
 		args...)
 	if err != nil {
 		return nil, 0, err
@@ -327,7 +344,10 @@ func (r *Repository) ListAuditLogs(ctx context.Context, serverID int64, actorID 
 	for rows.Next() {
 		var l AuditLog
 		if err := rows.Scan(&l.ID, &l.ServerID, &l.ActorID, &l.ActorUsername,
-			&l.Action, &l.TargetID, &l.TargetType, &l.TargetName,
+			&l.ActorAvatarURL,
+			&l.Action,
+			&l.TargetID, &l.TargetType, &l.TargetName,
+			&l.TargetAvatarURL,
 			&l.Changes, &l.Reason, &l.CreatedAt); err != nil {
 			return nil, 0, err
 		}
