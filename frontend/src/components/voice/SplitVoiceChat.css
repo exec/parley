@@ -1,6 +1,9 @@
-/* Vertical split: voice on top, text chat on bottom, draggable hairline between. */
+/* Vertical split: voice on top, text chat on bottom. The voice and chat panels
+   touch with no visible gap; the drag bar is absolutely positioned over the
+   seam so it doesn't consume layout space. */
 
 .split-vc {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -28,20 +31,22 @@
   display: none;
 }
 
-/* Drag bar — invisible 8px touch zone with a single hairline that becomes
-   visible only on hover/drag. Blends into any theme since it doesn't paint
-   its own background or borders by default. */
+/* Drag bar — sits ON the seam, 8px tall hit zone (4px above + 4px below the
+   exact boundary). No layout space, so panels are flush. The visible hairline
+   only appears on hover/drag, so the seam is invisible at rest on every theme. */
 .split-vc__resizer {
-  position: relative;
+  position: absolute;
+  left: 0;
+  right: 0;
   height: 8px;
-  flex: 0 0 8px;
+  margin-top: -4px; /* center on the seam */
   cursor: ns-resize;
   user-select: none;
   display: flex;
   align-items: center;
   justify-content: center;
   background: transparent;
-  /* Single hairline drawn via ::before so we can fade it in on hover. */
+  z-index: 5;
 }
 
 .split-vc__resizer::before {
@@ -52,19 +57,17 @@
   top: 50%;
   height: 1px;
   transform: translateY(-50%);
-  background: var(--parley-border);
-  opacity: 0.5;
-  transition: opacity 0.12s ease, background 0.12s ease;
+  background: var(--parley-accent);
+  opacity: 0;
+  transition: opacity 0.12s ease;
   pointer-events: none;
 }
 
 .split-vc__resizer:hover::before,
 .split-vc__resizer--dragging::before {
   opacity: 1;
-  background: var(--parley-accent);
 }
 
-/* Centered grip indicator — hidden until hover/drag. */
 .split-vc__grip {
   position: relative;
   z-index: 1;
@@ -82,13 +85,12 @@
   opacity: 1;
 }
 
-/* When chat is closed: a slightly more prominent hairline to hint that it's
-   pull-able. No background tint — keeps it theme-neutral. */
+/* When chat is closed, show a faint accent hairline at the bottom of the voice
+   panel as a discoverable hint that something can be pulled up. */
 .split-vc__resizer--closed::before {
-  opacity: 0.7;
-  background: var(--parley-accent);
+  opacity: 0.55;
 }
 
 .split-vc__resizer--closed .split-vc__grip {
-  opacity: 0.5;
+  opacity: 0.4;
 }

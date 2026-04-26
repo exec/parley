@@ -98,14 +98,17 @@ export const SplitVoiceChat: React.FC<Props> = ({ voice, chat, storageKey }) => 
 
   const closed = chatPx === 0;
   const effectiveChatPx = chatPx === -1 ? Math.round(containerH * DEFAULT_RATIO) : chatPx;
+  // Voice panel height = container minus chat (no gap; the resizer overlays the seam).
+  const voicePx = containerH > 0 ? containerH - (closed ? 0 : effectiveChatPx) : 0;
 
   return (
     <div ref={containerRef} className="split-vc">
-      <div className="split-vc__voice" style={{ flexBasis: containerH > 0 ? `${containerH - effectiveChatPx - 8}px` : `${100 * (1 - DEFAULT_RATIO)}%` }}>
+      <div className="split-vc__voice" style={{ flexBasis: containerH > 0 ? `${voicePx}px` : `${100 * (1 - DEFAULT_RATIO)}%` }}>
         {voice}
       </div>
       <div
         className={`split-vc__resizer${dragging ? ' split-vc__resizer--dragging' : ''}${closed ? ' split-vc__resizer--closed' : ''}`}
+        style={{ top: containerH > 0 ? `${voicePx}px` : '50%' }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
