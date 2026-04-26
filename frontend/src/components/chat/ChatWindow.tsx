@@ -62,6 +62,7 @@ interface ChatWindowProps {
   onJumpClear?: () => void;
   onStartCall?: () => void;
   callParticipantCount?: number;
+  currentUserInCall?: boolean;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -108,6 +109,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onJumpClear,
   onStartCall,
   callParticipantCount = 0,
+  currentUserInCall = false,
 }) => {
   const { hasPerm: checkPerm } = usePermissions(channel.server_id || undefined, channel.id || undefined);
   // In DMs (no server_id) users can only manage their own messages; other
@@ -281,7 +283,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         )}
         </div>
       </div>
-      {onStartCall && callParticipantCount > 0 && (
+      {onStartCall && callParticipantCount > 0 && !currentUserInCall && (
         <CallBanner participantCount={callParticipantCount} onJoin={onStartCall} />
       )}
       <MessageList

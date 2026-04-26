@@ -1520,6 +1520,7 @@ function MainApp() {
         onJumpClear={handleJumpClear}
         onStartCall={handleDmStartOrJoinCall}
         callParticipantCount={dmCallParticipantCount}
+        currentUserInCall={inThisDmCall}
       />
     );
 
