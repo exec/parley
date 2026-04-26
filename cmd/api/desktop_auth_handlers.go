@@ -35,6 +35,20 @@ func handleDesktopAuthIssue(svc *desktopauth.Service) http.HandlerFunc {
 
 func handleDesktopAuthExchange(svc *desktopauth.Service, authService *auth.AuthService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// CSRF / login-fixation gate. The exchange endpoint is the only
+		// place an unauthenticated POST mints a session — that made it the
+		// natural target for a cross-origin form auto-submit (text/plain is
+		// CORS-safe so no preflight fires) that landed an attacker's session
+		// cookie on the victim's browser. Require Origin to be on the CORS
+		// allowlist (the legitimate caller is the Tauri webview, which
+		// always sends Origin: tauri://localhost on cross-origin POSTs).
+		// Reject missing / null / unknown origins outright.
+		origin := r.Header.Get("Origin")
+		if origin == "" || origin == "null" || !allowedOrigins[origin] {
+			jsonError(w, "forbidden origin", http.StatusForbidden)
+			return
+		}
+
 		var req struct {
 			Code  string `json:"code"`
 			State string `json:"state"`
@@ -62,7 +76,14 @@ func handleDesktopAuthExchange(svc *desktopauth.Service, authService *auth.AuthS
 			jsonError(w, "failed to generate token", http.StatusInternalServerError)
 			return
 		}
-		auth.SetSessionCookie(w, token, int(authService.TokenTTL().Seconds()))
+		// Intentionally NO Set-Cookie here. The desktop client is the only
+		// legitimate caller; it lives at tauri://localhost (cross-origin to
+		// parley.byexec.com), so a SameSite=Lax cookie wouldn't ship on its
+		// subsequent requests anyway — desktop authenticates via the JSON
+		// `token` field returned below, attached as Authorization: Bearer.
+		// Keeping the Set-Cookie was the primitive that turned this endpoint
+		// into a one-shot session-fixation gadget for any attacker who could
+		// trick a victim's browser into POSTing a code they minted.
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(AuthResponse{User: user, Token: token})
 	}
