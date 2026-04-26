@@ -118,8 +118,8 @@ export async function setVanityURL(serverId: string, vanityUrl: string): Promise
   return apiClient.put<Server>(`/servers/${serverId}/vanity`, { vanity_url: vanityUrl });
 }
 
-export async function kickMember(serverId: string, userId: string): Promise<void> {
-  return apiClient.post<void>(`/servers/${serverId}/members/${userId}/kick`, {});
+export async function kickMember(serverId: string, userId: string, reason?: string): Promise<void> {
+  return apiClient.post<void>(`/servers/${serverId}/members/${userId}/kick`, { reason: reason ?? '' });
 }
 
 export async function banMember(serverId: string, userId: string, reason?: string): Promise<void> {
@@ -138,8 +138,8 @@ export async function listServerBans(serverId: string): Promise<ServerBan[]> {
   return apiClient.get<ServerBan[]>(`/servers/${serverId}/bans`);
 }
 
-export async function unbanMember(serverId: string, userId: string): Promise<void> {
-  return apiClient.delete<void>(`/servers/${serverId}/bans/${userId}`);
+export async function unbanMember(serverId: string, userId: string, reason?: string): Promise<void> {
+  return apiClient.delete<void>(`/servers/${serverId}/bans/${userId}`, { reason: reason ?? '' });
 }
 
 export async function getMyPermissions(serverId: string): Promise<number> {

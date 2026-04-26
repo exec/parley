@@ -25,8 +25,8 @@ export async function updateChannel(id: string, name: string, topic?: string): P
   });
 }
 
-export async function deleteChannel(id: string): Promise<void> {
-  return apiClient.delete<void>(`/channels/${id}`);
+export async function deleteChannel(id: string, reason?: string): Promise<void> {
+  return apiClient.delete<void>(`/channels/${id}`, { reason: reason ?? '' });
 }
 
 export async function getChannel(id: string): Promise<Channel> {

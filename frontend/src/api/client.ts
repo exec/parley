@@ -111,10 +111,11 @@ class ApiClient {
     return this.handleResponse<T>(response);
   }
 
-  async delete<T>(endpoint: string): Promise<T> {
+  async delete<T>(endpoint: string, data?: unknown): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'DELETE',
       headers: this.getHeaders(),
+      body: data ? JSON.stringify(data) : undefined,
     });
 
     return this.handleResponse<T>(response);
