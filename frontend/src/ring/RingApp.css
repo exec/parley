@@ -1,0 +1,24 @@
+:root {
+  color-scheme: dark;
+  --bg: #1f2937;
+}
+html, body, #ring-root { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: white;
+  font: 14px system-ui, -apple-system, sans-serif;
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+}
+.ring-app {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 16px; padding: 24px;
+}
+.ring-avatar { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; }
+.ring-avatar--placeholder { background: rgba(255,255,255,0.12); }
+.ring-text { margin: 0; text-align: center; }
+.ring-buttons { display: flex; gap: 12px; }
+.ring-btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 16px; border: 0; border-radius: 8px; cursor: pointer; font-weight: 600; }
+.ring-btn--accept  { background: #22c55e; color: white; }
+.ring-btn--decline { background: #ef4444; color: white; }

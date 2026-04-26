@@ -3,6 +3,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { resolve } from 'path';
 
 // API_TARGET can be overridden for Docker Compose dev where the api
 // service is reachable by container name rather than localhost.
@@ -28,6 +29,14 @@ const gitSha = (() => {
 export default defineConfig({
   plugins: [react()],
   assetsInclude: ['**/*.wasm'],
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        ring: resolve(__dirname, 'ring.html'),
+      },
+    },
+  },
   define: {
     __APP_VERSION__: JSON.stringify(tauriVersion),
     __APP_COMMIT__: JSON.stringify(gitSha),
