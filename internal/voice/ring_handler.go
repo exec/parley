@@ -206,11 +206,19 @@ func (h *RingHandler) Start(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Only emit the `call_started` system message when the room is empty —
-	// joining an in-progress GC call shouldn't print "started a call." Errors
-	// here are non-fatal: better to over-emit than to silently lose the event.
-	parts, _ := h.rs.svc.Participants(r.Context(), "dm:"+strconv.FormatInt(dmID, 10))
-	if len(parts) == 0 {
-		startedAt := time.Now().UnixMilli()
+	// joining an in-progress GC call shouldn't print "started a call." We
+	// dedup via Redis SetNX on the per-channel started_at key (also set by
+	// Join() on first joiner). Two concurrent /call/start requests both
+	// trying to claim a fresh call: only the SetNX winner emits.
+	startedAt := time.Now().UnixMilli()
+	channelID := "dm:" + strconv.FormatInt(dmID, 10)
+	fresh, err := h.rs.svc.ClaimCallStarted(r.Context(), channelID, startedAt)
+	if err != nil {
+		log.Printf("ring handler: ClaimCallStarted failed for %s: %v", channelID, err)
+		// Fall through and emit anyway — over-emit beats silent loss.
+		fresh = true
+	}
+	if fresh {
 		if err := h.starter.Started(r.Context(), dmID, userID, startedAt); err != nil {
 			httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 			return

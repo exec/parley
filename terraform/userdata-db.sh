@@ -126,15 +126,20 @@ if [ -n "$PG_HBA" ] && ! grep -q "Parley API connections" "$PG_HBA"; then
     echo "host    all             all             $LAN_SUBNET          scram-sha-256" >> "$PG_HBA"
 fi
 
-# Update postgresql.conf to listen on all interfaces
+# Bind PostgreSQL to loopback + the private vmbr1 IP only. pg_hba.conf still
+# gates per-subnet, but binding here avoids any accidental exposure if hba is
+# ever misconfigured. Tenants on vmbr1 still reach the DB via 10.10.10.10.
+# IMPORTANT: include ::1 — pgbouncer's [databases] entry uses host=localhost,
+# which resolves to ::1 first on Debian. Dropping ::1 makes pgbouncer auth
+# fail with "server login has been failing, cached error: connect failed".
 PG_CONF=$(find /etc/postgresql -name postgresql.conf | head -1)
 if [ -n "$PG_CONF" ]; then
-    # Configure PostgreSQL to listen on all addresses
-    sed -i "s/^listen_addresses = 'localhost'/listen_addresses = '*'/" "$PG_CONF"
+    sed -i "s/^listen_addresses = 'localhost'/listen_addresses = '127.0.0.1,::1,10.10.10.10'/" "$PG_CONF"
+    sed -i "s/^listen_addresses = '\*'/listen_addresses = '127.0.0.1,::1,10.10.10.10'/" "$PG_CONF"
 
     # Ensure it's not commented
     if grep -q "^#listen_addresses" "$PG_CONF"; then
-        sed -i "s/^#listen_addresses = 'localhost'/listen_addresses = '*'/" "$PG_CONF"
+        sed -i "s/^#listen_addresses = 'localhost'/listen_addresses = '127.0.0.1,::1,10.10.10.10'/" "$PG_CONF"
     fi
 
     echo "=== Tuning PostgreSQL max_connections ==="

@@ -277,9 +277,24 @@ server {
     allow 10.10.10.5;
     deny all;
 
-    # HSTS — tell browsers to always use HTTPS for this domain for 1 year.
-    # Cloudflare handles TLS termination; this header is forwarded to clients.
+    # Security headers (server-level so they apply to every location). nginx
+    # only inherits add_header into a location if that location declares NO
+    # add_header itself — so we keep all headers here and avoid per-location
+    # overrides.
+    #
+    # CSP keeps 'unsafe-inline' for styles because React's style={...} prop
+    # produces inline style attributes; switching to nonce/hash CSP would
+    # require migrating every dynamic-style call site. 'wasm-unsafe-eval' is
+    # required by syntax-highlighter / KaTeX wasm pipelines.
+    # Permissions-Policy allows mic+camera on this origin (LiveKit voice/video)
+    # while denying everything else by default.
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Frame-Options DENY always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+    add_header X-Permitted-Cross-Domain-Policies none always;
+    add_header Permissions-Policy "camera=(self), microphone=(self), geolocation=(), payment=(), usb=(), accelerometer=(), gyroscope=(), magnetometer=(), midi=(), serial=()" always;
+    add_header Content-Security-Policy "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; connect-src 'self' wss: https:; img-src 'self' data: https:; media-src 'self' https:; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;" always;
 
     # Health check endpoint
     location /health {
@@ -343,12 +358,10 @@ server {
         try_files \$uri \$uri/ \$uri.html =404;
     }
 
-    # Serve frontend - fallback to index.html for SPA routing
+    # Serve frontend - fallback to index.html for SPA routing.
+    # Security headers are at the server level above; do not declare any
+    # add_header here or nginx will stop inheriting the server-level set.
     location / {
-        add_header X-Frame-Options DENY always;
-        add_header X-Content-Type-Options nosniff always;
-        add_header Referrer-Policy strict-origin-when-cross-origin always;
-        add_header Content-Security-Policy "default-src 'self'; connect-src 'self' wss: https:; img-src 'self' data: https:; media-src 'self' https:; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;" always;
         try_files \$uri \$uri/ /index.html;
     }
 }

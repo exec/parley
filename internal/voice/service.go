@@ -89,6 +89,21 @@ func callEndedLockKey(channelID, startedAt string) string {
 	return fmt.Sprintf("call_ended:%s:%s", channelID, startedAt)
 }
 
+// ClaimCallStarted atomically reserves the right to emit `call_started` for a
+// voice channel. Two concurrent /call/start requests would otherwise both see
+// an empty room and double-emit; this collapses them by piggy-backing on the
+// existing started_at key (the same one Join SET NX's on first joiner). The
+// caller that wins the SET NX should emit; everyone else skips.
+//
+// Returns true iff the caller should emit `call_started`.
+func (s *Service) ClaimCallStarted(ctx context.Context, channelID string, startedAtMs int64) (bool, error) {
+	if s.rdb == nil {
+		// Without Redis we have no way to dedup; emit and accept the duplicate.
+		return true, nil
+	}
+	return s.rdb.SetNX(ctx, startedAtKey(channelID), strconv.FormatInt(startedAtMs, 10), 6*time.Hour).Result()
+}
+
 // Join records a participant joining a voice channel. The first joiner
 // atomically stamps voice:{channelID}:started_at with the current ms time
 // (with a 6h fallback TTL in case Leave never fires). Returns whether this

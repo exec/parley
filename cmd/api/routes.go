@@ -110,6 +110,11 @@ func registerRoutes(
 	// Rate limiter for message search: 20 per authenticated user per minute.
 	// Search uses ILIKE sequential scans — expensive without a full-text index.
 	msgSearchLimiter := newRateLimiterFor(rdb, 20, time.Minute)
+	// Per-user creation limits — friend requests, servers, DM channels. Sized
+	// for normal use while making spam / username enumeration impractical.
+	friendReqLimiter := newRateLimiterFor(rdb, 10, time.Hour)
+	serverCreateLimiter := newRateLimiterFor(rdb, 10, time.Hour)
+	dmCreateLimiter := newRateLimiterFor(rdb, 30, time.Hour)
 	// Rate limiter for bot slash-command registration (PUT/POST/DELETE): 50 per
 	// authenticated bot per hour. Keyed on the authenticated user ID (bot user)
 	// via userRateLimitMiddleware.
@@ -217,7 +222,7 @@ func registerRoutes(
 			//                    permissions silently.
 			//
 			// Server routes
-			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Post("/servers", serverHandler.CreateServer)
+			r.With(auth.RequireScope(auth.ScopeProfileWrite), userRateLimitMiddleware(serverCreateLimiter)).Post("/servers", serverHandler.CreateServer)
 			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/servers", serverHandler.GetUserServers)
 			// /servers/reorder must precede /servers/{id} so chi matches the literal path.
 			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Patch("/servers/reorder", serverHandler.ReorderUserServers)
@@ -329,7 +334,7 @@ func registerRoutes(
 			dmHandler.SetDmNotify(notifSvc.NotifyDM)
 			voiceHandler.SetDmCallEnder(dmHandler.Service().EmitCallEnded)
 			r.With(auth.RequireScope(auth.ScopeMessagesRead)).Get("/dms", dmHandler.GetDmChannels)
-			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms", dmHandler.OpenDmChannel)
+			r.With(auth.RequireScope(auth.ScopeMessagesWrite), userRateLimitMiddleware(dmCreateLimiter)).Post("/dms", dmHandler.OpenDmChannel)
 			r.With(auth.RequireScope(auth.ScopeMessagesRead)).Get("/dms/{id}/messages", dmHandler.GetDmMessages)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/messages", dmHandler.SendDmMessage)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Delete("/dms/{id}/messages/{messageId}", dmHandler.DeleteDmMessage)
@@ -368,7 +373,7 @@ func registerRoutes(
 			friendHandler := friend.NewHandler(friendSvc)
 			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/friends", friendHandler.GetFriends)
 			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/friend-requests", friendHandler.GetRequests)
-			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Post("/friend-requests", friendHandler.SendRequest)
+			r.With(auth.RequireScope(auth.ScopeProfileWrite), userRateLimitMiddleware(friendReqLimiter)).Post("/friend-requests", friendHandler.SendRequest)
 			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Post("/friend-requests/{id}/accept", friendHandler.AcceptRequest)
 			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Delete("/friend-requests/{id}", friendHandler.DeclineOrCancel)
 			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Delete("/friends/{userId}", friendHandler.RemoveFriend)

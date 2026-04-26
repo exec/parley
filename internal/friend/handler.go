@@ -2,8 +2,10 @@ package friend
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -87,7 +89,23 @@ func (h *Handler) SendRequest(w http.ResponseWriter, r *http.Request) {
 		case ErrPending:
 			httputil.JSONError(w, "friend request already pending", http.StatusBadRequest)
 		case ErrUserNotFound:
-			httputil.JSONError(w, "user not found", http.StatusNotFound)
+			// Don't disclose whether the username exists. Combined with the
+			// per-user rate limit, this kills username enumeration via friend
+			// requests. Return a synthetic-looking pending request so the
+			// client UX is identical to a real send; on refresh it disappears
+			// because nothing was persisted.
+			log.Printf("friend.SendRequest: target username does not exist (sender=%d)", uid)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck
+				"id":          "0",
+				"sender_id":   strconv.FormatInt(uid, 10),
+				"receiver_id": "0",
+				"status":      "pending",
+				"user":        map[string]any{"id": "0", "username": body.Username},
+				"created_at":  time.Now().UTC().Format(time.RFC3339),
+			})
+			return
 		default:
 			httputil.JSONError(w, "failed to send request", http.StatusInternalServerError)
 		}
