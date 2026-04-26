@@ -284,6 +284,22 @@ func (h *Handler) MuteParticipant(w http.ResponseWriter, r *http.Request) {
 		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
+	if vc.Kind == KindServer {
+		ch, err := h.repo.GetChannelByID(r.Context(), vc.ID)
+		if err == nil && ch != nil {
+			actorUsername, _ := h.repo.GetUsernameByID(r.Context(), requesterID)
+			targetUsername, _ := h.repo.GetUsernameByID(r.Context(), targetID)
+			h.auditSvc.Log(r.Context(), audit.Entry{
+				ServerID:      ch.ServerID,
+				ActorID:       &requesterID,
+				ActorUsername: actorUsername,
+				Action:        "voice.force_mute",
+				TargetID:      strconv.FormatInt(targetID, 10),
+				TargetType:    "user",
+				TargetName:    targetUsername,
+			})
+		}
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -331,6 +347,26 @@ func (h *Handler) KickParticipant(w http.ResponseWriter, r *http.Request) {
 
 	disc, _ := json.Marshal(map[string]any{"channel_id": vcStr})
 	_ = h.hub.SendToUser(targetUserIDStr, ws.EventVoiceForceDisconnect, disc)
+
+	if vc.Kind == KindServer {
+		ch, err := h.repo.GetChannelByID(r.Context(), vc.ID)
+		if err == nil && ch != nil {
+			actorUsername, _ := h.repo.GetUsernameByID(r.Context(), requesterID)
+			targetUsername := displayName
+			if targetUsername == "" {
+				targetUsername, _ = h.repo.GetUsernameByID(r.Context(), targetID)
+			}
+			h.auditSvc.Log(r.Context(), audit.Entry{
+				ServerID:      ch.ServerID,
+				ActorID:       &requesterID,
+				ActorUsername: actorUsername,
+				Action:        "voice.force_disconnect",
+				TargetID:      strconv.FormatInt(targetID, 10),
+				TargetType:    "user",
+				TargetName:    targetUsername,
+			})
+		}
+	}
 
 	w.WriteHeader(http.StatusNoContent)
 }
