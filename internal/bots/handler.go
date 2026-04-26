@@ -263,13 +263,16 @@ func (h *Handler) SetAIConfig(w http.ResponseWriter, r *http.Request) {
 			"has_api_key":        beforeCfg.APIKeySet,
 		}
 	}
+	// has_api_key after the update reflects whether *any* key is stored, not just
+	// whether this request provided one — the repo preserves the existing key
+	// when req.APIKey is empty.
 	afterMap := map[string]any{
 		"provider":           req.Provider,
 		"model":              req.Model,
 		"preset_verbosity":   req.PresetVerbosity,
 		"preset_personality": req.PresetPersonality,
 		"preset_role":        req.PresetRole,
-		"has_api_key":        req.APIKey != "",
+		"has_api_key":        req.APIKey != "" || (beforeCfg != nil && beforeCfg.APIKeySet),
 	}
 	h.auditSvc.Log(r.Context(), audit.Entry{
 		ServerID:      sid,
