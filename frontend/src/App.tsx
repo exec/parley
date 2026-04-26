@@ -555,38 +555,40 @@ function MainApp() {
   }, [vcDisconnect]);
 
   const handleVoiceStateUpdate = useCallback((update: VoiceStateUpdate) => {
-    // update.channel_id is the raw DM channel id or server channel id; the WS
-    // VOICE_STATE_UPDATE for DM VCs uses channel_id = "<dmChannelId>" (numeric string).
-    // We also receive a synthetic channel_id from the vc topic like "dm:123" — but the
-    // backend sends the plain id. Track activeCalls by the plain dm channel id.
+    // Backend sends channel_id as the prefixed vc string ("s:42" or "dm:7").
+    // All frontend state is keyed by plain ids — strip the prefix here once.
+    const vcStr = update.channel_id;
+    const isDm = vcStr.startsWith('dm:');
+    const isServer = vcStr.startsWith('s:');
+    const plainId = isDm ? vcStr.slice(3) : (isServer ? vcStr.slice(2) : vcStr);
+
     setVoiceParticipants(prev => {
-      const list = prev[update.channel_id] ?? [];
+      const list = prev[plainId] ?? [];
       if (update.action === 'join') {
         if (list.some(p => p.user_id === update.user_id)) return prev;
-        return { ...prev, [update.channel_id]: [...list, { user_id: update.user_id, username: update.username, avatar_url: update.avatar_url }] };
+        return { ...prev, [plainId]: [...list, { user_id: update.user_id, username: update.username, avatar_url: update.avatar_url }] };
       } else {
         const filtered = list.filter(p => p.user_id !== update.user_id);
-        return { ...prev, [update.channel_id]: filtered };
+        return { ...prev, [plainId]: filtered };
       }
     });
-    // Maintain active call participant count for DM VCs.
-    // The channel_id for DM VC events is the plain DM channel id.
-    // We detect DM VCs by checking if a dmChannel with that id exists.
-    setActiveCalls(prev => {
-      const isDm = dmChannels.some(ch => ch.id === update.channel_id);
-      if (!isDm) return prev;
-      const next = new Map(prev);
-      const cur = next.get(update.channel_id) ?? 0;
-      if (update.action === 'join') {
-        next.set(update.channel_id, cur + 1);
-      } else {
-        const n = Math.max(0, cur - 1);
-        if (n === 0) next.delete(update.channel_id);
-        else next.set(update.channel_id, n);
-      }
-      return next;
-    });
-  }, [dmChannels]);
+
+    // Track active DM call participant counts (keyed by plain DM channel id).
+    if (isDm) {
+      setActiveCalls(prev => {
+        const next = new Map(prev);
+        const cur = next.get(plainId) ?? 0;
+        if (update.action === 'join') {
+          next.set(plainId, cur + 1);
+        } else {
+          const n = Math.max(0, cur - 1);
+          if (n === 0) next.delete(plainId);
+          else next.set(plainId, n);
+        }
+        return next;
+      });
+    }
+  }, []);
 
   const clearTypingUser = useCallback((channelId: string, userId: string) => {
     const key = `${channelId}:${userId}`;
@@ -820,7 +822,11 @@ function MainApp() {
   }, [members]);
 
   const handleSoundboardPlay = useCallback((event: SoundboardPlayEvent) => {
-    if (event.channel_id !== activeVoiceChannel) return;
+    // Soundboard channel_id arrives as prefixed vc string ("s:42"); strip prefix to compare.
+    const plainChannelId = event.channel_id.startsWith('s:') ? event.channel_id.slice(2)
+      : event.channel_id.startsWith('dm:') ? event.channel_id.slice(3)
+      : event.channel_id;
+    if (plainChannelId !== activeVoiceChannel) return;
     const emoji = event.emoji || '🔊';
     const durationMs = event.duration_ms || 30_000;
     setActiveSoundEmojis(prev => {
