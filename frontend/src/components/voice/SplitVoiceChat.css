@@ -28,50 +28,67 @@
   display: none;
 }
 
-/* Drag bar — visible 6px target, hairline border, centered grip handle. */
+/* Drag bar — invisible 8px touch zone with a single hairline that becomes
+   visible only on hover/drag. Blends into any theme since it doesn't paint
+   its own background or borders by default. */
 .split-vc__resizer {
   position: relative;
-  height: 6px;
-  flex: 0 0 6px;
+  height: 8px;
+  flex: 0 0 8px;
   cursor: ns-resize;
-  background: transparent;
-  border-top: 1px solid var(--parley-border);
-  border-bottom: 1px solid var(--parley-border);
+  user-select: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  user-select: none;
-  transition: background 0.12s ease;
+  background: transparent;
+  /* Single hairline drawn via ::before so we can fade it in on hover. */
 }
 
-.split-vc__resizer:hover,
-.split-vc__resizer--dragging {
-  background: rgba(var(--accent-rgb), 0.15);
+.split-vc__resizer::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  transform: translateY(-50%);
+  background: var(--parley-border);
+  opacity: 0.5;
+  transition: opacity 0.12s ease, background 0.12s ease;
+  pointer-events: none;
 }
 
+.split-vc__resizer:hover::before,
+.split-vc__resizer--dragging::before {
+  opacity: 1;
+  background: var(--parley-accent);
+}
+
+/* Centered grip indicator — hidden until hover/drag. */
 .split-vc__grip {
-  width: 36px;
+  position: relative;
+  z-index: 1;
+  width: 32px;
   height: 4px;
   border-radius: 2px;
-  background: var(--parley-border);
+  background: var(--parley-accent);
   opacity: 0;
-  transition: opacity 0.12s ease, background 0.12s ease;
+  transition: opacity 0.12s ease;
   pointer-events: none;
 }
 
 .split-vc__resizer:hover .split-vc__grip,
 .split-vc__resizer--dragging .split-vc__grip {
   opacity: 1;
+}
+
+/* When chat is closed: a slightly more prominent hairline to hint that it's
+   pull-able. No background tint — keeps it theme-neutral. */
+.split-vc__resizer--closed::before {
+  opacity: 0.7;
   background: var(--parley-accent);
 }
 
-/* When chat is closed, show a thin "pull up" handle at the bottom edge of voice
-   so users can rediscover the text chat. */
-.split-vc__resizer--closed {
-  border-bottom: none;
-  background: rgba(var(--accent-rgb), 0.05);
-}
-
 .split-vc__resizer--closed .split-vc__grip {
-  opacity: 0.6;
+  opacity: 0.5;
 }

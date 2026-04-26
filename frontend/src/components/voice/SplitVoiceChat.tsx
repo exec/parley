@@ -27,6 +27,7 @@ export const SplitVoiceChat: React.FC<Props> = ({ voice, chat, storageKey }) => 
   });
   const [dragging, setDragging] = useState(false);
   const lastOpenPxRef = useRef<number>(0);
+  const movedDuringDragRef = useRef(false);
 
   // Track container height so we can apply ratio defaults + clamp drag values.
   useEffect(() => {
@@ -59,6 +60,7 @@ export const SplitVoiceChat: React.FC<Props> = ({ voice, chat, storageKey }) => 
     e.preventDefault();
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
     setDragging(true);
+    movedDuringDragRef.current = false;
   }, []);
 
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -70,6 +72,7 @@ export const SplitVoiceChat: React.FC<Props> = ({ voice, chat, storageKey }) => 
     const proposedChat = Math.round(rect.bottom - e.clientY);
     const maxChat = Math.max(0, rect.height - MIN_VOICE_PX);
     const clamped = Math.min(maxChat, Math.max(0, proposedChat));
+    movedDuringDragRef.current = true;
     setChatPx(clamped < SNAP_CLOSED_BELOW_PX ? 0 : Math.max(MIN_OPEN_PX, clamped));
   }, [dragging]);
 
@@ -79,7 +82,13 @@ export const SplitVoiceChat: React.FC<Props> = ({ voice, chat, storageKey }) => 
   }, []);
 
   // Click-to-reopen when closed: tapping the resizer bar restores last height.
+  // Suppress when the click is the tail end of a drag (otherwise dragging the
+  // chat closed snaps it right back open via the click that follows pointerup).
   const onResizerClick = useCallback(() => {
+    if (movedDuringDragRef.current) {
+      movedDuringDragRef.current = false;
+      return;
+    }
     if (chatPx !== 0) return;
     const restore = lastOpenPxRef.current > 0
       ? lastOpenPxRef.current
@@ -92,7 +101,7 @@ export const SplitVoiceChat: React.FC<Props> = ({ voice, chat, storageKey }) => 
 
   return (
     <div ref={containerRef} className="split-vc">
-      <div className="split-vc__voice" style={{ flexBasis: containerH > 0 ? `${containerH - effectiveChatPx - 6}px` : `${100 * (1 - DEFAULT_RATIO)}%` }}>
+      <div className="split-vc__voice" style={{ flexBasis: containerH > 0 ? `${containerH - effectiveChatPx - 8}px` : `${100 * (1 - DEFAULT_RATIO)}%` }}>
         {voice}
       </div>
       <div
