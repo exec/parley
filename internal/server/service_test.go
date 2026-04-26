@@ -598,11 +598,11 @@ func TestRemoveRoleFromMember_Validation(t *testing.T) {
 func TestSetServerCategories_Validation(t *testing.T) {
 	svc := NewServerService(nil, nil)
 
-	_, err := svc.SetServerCategories(context.Background(), "1", []int64{1, 2, 3, 4})
+	_, _, err := svc.SetServerCategories(context.Background(), "1", []int64{1, 2, 3, 4})
 	if err == nil || err.Error() != "maximum 3 categories allowed" {
 		t.Errorf("got %v, want 'maximum 3 categories allowed'", err)
 	}
-	_, err = svc.SetServerCategories(context.Background(), "abc", []int64{1})
+	_, _, err = svc.SetServerCategories(context.Background(), "abc", []int64{1})
 	if err == nil || err.Error() != "invalid server ID" {
 		t.Errorf("got %v, want 'invalid server ID'", err)
 	}

@@ -196,25 +196,36 @@ func (s *ServerService) ListServerCategories(ctx context.Context) ([]db.ServerCa
 
 // SetServerCategories replaces the category assignments for a server.
 // Authorization (owner check) is handled at the handler layer.
-func (s *ServerService) SetServerCategories(ctx context.Context, serverID string, categoryIDs []int64) ([]db.ServerCategory, error) {
+// Returns the list of category IDs assigned BEFORE the update along with the
+// new full ServerCategory rows AFTER the update so the caller can audit-log
+// the diff.
+func (s *ServerService) SetServerCategories(ctx context.Context, serverID string, categoryIDs []int64) ([]int64, []db.ServerCategory, error) {
 	if len(categoryIDs) > 3 {
-		return nil, errors.New("maximum 3 categories allowed")
+		return nil, nil, errors.New("maximum 3 categories allowed")
 	}
 	id, err := idToInt64(serverID)
 	if err != nil {
-		return nil, errors.New("invalid server ID")
+		return nil, nil, errors.New("invalid server ID")
+	}
+	beforeCats, err := s.repo.GetServerCategoryAssignments(ctx, id)
+	if err != nil {
+		return nil, nil, err
+	}
+	beforeIDs := make([]int64, 0, len(beforeCats))
+	for _, c := range beforeCats {
+		beforeIDs = append(beforeIDs, c.ID)
 	}
 	if err := s.repo.SetServerCategories(ctx, id, categoryIDs); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	cats, err := s.repo.GetServerCategoryAssignments(ctx, id)
+	afterCats, err := s.repo.GetServerCategoryAssignments(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	if cats == nil {
-		cats = []db.ServerCategory{}
+	if afterCats == nil {
+		afterCats = []db.ServerCategory{}
 	}
-	return cats, nil
+	return beforeIDs, afterCats, nil
 }
 
 // GetServerCategoryAssignments returns the categories assigned to a specific server.

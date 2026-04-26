@@ -1437,7 +1437,7 @@ func (h *Handler) SetServerCategories(w http.ResponseWriter, r *http.Request) {
 		req.CategoryIDs = []int64{}
 	}
 
-	cats, err := h.service.SetServerCategories(r.Context(), serverID, req.CategoryIDs)
+	beforeIDs, cats, err := h.service.SetServerCategories(r.Context(), serverID, req.CategoryIDs)
 	if err != nil {
 		msg := err.Error()
 		if msg == "maximum 3 categories allowed" || msg == "invalid category" {
@@ -1447,6 +1447,22 @@ func (h *Handler) SetServerCategories(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+
+	actorIDInt, _ := strconv.ParseInt(userID, 10, 64)
+	actorUsername, _ := h.service.Repo().GetUsernameByID(r.Context(), actorIDInt)
+	serverIDInt, _ := strconv.ParseInt(serverID, 10, 64)
+	afterIDs := make([]int64, 0, len(cats))
+	for _, c := range cats {
+		afterIDs = append(afterIDs, c.ID)
+	}
+	h.auditSvc.Log(r.Context(), audit.Entry{
+		ServerID:      serverIDInt,
+		ActorID:       &actorIDInt,
+		ActorUsername: actorUsername,
+		Action:        "server.categories_update",
+		TargetType:    "server",
+		Changes:       map[string]any{"before": beforeIDs, "after": afterIDs},
+	})
 	render.JSON(w, r, cats)
 }
 
