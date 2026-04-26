@@ -5,8 +5,9 @@
   z-index: 9999;
 }
 .incoming-modal {
-  background: var(--parley-bg-elevated, #1f2937);
-  color: var(--parley-text, #fff);
+  background: var(--parley-bg-secondary);
+  color: var(--parley-text);
+  border: 1px solid var(--parley-border);
   border-radius: 12px;
   padding: 24px;
   width: 320px;
@@ -14,10 +15,10 @@
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
 }
 .incoming-avatar { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; }
-.incoming-avatar--placeholder { background: var(--parley-bg-muted); }
+.incoming-avatar--placeholder { background: var(--parley-bg-tertiary); }
 .incoming-text { margin: 0; text-align: center; }
 .incoming-buttons { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
 .incoming-btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 16px; border-radius: 8px; border: 0; cursor: pointer; font-weight: 600; }
 .incoming-btn--accept { background: #22c55e; color: white; }
 .incoming-btn--decline { background: #ef4444; color: white; }
-.incoming-btn--end-current { background: var(--parley-bg-muted); color: var(--parley-text); }
+.incoming-btn--end-current { background: var(--parley-bg-tertiary); color: var(--parley-text); border: 1px solid var(--parley-border); }

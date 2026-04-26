@@ -1,26 +1,40 @@
 .call-banner {
   display: flex; align-items: center; gap: 8px;
   padding: 8px 12px;
-  background: var(--parley-bg-muted);
+  background: var(--parley-bg-tertiary);
   border-bottom: 1px solid var(--parley-border);
   font-size: 13px;
+  color: var(--parley-text);
 }
 .call-banner-join {
   margin-left: auto;
   background: var(--parley-accent);
-  color: var(--parley-on-accent, white);
+  color: white;
   border: 0; border-radius: 4px; padding: 4px 12px;
   cursor: pointer; font-weight: 600;
 }
+.call-banner-join:hover { background: var(--parley-accent-hover); }
+
 .outgoing-toast {
   position: fixed;
   right: 16px;
   bottom: 16px;
-  background: var(--parley-bg-elevated);
+  background: var(--parley-bg-secondary);
   color: var(--parley-text);
+  border: 1px solid var(--parley-border);
   padding: 10px 14px;
   border-radius: 8px;
   display: flex; align-items: center; gap: 12px;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
   z-index: 1000;
 }
+.outgoing-toast button {
+  background: var(--parley-bg-tertiary);
+  color: var(--parley-text);
+  border: 1px solid var(--parley-border);
+  border-radius: 4px;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.outgoing-toast button:hover { background: var(--parley-bg-hover); }

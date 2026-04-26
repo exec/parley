@@ -624,9 +624,25 @@ func (r *Repository) RemoveDmMember(ctx context.Context, channelID, userID int64
 	return err
 }
 
+// IsDmMember returns true when userID is a member of the DM. Group DMs store
+// membership in dm_channel_members; 1:1 DMs store it in user1_id/user2_id, and
+// newer 1:1 channels do not populate the join table at all — so this lookup
+// must consult both shapes.
 func (r *Repository) IsDmMember(ctx context.Context, channelID, userID int64) (bool, error) {
 	var n int
-	err := r.db.QueryRowContext(ctx, `SELECT 1 FROM dm_channel_members WHERE dm_channel_id = $1 AND user_id = $2`, channelID, userID).Scan(&n)
+	err := r.db.QueryRowContext(ctx, `
+		SELECT 1
+		  FROM dm_channels c
+		 WHERE c.id = $1
+		   AND (
+		         c.user1_id = $2
+		      OR c.user2_id = $2
+		      OR EXISTS (
+		           SELECT 1 FROM dm_channel_members m
+		            WHERE m.dm_channel_id = c.id AND m.user_id = $2
+		         )
+		       )
+	`, channelID, userID).Scan(&n)
 	if err == sql.ErrNoRows {
 		return false, nil
 	}

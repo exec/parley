@@ -41,6 +41,27 @@ func NewRingHandler(rs *RingService, repo ringRepo) *RingHandler {
 // SetCallStarter is invoked from cmd/api wiring to provide the dm emit adapter.
 func (h *RingHandler) SetCallStarter(c CallStarter) { h.starter = c }
 
+// resolveDm fetches the channel and resolves whether userID is a member, handling
+// 1:1 DMs (membership lives in user1_id/user2_id) and group DMs (membership lives
+// in dm_channel_members) uniformly. Mirrors the WS subscription auth path.
+func (h *RingHandler) resolveDm(ctx context.Context, dmID, userID int64) (*db.DmChannel, bool, error) {
+	dm, err := h.repo.GetDmChannelByID(ctx, dmID)
+	if err != nil || dm == nil {
+		return nil, false, err
+	}
+	if dm.IsGroup {
+		isMember, err := h.repo.IsDmMember(ctx, dmID, userID)
+		return dm, isMember, err
+	}
+	// 1:1 DMs store membership on user1_id/user2_id; the join table is empty.
+	if dm.User1ID == userID || dm.User2ID == userID {
+		return dm, true, nil
+	}
+	// Defensive fall-through: tolerate test/legacy data that uses the join table for 1:1.
+	isMember, err := h.repo.IsDmMember(ctx, dmID, userID)
+	return dm, isMember, err
+}
+
 // Ring initiates a 1:1 ring. Errors 400 for group DMs.
 func (h *RingHandler) Ring(w http.ResponseWriter, r *http.Request) {
 	userID, ok := userIDFromCtx(w, r)
@@ -51,31 +72,37 @@ func (h *RingHandler) Ring(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	isMember, err := h.repo.IsDmMember(r.Context(), dmID, userID)
-	if err != nil || !isMember {
-		httputil.JSONError(w, "forbidden", http.StatusForbidden)
+	dm, isMember, err := h.resolveDm(r.Context(), dmID, userID)
+	if err != nil || dm == nil {
+		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
-	dm, err := h.repo.GetDmChannelByID(r.Context(), dmID)
-	if err != nil || dm == nil {
-		// After the IsDmMember 403 above, a missing DM here is an inconsistent state.
-		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+	if !isMember {
+		httputil.JSONError(w, "forbidden", http.StatusForbidden)
 		return
 	}
 	if dm.IsGroup {
 		httputil.JSONError(w, "ringing is not supported for group DMs; use /call/start instead", http.StatusBadRequest)
 		return
 	}
-	members, err := h.repo.GetDmMembers(r.Context(), dmID)
-	if err != nil || len(members) != 2 {
-		httputil.JSONError(w, "invalid 1:1 channel", http.StatusBadRequest)
-		return
-	}
 	var targetID int64
-	for _, m := range members {
-		if m.UserID != userID {
-			targetID = m.UserID
-			break
+	switch {
+	case dm.User1ID == userID && dm.User2ID != 0:
+		targetID = dm.User2ID
+	case dm.User2ID == userID && dm.User1ID != 0:
+		targetID = dm.User1ID
+	default:
+		// Fall back to the join-table view (legacy/test fixtures).
+		members, err := h.repo.GetDmMembers(r.Context(), dmID)
+		if err != nil || len(members) != 2 {
+			httputil.JSONError(w, "invalid 1:1 channel", http.StatusBadRequest)
+			return
+		}
+		for _, m := range members {
+			if m.UserID != userID {
+				targetID = m.UserID
+				break
+			}
 		}
 	}
 	if targetID == 0 {
@@ -111,7 +138,7 @@ func (h *RingHandler) terminate(w http.ResponseWriter, r *http.Request, op strin
 	if !ok {
 		return
 	}
-	isMember, err := h.repo.IsDmMember(r.Context(), dmID, userID)
+	_, isMember, err := h.resolveDm(r.Context(), dmID, userID)
 	if err != nil || !isMember {
 		httputil.JSONError(w, "forbidden", http.StatusForbidden)
 		return
@@ -159,14 +186,13 @@ func (h *RingHandler) Start(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	isMember, err := h.repo.IsDmMember(r.Context(), dmID, userID)
-	if err != nil || !isMember {
-		httputil.JSONError(w, "forbidden", http.StatusForbidden)
-		return
-	}
-	dm, err := h.repo.GetDmChannelByID(r.Context(), dmID)
+	dm, isMember, err := h.resolveDm(r.Context(), dmID, userID)
 	if err != nil || dm == nil {
 		httputil.JSONError(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	if !isMember {
+		httputil.JSONError(w, "forbidden", http.StatusForbidden)
 		return
 	}
 	if !dm.IsGroup {
