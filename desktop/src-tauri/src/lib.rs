@@ -5,6 +5,8 @@ use tauri::WindowEvent;
 use tauri::RunEvent;
 use tauri_plugin_deep_link::DeepLinkExt;
 
+mod ring_window;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut builder = tauri::Builder::default();
@@ -35,6 +37,12 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .invoke_handler({
+            #[cfg(not(any(target_os = "ios", target_os = "android")))]
+            { tauri::generate_handler![ring_window::spawn_ring_window, ring_window::dismiss_ring_window] }
+            #[cfg(any(target_os = "ios", target_os = "android"))]
+            { tauri::generate_handler![] }
+        })
         .setup(|app| {
             let handle = app.handle().clone();
             app.deep_link().on_open_url(move |event| {
