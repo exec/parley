@@ -37,6 +37,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_os::init())
         .invoke_handler({
             #[cfg(not(any(target_os = "ios", target_os = "android")))]
             { tauri::generate_handler![ring_window::spawn_ring_window, ring_window::dismiss_ring_window] }

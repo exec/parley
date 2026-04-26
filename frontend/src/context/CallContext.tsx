@@ -1,5 +1,11 @@
-import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef, useState } from 'react';
 import { ringDm, acceptCall, declineCall, cancelCall, type ActiveRing, type RingCaller } from '../api/calls';
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import { platform } from '@tauri-apps/plugin-os';
+
+const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
 export type CallState = 'idle' | 'outgoing' | 'connecting' | 'connected';
 
@@ -24,6 +30,8 @@ export interface CallContextValue {
   incomingQueue: IncomingRing[];
   floatingMode: boolean;
   outgoingTarget?: OutgoingTarget;
+  isDesktopTauri: boolean;
+  mainFocused: boolean;
   initiate: (dmChannelId: string | number, target: OutgoingTarget) => Promise<void>;
   accept: (ring: IncomingRing) => Promise<void>;
   decline: (ring: IncomingRing) => Promise<void>;
@@ -103,6 +111,27 @@ export const CallProvider: React.FC<CallProviderProps> = ({ children, bootRings 
     }
   }, [bootRings]);
 
+  // Secondary ring windows are desktop-only. Mobile Tauri builds fall back to in-app modal.
+  const [isDesktopTauri, setIsDesktopTauri] = useState<boolean>(false);
+  useEffect(() => {
+    if (!isTauri) return;
+    try {
+      const p = platform();
+      setIsDesktopTauri(p === 'macos' || p === 'windows' || p === 'linux');
+    } catch {
+      setIsDesktopTauri(false);
+    }
+  }, []);
+
+  const [mainFocused, setMainFocused] = useState<boolean>(true);
+  useEffect(() => {
+    if (!isTauri) return;
+    let unlistenFocus: undefined | (() => void);
+    getCurrentWindow().isFocused().then(setMainFocused).catch(() => {});
+    getCurrentWindow().onFocusChanged(({ payload }) => setMainFocused(payload)).then(fn => { unlistenFocus = fn; }).catch(() => {});
+    return () => { unlistenFocus?.(); };
+  }, []);
+
   const initiate = useCallback(async (dmChannelId: string | number, target: OutgoingTarget) => {
     const vc = `dm:${dmChannelId}`;
     dispatch({ type: 'set', state: 'outgoing', vc, ringId: null, outgoingTarget: target });
@@ -161,6 +190,58 @@ export const CallProvider: React.FC<CallProviderProps> = ({ children, bootRings 
     dispatch({ type: 'set_floating', floating });
   }, []);
 
+  // Spawn / dismiss secondary ring windows based on focus state and queue
+  useEffect(() => {
+    if (!isDesktopTauri) return;
+    if (mainFocused) {
+      store.incomingQueue.forEach(r => {
+        invoke('dismiss_ring_window', { ringId: r.ring_id }).catch(() => {});
+      });
+      return;
+    }
+    store.incomingQueue.forEach(r => {
+      invoke('spawn_ring_window', {
+        args: {
+          ring_id: r.ring_id,
+          vc: r.vc,
+          caller_username: r.caller.username,
+          caller_display_name: r.caller.display_name,
+          caller_avatar_url: r.caller.avatar_url || null,
+          group_name: null,
+        },
+      }).catch(() => {});
+    });
+  }, [mainFocused, store.incomingQueue, isDesktopTauri]);
+
+  // Dismiss ring windows whose rings have been resolved (left the queue)
+  const prevQueueIds = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!isDesktopTauri) return;
+    const currentIds = new Set(store.incomingQueue.map(r => r.ring_id));
+    prevQueueIds.current.forEach(id => {
+      if (!currentIds.has(id)) {
+        invoke('dismiss_ring_window', { ringId: id }).catch(() => {});
+      }
+    });
+    prevQueueIds.current = currentIds;
+  }, [store.incomingQueue, isDesktopTauri]);
+
+  // Handle accept/decline from the secondary ring window
+  useEffect(() => {
+    if (!isDesktopTauri) return;
+    let unsubAccept: undefined | (() => void);
+    let unsubDecline: undefined | (() => void);
+    listen<{ ring_id: string }>('ring:accept', e => {
+      const ring = store.incomingQueue.find(r => r.ring_id === e.payload.ring_id);
+      if (ring) void accept(ring);
+    }).then(fn => { unsubAccept = fn; });
+    listen<{ ring_id: string }>('ring:decline', e => {
+      const ring = store.incomingQueue.find(r => r.ring_id === e.payload.ring_id);
+      if (ring) void decline(ring);
+    }).then(fn => { unsubDecline = fn; });
+    return () => { unsubAccept?.(); unsubDecline?.(); };
+  }, [accept, decline, isDesktopTauri, store.incomingQueue]);
+
   const receiveCallRing = useCallback((payload: { vc: string; ring_id: string; caller: RingCaller; started_at_ms: number }) => {
     dispatch({ type: 'enqueue', ring: { ring_id: payload.ring_id, vc: payload.vc, caller: payload.caller, started_at_ms: payload.started_at_ms } });
   }, []);
@@ -201,6 +282,8 @@ export const CallProvider: React.FC<CallProviderProps> = ({ children, bootRings 
     incomingQueue: store.incomingQueue,
     floatingMode: store.floatingMode,
     outgoingTarget: store.outgoingTarget,
+    isDesktopTauri,
+    mainFocused,
     initiate,
     accept,
     decline,

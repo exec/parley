@@ -1791,7 +1791,7 @@ function MainApp() {
 }
 
 const CallSurfaces: React.FC<{ onJoinCall: (vc: string) => void; vcDisconnect: () => void }> = ({ onJoinCall, vcDisconnect }) => {
-  const { state, activeVc, incomingQueue, accept, decline, initiate, receiveCallRing, receiveCallAccept, receiveCallDecline, receiveCallCancel, receiveCallTimeout } = useCall();
+  const { state, activeVc, incomingQueue, accept, decline, initiate, receiveCallRing, receiveCallAccept, receiveCallDecline, receiveCallCancel, receiveCallTimeout, isDesktopTauri, mainFocused } = useCall();
 
   useEffect(() => {
     const onRing = (e: Event) => receiveCallRing((e as CustomEvent).detail);
@@ -1821,7 +1821,7 @@ const CallSurfaces: React.FC<{ onJoinCall: (vc: string) => void; vcDisconnect: (
 
   return (
     <>
-      {incomingQueue.length > 0 && (
+      {(!isDesktopTauri || mainFocused) && incomingQueue.length > 0 && (
         <IncomingCallModal
           ring={incomingQueue[0]}
           showEndCurrentAccept={state === 'connected'}
