@@ -26,6 +26,12 @@ export async function getServers(): Promise<Server[]> {
   return apiClient.get<Server[]>('/servers');
 }
 
+// Persists per-user sidebar order. The backend broadcasts USER_SERVERS_REORDER
+// to the caller's other open clients so multi-tab/multi-device stays in sync.
+export async function reorderServers(serverIds: string[]): Promise<void> {
+  return apiClient.patch<void>('/servers/reorder', { server_ids: serverIds });
+}
+
 export async function getServer(id: string): Promise<Server> {
   return apiClient.get<Server>(`/servers/${id}`);
 }

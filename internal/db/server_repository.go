@@ -66,13 +66,33 @@ func (r *Repository) GetServerByID(ctx context.Context, id int64) (*Server, erro
 	return &server, nil
 }
 
+// ReorderUserServers writes per-user server positions in one transaction.
+// orderedServerIDs is the desired sidebar order, first = position 0. Server IDs
+// the user isn't a member of are silently ignored (the WHERE filters them).
+// Server memberships not in the list keep whatever position they had.
+func (r *Repository) ReorderUserServers(ctx context.Context, userID int64, orderedServerIDs []int64) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for i, sid := range orderedServerIDs {
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE server_members SET position = $1 WHERE user_id = $2 AND server_id = $3`,
+			i, userID, sid); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
 func (r *Repository) GetServersByUserID(ctx context.Context, userID int64) ([]*Server, error) {
 	query := `
 		SELECT s.id, s.name, s.icon_url, s.owner_id, s.vanity_url, s.created_at, s.updated_at
 		FROM servers s
 		INNER JOIN server_members sm ON s.id = sm.server_id
 		WHERE sm.user_id = $1
-		ORDER BY s.name
+		ORDER BY sm.position, s.id
 	`
 
 	rows, err := r.db.QueryContext(ctx, query, userID)

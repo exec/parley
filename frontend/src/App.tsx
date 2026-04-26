@@ -129,6 +129,8 @@ function MainApp() {
     reloadMembers,
     reloadChannels,
     reorderChannels,
+    reorderServers,
+    applyServersReorder,
     friends,
     friendRequests,
     pendingRequestCount,
@@ -886,6 +888,7 @@ function MainApp() {
     onChannelDelete: receiveChannelDelete,
     onServerUpdate: handleServerUpdate,
     onServerDelete: handleServerDelete,
+    onUserServersReorder: applyServersReorder,
     onMemberRoleUpdate: handleMemberRoleUpdate,
     onBotStatusUpdate: handleBotStatusUpdate,
     onRoleUpdate: handleRoleUpdate,
@@ -1695,6 +1698,7 @@ function MainApp() {
           setShowServerSettings(true);
         }}
         onLeaveServer={(serverId) => leaveServer(serverId)}
+        onReorderServers={reorderServers}
         unreadNotificationCount={unreadNotificationCount}
         notifPanelOpen={showNotifPanel}
         onToggleNotifPanel={() => setShowNotifPanel(p => !p)}

@@ -71,6 +71,34 @@ func (s *ServerService) GetServer(ctx context.Context, id string) (*Server, erro
 	return dbServerToService(server), nil
 }
 
+// ReorderUserServers persists per-user sidebar ordering for the given user
+// and broadcasts USER_SERVERS_REORDER to all of that user's open clients so
+// other tabs/apps update live. orderedServerIDs is first-to-last sidebar order.
+func (s *ServerService) ReorderUserServers(ctx context.Context, userID string, orderedServerIDs []string) error {
+	uID, err := idToInt64(userID)
+	if err != nil {
+		return errors.New("invalid user ID")
+	}
+	ids := make([]int64, 0, len(orderedServerIDs))
+	for _, sid := range orderedServerIDs {
+		n, err := idToInt64(sid)
+		if err != nil {
+			return errors.New("invalid server ID: " + sid)
+		}
+		ids = append(ids, n)
+	}
+	if err := s.repo.ReorderUserServers(ctx, uID, ids); err != nil {
+		return err
+	}
+	if s.hub != nil {
+		payload, err := json.Marshal(map[string]any{"server_ids": orderedServerIDs})
+		if err == nil {
+			_ = s.hub.SendToUser(userID, ws.EventUserServersReorder, payload)
+		}
+	}
+	return nil
+}
+
 func (s *ServerService) GetUserServers(ctx context.Context, userID string) ([]*Server, error) {
 	if userID == "" {
 		return nil, errors.New("user ID is required")

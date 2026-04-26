@@ -964,6 +964,21 @@ ALTER TABLE dm_messages ADD COLUMN IF NOT EXISTS system_event JSONB;`,
 	// in unique indexes — multiple (NULL, NULL) rows for groups are fine.
 	`ALTER TABLE dm_channels ALTER COLUMN user1_id DROP NOT NULL;
 ALTER TABLE dm_channels ALTER COLUMN user2_id DROP NOT NULL;`,
+
+	// Migration #67: per-user server ordering for the sidebar. Each
+	// (server_id, user_id) row gets a position; the sidebar renders ordered
+	// by it. Backfill assigns sequential positions per user based on join
+	// order so existing accounts keep a sensible default.
+	`ALTER TABLE server_members ADD COLUMN IF NOT EXISTS position INTEGER NOT NULL DEFAULT 0;
+WITH numbered AS (
+    SELECT id,
+           ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY joined_at, id) - 1 AS new_pos
+    FROM server_members
+)
+UPDATE server_members sm SET position = n.new_pos
+  FROM numbered n WHERE sm.id = n.id AND sm.position = 0 AND n.new_pos <> 0;
+CREATE INDEX IF NOT EXISTS idx_server_members_user_position
+    ON server_members(user_id, position);`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

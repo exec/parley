@@ -219,6 +219,8 @@ func registerRoutes(
 			// Server routes
 			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Post("/servers", serverHandler.CreateServer)
 			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/servers", serverHandler.GetUserServers)
+			// /servers/reorder must precede /servers/{id} so chi matches the literal path.
+			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Patch("/servers/reorder", serverHandler.ReorderUserServers)
 			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/servers/{id}", serverHandler.GetServer)
 			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Put("/servers/{id}", serverHandler.UpdateServer)
 			r.With(denyImpersonation, auth.RequireScope(auth.ScopeProfileWrite)).Delete("/servers/{id}", serverHandler.DeleteServer)

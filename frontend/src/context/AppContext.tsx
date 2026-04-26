@@ -81,6 +81,8 @@ interface AppActions {
   createChannel: (name: string, type: number, topic?: string) => Promise<void>;
   deleteChannel: (channelId: string) => Promise<void>;
   reorderChannels: (orders: channelsApi.ChannelOrder[]) => Promise<void>;
+  reorderServers: (serverIds: string[]) => Promise<void>;
+  applyServersReorder: (serverIds: string[]) => void;
   sendMessage: (content: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string, parentId?: string) => Promise<void>;
   editMessage: (messageId: string, content: string) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
@@ -381,6 +383,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await channelsApi.createChannel(activeServer.id, name, type, topic);
     // Channel will be added via CHANNEL_CREATE WebSocket event
   }, [activeServer]);
+
+  // Apply a new server ordering locally (no API call). Used by the WS receiver
+  // when another client of the same user reorders, and as a building block of
+  // reorderServers below.
+  const applyServersReorder = useCallback((serverIds: string[]) => {
+    setServers(prev => {
+      const idx = new Map(serverIds.map((id, i) => [id, i]));
+      const sorted = [...prev].sort((a, b) => {
+        const ai = idx.has(a.id) ? idx.get(a.id)! : Number.MAX_SAFE_INTEGER;
+        const bi = idx.has(b.id) ? idx.get(b.id)! : Number.MAX_SAFE_INTEGER;
+        if (ai !== bi) return ai - bi;
+        return a.id.localeCompare(b.id);
+      });
+      return sorted;
+    });
+  }, []);
+
+  // Persist new sidebar order. Optimistic local update + API call. Backend
+  // broadcasts USER_SERVERS_REORDER to other clients of the same user.
+  const reorderServers = useCallback(async (serverIds: string[]) => {
+    applyServersReorder(serverIds);
+    try {
+      await serversApi.reorderServers(serverIds);
+    } catch (e) {
+      console.error('reorderServers failed', e);
+      // Roll back by re-fetching from the server.
+      try {
+        const fresh = await serversApi.getServers();
+        setServers(fresh ?? []);
+      } catch { /* swallow; keep optimistic state if refresh also fails */ }
+    }
+  }, [applyServersReorder]);
 
   const reorderChannels = useCallback(async (orders: channelsApi.ChannelOrder[]) => {
     if (!activeServer) return;
@@ -922,6 +956,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       createChannel,
       deleteChannel,
       reorderChannels,
+      reorderServers,
+      applyServersReorder,
       sendMessage,
       editMessage,
       deleteMessage,

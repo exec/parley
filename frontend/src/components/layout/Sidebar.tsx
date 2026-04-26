@@ -34,6 +34,8 @@ interface SidebarProps {
   unreadNotificationCount?: number;
   notifPanelOpen?: boolean;
   onToggleNotifPanel?: () => void;
+  /** Persists per-user sidebar order. Receives the new ordered list of server IDs. */
+  onReorderServers?: (serverIds: string[]) => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -53,9 +55,49 @@ const Sidebar: React.FC<SidebarProps> = ({
   unreadNotificationCount = 0,
   notifPanelOpen = false,
   onToggleNotifPanel,
+  onReorderServers,
 }) => {
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [dragSrcId, setDragSrcId] = useState<string | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, serverId: string) => {
+    if (!onReorderServers) return;
+    setDragSrcId(serverId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', serverId);
+  };
+
+  const handleDragOver = (e: React.DragEvent, serverId: string) => {
+    if (!onReorderServers || !dragSrcId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (serverId !== dropTargetId) setDropTargetId(serverId);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetId: string) => {
+    if (!onReorderServers || !dragSrcId) return;
+    e.preventDefault();
+    if (dragSrcId !== targetId) {
+      const ids = servers.map(s => s.id);
+      const fromIdx = ids.indexOf(dragSrcId);
+      const toIdx = ids.indexOf(targetId);
+      if (fromIdx !== -1 && toIdx !== -1) {
+        const next = [...ids];
+        next.splice(fromIdx, 1);
+        next.splice(toIdx, 0, dragSrcId);
+        onReorderServers(next);
+      }
+    }
+    setDragSrcId(null);
+    setDropTargetId(null);
+  };
+
+  const handleDragEnd = () => {
+    setDragSrcId(null);
+    setDropTargetId(null);
+  };
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -106,10 +148,23 @@ const Sidebar: React.FC<SidebarProps> = ({
         {servers.map(server => {
           const isActive = server.id === activeServerId;
           const unread = serverUnreadCounts[server.id] ?? 0;
+          const isDragging = dragSrcId === server.id;
+          const isDropTarget = dropTargetId === server.id && dragSrcId !== null && dragSrcId !== server.id;
+          const cls = [
+            'server-icon-container',
+            isActive ? 'active' : '',
+            isDragging ? 'dragging' : '',
+            isDropTarget ? 'drop-target' : '',
+          ].filter(Boolean).join(' ');
           return (
             <div
               key={server.id}
-              className={`server-icon-container ${isActive ? 'active' : ''}`}
+              className={cls}
+              draggable={!!onReorderServers}
+              onDragStart={e => handleDragStart(e, server.id)}
+              onDragOver={e => handleDragOver(e, server.id)}
+              onDrop={e => handleDrop(e, server.id)}
+              onDragEnd={handleDragEnd}
               onClick={() => onServerSelect(server.id)}
               onContextMenu={e => handleContextMenu(e, server)}
             >

@@ -20,8 +20,9 @@ const (
 	EventChannelDelete = "CHANNEL_DELETE"
 
 	// Server events
-	EventServerUpdate = "SERVER_UPDATE"
-	EventServerDelete = "SERVER_DELETE"
+	EventServerUpdate         = "SERVER_UPDATE"
+	EventServerDelete         = "SERVER_DELETE"
+	EventUserServersReorder   = "USER_SERVERS_REORDER"
 
 	// Member events
 	EventMemberJoin   = "SERVER_MEMBER_JOIN"

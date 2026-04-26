@@ -122,6 +122,29 @@ func (h *Handler) GetUserServers(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, servers)
 }
 
+// ReorderUserServers handles PATCH /servers/reorder. Body: {"server_ids":[...]}.
+// Persists per-user sidebar ordering and broadcasts USER_SERVERS_REORDER to
+// the caller's other open clients.
+func (h *Handler) ReorderUserServers(w http.ResponseWriter, r *http.Request) {
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	var req struct {
+		ServerIDs []string `json:"server_ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if err := h.service.ReorderUserServers(r.Context(), userID, req.ServerIDs); err != nil {
+		httputil.JSONError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // UpdateServer handles PUT /servers/:id
 func (h *Handler) UpdateServer(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")

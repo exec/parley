@@ -81,6 +81,16 @@
   color: var(--bg-primary);
 }
 
+/* Drag-and-drop reorder visuals */
+.server-icon-container.dragging {
+  opacity: 0.4;
+  cursor: grabbing;
+}
+
+.server-icon-container.drop-target {
+  box-shadow: 0 -3px 0 0 var(--parley-accent);
+}
+
 .server-unread-badge {
   position: absolute;
   bottom: -2px;

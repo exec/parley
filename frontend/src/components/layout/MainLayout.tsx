@@ -30,6 +30,7 @@ interface MainLayoutProps {
   unreadNotificationCount?: number;
   notifPanelOpen?: boolean;
   onToggleNotifPanel?: () => void;
+  onReorderServers?: (serverIds: string[]) => void;
 }
 
 const MainLayout: React.FC<MainLayoutProps> = ({
@@ -53,6 +54,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
   unreadNotificationCount,
   notifPanelOpen,
   onToggleNotifPanel,
+  onReorderServers,
 }) => {
   return (
     <div className="main-layout">
@@ -74,6 +76,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
           unreadNotificationCount={unreadNotificationCount}
           notifPanelOpen={notifPanelOpen}
           onToggleNotifPanel={onToggleNotifPanel}
+          onReorderServers={onReorderServers}
         />
         {leftPanel}
       </div>

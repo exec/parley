@@ -118,6 +118,7 @@ interface UseWebSocketOptions {
   onChannelDelete?: (channelId: string, serverId: string) => void;
   onServerUpdate?: (server: Server) => void;
   onServerDelete?: (serverId: string) => void;
+  onUserServersReorder?: (serverIds: string[]) => void;
   onMemberRoleUpdate?: (update: MemberRoleUpdate) => void;
   onUserUpdate?: (update: UserUpdate) => void;
   onVoiceStateUpdate?: (update: VoiceStateUpdate) => void;
@@ -156,7 +157,7 @@ interface UseWebSocketOptions {
   onConnect?: () => void; // Called on every successful (re)connect
 }
 
-export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onServerMemberLeave, onServerMemberKick, onServerMemberBan, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, onChannelCreate, onChannelUpdate, onChannelDelete, onServerUpdate, onServerDelete, onMemberRoleUpdate, onUserUpdate, onVoiceStateUpdate, onVoiceForceMute, onVoiceForceDisconnect, onBinPostCreate, onBinPostUpdate, onBinPostDelete, onChannelOverwriteUpdate, onRoleUpdate, onRoleDelete, onBotStatusUpdate, onDmMessageDelete, onDmChannelCreate, onDmReactionUpdate, onFriendRequest, onFriendAccept, onFriendRemove, onUserStatusUpdate, onSoundboardPlay, onNotification, onChannelReadStateUpdate, onChannelNotificationUpdate, onDmMemberAdd, onDmMemberRemove, onDmChannelUpdate, onActivityStart, onActivityEnd, onCallRing, onCallAccept, onCallDecline, onCallCancel, onCallTimeout, onConnect, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
+export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onServerMemberLeave, onServerMemberKick, onServerMemberBan, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, onChannelCreate, onChannelUpdate, onChannelDelete, onServerUpdate, onServerDelete, onUserServersReorder, onMemberRoleUpdate, onUserUpdate, onVoiceStateUpdate, onVoiceForceMute, onVoiceForceDisconnect, onBinPostCreate, onBinPostUpdate, onBinPostDelete, onChannelOverwriteUpdate, onRoleUpdate, onRoleDelete, onBotStatusUpdate, onDmMessageDelete, onDmChannelCreate, onDmReactionUpdate, onFriendRequest, onFriendAccept, onFriendRemove, onUserStatusUpdate, onSoundboardPlay, onNotification, onChannelReadStateUpdate, onChannelNotificationUpdate, onDmMemberAdd, onDmMemberRemove, onDmChannelUpdate, onActivityStart, onActivityEnd, onCallRing, onCallAccept, onCallDecline, onCallCancel, onCallTimeout, onConnect, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const subscribedChannelsRef = useRef<Set<string>>(new Set());
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -183,6 +184,7 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
   const onChannelDeleteRef = useLatest(onChannelDelete);
   const onServerUpdateRef = useLatest(onServerUpdate);
   const onServerDeleteRef = useLatest(onServerDelete);
+  const onUserServersReorderRef = useLatest(onUserServersReorder);
   const onMemberRoleUpdateRef = useLatest(onMemberRoleUpdate);
   const onUserUpdateRef = useLatest(onUserUpdate);
   const onVoiceStateUpdateRef = useLatest(onVoiceStateUpdate);
@@ -361,6 +363,11 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
           if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
             const p = wsMsg.payload as { server_id: string };
             if (p.server_id) onServerDeleteRef.current(p.server_id);
+          }
+        } else if (wsMsg.type === 'USER_SERVERS_REORDER' && onUserServersReorderRef.current) {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
+            const p = wsMsg.payload as { server_ids?: string[] };
+            if (Array.isArray(p.server_ids)) onUserServersReorderRef.current(p.server_ids);
           }
         } else if (wsMsg.type === 'MEMBER_ROLE_UPDATE' && onMemberRoleUpdateRef.current) {
           if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null) {
