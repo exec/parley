@@ -5,6 +5,9 @@ import { User } from '../../api/types';
 import { updateProfile, resendVerification, changeEmail, verifyPhone, resendPhone, changePhone, getMyPhone } from '../../api/auth';
 import { uploadFile } from '../../api/upload';
 import { listPasskeys, registerPasskey, deletePasskey, renamePasskey, removePassword, PasskeyInfo } from '../../api/passkeys';
+import { deleteAccount, exportMyData, DeleteAccountError, DeleteBlockersError } from '../../api/me';
+import { useApp } from '../../context/AppContext';
+import { Modal } from '../ui/Modal';
 import { DeveloperTab } from './DeveloperTab';
 import { VoiceSettingsTab } from './VoiceSettings';
 import { AppearanceTab } from './AppearanceTab';
@@ -636,7 +639,210 @@ const AccountTab: React.FC<AccountTabProps> = (p) => {
       </div>
 
       <PasskeySection currentUser={p.currentUser} onUpdate={p.onUpdate} />
+
+      <PrivacyDataSection currentUser={p.currentUser} />
     </>
+  );
+};
+
+/* ---- Privacy & data Section ---- */
+interface PrivacyDataSectionProps {
+  currentUser: User | null;
+}
+const PrivacyDataSection: React.FC<PrivacyDataSectionProps> = ({ currentUser }) => {
+  const { logout } = useApp();
+  const [exporting, setExporting] = React.useState(false);
+  const [exportMsg, setExportMsg] = React.useState<{ text: string; ok: boolean } | null>(null);
+
+  const [deleteOpen, setDeleteOpen] = React.useState(false);
+  const [confirmInput, setConfirmInput] = React.useState('');
+  const [deleting, setDeleting] = React.useState(false);
+  const [shake, setShake] = React.useState(false);
+  const [inlineErr, setInlineErr] = React.useState('');
+  const [blockers, setBlockers] = React.useState<DeleteBlockersError | null>(null);
+
+  const handleExport = async () => {
+    if (!currentUser) return;
+    setExporting(true);
+    setExportMsg(null);
+    try {
+      const { blob, filename } = await exportMyData();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename || `parley-export-${currentUser.username}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Defer revoke so the browser has time to start the download.
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setExportMsg({ text: 'Download started.', ok: true });
+    } catch (e: unknown) {
+      setExportMsg({ text: (e as { message?: string })?.message || 'Export failed', ok: false });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const openDelete = () => {
+    setDeleteOpen(true);
+    setConfirmInput('');
+    setInlineErr('');
+    setBlockers(null);
+    setShake(false);
+  };
+  const closeDelete = () => {
+    if (deleting) return;
+    setDeleteOpen(false);
+  };
+
+  const handleDelete = async () => {
+    if (!currentUser) return;
+    if (confirmInput !== currentUser.username) {
+      setShake(true);
+      setInlineErr("Username didn't match");
+      setTimeout(() => setShake(false), 450);
+      return;
+    }
+    setDeleting(true);
+    setInlineErr('');
+    try {
+      await deleteAccount(confirmInput);
+      // 204 — wipe local state and bounce. logout() handles localStorage + redirect.
+      try { localStorage.clear(); } catch { /* ignore */ }
+      logout();
+    } catch (e: unknown) {
+      if (e instanceof DeleteAccountError) {
+        if (e.kind === 'has_blockers' && e.blockers) {
+          setBlockers(e.blockers);
+        } else if (e.kind === 'invalid_confirmation') {
+          setShake(true);
+          setInlineErr("Username didn't match");
+          setTimeout(() => setShake(false), 450);
+        } else {
+          setInlineErr(e.message);
+        }
+      } else {
+        setInlineErr((e as { message?: string })?.message || 'Delete failed');
+      }
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const matches = !!currentUser && confirmInput === currentUser.username;
+
+  return (
+    <div className="settings-section">
+      <div className="settings-section-title">Privacy &amp; data</div>
+
+      <div className="settings-row">
+        <div className="settings-row-info">
+          <div className="settings-row-label">Download my data</div>
+          <div className="settings-row-value">A JSON archive of your profile, messages, friends, and settings.</div>
+        </div>
+        <button
+          className="settings-btn settings-btn-ghost"
+          onClick={handleExport}
+          disabled={exporting}
+          style={{ marginLeft: 12 }}
+        >
+          {exporting ? 'Preparing…' : 'Download'}
+        </button>
+      </div>
+      {exportMsg && (
+        <div style={{ fontSize: 12, color: exportMsg.ok ? 'var(--parley-accent)' : 'var(--parley-danger)', marginTop: -4, marginBottom: 12 }}>
+          {exportMsg.text}
+        </div>
+      )}
+
+      <div className="settings-row" style={{ marginTop: 8 }}>
+        <div className="settings-row-info">
+          <div className="settings-row-label" style={{ color: 'var(--parley-danger)' }}>Delete my account</div>
+          <div className="settings-row-value">Permanently removes your profile and personal data. Cannot be undone.</div>
+        </div>
+        <button
+          className="settings-btn settings-btn-danger"
+          onClick={openDelete}
+          style={{ marginLeft: 12 }}
+        >
+          Delete account
+        </button>
+      </div>
+
+      {deleteOpen && (
+        <Modal isOpen onClose={closeDelete} title="Delete account">
+          {blockers ? (
+            <BlockersBody blockers={blockers} onCancel={closeDelete} />
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <p style={{ fontSize: 13, color: 'var(--parley-text-normal)', margin: 0, lineHeight: 1.5 }}>
+                This permanently deletes your profile, friends, blocks, notifications, and uploaded files. Your messages remain visible to other users but will show as <strong>&lsquo;Deleted User&rsquo;</strong>. <strong>This cannot be undone.</strong>
+              </p>
+              <div>
+                <label className="settings-inline-label">Type your username to confirm:</label>
+                <input
+                  className={`settings-form-input${shake ? ' settings-input-shake' : ''}`}
+                  type="text"
+                  value={confirmInput}
+                  onChange={e => { setConfirmInput(e.target.value); setInlineErr(''); }}
+                  placeholder={currentUser?.username || ''}
+                  autoFocus
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                {inlineErr && (
+                  <div style={{ fontSize: 12, color: 'var(--parley-danger)', marginTop: 6 }}>{inlineErr}</div>
+                )}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button className="settings-btn settings-btn-ghost" onClick={closeDelete} disabled={deleting}>
+                  Cancel
+                </button>
+                <button
+                  className="settings-btn settings-danger-action"
+                  onClick={handleDelete}
+                  disabled={!matches || deleting}
+                >
+                  {deleting ? 'Deleting…' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          )}
+        </Modal>
+      )}
+    </div>
+  );
+};
+
+const BlockersBody: React.FC<{ blockers: DeleteBlockersError; onCancel: () => void }> = ({ blockers, onCancel }) => {
+  const servers = blockers.blocking_servers || [];
+  const groupDms = blockers.blocking_group_dms || [];
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <p style={{ fontSize: 13, color: 'var(--parley-text-normal)', margin: 0, lineHeight: 1.5 }}>
+        You still own the following. Transfer ownership in those servers/group DMs first, then come back here.
+      </p>
+      {servers.length > 0 && (
+        <div>
+          <div className="settings-inline-label">Servers you own</div>
+          <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: 'var(--parley-text-normal)' }}>
+            {servers.map(s => <li key={s.id}>{s.name}</li>)}
+          </ul>
+        </div>
+      )}
+      {groupDms.length > 0 && (
+        <div>
+          <div className="settings-inline-label">Group DMs you own</div>
+          <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: 'var(--parley-text-normal)' }}>
+            {groupDms.map(g => <li key={g.id}>{g.name || 'Unnamed group'}</li>)}
+          </ul>
+        </div>
+      )}
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button className="settings-btn settings-btn-ghost" onClick={onCancel}>Close</button>
+      </div>
+    </div>
   );
 };
 

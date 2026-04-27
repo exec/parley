@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	goredis "github.com/redis/go-redis/v9"
 
+	"parley/internal/account"
 	"parley/internal/ai"
 	"parley/internal/audit"
 	"parley/internal/auth"
@@ -570,6 +571,23 @@ func registerRoutes(
 				r.Post("/me/themes/generate", aiHandler.Generate)
 			})
 			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Put("/themes/{id}/feature", themeHandler.ToggleFeature)
+
+			// Self-serve account deletion. profile:write is the consistent scope
+			// for self-mutating endpoints; denyImpersonation matches every other
+			// /me/* route and ensures a support session cannot irreversibly nuke
+			// the user's account from the impersonation surface.
+			accountSvc := account.NewService(repo, hub, spacesClient, cdnHost)
+			accountHandler := account.NewHandler(accountSvc)
+			r.With(denyImpersonation, auth.RequireScope(auth.ScopeProfileWrite)).Delete("/me", accountHandler.Delete)
+
+			// Self-serve data export (GDPR portability). profile:write because
+			// the export contains every credential-adjacent piece of profile
+			// state and must not be downloadable from a read-only-scoped key.
+			// denyImpersonation: a support session has no business pulling the
+			// user's full message + audit history under their own identity.
+			exportSvc := account.NewExportService(repo)
+			exportHandler := account.NewExportHandler(exportSvc)
+			r.With(denyImpersonation, auth.RequireScope(auth.ScopeProfileWrite)).Get("/me/export", exportHandler.Export)
 		})
 
 		// Interaction-token auth — bearer credential is the token in the URL,

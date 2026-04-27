@@ -1153,3 +1153,28 @@
   color: var(--parley-danger);
   background: rgba(var(--parley-danger-rgb), 0.08);
 }
+
+/* ---- Privacy & data ---- */
+
+.settings-danger-action {
+  background: var(--parley-danger);
+  color: #fff;
+  border: 1px solid var(--parley-danger);
+}
+.settings-danger-action:hover:not(:disabled) {
+  background: var(--parley-danger);
+  filter: brightness(1.1);
+}
+
+.settings-input-shake {
+  animation: settings-input-shake 0.4s ease;
+  border-color: var(--parley-danger) !important;
+}
+
+@keyframes settings-input-shake {
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-6px); }
+  40%      { transform: translateX(6px); }
+  60%      { transform: translateX(-4px); }
+  80%      { transform: translateX(4px); }
+}

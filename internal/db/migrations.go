@@ -993,6 +993,17 @@ CREATE INDEX IF NOT EXISTS idx_server_members_user_position
     CHECK (blocker_id <> blocked_id)
 );
 CREATE INDEX IF NOT EXISTS idx_user_blocks_blocked ON user_blocks(blocked_id);`,
+
+	// Migration #69: seed the [deleted] sentinel user. Self-serve account
+	// deletion reassigns authored content (server messages, DMs, bin posts,
+	// bin line comments) to this sentinel before hard-deleting the original
+	// user, so other participants still see context like "<deleted> said X"
+	// instead of dangling/scrubbed rows. is_system = TRUE makes existing
+	// system-user filters in queries naturally exclude it from member lists,
+	// search results, and friend suggestions. Idempotent re-run safe.
+	`INSERT INTO users (username, email, password_hash, is_system, display_name, created_at, updated_at)
+VALUES ('deleted', 'deleted@parley.invalid', '!', TRUE, 'Deleted User', NOW(), NOW())
+ON CONFLICT (username) DO NOTHING;`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string
