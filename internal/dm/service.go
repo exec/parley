@@ -18,7 +18,18 @@ import (
 var (
 	ErrNotFound  = errors.New("not found")
 	ErrForbidden = errors.New("forbidden")
+	ErrNotFriend = errors.New("not_friend")
+	ErrBlocked   = errors.New("blocked")
 )
+
+// FriendChecker is the slice of friend.Service this package needs. Wired via
+// Service.SetFriendChecker from cmd/api/routes.go to avoid an import cycle
+// (internal/friend already imports internal/db; internal/dm already imports
+// internal/db; both need to coordinate without importing each other).
+type FriendChecker interface {
+	IsFriend(ctx context.Context, a, b int64) (bool, error)
+	IsEitherBlocked(ctx context.Context, a, b int64) (bool, error)
+}
 
 // dmRepo is the repository surface the Service uses. Defined as an interface
 // so tests can inject an in-memory fake without needing a real database.
@@ -48,12 +59,44 @@ type dmHub interface {
 // Service rather than touching the repository directly for any state-mutating
 // operation that has cross-cutting concerns.
 type Service struct {
-	repo dmRepo
-	hub  dmHub
+	repo    dmRepo
+	hub     dmHub
+	friends FriendChecker // optional; nil-safe — gating skipped when unset (tests)
 }
 
 func NewService(repo *db.Repository, hub *ws.Hub) *Service {
 	return &Service{repo: repo, hub: hub}
+}
+
+// SetFriendChecker wires the friend service so DM gating can consult friendship
+// and block state. Called from cmd/api wiring after both services are built.
+func (s *Service) SetFriendChecker(fc FriendChecker) { s.friends = fc }
+
+// gateAddTarget rejects the operation if actor and target are blocked in
+// either direction, or — when requireFriend — are not friends. Nil-safe:
+// returns nil immediately when no FriendChecker is wired (test path).
+func (s *Service) gateAddTarget(ctx context.Context, actor, target int64, requireFriend bool) error {
+	if s.friends == nil {
+		return nil
+	}
+	blocked, err := s.friends.IsEitherBlocked(ctx, actor, target)
+	if err != nil {
+		return err
+	}
+	if blocked {
+		return ErrBlocked
+	}
+	if !requireFriend {
+		return nil
+	}
+	friend, err := s.friends.IsFriend(ctx, actor, target)
+	if err != nil {
+		return err
+	}
+	if !friend {
+		return ErrNotFriend
+	}
+	return nil
 }
 
 // resolveDisplayName fetches the user's display name (falling back to username)
@@ -81,7 +124,21 @@ func (s *Service) CreateChannel(ctx context.Context, actorUserID int64, otherUse
 	}
 
 	if len(others) == 1 {
+		// 1:1 DMs are a discovery surface — no friend requirement, but
+		// blocks in either direction kill the request.
+		if err := s.gateAddTarget(ctx, actorUserID, others[0], false); err != nil {
+			return nil, err
+		}
 		return s.repo.GetOrCreateDmChannel(ctx, actorUserID, others[0])
+	}
+
+	// Group path: every invitee must be a friend of the actor (and no
+	// blocks in either direction). GCs force PII (avatar/status/presence)
+	// onto every member; friends-only is the cheapest defensible boundary.
+	for _, uid := range others {
+		if err := s.gateAddTarget(ctx, actorUserID, uid, true); err != nil {
+			return nil, err
+		}
 	}
 
 	// Group path
@@ -152,6 +209,14 @@ func (s *Service) AddMembers(ctx context.Context, channelID, actorUserID int64, 
 		// Skip if already a member (idempotent)
 		if already, _ := s.repo.IsDmMember(ctx, channelID, uid); already {
 			continue
+		}
+		// Friends-only invite (mirrors the GC-create rule). Blocks in
+		// either direction also reject. Done per-target so the partial
+		// add of friends still succeeds when one invitee is a non-friend
+		// would short-circuit — current call sites pass single users at a
+		// time from the UI, so this is fine.
+		if err := s.gateAddTarget(ctx, actorUserID, uid, true); err != nil {
+			return err
 		}
 		if err := s.repo.AddDmMember(ctx, channelID, uid); err != nil {
 			return err

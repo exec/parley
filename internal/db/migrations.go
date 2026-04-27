@@ -979,6 +979,20 @@ UPDATE server_members sm SET position = n.new_pos
   FROM numbered n WHERE sm.id = n.id AND sm.position = 0 AND n.new_pos <> 0;
 CREATE INDEX IF NOT EXISTS idx_server_members_user_position
     ON server_members(user_id, position);`,
+
+	// Migration #68: per-user block list. Asymmetric — A blocking B does
+	// not block B from being blocked by A (independent rows). Composite PK
+	// prevents duplicate-block races. Idx on blocked_id supports the "has
+	// X been blocked by anyone (relevant to me)?" reverse lookup we use to
+	// suppress notifications and gate friend requests.
+	`CREATE TABLE IF NOT EXISTS user_blocks (
+    blocker_id  BIGINT      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    blocked_id  BIGINT      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (blocker_id, blocked_id),
+    CHECK (blocker_id <> blocked_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_blocks_blocked ON user_blocks(blocked_id);`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

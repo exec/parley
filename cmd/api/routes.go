@@ -114,6 +114,10 @@ func registerRoutes(
 	// Per-user creation limits — friend requests, servers, DM channels. Sized
 	// for normal use while making spam / username enumeration impractical.
 	friendReqLimiter := newRateLimiterFor(rdb, 10, time.Hour)
+	// Per-actor ring rate. Audit #3: ring spam → modal/audio DoS + transcript
+	// flood. 5/min on initiate AND cancel keeps spammers from rapidly cycling
+	// to bypass the timeout-based dedup.
+	ringInitiateLimiter := newRateLimiterFor(rdb, 5, time.Minute)
 	serverCreateLimiter := newRateLimiterFor(rdb, 10, time.Hour)
 	dmCreateLimiter := newRateLimiterFor(rdb, 30, time.Hour)
 	// Rate limiter for bot slash-command registration (PUT/POST/DELETE): 50 per
@@ -319,6 +323,14 @@ func registerRoutes(
 			// bot's own account).
 			notifSvc := notification.New(repo, hub)
 			messageService.SetMentionNotify(notifSvc.NotifyMentions)
+
+			// Friend service — built early so dm/ring/notification can all
+			// depend on it (block + friend checks). Routes wired below.
+			friendSvc := friend.NewService(repo, hub)
+			friendSvc.SetNotifyFriendRequest(notifSvc.NotifyFriendRequest)
+			friendSvc.SetNotifyFriendAccept(notifSvc.NotifyFriendAccept)
+			notifSvc.SetBlockChecker(friendSvc)
+
 			notifHandler := notification.NewHandler(repo)
 			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/notifications", notifHandler.GetNotifications)
 			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Patch("/notifications/read-all", notifHandler.MarkAllRead)
@@ -336,6 +348,7 @@ func registerRoutes(
 			// and messages:write (open/send/delete/react/forward).
 			dmHandler := dm.NewHandler(repo, hub)
 			dmHandler.SetDmNotify(notifSvc.NotifyDM)
+			dmHandler.Service().SetFriendChecker(friendSvc)
 			// Wire the cross-package forward resolver: ForwardToDm needs to
 			// load + perm-check the source message via message.MessageService,
 			// but we can't import internal/message into internal/dm without a
@@ -371,12 +384,13 @@ func registerRoutes(
 			// 1:1 ring lifecycle + GC start + active rings rehydration.
 			dmEmitter := voice.DmEmitterFromService(dmHandler.Service())
 			ringSvc := voice.NewRingService(hub, dmEmitter, voiceSvc)
+			ringSvc.SetFriendChecker(friendSvc)
 			ringHandler := voice.NewRingHandler(ringSvc, repo)
 			ringHandler.SetCallStarter(dmEmitter)
-			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/call/ring", ringHandler.Ring)
+			r.With(auth.RequireScope(auth.ScopeMessagesWrite), userRateLimitMiddleware(ringInitiateLimiter)).Post("/dms/{id}/call/ring", ringHandler.Ring)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/call/accept", ringHandler.Accept)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/call/decline", ringHandler.Decline)
-			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/call/cancel", ringHandler.Cancel)
+			r.With(auth.RequireScope(auth.ScopeMessagesWrite), userRateLimitMiddleware(ringInitiateLimiter)).Post("/dms/{id}/call/cancel", ringHandler.Cancel)
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/dms/{id}/call/start", ringHandler.Start)
 			r.With(auth.RequireScope(auth.ScopeMessagesRead)).Get("/calls/active", ringHandler.Active)
 
@@ -386,11 +400,10 @@ func registerRoutes(
 			r.With(auth.RequireScope(auth.ScopeMessagesWrite)).Post("/voice/{vc}/activity/end", activityHandler.End)
 			r.With(auth.RequireScope(auth.ScopeMessagesRead)).Get("/voice/{vc}/activity", activityHandler.Get)
 
-			// Friend routes — profile-level state (the bot's friends list);
-			// scoped on profile:write for all mutations, servers:read for reads.
-			friendSvc := friend.NewService(repo, hub)
-			friendSvc.SetNotifyFriendRequest(notifSvc.NotifyFriendRequest)
-			friendSvc.SetNotifyFriendAccept(notifSvc.NotifyFriendAccept)
+			// Friend + block routes — profile-level state (the bot's friends list +
+			// blocks); scoped on profile:write for mutations, servers:read for reads.
+			// friendSvc is built earlier (above notifSvc setup) so dm/ring can wire
+			// gates against it.
 			friendHandler := friend.NewHandler(friendSvc)
 			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/friends", friendHandler.GetFriends)
 			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/friend-requests", friendHandler.GetRequests)
@@ -398,6 +411,9 @@ func registerRoutes(
 			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Post("/friend-requests/{id}/accept", friendHandler.AcceptRequest)
 			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Delete("/friend-requests/{id}", friendHandler.DeclineOrCancel)
 			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Delete("/friends/{userId}", friendHandler.RemoveFriend)
+			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/blocks", friendHandler.GetBlocks)
+			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Post("/users/{userId}/block", friendHandler.Block)
+			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Delete("/users/{userId}/block", friendHandler.Unblock)
 
 			// Bin routes — posts and line-comments are first-class messages
 			// (authored content that surfaces in a channel). Scope them on

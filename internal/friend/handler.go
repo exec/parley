@@ -88,13 +88,14 @@ func (h *Handler) SendRequest(w http.ResponseWriter, r *http.Request) {
 			httputil.JSONError(w, "already friends", http.StatusBadRequest)
 		case ErrPending:
 			httputil.JSONError(w, "friend request already pending", http.StatusBadRequest)
-		case ErrUserNotFound:
-			// Don't disclose whether the username exists. Combined with the
-			// per-user rate limit, this kills username enumeration via friend
-			// requests. Return a synthetic-looking pending request so the
-			// client UX is identical to a real send; on refresh it disappears
-			// because nothing was persisted.
-			log.Printf("friend.SendRequest: target username does not exist (sender=%d)", uid)
+		case ErrUserNotFound, ErrBlocked:
+			// Don't disclose whether the username exists or whether the
+			// recipient has blocked the sender. Combined with the per-user
+			// rate limit, this kills username enumeration AND block-status
+			// enumeration via friend requests. Return a synthetic-looking
+			// pending request so the client UX is identical to a real send;
+			// on refresh it disappears because nothing was persisted.
+			log.Printf("friend.SendRequest: target unreachable (sender=%d, err=%v)", uid, err)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
 			json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck
@@ -170,6 +171,67 @@ func (h *Handler) DeclineOrCancel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// Block handles POST /users/{userId}/block
+func (h *Handler) Block(w http.ResponseWriter, r *http.Request) {
+	uid, ok := currentUser(r)
+	if !ok {
+		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
+		return
+	}
+	otherID, err := strconv.ParseInt(chi.URLParam(r, "userId"), 10, 64)
+	if err != nil {
+		httputil.JSONError(w, "invalid user id", http.StatusBadRequest)
+		return
+	}
+	if err := h.svc.Block(r.Context(), uid, otherID); err != nil {
+		switch err {
+		case ErrSelf:
+			httputil.JSONError(w, "cannot block yourself", http.StatusBadRequest)
+		default:
+			log.Printf("friend.Block: %v", err)
+			httputil.JSONError(w, "failed to block user", http.StatusInternalServerError)
+		}
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// Unblock handles DELETE /users/{userId}/block
+func (h *Handler) Unblock(w http.ResponseWriter, r *http.Request) {
+	uid, ok := currentUser(r)
+	if !ok {
+		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
+		return
+	}
+	otherID, err := strconv.ParseInt(chi.URLParam(r, "userId"), 10, 64)
+	if err != nil {
+		httputil.JSONError(w, "invalid user id", http.StatusBadRequest)
+		return
+	}
+	if err := h.svc.Unblock(r.Context(), uid, otherID); err != nil {
+		log.Printf("friend.Unblock: %v", err)
+		httputil.JSONError(w, "failed to unblock user", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// GetBlocks handles GET /blocks
+func (h *Handler) GetBlocks(w http.ResponseWriter, r *http.Request) {
+	uid, ok := currentUser(r)
+	if !ok {
+		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
+		return
+	}
+	users, err := h.svc.GetBlocks(r.Context(), uid)
+	if err != nil {
+		httputil.JSONError(w, "failed to get blocks", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(users) //nolint:errcheck
 }
 
 // RemoveFriend handles DELETE /friends/{userId}

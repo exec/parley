@@ -19,7 +19,9 @@ import (
 )
 
 // DmNotifyFunc is called after a DM is sent to create a notification for the recipient.
-type DmNotifyFunc func(ctx context.Context, recipientID int64, authorUsername, authorAvatarURL string, dmChannelID int64)
+// authorID is threaded so the notification layer can suppress delivery when the
+// recipient has blocked the sender.
+type DmNotifyFunc func(ctx context.Context, recipientID, authorID int64, authorUsername, authorAvatarURL string, dmChannelID int64)
 
 // ForwardSourceResolver resolves a forward request's source message into a
 // server-derived snapshot, after verifying the actor can read the source.
@@ -139,6 +141,14 @@ func (h *Handler) OpenDmChannel(w http.ResponseWriter, r *http.Request) {
 
 	channel, err := h.svc.CreateChannel(r.Context(), currentUserID, otherIDs, req.Name)
 	if err != nil {
+		switch {
+		case errors.Is(err, ErrNotFriend):
+			httputil.JSONError(w, "can only group-DM friends", http.StatusForbidden)
+			return
+		case errors.Is(err, ErrBlocked):
+			httputil.JSONError(w, "blocked", http.StatusForbidden)
+			return
+		}
 		if err.Error() == "must include at least one other user" {
 			httputil.JSONError(w, err.Error(), http.StatusBadRequest)
 			return
@@ -369,7 +379,7 @@ func (h *Handler) SendDmMessage(w http.ResponseWriter, r *http.Request) {
 						continue
 					}
 					recipientID := m.UserID
-					go notifyFn(context.Background(), recipientID, senderUsername, senderAvatarURL, dmChannelID)
+					go notifyFn(context.Background(), recipientID, currentUserID, senderUsername, senderAvatarURL, dmChannelID)
 				}
 			}
 		} else {
@@ -377,7 +387,7 @@ func (h *Handler) SendDmMessage(w http.ResponseWriter, r *http.Request) {
 			if channel.User1ID == currentUserID {
 				recipientID = channel.User2ID
 			}
-			go notifyFn(context.Background(), recipientID, senderUsername, senderAvatarURL, dmChannelID)
+			go notifyFn(context.Background(), recipientID, currentUserID, senderUsername, senderAvatarURL, dmChannelID)
 		}
 	}
 
@@ -643,6 +653,14 @@ func (h *Handler) AddMembers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.svc.AddMembers(r.Context(), channelID, actorID, newIDs); err != nil {
+		switch {
+		case errors.Is(err, ErrNotFriend):
+			httputil.JSONError(w, "can only add friends to a group", http.StatusForbidden)
+			return
+		case errors.Is(err, ErrBlocked):
+			httputil.JSONError(w, "blocked", http.StatusForbidden)
+			return
+		}
 		msg := err.Error()
 		if strings.Contains(msg, "not a member") || strings.Contains(msg, "not a group") || strings.Contains(msg, "capacity") {
 			httputil.JSONError(w, msg, http.StatusBadRequest)

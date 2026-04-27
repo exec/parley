@@ -1,19 +1,22 @@
 import React, { useState } from 'react';
-import { Users, Inbox } from 'lucide-react';
+import { Users, Inbox, ShieldAlert } from 'lucide-react';
 import { FriendUser, FriendRequestsResponse } from '../../api/types';
 import './FriendsView.css';
 
-type Tab = 'all' | 'pending' | 'add';
+type Tab = 'all' | 'pending' | 'add' | 'blocked';
 
 interface FriendsViewProps {
   friends: FriendUser[];
   friendRequests: FriendRequestsResponse;
+  blockedUsers: FriendUser[];
   onlineUserIds: Set<string>;
   currentUserId: string;
   onMessage: (userId: string) => void;
   onAccept: (requestId: string) => Promise<void>;
   onDeclineOrCancel: (requestId: string) => Promise<void>;
   onRemove: (userId: string) => Promise<void>;
+  onBlock: (userId: string) => Promise<void>;
+  onUnblock: (userId: string) => Promise<void>;
   onSendRequest: (username: string) => Promise<void>;
 }
 
@@ -31,11 +34,14 @@ const FriendAvatar: React.FC<{ user: FriendUser; online: boolean }> = ({ user, o
 const FriendsView: React.FC<FriendsViewProps> = ({
   friends,
   friendRequests,
+  blockedUsers,
   onlineUserIds,
   onMessage,
   onAccept,
   onDeclineOrCancel,
   onRemove,
+  onBlock,
+  onUnblock,
   onSendRequest,
 }) => {
   const [tab, setTab] = useState<Tab>('all');
@@ -85,6 +91,9 @@ const FriendsView: React.FC<FriendsViewProps> = ({
           Pending
           {pendingCount > 0 && <span className="friends-tab-badge">{pendingCount}</span>}
         </button>
+        <button className={`friends-tab ${tab === 'blocked' ? 'active' : ''}`} onClick={() => setTab('blocked')}>
+          Blocked
+        </button>
         <button className={`friends-tab ${tab === 'add' ? 'active' : ''}`} onClick={() => setTab('add')}>
           Add Friend
         </button>
@@ -108,7 +117,8 @@ const FriendsView: React.FC<FriendsViewProps> = ({
                     <span className="friends-name">{f.display_name || f.username}</span>
                     <div className="friends-actions">
                       <button className="friends-btn primary" onClick={() => onMessage(f.id)}>Message</button>
-                      <button className="friends-btn danger" onClick={() => onRemove(f.id)}>Remove</button>
+                      <button className="friends-btn ghost" onClick={() => onRemove(f.id)}>Remove</button>
+                      <button className="friends-btn danger" onClick={() => onBlock(f.id)}>Block</button>
                     </div>
                   </div>
                 ))}
@@ -152,6 +162,31 @@ const FriendsView: React.FC<FriendsViewProps> = ({
                     <span className="friends-name">{req.user.display_name || req.user.username}</span>
                     <div className="friends-actions" style={{ opacity: 1 }}>
                       <button className="friends-btn ghost" onClick={() => onDeclineOrCancel(req.id)}>Cancel</button>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+          </>
+        )}
+
+        {tab === 'blocked' && (
+          <>
+            {blockedUsers.length === 0 ? (
+              <div className="friends-empty">
+                <ShieldAlert className="friends-empty-icon" size={48} strokeWidth={1.5} aria-hidden="true" />
+                <div className="friends-empty-title">No blocked users</div>
+                <div className="friends-empty-hint">Blocked users can't DM, ring, or send you friend requests.</div>
+              </div>
+            ) : (
+              <>
+                <div className="friends-section-label">Blocked — {blockedUsers.length}</div>
+                {blockedUsers.map(u => (
+                  <div key={u.id} className="friends-list-item">
+                    <FriendAvatar user={u} online={false} />
+                    <span className="friends-name">{u.display_name || u.username}</span>
+                    <div className="friends-actions">
+                      <button className="friends-btn ghost" onClick={() => onUnblock(u.id)}>Unblock</button>
                     </div>
                   </div>
                 ))}

@@ -64,6 +64,7 @@ interface AppState {
   friends: FriendUser[];
   friendRequests: FriendRequestsResponse;
   pendingRequestCount: number;
+  blockedUsers: FriendUser[];
   pendingJumpMessageId: string | null;
   notifications: AppNotification[];
   unreadNotificationCount: number;
@@ -123,6 +124,9 @@ interface AppActions {
   acceptFriendRequest: (requestId: string) => Promise<void>;
   declineOrCancelRequest: (requestId: string) => Promise<void>;
   removeFriend: (userId: string) => Promise<void>;
+  blockUser: (userId: string) => Promise<void>;
+  unblockUser: (userId: string) => Promise<void>;
+  loadBlockedUsers: () => Promise<void>;
   receiveFriendRequest: (req: FriendRequest) => void;
   receiveFriendAccept: (user: FriendUser) => void;
   receiveFriendRemove: (userId: string) => void;
@@ -178,6 +182,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isLoadingDms, setIsLoadingDms] = useState(false);
   const [friends, setFriends] = useState<FriendUser[]>([]);
   const [friendRequests, setFriendRequests] = useState<FriendRequestsResponse>({ incoming: [], outgoing: [] });
+  const [blockedUsers, setBlockedUsers] = useState<FriendUser[]>([]);
 
   const pendingRequestCount = friendRequests.incoming.length;
   const [pendingJumpMessageId, setPendingJumpMessageId] = useState<string | null>(null);
@@ -223,6 +228,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       .catch(console.error);
     friendsApi.getFriendRequests()
       .then(data => setFriendRequests(data ?? { incoming: [], outgoing: [] }))
+      .catch(console.error);
+    friendsApi.getBlockedUsers()
+      .then(data => setBlockedUsers(data ?? []))
       .catch(console.error);
   }, [currentUser?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -885,6 +893,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setFriends(prev => prev.filter(f => f.id !== userId));
   }, []);
 
+  const loadBlockedUsers = useCallback(async () => {
+    try {
+      const data = await friendsApi.getBlockedUsers();
+      setBlockedUsers(data ?? []);
+    } catch (err) {
+      console.error('loadBlockedUsers:', err);
+    }
+  }, []);
+
+  const blockUser = useCallback(async (userId: string) => {
+    await friendsApi.blockUser(userId);
+    // Block server-side also clears any friendship + pending requests; mirror that locally.
+    setFriends(prev => prev.filter(f => f.id !== userId));
+    setFriendRequests(prev => ({
+      incoming: prev.incoming.filter(r => r.user.id !== userId),
+      outgoing: prev.outgoing.filter(r => r.user.id !== userId),
+    }));
+    // Reload blocked list to pick up the new entry with full profile data.
+    void loadBlockedUsers();
+  }, [loadBlockedUsers]);
+
+  const unblockUser = useCallback(async (userId: string) => {
+    await friendsApi.unblockUser(userId);
+    setBlockedUsers(prev => prev.filter(u => u.id !== userId));
+  }, []);
+
   // WS event handlers
   const receiveFriendRequest = useCallback((req: FriendRequest) => {
     setFriendRequests(prev => {
@@ -1005,6 +1039,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       acceptFriendRequest,
       declineOrCancelRequest,
       removeFriend,
+      blockedUsers,
+      blockUser,
+      unblockUser,
+      loadBlockedUsers,
       receiveFriendRequest,
       receiveFriendAccept,
       receiveFriendRemove,

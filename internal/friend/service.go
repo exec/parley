@@ -37,8 +37,10 @@ type FriendRequestsResponse struct {
 	Outgoing []FriendRequest `json:"outgoing"`
 }
 
-// FriendNotifyFunc is called to fire a notification.
-type FriendNotifyFunc func(ctx context.Context, recipientID int64, username, avatarURL string)
+// FriendNotifyFunc is called to fire a notification. actorID is threaded so
+// the notification layer can suppress delivery when the recipient has blocked
+// the actor.
+type FriendNotifyFunc func(ctx context.Context, recipientID, actorID int64, username, avatarURL string)
 
 // Service handles all friend business logic and DB access.
 type Service struct {
@@ -149,6 +151,7 @@ var (
 	ErrNotFound       = errors.New("request not found")
 	ErrForbidden      = errors.New("not your request")
 	ErrUserNotFound   = errors.New("user not found")
+	ErrBlocked        = errors.New("blocked")
 )
 
 // SendRequest creates a pending friend request from senderID to the user with the given username.
@@ -183,6 +186,22 @@ func (s *Service) SendRequest(ctx context.Context, senderID int64, username stri
 		lo, hi = hi, lo
 	}
 	if _, err := tx.ExecContext(ctx, `SELECT id FROM users WHERE id IN ($1,$2) ORDER BY id FOR UPDATE`, lo, hi); err != nil {
+		return nil, err
+	}
+
+	// Reject if either side has blocked the other. Done inside the tx so a
+	// concurrent block lands deterministically before the request insert.
+	var blockExists int
+	if err := tx.QueryRowContext(ctx, `
+		SELECT 1 FROM user_blocks
+		WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)
+		LIMIT 1
+	`, senderID, receiverID).Scan(&blockExists); err == nil {
+		// Don't disclose the direction. Treat both as a generic ErrUserNotFound
+		// at the handler layer to avoid an enumeration oracle ("did this user
+		// block me, or do they not exist?").
+		return nil, ErrBlocked
+	} else if err != sql.ErrNoRows {
 		return nil, err
 	}
 
@@ -243,7 +262,7 @@ func (s *Service) SendRequest(ctx context.Context, senderID int64, username stri
 	// Fire notification asynchronously
 	if s.notifyRequest != nil {
 		fn := s.notifyRequest
-		go fn(ctx, receiverID, senderUsername, senderAvatar)
+		go fn(ctx, receiverID, senderID, senderUsername, senderAvatar)
 	}
 
 	return req, nil
@@ -287,7 +306,7 @@ func (s *Service) AcceptRequest(ctx context.Context, requestID, currentUserID in
 	// Fire accept notification to the original sender
 	if s.notifyAccept != nil {
 		fn := s.notifyAccept
-		go fn(ctx, senderID, receiverUser.Username, receiverUser.AvatarURL)
+		go fn(ctx, senderID, receiverID, receiverUser.Username, receiverUser.AvatarURL)
 	}
 
 	return senderUser, nil
@@ -371,4 +390,110 @@ func (s *Service) IsFriend(ctx context.Context, userID1, userID2 int64) (bool, e
 		  AND status='accepted'
 	`, userID1, userID2).Scan(&count)
 	return count > 0, err
+}
+
+// IsBlocked returns true if blockerID has blocked blockedID. Direction-sensitive.
+func (s *Service) IsBlocked(ctx context.Context, blockerID, blockedID int64) (bool, error) {
+	var n int
+	err := s.db.QueryRowContext(ctx,
+		`SELECT 1 FROM user_blocks WHERE blocker_id=$1 AND blocked_id=$2 LIMIT 1`,
+		blockerID, blockedID,
+	).Scan(&n)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+// IsEitherBlocked returns true if either party has blocked the other. Used by
+// callers (DM, ring, notification) that don't care about direction — they just
+// need to know whether to refuse the action.
+func (s *Service) IsEitherBlocked(ctx context.Context, userA, userB int64) (bool, error) {
+	var n int
+	err := s.db.QueryRowContext(ctx, `
+		SELECT 1 FROM user_blocks
+		WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)
+		LIMIT 1
+	`, userA, userB).Scan(&n)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+// Block creates a one-way block from actorID to targetID. Side effects:
+//   - any accepted friendship between the two is removed
+//   - any pending friend_requests between the two are deleted
+//   - FRIEND_REMOVE is broadcast to the target so their UI drops the row
+//
+// Idempotent: re-blocking is a no-op (returns nil).
+func (s *Service) Block(ctx context.Context, actorID, targetID int64) error {
+	if actorID == targetID {
+		return ErrSelf
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO user_blocks (blocker_id, blocked_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+		actorID, targetID,
+	); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		DELETE FROM friend_requests
+		WHERE (sender_id=$1 AND receiver_id=$2) OR (sender_id=$2 AND receiver_id=$1)
+	`, actorID, targetID); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	// Notify the target so their friends/requests UI drops the row. We don't
+	// tell them they were blocked; the FRIEND_REMOVE event is the same one
+	// fired on a normal unfriend, so the UX is indistinguishable.
+	s.sendToUser(strconv.FormatInt(targetID, 10), ws.EventFriendRemove,
+		map[string]string{"user_id": strconv.FormatInt(actorID, 10)})
+	return nil
+}
+
+// Unblock removes the actorID → targetID block. Idempotent.
+func (s *Service) Unblock(ctx context.Context, actorID, targetID int64) error {
+	_, err := s.db.ExecContext(ctx,
+		`DELETE FROM user_blocks WHERE blocker_id=$1 AND blocked_id=$2`,
+		actorID, targetID,
+	)
+	return err
+}
+
+// GetBlocks returns the users actorID has blocked.
+func (s *Service) GetBlocks(ctx context.Context, actorID int64) ([]FriendUser, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT u.id, u.username, COALESCE(u.display_name,''), COALESCE(u.avatar_url,'')
+		FROM user_blocks b
+		JOIN users u ON u.id = b.blocked_id
+		WHERE b.blocker_id = $1
+		ORDER BY u.username
+	`, actorID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []FriendUser{}
+	for rows.Next() {
+		var u FriendUser
+		var id int64
+		if err := rows.Scan(&id, &u.Username, &u.DisplayName, &u.AvatarURL); err != nil {
+			return nil, err
+		}
+		u.ID = strconv.FormatInt(id, 10)
+		out = append(out, u)
+	}
+	return out, rows.Err()
 }

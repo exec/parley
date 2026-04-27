@@ -24,3 +24,15 @@ export async function declineOrCancelRequest(requestId: string): Promise<void> {
 export async function removeFriend(userId: string): Promise<void> {
   return apiClient.delete(`/friends/${userId}`);
 }
+
+export async function getBlockedUsers(): Promise<FriendUser[]> {
+  return apiClient.get<FriendUser[]>('/blocks');
+}
+
+export async function blockUser(userId: string): Promise<void> {
+  return apiClient.post(`/users/${userId}/block`);
+}
+
+export async function unblockUser(userId: string): Promise<void> {
+  return apiClient.delete(`/users/${userId}/block`);
+}

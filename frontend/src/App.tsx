@@ -139,6 +139,9 @@ function MainApp() {
     acceptFriendRequest,
     declineOrCancelRequest,
     removeFriend,
+    blockedUsers,
+    blockUser,
+    unblockUser,
     receiveFriendRequest,
     receiveFriendAccept,
     receiveFriendRemove,
@@ -1326,12 +1329,15 @@ function MainApp() {
           <FriendsView
             friends={friends}
             friendRequests={friendRequests}
+            blockedUsers={blockedUsers}
             onlineUserIds={onlineUsers}
             currentUserId={currentUser?.id ?? ''}
             onMessage={handleFriendMessage}
             onAccept={acceptFriendRequest}
             onDeclineOrCancel={declineOrCancelRequest}
             onRemove={removeFriend}
+            onBlock={blockUser}
+            onUnblock={unblockUser}
             onSendRequest={sendFriendRequest}
           />
         </div>

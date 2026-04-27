@@ -119,7 +119,14 @@ func (h *RingHandler) Ring(w http.ResponseWriter, r *http.Request) {
 	}
 	id, err := h.rs.Initiate(r.Context(), dmID, userID, targetID, info)
 	if err != nil {
-		httputil.JSONError(w, "ring failed", http.StatusInternalServerError)
+		switch {
+		case errors.Is(err, ErrRingNotFriend):
+			httputil.JSONError(w, "can only ring friends", http.StatusForbidden)
+		case errors.Is(err, ErrRingBlocked):
+			httputil.JSONError(w, "blocked", http.StatusForbidden)
+		default:
+			httputil.JSONError(w, "ring failed", http.StatusInternalServerError)
+		}
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")

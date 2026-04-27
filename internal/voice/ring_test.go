@@ -187,7 +187,10 @@ func TestDecline_TerminatesAndEmitsDeclined(t *testing.T) {
 	dm.mu.Unlock()
 }
 
-func TestCancel_TerminatesAndEmitsMissed(t *testing.T) {
+// TestCancel_QuickSuppressesMissed: a cancel landing within quickCancelWindow
+// of ring start sends CALL_CANCEL but suppresses the call_missed system
+// message. Anti-spam: a bot rapidly ring/cancel-ing can't flood the transcript.
+func TestCancel_QuickSuppressesMissed(t *testing.T) {
 	rs, hub, dm := newRingTestService()
 	id, _ := rs.Initiate(context.Background(), 10, 1, 2, ringCallerInfo{})
 
@@ -206,8 +209,34 @@ func TestCancel_TerminatesAndEmitsMissed(t *testing.T) {
 		t.Error("expected CALL_CANCEL to target")
 	}
 	dm.mu.Lock()
+	if dm.missed != 0 {
+		t.Errorf("quick cancel: expected dm.Missed=0 (suppressed), got %d", dm.missed)
+	}
+	dm.mu.Unlock()
+}
+
+// TestCancel_AfterWindowEmitsMissed: cancels arriving after quickCancelWindow
+// still emit call_missed (the ring was long enough that the recipient may
+// have noticed and we want the transcript record).
+func TestCancel_AfterWindowEmitsMissed(t *testing.T) {
+	rs, _, dm := newRingTestService()
+	id, _ := rs.Initiate(context.Background(), 10, 1, 2, ringCallerInfo{})
+
+	// Backdate the ring's StartedAt so the cancel falls outside the
+	// quickCancelWindow. Done under the service mutex to avoid racing
+	// the cancel goroutine.
+	rs.mu.Lock()
+	if r := rs.rings[id]; r != nil {
+		r.StartedAt = time.Now().Add(-(quickCancelWindow + time.Second))
+	}
+	rs.mu.Unlock()
+
+	if err := rs.Cancel(context.Background(), id, 1); err != nil {
+		t.Fatal(err)
+	}
+	dm.mu.Lock()
 	if dm.missed != 1 {
-		t.Errorf("expected dm.Missed=1, got %d", dm.missed)
+		t.Errorf("delayed cancel: expected dm.Missed=1, got %d", dm.missed)
 	}
 	dm.mu.Unlock()
 }

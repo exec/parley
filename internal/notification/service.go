@@ -57,15 +57,42 @@ func ToResponse(n *db.Notification) Response {
 	return r
 }
 
+// BlockChecker lets the notification service skip delivering notifications
+// when the recipient has blocked the actor. Wired via SetBlockChecker from
+// cmd/api/routes.go to keep internal/notification from importing internal/friend.
+type BlockChecker interface {
+	IsBlocked(ctx context.Context, blockerID, blockedID int64) (bool, error)
+}
+
 // Service creates and broadcasts in-app notifications.
 type Service struct {
-	repo *db.Repository
-	hub  *ws.Hub
+	repo   *db.Repository
+	hub    *ws.Hub
+	blocks BlockChecker // optional; nil-safe — gating skipped when unset
 }
 
 // New creates a notification Service.
 func New(repo *db.Repository, hub *ws.Hub) *Service {
 	return &Service{repo: repo, hub: hub}
+}
+
+// SetBlockChecker wires the friend service so notifications can be filtered
+// by recipient block list.
+func (s *Service) SetBlockChecker(b BlockChecker) { s.blocks = b }
+
+// suppressed returns true if recipientID has blocked actorID. Failures fall
+// open (deliver) — better to over-notify than to silently drop a real event
+// because Redis or the DB hiccupped.
+func (s *Service) suppressed(ctx context.Context, recipientID, actorID int64) bool {
+	if s.blocks == nil || actorID == 0 {
+		return false
+	}
+	blocked, err := s.blocks.IsBlocked(ctx, recipientID, actorID)
+	if err != nil {
+		log.Printf("notification: block check failed: %v", err)
+		return false
+	}
+	return blocked
 }
 
 func (s *Service) create(ctx context.Context, n *db.Notification) {
@@ -106,6 +133,12 @@ func (s *Service) NotifyMentions(ctx context.Context, authorID int64, authorUser
 		if _, err := s.repo.GetMember(ctx, serverID, uid); err != nil {
 			continue
 		}
+		// Recipient blocked the author? Drop the notification but let the
+		// message through (defense-in-depth — the message itself isn't
+		// gated server-wide, only its notification spam vector is).
+		if s.suppressed(ctx, uid, authorID) {
+			continue
+		}
 		sid, cid, mid := serverID, channelID, messageID
 		s.create(ctx, &db.Notification{
 			UserID:         uid,
@@ -121,8 +154,12 @@ func (s *Service) NotifyMentions(ctx context.Context, authorID int64, authorUser
 	}
 }
 
-// NotifyDM creates a notification for a new DM received.
-func (s *Service) NotifyDM(ctx context.Context, recipientID int64, authorUsername, authorAvatarURL string, dmChannelID int64) {
+// NotifyDM creates a notification for a new DM received. authorID is used to
+// suppress the notification if the recipient has blocked the author.
+func (s *Service) NotifyDM(ctx context.Context, recipientID, authorID int64, authorUsername, authorAvatarURL string, dmChannelID int64) {
+	if s.suppressed(ctx, recipientID, authorID) {
+		return
+	}
 	dcid := dmChannelID
 	s.create(ctx, &db.Notification{
 		UserID:         recipientID,
@@ -136,7 +173,11 @@ func (s *Service) NotifyDM(ctx context.Context, recipientID int64, authorUsernam
 }
 
 // NotifyFriendRequest creates a notification for a friend request received.
-func (s *Service) NotifyFriendRequest(ctx context.Context, recipientID int64, senderUsername, senderAvatarURL string) {
+// senderID is used for the recipient's block-list check.
+func (s *Service) NotifyFriendRequest(ctx context.Context, recipientID, senderID int64, senderUsername, senderAvatarURL string) {
+	if s.suppressed(ctx, recipientID, senderID) {
+		return
+	}
 	s.create(ctx, &db.Notification{
 		UserID:         recipientID,
 		Type:           "friend_request",
@@ -148,7 +189,12 @@ func (s *Service) NotifyFriendRequest(ctx context.Context, recipientID int64, se
 }
 
 // NotifyFriendAccept creates a notification when a friend request is accepted.
-func (s *Service) NotifyFriendAccept(ctx context.Context, recipientID int64, acceptorUsername, acceptorAvatarURL string) {
+// accepterID is included for symmetry with the suppression hook (a user who
+// blocks the original sender mid-request shouldn't get an "X accepted" toast).
+func (s *Service) NotifyFriendAccept(ctx context.Context, recipientID, accepterID int64, acceptorUsername, acceptorAvatarURL string) {
+	if s.suppressed(ctx, recipientID, accepterID) {
+		return
+	}
 	s.create(ctx, &db.Notification{
 		UserID:         recipientID,
 		Type:           "friend_accept",

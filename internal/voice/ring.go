@@ -19,7 +19,23 @@ var (
 	ErrCancelByNonCaller = errors.New("only the caller may cancel")
 	ErrAcceptByCaller    = errors.New("the caller cannot accept their own ring")
 	ErrDeclineByNonTarget = errors.New("only the ring target may decline")
+	ErrRingNotFriend     = errors.New("can only ring friends")
+	ErrRingBlocked       = errors.New("blocked")
 )
+
+// RingFriendChecker is the slice of friend.Service the ring path needs.
+// Wired via RingService.SetFriendChecker from cmd/api/routes.go to keep
+// internal/voice from importing internal/friend.
+type RingFriendChecker interface {
+	IsFriend(ctx context.Context, a, b int64) (bool, error)
+	IsEitherBlocked(ctx context.Context, a, b int64) (bool, error)
+}
+
+// quickCancelWindow is the threshold under which a cancel is treated as spam:
+// no `call_missed` system message is emitted because the human couldn't have
+// missed a call that lasted less than this. Bots ringing/cancelling rapidly
+// to flood the transcript are silently filtered.
+const quickCancelWindow = 3 * time.Second
 
 // RingHub is the small subset of *ws.Hub the ring service needs.
 type RingHub interface {
@@ -63,6 +79,7 @@ type RingService struct {
 	dm      DmEmitter
 	svc     *Service
 	timeout time.Duration
+	friends RingFriendChecker // optional; nil → friend gate skipped (test path)
 }
 
 func NewRingService(hub RingHub, dm DmEmitter, svc *Service) *RingService {
@@ -76,6 +93,9 @@ func NewRingService(hub RingHub, dm DmEmitter, svc *Service) *RingService {
 	}
 }
 
+// SetFriendChecker wires friend/block gating for ring initiation.
+func (rs *RingService) SetFriendChecker(fc RingFriendChecker) { rs.friends = fc }
+
 func newRingID() string {
 	var b [12]byte
 	_, _ = rand.Read(b[:])
@@ -84,7 +104,24 @@ func newRingID() string {
 
 // Initiate creates a ring (or returns the existing one for glare). Sends
 // CALL_RING to the target's user-WS. Returns the ring ID.
+//
+// Refuses if caller and target aren't friends, or if either has blocked the
+// other. Refusing here (vs. at the handler) ensures the gate runs uniformly
+// for any future caller of RingService.Initiate.
 func (rs *RingService) Initiate(ctx context.Context, dmChannelID, callerID, targetID int64, caller ringCallerInfo) (string, error) {
+	if rs.friends != nil {
+		if blocked, err := rs.friends.IsEitherBlocked(ctx, callerID, targetID); err != nil {
+			return "", err
+		} else if blocked {
+			return "", ErrRingBlocked
+		}
+		if friend, err := rs.friends.IsFriend(ctx, callerID, targetID); err != nil {
+			return "", err
+		} else if !friend {
+			return "", ErrRingNotFriend
+		}
+	}
+
 	rs.mu.Lock()
 	if existing, ok := rs.byDM[dmChannelID]; ok {
 		rs.mu.Unlock()
@@ -207,7 +244,11 @@ func (rs *RingService) Decline(ctx context.Context, ringID string, declinerID in
 }
 
 // Cancel resolves a ring as cancelled by the caller. Receiver sees
-// CALL_CANCEL; system message is call_missed.
+// CALL_CANCEL; system message is call_missed — except when the cancel
+// arrives within quickCancelWindow of the ring start, in which case the
+// system message is suppressed (a human couldn't have missed a call that
+// short; bots ringing/cancelling rapidly to flood the transcript are
+// silently filtered).
 func (rs *RingService) Cancel(ctx context.Context, ringID string, callerID int64) error {
 	rs.mu.Lock()
 	r, ok := rs.rings[ringID]
@@ -220,13 +261,14 @@ func (rs *RingService) Cancel(ctx context.Context, ringID string, callerID int64
 		return ErrCancelByNonCaller
 	}
 	r.timer.Stop()
+	startedAt := r.StartedAt
 	delete(rs.rings, ringID)
 	delete(rs.byDM, r.DmChannelID)
 	rs.mu.Unlock()
 
 	payload, _ := json.Marshal(map[string]any{"ring_id": ringID})
 	_ = rs.hub.SendToUser(strconv.FormatInt(r.TargetID, 10), ws.EventCallCancel, payload)
-	if rs.dm != nil {
+	if rs.dm != nil && time.Since(startedAt) >= quickCancelWindow {
 		_ = rs.dm.Missed(ctx, r.DmChannelID, callerID)
 	}
 	return nil
