@@ -194,20 +194,34 @@ func (s *Service) Participants(ctx context.Context, channelID string) ([]Partici
 	if err != nil {
 		return nil, err
 	}
+	if len(res) == 0 {
+		return []Participant{}, nil
+	}
+	// Pipeline the per-user heartbeat EXISTS into one round-trip instead of
+	// O(users) sequential calls.
+	uids := make([]string, 0, len(res))
+	pipe := s.rdb.Pipeline()
+	hbCmds := make(map[string]*redis.IntCmd, len(res))
+	for uid := range res {
+		uids = append(uids, uid)
+		hbCmds[uid] = pipe.Exists(ctx, heartbeatKey(channelID, uid))
+	}
+	_, _ = pipe.Exec(ctx)
 	out := make([]Participant, 0, len(res))
-	for uid, v := range res {
-		var p Participant
-		if err := json.Unmarshal([]byte(v), &p); err != nil {
+	var stale []string
+	for _, uid := range uids {
+		if hbCmds[uid].Val() == 0 {
+			stale = append(stale, uid)
 			continue
 		}
-		// Lazy-evict if the heartbeat key has expired. Reads stay self-healing
-		// without needing a sweeper to be running.
-		hbExists, _ := s.rdb.Exists(ctx, heartbeatKey(channelID, uid)).Result()
-		if hbExists == 0 {
-			s.rdb.HDel(ctx, presenceKey(channelID), uid)
+		var p Participant
+		if err := json.Unmarshal([]byte(res[uid]), &p); err != nil {
 			continue
 		}
 		out = append(out, p)
+	}
+	if len(stale) > 0 {
+		s.rdb.HDel(ctx, presenceKey(channelID), stale...)
 	}
 	return out, nil
 }
@@ -256,6 +270,15 @@ func (s *Service) SweepStale(ctx context.Context) ([]EvictedParticipant, error) 
 			return evicted, err
 		}
 		cursor = c
+
+		// Batch HKeys across all presence keys in this scan page.
+		type chanEntry struct {
+			channelID string
+			key       string
+			cmd       *redis.StringSliceCmd
+		}
+		var entries []chanEntry
+		hkPipe := s.rdb.Pipeline()
 		for _, key := range keys {
 			// Presence keys are exactly "voice:s:N" or "voice:dm:N" — two colons.
 			// Heartbeat ("voice:heartbeat:..."), activity ("voice:s:N:activity"),
@@ -264,20 +287,78 @@ func (s *Service) SweepStale(ctx context.Context) ([]EvictedParticipant, error) 
 				continue
 			}
 			channelID := strings.TrimPrefix(key, "voice:")
-			users, err := s.rdb.HKeys(ctx, key).Result()
+			entries = append(entries, chanEntry{
+				channelID: channelID,
+				key:       key,
+				cmd:       hkPipe.HKeys(ctx, key),
+			})
+		}
+		if len(entries) == 0 {
+			if cursor == 0 {
+				break
+			}
+			continue
+		}
+		_, _ = hkPipe.Exec(ctx)
+
+		// Now batch EXISTS for every (channel, user) pair across all channels.
+		type hbRef struct {
+			channelID string
+			key       string
+			uid       string
+			cmd       *redis.IntCmd
+		}
+		var refs []hbRef
+		hbPipe := s.rdb.Pipeline()
+		for _, e := range entries {
+			users, err := e.cmd.Result()
 			if err != nil {
 				continue
 			}
 			for _, uid := range users {
-				hbExists, _ := s.rdb.Exists(ctx, heartbeatKey(channelID, uid)).Result()
-				if hbExists != 0 {
-					continue
-				}
-				if removed, _ := s.rdb.HDel(ctx, key, uid).Result(); removed > 0 {
-					evicted = append(evicted, EvictedParticipant{ChannelID: channelID, UserID: uid})
+				refs = append(refs, hbRef{
+					channelID: e.channelID,
+					key:       e.key,
+					uid:       uid,
+					cmd:       hbPipe.Exists(ctx, heartbeatKey(e.channelID, uid)),
+				})
+			}
+		}
+		if len(refs) > 0 {
+			_, _ = hbPipe.Exec(ctx)
+		}
+
+		// Pipeline per-uid HDels so we can match each result back to its uid.
+		// Per-uid HDel preserves the original race semantics: we only emit an
+		// EvictedParticipant when *we* removed the field (removed > 0), which
+		// means a concurrent Leave that won the race correctly does not produce
+		// a duplicate broadcast.
+		type delRef struct {
+			channelID string
+			uid       string
+			cmd       *redis.IntCmd
+		}
+		var delRefs []delRef
+		delPipe := s.rdb.Pipeline()
+		for _, r := range refs {
+			if r.cmd.Val() != 0 {
+				continue
+			}
+			delRefs = append(delRefs, delRef{
+				channelID: r.channelID,
+				uid:       r.uid,
+				cmd:       delPipe.HDel(ctx, r.key, r.uid),
+			})
+		}
+		if len(delRefs) > 0 {
+			_, _ = delPipe.Exec(ctx)
+			for _, dr := range delRefs {
+				if dr.cmd.Val() > 0 {
+					evicted = append(evicted, EvictedParticipant{ChannelID: dr.channelID, UserID: dr.uid})
 				}
 			}
 		}
+
 		if cursor == 0 {
 			break
 		}
