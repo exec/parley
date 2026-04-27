@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Track } from 'livekit-client';
 import type { RemoteParticipant, LocalParticipant, TrackPublication } from 'livekit-client';
 import { LayoutGrid, Maximize2, MessageSquare, Mic, MicOff, Headphones, HeadphoneOff, Video, VideoOff, Monitor, MonitorOff, PhoneOff, Volume2, X, Expand, Music2, Users } from 'lucide-react';
@@ -142,12 +142,72 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
   const spotlightItem = allSpeakerItems.find(i => speakerKey(i) === spotlightKey) ?? allSpeakerItems[0];
   const filmstripItems = allSpeakerItems.filter(i => i !== spotlightItem);
 
-  const getMeta = (identity: string, participant?: RemoteParticipant | LocalParticipant) => {
-    const meta = voiceParticipants[identity];
-    const displayName = meta?.username || participant?.name || undefined;
-    return { displayName, avatarUrl: meta?.avatar_url };
+  // Pre-compute meta per participant identity once per render so the tile
+  // map loops don't re-derive displayName/avatarUrl for every iteration on
+  // every parent re-render (mute/speaker/etc.).
+  const participantMetaById = useMemo(() => {
+    const map = new Map<string, { displayName?: string; avatarUrl?: string }>();
+    for (const { participant } of allParticipants) {
+      const meta = voiceParticipants[participant.identity];
+      map.set(participant.identity, {
+        displayName: meta?.username || participant.name || undefined,
+        avatarUrl: meta?.avatar_url,
+      });
+    }
+    return map;
+  }, [allParticipants, voiceParticipants]);
+
+  const localMeta = useMemo(
+    () => ({ displayName: currentUser.username, avatarUrl: currentUser.avatar_url }),
+    [currentUser.username, currentUser.avatar_url]
+  );
+
+  const getMeta = useCallback(
+    (identity: string, participant?: RemoteParticipant | LocalParticipant) => {
+      const cached = participantMetaById.get(identity);
+      if (cached) return cached;
+      // Fallback for identities not in allParticipants (e.g. spotlight lookup races)
+      const meta = voiceParticipants[identity];
+      return { displayName: meta?.username || participant?.name || undefined, avatarUrl: meta?.avatar_url };
+    },
+    [participantMetaById, voiceParticipants]
+  );
+
+  // Per-participant stable callbacks — recomputed only when the participant
+  // list or capability flags change. Without this, inline arrows in the map
+  // loops would defeat ParticipantTile's React.memo on every parent re-render.
+  type TileCallbacks = {
+    onContextMenu?: (e: React.MouseEvent) => void;
+    onClick?: (e: React.MouseEvent) => void;
+    onShareClick: () => void;
+    onShareContextMenu: (e: React.MouseEvent) => void;
   };
-  const localMeta = { displayName: currentUser.username, avatarUrl: currentUser.avatar_url };
+  const tileCallbacksById = useMemo(() => {
+    const map = new Map<string, TileCallbacks>();
+    for (const { participant, isLocal } of allParticipants) {
+      const id = participant.identity;
+      const canShowCtx = !isLocal && (canMuteMembers || canKickFromVoice);
+      map.set(id, {
+        onContextMenu: canShowCtx
+          ? (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setContextMenu({ participantId: id, x: e.clientX, y: e.clientY });
+            }
+          : undefined,
+        onClick: !isLocal && onParticipantClick
+          ? (e) => onParticipantClick(id, e)
+          : undefined,
+        onShareClick: () => setEnlargedShare({ participant, isLocal }),
+        onShareContextMenu: (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setShareCtxMenu({ participant, isLocal, x: e.clientX, y: e.clientY });
+        },
+      });
+    }
+    return map;
+  }, [allParticipants, canMuteMembers, canKickFromVoice, onParticipantClick]);
 
   const statusLabel = connected ? 'Connected' : connecting ? 'Connecting…' : 'Disconnected';
 
@@ -244,6 +304,7 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
           {/* Screen share tiles — clickable to expand, right-clickable for menu */}
           {screenShares.map(({ participant, isLocal }) => {
             const meta = isLocal ? localMeta : getMeta(participant.identity, participant as RemoteParticipant);
+            const cbs = tileCallbacksById.get(participant.identity);
             return (
               <div key={`screen-${participant.identity}`} className="vc-grid-share-wrap">
                 <ParticipantTile
@@ -253,17 +314,13 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
                   isScreenShare
                   displayName={meta.displayName}
                   avatarUrl={meta.avatarUrl}
-                  onClick={() => setEnlargedShare({ participant, isLocal })}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setShareCtxMenu({ participant, isLocal, x: e.clientX, y: e.clientY });
-                  }}
+                  onClick={cbs?.onShareClick}
+                  onContextMenu={cbs?.onShareContextMenu}
                 />
                 <button
                   className="vc-grid-share-expand"
                   title="Expand"
-                  onClick={() => setEnlargedShare({ participant, isLocal })}
+                  onClick={cbs?.onShareClick}
                 >
                   <Expand size={14} />
                 </button>
@@ -273,6 +330,7 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
           {/* Participant tiles */}
           {allParticipants.map(({ participant, isLocal }) => {
             const meta = isLocal ? localMeta : getMeta(participant.identity, participant as RemoteParticipant);
+            const cbs = tileCallbacksById.get(participant.identity);
             return (
               <div key={participant.identity} style={{ position: 'relative' }}>
                 <ParticipantTile
@@ -282,12 +340,8 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
                   displayName={meta.displayName}
                   avatarUrl={meta.avatarUrl}
                   activeSoundEmoji={isLocal ? activeSoundEmojis?.get(currentUser.id) : activeSoundEmojis?.get(participant.identity)}
-                  onContextMenu={!isLocal && (canMuteMembers || canKickFromVoice) ? (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setContextMenu({ participantId: participant.identity, x: e.clientX, y: e.clientY });
-                  } : undefined}
-                  onClick={!isLocal ? (e) => onParticipantClick?.(participant.identity, e) : undefined}
+                  onContextMenu={cbs?.onContextMenu}
+                  onClick={cbs?.onClick}
                 />
                 {canMuteMembers && !isLocal && onMuteParticipant && (
                   <button
@@ -334,6 +388,7 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
             <div className="vc-filmstrip">
               {filmstripItems.map((item) => {
                 const meta = item.isLocal ? localMeta : getMeta(item.participant.identity, item.participant as RemoteParticipant);
+                const cbs = tileCallbacksById.get(item.participant.identity);
                 return (
                   <div
                     key={speakerKey(item)}
@@ -349,11 +404,7 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
                       displayName={meta.displayName}
                       avatarUrl={meta.avatarUrl}
                       activeSoundEmoji={item.isLocal ? activeSoundEmojis?.get(currentUser.id) : activeSoundEmojis?.get(item.participant.identity)}
-                      onContextMenu={!item.isLocal && !item.isScreenShare && (canMuteMembers || canKickFromVoice) ? (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setContextMenu({ participantId: item.participant.identity, x: e.clientX, y: e.clientY });
-                      } : undefined}
+                      onContextMenu={item.isScreenShare ? undefined : cbs?.onContextMenu}
                     />
                     {canMuteMembers && !item.isLocal && !item.isScreenShare && onMuteParticipant && (
                       <button

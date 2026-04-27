@@ -20,7 +20,7 @@ interface ParticipantTileProps {
   onClick?: (e: React.MouseEvent) => void;
 }
 
-export const ParticipantTile: React.FC<ParticipantTileProps> = ({
+const ParticipantTileImpl: React.FC<ParticipantTileProps> = ({
   participant,
   isLocal,
   isSpeaking,
@@ -200,3 +200,5 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
     </div>
   );
 };
+
+export const ParticipantTile = React.memo(ParticipantTileImpl);
