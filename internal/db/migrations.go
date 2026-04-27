@@ -1004,6 +1004,10 @@ CREATE INDEX IF NOT EXISTS idx_user_blocks_blocked ON user_blocks(blocked_id);`,
 	`INSERT INTO users (username, email, password_hash, is_system, display_name, created_at, updated_at)
 VALUES ('deleted', 'deleted@parley.invalid', '!', TRUE, 'Deleted User', NOW(), NOW())
 ON CONFLICT (username) DO NOTHING;`,
+
+	// Migration #70: index on user_blocks(blocker_id) to support the
+	// "who has $user blocked?" lookups in the friend service.
+	`CREATE INDEX IF NOT EXISTS idx_user_blocks_blocker ON user_blocks(blocker_id);`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string
