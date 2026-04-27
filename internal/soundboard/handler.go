@@ -407,7 +407,10 @@ func (h *Handler) Play(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify the user is actually in the voice channel.
-	inChannel, err := h.voiceSvc.IsParticipant(ctx, channelIDStr, userIDStr)
+	// Server voice channels are namespaced "s:<channelID>" — see wrapServerVoice
+	// in cmd/api/routes.go. Voice presence is keyed under the wrapped form, so
+	// IsParticipant must be queried with the same prefix.
+	inChannel, err := h.voiceSvc.IsParticipant(ctx, "s:"+channelIDStr, userIDStr)
 	if err != nil || !inChannel {
 		httputil.JSONError(w, "you must be in the voice channel to play sounds", http.StatusForbidden)
 		return

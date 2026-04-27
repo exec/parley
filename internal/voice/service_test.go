@@ -157,6 +157,39 @@ func TestIsParticipant(t *testing.T) {
 	}
 }
 
+// TestIsParticipant_ServerVoiceChannelKeyFormat documents the "s:" prefix
+// convention for server voice channels (see wrapServerVoice in cmd/api/routes.go)
+// and locks in the regression: querying with the raw channel ID returns false
+// even when the user has joined under the wrapped form. Soundboard play once
+// passed the raw ID here and 100% of plays returned 403.
+func TestIsParticipant_ServerVoiceChannelKeyFormat(t *testing.T) {
+	svc, _ := newTestService(t)
+	ctx := context.Background()
+
+	// User joins voice for channel 12345 via the route's wrapped form.
+	if _, err := svc.Join(ctx, "s:12345", "u1", "Alice", ""); err != nil {
+		t.Fatalf("Join: %v", err)
+	}
+
+	// Querying with the wrapped form (correct) returns true.
+	ok, err := svc.IsParticipant(ctx, "s:12345", "u1")
+	if err != nil {
+		t.Fatalf("IsParticipant wrapped: %v", err)
+	}
+	if !ok {
+		t.Error("wrapped form: expected true")
+	}
+
+	// Querying with the raw channel ID (the old soundboard bug) returns false.
+	ok, err = svc.IsParticipant(ctx, "12345", "u1")
+	if err != nil {
+		t.Fatalf("IsParticipant raw: %v", err)
+	}
+	if ok {
+		t.Error("raw form: expected false — server voice presence is keyed under the s: prefix")
+	}
+}
+
 // TestRefreshHeartbeatResetsExpiry verifies that RefreshHeartbeat resets the
 // TTL on the heartbeat key.
 func TestRefreshHeartbeatResetsExpiry(t *testing.T) {
