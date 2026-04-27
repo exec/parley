@@ -75,7 +75,10 @@ jobs:
 
       - name: Build Tauri (universal .dmg)
         working-directory: desktop
-        run: npx tauri build --bundles dmg --target universal-apple-darwin
+        # `-c` overrides tauri.conf.json's createUpdaterArtifacts so Tauri
+        # doesn't mint an unsigned updater bundle. The .dmg still builds;
+        # release.yml ships the signed updater.
+        run: npx tauri build --bundles dmg --target universal-apple-darwin -c '{"bundle":{"createUpdaterArtifacts":false}}'
 
       - name: Collect .dmg
         id: collect

@@ -89,7 +89,10 @@ jobs:
 
       - name: Build Tauri (deb + rpm)
         working-directory: desktop
-        run: npx tauri build --bundles deb,rpm
+        # `-c` overrides tauri.conf.json's createUpdaterArtifacts → skips
+        # the signed updater bundle this workflow has no private key for.
+        # Plain .deb / .rpm still build; release.yml ships the signed updater.
+        run: npx tauri build --bundles deb,rpm -c '{"bundle":{"createUpdaterArtifacts":false}}'
 
       # Rewrite the .deb Depends so the package installs on Debian trixie+ as
       # well as Ubuntu 24.04+. Both libgtk-3-0 and libwebkit2gtk-4.1-0 were
