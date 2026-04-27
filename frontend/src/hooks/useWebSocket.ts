@@ -230,8 +230,12 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
   }, []);
 
   const connect = useCallback(async () => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
+    // We need a "logged-in" signal that works for BOTH auth paths:
+    //   - Desktop ships its JWT in localStorage.token (Bearer header).
+    //   - Web has no localStorage.token — auth lives in an HttpOnly session
+    //     cookie. localStorage.user is set on every login flow (web + desktop)
+    //     and cleared on logout, so it's the reliable cross-path indicator.
+    if (!localStorage.getItem('user') && !localStorage.getItem('token')) return;
 
     // Exchange the long-lived JWT for a short-lived single-use ticket so the
     // JWT never appears in nginx access logs. If the ticket fetch fails, bail
