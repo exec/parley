@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useMemo, useState } from 'react';
-import { Participant, Track, ParticipantEvent, RemoteAudioTrack } from 'livekit-client';
+import { Track, ParticipantEvent } from 'livekit-client';
+import type { Participant, RemoteAudioTrack } from 'livekit-client';
 import { MicOff, Monitor, VolumeX } from 'lucide-react';
 import { useLocalVolumes } from '../../hooks/useLocalVolumes';
 import { ConnectionQualityDot } from './ConnectionQualityDot';

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { LocalParticipant } from 'livekit-client';
+import type { LocalParticipant } from 'livekit-client';
 import { Headphones, Volume2, Square, X } from 'lucide-react';
 import { listAllSounds, playSound, SoundWithServer } from '../../api/soundboard';
 import './SoundboardPanel.css';

@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, Suspense, lazy } from 'react';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { InvitePage } from './pages/InvitePage';
@@ -14,7 +14,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { ChannelStateProvider } from './context/ChannelStateContext';
 import { Landing } from './pages/Landing';
 import { SharedThemePage } from './pages/SharedThemePage';
-import { ThemeRepoPage } from './pages/ThemeRepoPage';
+const ThemeRepoPage = lazy(() => import('./pages/ThemeRepoPage').then(m => ({ default: m.ThemeRepoPage })));
 import { BotInvitePage } from './pages/BotInvitePage';
 import { useWebSocket, MemberRoleUpdate, UserUpdate, VoiceStateUpdate, VoiceForceMuteEvent, RoleUpdateEvent, RoleDeleteEvent, BotStatusUpdate, SoundboardPlayEvent } from './hooks/useWebSocket';
 import { VoiceChannel } from './components/voice/VoiceChannel';
@@ -57,8 +57,8 @@ import { CreateServerModal } from './components/modals/CreateServerModal';
 import { CreateChannelModal } from './components/modals/CreateChannelModal';
 import { UserProfileModal } from './components/modals/UserProfileModal';
 import { AssignRolesModal } from './components/modals/AssignRolesModal';
-import { UserSettings } from './components/settings/UserSettings';
-import { ServerSettings } from './components/settings/ServerSettings';
+const UserSettings = lazy(() => import('./components/settings/UserSettings').then(m => ({ default: m.UserSettings })));
+const ServerSettings = lazy(() => import('./components/settings/ServerSettings').then(m => ({ default: m.ServerSettings })));
 import { NotificationSettingsModal, getNotifPref, NOTIF_PREFS } from './components/modals/NotificationSettingsModal';
 import { ChannelSettingsModal } from './components/modals/ChannelSettingsModal';
 import { useNotifications } from './hooks/useNotifications';
@@ -560,15 +560,22 @@ function MainApp() {
     }
   }, [receiveUserUpdate]);
 
-  // Fetch initial voice presence whenever the channel list changes (server switch / reload)
+  // Fetch initial voice presence whenever the *set* of voice channel IDs
+  // changes. Depending on `channels` directly re-fires on every channel
+  // mutation (e.g. text-channel rename), even though the voice roster is
+  // unaffected. The sorted-id key collapses those into a single dep.
+  const voiceChannelIdsKey = useMemo(
+    () => channels.filter(c => c.type === 1).map(c => c.id).sort().join(','),
+    [channels],
+  );
   useEffect(() => {
-    const voiceChannels = channels.filter(c => c.type === 1);
-    if (voiceChannels.length === 0) return;
+    if (!voiceChannelIdsKey) return;
+    const ids = voiceChannelIdsKey.split(',');
     Promise.all(
-      voiceChannels.map(ch =>
-        getVoiceParticipants(serverVc(ch.id))
-          .then(ps => ({ channelId: ch.id, participants: ps }))
-          .catch(() => ({ channelId: ch.id, participants: [] }))
+      ids.map(id =>
+        getVoiceParticipants(serverVc(id))
+          .then(ps => ({ channelId: id, participants: ps }))
+          .catch(() => ({ channelId: id, participants: [] }))
       )
     ).then(results => {
       setVoiceParticipants(prev => {
@@ -577,7 +584,7 @@ function MainApp() {
         return next;
       });
     });
-  }, [channels]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [voiceChannelIdsKey]);
 
   // Fetch initial voice presence on join so existing participants render with
   // their avatars + display names and so useVoiceConnection knows whether to
@@ -1837,23 +1844,31 @@ function MainApp() {
         userId={assignRolesUserId}
         username={assignRolesUsername}
       />
-      <UserSettings
-        isOpen={showUserSettings}
-        onClose={() => setShowUserSettings(false)}
-        currentUser={currentUser}
-        onUpdate={updateCurrentUser}
-      />
-      <ServerSettings
-        isOpen={showServerSettings}
-        onClose={() => setShowServerSettings(false)}
-        server={activeServer}
-        members={members}
-        onUpdate={updateServer}
-        onDelete={() => deleteServer(activeServer?.id ?? '')}
-        onCreateInvite={() => {}}
-        initialTab={serverSettingsInitialTab}
-        currentUserId={currentUser?.id ?? ''}
-      />
+      {showUserSettings && (
+        <Suspense fallback={null}>
+          <UserSettings
+            isOpen={showUserSettings}
+            onClose={() => setShowUserSettings(false)}
+            currentUser={currentUser}
+            onUpdate={updateCurrentUser}
+          />
+        </Suspense>
+      )}
+      {showServerSettings && (
+        <Suspense fallback={null}>
+          <ServerSettings
+            isOpen={showServerSettings}
+            onClose={() => setShowServerSettings(false)}
+            server={activeServer}
+            members={members}
+            onUpdate={updateServer}
+            onDelete={() => deleteServer(activeServer?.id ?? '')}
+            onCreateInvite={() => {}}
+            initialTab={serverSettingsInitialTab}
+            currentUserId={currentUser?.id ?? ''}
+          />
+        </Suspense>
+      )}
 
       <NotificationSettingsModal
         isOpen={showNotifSettings}
@@ -2103,7 +2118,7 @@ function App() {
       <Route path="/" element={<HomeRoute />} />
       <Route path="/channels/*" element={ProtectedApp} />
       <Route path="/theme/:token" element={<ThemeProvider><SharedThemePage /></ThemeProvider>} />
-      <Route path="/themes" element={<ThemeProvider><ThemeRepoPage /></ThemeProvider>} />
+      <Route path="/themes" element={<ThemeProvider><Suspense fallback={null}><ThemeRepoPage /></Suspense></ThemeProvider>} />
       <Route path="/bots/invite/:token" element={<BotInvitePage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

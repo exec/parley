@@ -1,18 +1,14 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
-import {
+import type {
   Room,
-  RoomEvent,
   LocalParticipant,
   LocalVideoTrack,
   RemoteParticipant,
   RemoteAudioTrack,
-  Track,
   LocalAudioTrack,
-  createLocalVideoTrack,
-  VideoPresets,
   Participant,
 } from 'livekit-client';
-import { MicVAD } from '@ricky0123/vad-web';
+import type { MicVAD } from '@ricky0123/vad-web';
 import { getVoiceToken, joinVoiceChannel, leaveVoiceChannel, refreshVoiceHeartbeat } from '../api/voice';
 import { getActivity, type ActivityRecord } from '../api/activities';
 import { useLocalVolumes } from './useLocalVolumes';
@@ -92,6 +88,10 @@ export function useVoiceConnection(
   const videoTrackRef = useRef<LocalVideoTrack | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const channelIdRef = useRef<string | null>(null);
+  // Cached livekit-client module, populated by attachLivekit. Helpers that only
+  // run after attach (volume reapply, toggleVideo, attachAudio) read from here
+  // so they don't have to await the dynamic import again.
+  const livekitModRef = useRef<typeof import('livekit-client') | null>(null);
   const onDisconnectedRef = useRef(onDisconnected);
   onDisconnectedRef.current = onDisconnected;
 
@@ -165,16 +165,20 @@ export function useVoiceConnection(
   }, []);
 
   const attachAudio = useCallback((participant: RemoteParticipant) => {
+    const lk = livekitModRef.current;
+    if (!lk) return;
     participant.getTrackPublications().forEach(pub => {
-      if (pub.kind === Track.Kind.Audio && pub.track) {
+      if (pub.kind === lk.Track.Kind.Audio && pub.track) {
         attachAudioTrack(pub.trackSid, pub.track);
       }
     });
   }, [attachAudioTrack]);
 
   const detachAudio = useCallback((participant: RemoteParticipant) => {
+    const lk = livekitModRef.current;
+    if (!lk) return;
     participant.getTrackPublications().forEach(pub => {
-      if (pub.kind === Track.Kind.Audio) detachAudioTrack(pub.trackSid);
+      if (pub.kind === lk.Track.Kind.Audio) detachAudioTrack(pub.trackSid);
     });
   }, [detachAudioTrack]);
 
@@ -217,10 +221,17 @@ export function useVoiceConnection(
 
     try {
       const cid = channelIdRef.current;
-      const { token, url } = await getVoiceToken(cid);
+      const [{ token, url }, lk] = await Promise.all([
+        getVoiceToken(cid),
+        livekitModRef.current
+          ? Promise.resolve(livekitModRef.current)
+          : import('livekit-client').then(m => { livekitModRef.current = m; return m; }),
+      ]);
 
       // Bail if the user disconnected or count dropped to 0 mid-fetch.
       if (channelIdRef.current !== cid || remoteCountRef.current < 1) return;
+
+      const { Room, RoomEvent, Track, LocalAudioTrack } = lk;
 
       const r = new Room({ adaptiveStream: true, dynacast: true });
       roomRef.current = r;
@@ -392,6 +403,7 @@ export function useVoiceConnection(
       // Safe to start before LiveKit is attached.
       if (s.vadMode === 'vad') {
         try {
+          const { MicVAD } = await import('@ricky0123/vad-web');
           const vad = await MicVAD.new({
             baseAssetPath: '/',
             onnxWASMBasePath: '/',
@@ -501,10 +513,12 @@ export function useVoiceConnection(
   // Re-apply stored per-user volumes whenever the volume map or room changes.
   useEffect(() => {
     if (!room) return;
+    const lk = livekitModRef.current;
+    if (!lk) return;
     room.remoteParticipants.forEach(p => {
       p.audioTrackPublications.forEach(pub => {
         const t = pub.track as RemoteAudioTrack | undefined;
-        if (t && t.kind === Track.Kind.Audio && typeof t.setVolume === 'function') {
+        if (t && t.kind === lk.Track.Kind.Audio && typeof t.setVolume === 'function') {
           t.setVolume(getVolume(p.identity) / 100);
         }
       });
@@ -587,8 +601,11 @@ export function useVoiceConnection(
       setVideoEnabled(false);
     } else {
       const s = settingsRef.current;
-      const vt = await createLocalVideoTrack({
-        resolution: VideoPresets.h720.resolution,
+      // toggleVideo only fires while LK is attached, so livekitModRef is set —
+      // but fall back to a fresh import for safety.
+      const lk = livekitModRef.current ?? await import('livekit-client');
+      const vt = await lk.createLocalVideoTrack({
+        resolution: lk.VideoPresets.h720.resolution,
         deviceId: s.cameraDeviceId,
       });
       videoTrackRef.current = vt;

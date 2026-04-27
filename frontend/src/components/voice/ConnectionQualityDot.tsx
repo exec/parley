@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import type { Participant } from 'livekit-client';
 import { ConnectionQuality, ParticipantEvent } from 'livekit-client';
+import type { Participant } from 'livekit-client';
 import './ConnectionQualityDot.css';
 
 export const ConnectionQualityDot: React.FC<{ participant: Participant }> = ({ participant }) => {

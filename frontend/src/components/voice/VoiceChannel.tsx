@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { RemoteParticipant, LocalParticipant, Track, TrackPublication } from 'livekit-client';
+import { Track } from 'livekit-client';
+import type { RemoteParticipant, LocalParticipant, TrackPublication } from 'livekit-client';
 import { LayoutGrid, Maximize2, MessageSquare, Mic, MicOff, Headphones, HeadphoneOff, Video, VideoOff, Monitor, MonitorOff, PhoneOff, Volume2, X, Expand, Music2, Users } from 'lucide-react';
 import { Channel } from '../../api/types';
 import { VoiceParticipant, kickVoiceParticipant, serverVc } from '../../api/voice';
