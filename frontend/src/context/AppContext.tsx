@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { User, Server, Channel, Message, ServerMember, DmChannel, DmMessage, Reaction, FriendUser, FriendRequest, FriendRequestsResponse, AppNotification } from '../api/types';
 
 // Pure helper: applies a single reaction add/remove to an array of messages.
@@ -44,37 +44,41 @@ import { getCurrentUser, logout as serverLogout } from '../api/auth';
 import { ReactionUpdate, MemberRoleUpdate, UserUpdate, BotStatusUpdate } from '../hooks/useWebSocket';
 import { resetThemeOnLogout } from './ThemeContext';
 
-interface AppState {
+// ---------------------------------------------------------------------------
+// Sub-context shapes
+//
+// State is split into four sliced contexts so a write to one slice (e.g. a new
+// message arriving) doesn't force consumers of unrelated slices (e.g. friends
+// list, current user) to re-render. Each slice's value object is memoized.
+//
+// `useApp()` remains as a backwards-compatible facade for big consumers
+// (App.tsx) that still pull a wide cross-section of state.
+// ---------------------------------------------------------------------------
+
+interface IdentityValue {
   currentUser: User | null;
+  notifications: AppNotification[];
+  unreadNotificationCount: number;
+  updateCurrentUser: (user: User) => void;
+  logout: () => void;
+  receiveUserUpdate: (update: UserUpdate) => void;
+  receiveNotification: (notif: AppNotification) => void;
+  markNotificationRead: (id: string) => Promise<void>;
+  markAllNotificationsRead: () => Promise<void>;
+  loadNotifications: () => Promise<void>;
+}
+
+interface ServersValue {
   servers: Server[];
   activeServer: Server | null;
   channels: Channel[];
   activeChannel: Channel | null;
-  messages: Message[];
-  hasMoreMessages: boolean;
   members: ServerMember[];
   isLoadingServers: boolean;
   isLoadingChannels: boolean;
-  isLoadingMessages: boolean;
-  dmChannels: DmChannel[];
-  activeDmChannel: DmChannel | null;
-  dmMessages: DmMessage[];
-  hasMoreDmMessages: boolean;
-  isLoadingDms: boolean;
-  friends: FriendUser[];
-  friendRequests: FriendRequestsResponse;
-  pendingRequestCount: number;
-  blockedUsers: FriendUser[];
-  pendingJumpMessageId: string | null;
-  notifications: AppNotification[];
-  unreadNotificationCount: number;
-}
-
-interface AppActions {
   selectServer: (serverId: string, channelId?: string) => Promise<void>;
   selectChannel: (channelId: string) => Promise<void>;
   selectChannelAround: (channelId: string, aroundId: string) => Promise<void>;
-  clearJumpTarget: () => void;
   createServer: (name: string) => Promise<void>;
   updateServer: (server: Server) => void;
   deleteServer: (serverId: string) => void;
@@ -84,6 +88,25 @@ interface AppActions {
   reorderChannels: (orders: channelsApi.ChannelOrder[]) => Promise<void>;
   reorderServers: (serverIds: string[]) => Promise<void>;
   applyServersReorder: (serverIds: string[]) => void;
+  addServer: (server: Server) => void;
+  loadServers: () => Promise<void>;
+  receiveChannelCreate: (channel: Channel) => void;
+  receiveChannelUpdate: (channel: Channel) => void;
+  receiveChannelDelete: (channelId: string, serverId: string) => void;
+  receiveMemberLeave: (serverId: string, userId: string) => void;
+  receiveMemberRemoved: (serverId: string, userId: string) => void;
+  receiveMemberRoleUpdate: (update: MemberRoleUpdate) => void;
+  receiveBotStatusUpdate: (update: BotStatusUpdate) => void;
+  reloadMembers: (serverId: string) => Promise<void>;
+  reloadChannels: (serverId: string) => Promise<void>;
+}
+
+interface MessagingValue {
+  messages: Message[];
+  hasMoreMessages: boolean;
+  isLoadingMessages: boolean;
+  pendingJumpMessageId: string | null;
+  clearJumpTarget: () => void;
   sendMessage: (content: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string, parentId?: string) => Promise<void>;
   editMessage: (messageId: string, content: string) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
@@ -92,7 +115,19 @@ interface AppActions {
   receiveMessageDelete: (messageId: string, channelId: string) => void;
   toggleReaction: (messageId: string, emoji: string) => Promise<void>;
   applyReactionUpdate: (update: ReactionUpdate) => void;
-  logout: () => void;
+  loadMoreMessages: () => Promise<void>;
+}
+
+interface DmValue {
+  dmChannels: DmChannel[];
+  activeDmChannel: DmChannel | null;
+  dmMessages: DmMessage[];
+  hasMoreDmMessages: boolean;
+  isLoadingDms: boolean;
+  friends: FriendUser[];
+  friendRequests: FriendRequestsResponse;
+  pendingRequestCount: number;
+  blockedUsers: FriendUser[];
   loadDmChannels: () => Promise<void>;
   openDmChannel: (userId: string) => Promise<void>;
   selectDmChannel: (channelId: string) => Promise<void>;
@@ -103,21 +138,6 @@ interface AppActions {
   receiveDmMessageDelete: (messageId: string) => void;
   receiveDmChannelCreate: (channel: DmChannel) => void;
   applyDmChannelUpdate: (update: { channel_id: string; name?: string; avatar_url?: string }) => void;
-  addServer: (server: Server) => void;
-  updateCurrentUser: (user: User) => void;
-  loadServers: () => Promise<void>;
-  // WS event handlers for server structure changes
-  receiveChannelCreate: (channel: Channel) => void;
-  receiveChannelUpdate: (channel: Channel) => void;
-  receiveChannelDelete: (channelId: string, serverId: string) => void;
-  receiveMemberLeave: (serverId: string, userId: string) => void;
-  receiveMemberRemoved: (serverId: string, userId: string) => void; // for kick or ban of current user
-  receiveMemberRoleUpdate: (update: MemberRoleUpdate) => void;
-  receiveBotStatusUpdate: (update: BotStatusUpdate) => void;
-  receiveUserUpdate: (update: UserUpdate) => void;
-  reloadMembers: (serverId: string) => Promise<void>;
-  reloadChannels: (serverId: string) => Promise<void>;
-  loadMoreMessages: () => Promise<void>;
   loadMoreDmMessages: () => Promise<void>;
   loadFriends: () => Promise<void>;
   sendFriendRequest: (username: string) => Promise<void>;
@@ -130,13 +150,12 @@ interface AppActions {
   receiveFriendRequest: (req: FriendRequest) => void;
   receiveFriendAccept: (user: FriendUser) => void;
   receiveFriendRemove: (userId: string) => void;
-  receiveNotification: (notif: AppNotification) => void;
-  markNotificationRead: (id: string) => Promise<void>;
-  markAllNotificationsRead: () => Promise<void>;
-  loadNotifications: () => Promise<void>;
 }
 
-const AppContext = createContext<(AppState & AppActions) | null>(null);
+const IdentityContext = createContext<IdentityValue | null>(null);
+const ServersContext = createContext<ServersValue | null>(null);
+const MessagingContext = createContext<MessagingValue | null>(null);
+const DmContext = createContext<DmValue | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -171,6 +190,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isLoadingChannels, setIsLoadingChannels] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
 
+  // Per-server caches for channels and members. Populated on first fetch and
+  // kept fresh by WebSocket events. selectServer renders from cache immediately
+  // on switch-back and refreshes in the background — so re-entering a server
+  // you visited seconds ago no longer flashes empty state while waiting on a
+  // network round trip.
+  const [channelsByServerId, setChannelsByServerId] = useState<Record<string, Channel[]>>({});
+  const [membersByServerId, setMembersByServerId] = useState<Record<string, ServerMember[]>>({});
+
   const [dmChannels, setDmChannels] = useState<DmChannel[]>([]);
   const [activeDmChannel, setActiveDmChannel] = useState<DmChannel | null>(null);
   const activeChannelRef = useRef<Channel | null>(null);
@@ -183,6 +210,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [friends, setFriends] = useState<FriendUser[]>([]);
   const [friendRequests, setFriendRequests] = useState<FriendRequestsResponse>({ incoming: [], outgoing: [] });
   const [blockedUsers, setBlockedUsers] = useState<FriendUser[]>([]);
+
+  // Per-DM-channel cache for message lists. WS events keep this fresh, so
+  // re-entering an already-cached DM should not refetch from the server.
+  const [dmMessagesByChannelId, setDmMessagesByChannelId] = useState<Record<string, DmMessage[]>>({});
 
   const pendingRequestCount = friendRequests.incoming.length;
   const [pendingJumpMessageId, setPendingJumpMessageId] = useState<string | null>(null);
@@ -266,7 +297,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setActiveServer(srv);
     setActiveChannel(null);
     setMessages([]);
-    setIsLoadingChannels(true);
+
+    // Render channels + members from cache immediately if we have them; refresh
+    // in the background. This eliminates the empty-sidebar flash on switch-back.
+    const cachedChannels = channelsByServerId[serverId];
+    const cachedMembers = membersByServerId[serverId];
+    const haveCache = cachedChannels !== undefined && cachedMembers !== undefined;
+
+    if (haveCache) {
+      setChannels(cachedChannels);
+      setMembers(cachedMembers);
+    } else {
+      setIsLoadingChannels(true);
+    }
+
     try {
       const [chs, mems] = await Promise.all([
         channelsApi.getChannels(serverId),
@@ -274,8 +318,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ]);
       setChannels(chs ?? []);
       setMembers(mems ?? []);
+      setChannelsByServerId(prev => ({ ...prev, [serverId]: chs ?? [] }));
+      setMembersByServerId(prev => ({ ...prev, [serverId]: mems ?? [] }));
+
+      const sourceChannels = chs ?? cachedChannels ?? [];
       const resolvedChannelId = channelId || localStorage.getItem(`parley_last_channel_${serverId}`) || undefined;
-      const target = (resolvedChannelId && chs?.find(c => c.id === resolvedChannelId)) || chs?.find(c => c.type === 0);
+      const target = (resolvedChannelId && sourceChannels.find(c => c.id === resolvedChannelId)) || sourceChannels.find(c => c.type === 0);
       if (target) {
         setActiveChannel(target);
         setIsLoadingMessages(true);
@@ -287,9 +335,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error(err);
     } finally {
-      setIsLoadingChannels(false);
+      if (!haveCache) setIsLoadingChannels(false);
     }
-  }, [servers]);
+  }, [servers, channelsByServerId, membersByServerId]);
 
   const selectChannel = useCallback(async (channelId: string) => {
     setActiveDmChannel(null);
@@ -350,6 +398,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     ]);
     setChannels(chs ?? []);
     setMembers(mems ?? []);
+    setChannelsByServerId(prev => ({ ...prev, [srv.id]: chs ?? [] }));
+    setMembersByServerId(prev => ({ ...prev, [srv.id]: mems ?? [] }));
   }, []);
 
   const updateServer = useCallback((updated: Server) => {
@@ -364,6 +414,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setMembers([]);
     setActiveChannel(null);
     setMessages([]);
+    setChannelsByServerId(prev => {
+      const { [serverId]: _omit, ...rest } = prev;
+      return rest;
+    });
+    setMembersByServerId(prev => {
+      const { [serverId]: _omit, ...rest } = prev;
+      return rest;
+    });
   }, []);
 
   const leaveServer = useCallback(async (serverId: string) => {
@@ -371,6 +429,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await serversApi.leaveServer(serverId);
     // Remove the server from local state
     setServers(prev => prev.filter(s => s.id !== serverId));
+    setChannelsByServerId(prev => {
+      const { [serverId]: _omit, ...rest } = prev;
+      return rest;
+    });
+    setMembersByServerId(prev => {
+      const { [serverId]: _omit, ...rest } = prev;
+      return rest;
+    });
     // If we're in the left server, go home
     if (activeServer?.id === serverId) {
       setActiveServer(null);
@@ -428,8 +494,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const reorderChannels = useCallback(async (orders: channelsApi.ChannelOrder[]) => {
     if (!activeServer) return;
-    // Optimistic update
-    setChannels(prev => {
+    const serverId = activeServer.id;
+    // Optimistic update — also write through to the per-server cache.
+    const apply = (prev: Channel[]): Channel[] => {
       const updated = [...prev];
       orders.forEach(o => {
         const idx = updated.findIndex(c => c.id === o.id);
@@ -438,13 +505,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       });
       return updated.sort((a, b) => a.position - b.position);
-    });
-    await channelsApi.reorderChannels(activeServer.id, orders);
+    };
+    setChannels(apply);
+    setChannelsByServerId(prev => prev[serverId] ? { ...prev, [serverId]: apply(prev[serverId]) } : prev);
+    await channelsApi.reorderChannels(serverId, orders);
   }, [activeServer]);
 
   const deleteChannel = useCallback(async (channelId: string) => {
     await channelsApi.deleteChannel(channelId);
     setChannels(prev => prev.filter(c => c.id !== channelId));
+    // Drop from per-server cache too so switch-back doesn't resurrect a deleted channel.
+    setChannelsByServerId(prev => {
+      const next: Record<string, Channel[]> = {};
+      let changed = false;
+      for (const sid of Object.keys(prev)) {
+        const list = prev[sid];
+        const filtered = list.filter(c => c.id !== channelId);
+        if (filtered.length !== list.length) {
+          next[sid] = filtered;
+          changed = true;
+        } else {
+          next[sid] = list;
+        }
+      }
+      return changed ? next : prev;
+    });
     if (activeChannel?.id === channelId) {
       setActiveChannel(null);
       setMessages([]);
@@ -554,8 +639,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setMessages([]);
       setIsLoadingDms(true);
       const msgs = await dmsApi.getDmMessages(channel.id);
-      setDmMessages(msgs ?? []);
-      setHasMoreDmMessages((msgs?.length ?? 0) >= 50);
+      const fresh = msgs ?? [];
+      setDmMessages(fresh);
+      setDmMessagesByChannelId(prev => ({ ...prev, [channel.id]: fresh }));
+      setHasMoreDmMessages(fresh.length >= 50);
       setIsLoadingDms(false);
     } catch (err) {
       console.error(err);
@@ -570,20 +657,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setActiveServer(null);
     setActiveChannel(null);
     setMessages([]);
+
+    // Render from cache if we have a non-empty list — WS keeps it fresh while
+    // we're connected, so a re-entry shouldn't pay a network round-trip.
+    const cached = dmMessagesByChannelId[channelId];
+    if (cached && cached.length > 0) {
+      setDmMessages(cached);
+      setHasMoreDmMessages(cached.length >= 50);
+      return;
+    }
+
     setDmMessages([]);
     setHasMoreDmMessages(false);
-
     setIsLoadingDms(true);
     try {
       const msgs = await dmsApi.getDmMessages(channel.id);
-      setDmMessages(msgs ?? []);
-      setHasMoreDmMessages((msgs?.length ?? 0) >= 50);
+      const fresh = msgs ?? [];
+      setDmMessages(fresh);
+      setDmMessagesByChannelId(prev => ({ ...prev, [channelId]: fresh }));
+      setHasMoreDmMessages(fresh.length >= 50);
     } catch (err) {
       console.error(err);
     } finally {
       setIsLoadingDms(false);
     }
-  }, [dmChannels]);
+  }, [dmChannels, dmMessagesByChannelId]);
 
   const sendDmMessage = useCallback(async (content: string, attachmentUrl?: string, attachmentName?: string, attachmentType?: string, parentId?: string) => {
     if (!activeDmChannel) return;
@@ -605,11 +703,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const [bumped] = next.splice(idx, 1);
       return [bumped, ...next];
     });
+    // Mirror into the per-channel cache so a switch away + back keeps the message.
+    setDmMessagesByChannelId(prev => {
+      const list = prev[sentChannelId];
+      if (!list) return prev;
+      if (list.some(m => m.id === msg.id)) return prev;
+      return { ...prev, [sentChannelId]: [...list, msg] };
+    });
   }, [activeDmChannel]);
 
   const deleteDmMessage = useCallback(async (dmChannelId: string, messageId: string) => {
     await dmsApi.deleteDmMessage(dmChannelId, messageId);
     setDmMessages(prev => prev.filter(m => m.id !== messageId));
+    setDmMessagesByChannelId(prev => {
+      const list = prev[dmChannelId];
+      if (!list) return prev;
+      return { ...prev, [dmChannelId]: list.filter(m => m.id !== messageId) };
+    });
   }, []);
 
   const receiveDmMessage = useCallback((msg: DmMessage) => {
@@ -621,6 +731,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return [...prev, msg];
       });
     }
+    // Mirror into the per-channel cache regardless of which DM is active —
+    // this is what keeps cached lists fresh between visits so selectDmChannel
+    // can skip re-fetching.
+    const cacheKey = String(msg.dm_channel_id);
+    setDmMessagesByChannelId(prev => {
+      const list = prev[cacheKey];
+      if (!list) return prev; // no cache yet — first visit will populate it
+      if (list.some(m => String(m.id) === String(msg.id))) return prev;
+      return { ...prev, [cacheKey]: [...list, msg] };
+    });
     // Bump the channel to the top of the DM list. The backend orders by
     // last-activity on initial fetch; this keeps that ordering live as
     // new messages stream in (sent or received).
@@ -665,10 +785,40 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const applyDmReactionUpdate = useCallback((update: ReactionUpdate) => {
     setDmMessages(prev => applyReactionToList(prev, update));
+    setDmMessagesByChannelId(prev => {
+      // Only mutate the cache entry that contains this message; leave others untouched.
+      let changed = false;
+      const next: Record<string, DmMessage[]> = {};
+      for (const cid of Object.keys(prev)) {
+        const list = prev[cid];
+        if (list.some(m => String(m.id) === String(update.message_id))) {
+          next[cid] = applyReactionToList(list, update);
+          changed = true;
+        } else {
+          next[cid] = list;
+        }
+      }
+      return changed ? next : prev;
+    });
   }, []);
 
   const receiveDmMessageDelete = useCallback((messageId: string) => {
     setDmMessages(prev => prev.filter(m => m.id !== messageId));
+    setDmMessagesByChannelId(prev => {
+      let changed = false;
+      const next: Record<string, DmMessage[]> = {};
+      for (const cid of Object.keys(prev)) {
+        const list = prev[cid];
+        const filtered = list.filter(m => String(m.id) !== String(messageId));
+        if (filtered.length !== list.length) {
+          next[cid] = filtered;
+          changed = true;
+        } else {
+          next[cid] = list;
+        }
+      }
+      return changed ? next : prev;
+    });
   }, []);
 
   const receiveDmChannelCreate = useCallback((channel: DmChannel) => {
@@ -702,23 +852,49 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (prev.some(c => c.id === channel.id)) return prev;
       return [...prev, channel];
     });
+    // Mirror into the per-server cache so other servers' caches stay correct.
+    const sid = channel.server_id;
+    if (sid) {
+      setChannelsByServerId(prev => {
+        const list = prev[sid];
+        if (!list) return prev; // server hasn't been visited yet — no cache to update
+        if (list.some(c => c.id === channel.id)) return prev;
+        return { ...prev, [sid]: [...list, channel] };
+      });
+    }
   }, []);
 
   const receiveChannelUpdate = useCallback((channel: Channel) => {
     setChannels(prev => prev.map(c => c.id === channel.id ? channel : c));
     setActiveChannel(prev => prev?.id === channel.id ? channel : prev);
+    const sid = channel.server_id;
+    if (sid) {
+      setChannelsByServerId(prev => {
+        const list = prev[sid];
+        if (!list) return prev;
+        return { ...prev, [sid]: list.map(c => c.id === channel.id ? channel : c) };
+      });
+    }
   }, []);
 
-  const receiveChannelDelete = useCallback((channelId: string, _serverId: string) => {
+  const receiveChannelDelete = useCallback((channelId: string, serverId: string) => {
     setChannels(prev => prev.filter(c => c.id !== channelId));
     setActiveChannel(prev => prev?.id === channelId ? null : prev);
     setMessages(prev => prev.filter(() => true)); // keep messages, UI handles null channel
+    if (serverId) {
+      setChannelsByServerId(prev => {
+        const list = prev[serverId];
+        if (!list) return prev;
+        return { ...prev, [serverId]: list.filter(c => c.id !== channelId) };
+      });
+    }
   }, []);
 
   const reloadMembers = useCallback(async (serverId: string) => {
     try {
       const mems = await serversApi.getMembers(serverId);
       setMembers(mems ?? []);
+      setMembersByServerId(prev => ({ ...prev, [serverId]: mems ?? [] }));
     } catch (err) {
       console.error('Failed to reload members:', err);
     }
@@ -728,6 +904,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       const chs = await channelsApi.getChannels(serverId);
       setChannels(chs ?? []);
+      setChannelsByServerId(prev => ({ ...prev, [serverId]: chs ?? [] }));
       // If active channel is no longer accessible, clear it
       setActiveChannel(prev => {
         if (!prev) return prev;
@@ -741,12 +918,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const receiveMemberLeave = useCallback((serverId: string, userId: string) => {
     // Update members list if the user is in the active server
     setMembers(prev => prev.filter(m => !(m.server_id === serverId && m.user_id === userId)));
+    setMembersByServerId(prev => {
+      const list = prev[serverId];
+      if (!list) return prev;
+      return { ...prev, [serverId]: list.filter(m => m.user_id !== userId) };
+    });
   }, []);
 
   // Called when the current user is kicked or banned
   const receiveMemberRemoved = useCallback((serverId: string, userId: string) => {
     setMembers(prev => prev.filter(m => !(m.server_id === serverId && m.user_id === userId)));
     setServers(prev => prev.filter(s => s.id !== serverId));
+    setChannelsByServerId(prev => {
+      const { [serverId]: _omit, ...rest } = prev;
+      return rest;
+    });
+    setMembersByServerId(prev => {
+      const { [serverId]: _omit, ...rest } = prev;
+      return rest;
+    });
     setActiveServer(prev => {
       if (prev?.id === serverId) {
         setChannels([]);
@@ -764,6 +954,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ? { ...m, roles: update.roles }
         : m
     ));
+    setMembersByServerId(prev => {
+      const list = prev[update.server_id];
+      if (!list) return prev;
+      return {
+        ...prev,
+        [update.server_id]: list.map(m =>
+          m.user_id === update.user_id ? { ...m, roles: update.roles } : m
+        ),
+      };
+    });
   }, []);
 
   const receiveBotStatusUpdate = useCallback((update: BotStatusUpdate) => {
@@ -772,6 +972,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ? { ...m, bot_degraded: update.degraded }
         : m
     ));
+    setMembersByServerId(prev => {
+      const list = prev[update.server_id];
+      if (!list) return prev;
+      return {
+        ...prev,
+        [update.server_id]: list.map(m =>
+          m.user_id === update.bot_user_id ? { ...m, bot_degraded: update.degraded } : m
+        ),
+      };
+    });
   }, []);
 
   const receiveUserUpdate = useCallback((update: UserUpdate) => {
@@ -787,6 +997,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (update.status_text !== undefined) next.status_text = update.status_text;
       return next;
     }));
+    setMembersByServerId(prev => {
+      let changed = false;
+      const next: Record<string, ServerMember[]> = {};
+      for (const sid of Object.keys(prev)) {
+        const list = prev[sid];
+        const updatedList = list.map(m => {
+          if (m.user_id !== update.user_id) return m;
+          changed = true;
+          const out = { ...m };
+          if (update.username !== undefined) out.username = update.username;
+          if (update.avatar_url !== undefined) out.avatar_url = update.avatar_url;
+          if (update.banner_url !== undefined) out.banner_url = update.banner_url;
+          if (update.display_name !== undefined) out.display_name = update.display_name;
+          if (update.bio !== undefined) out.bio = update.bio;
+          if (update.status_type !== undefined) out.status_type = update.status_type as typeof out.status_type;
+          if (update.status_text !== undefined) out.status_text = update.status_text;
+          return out;
+        });
+        next[sid] = updatedList;
+      }
+      return changed ? next : prev;
+    });
     setCurrentUser(prev => {
       if (!prev || prev.id !== update.user_id) return prev;
       const next = { ...prev };
@@ -843,6 +1075,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       setDmMessages(prev => [...msgs, ...prev]);
       setHasMoreDmMessages(msgs.length >= 50);
+      // Prepend into the cache too so the next visit gets the same depth.
+      const cacheKey = activeDmChannel.id;
+      setDmMessagesByChannelId(prev => {
+        const list = prev[cacheKey];
+        if (!list) return { ...prev, [cacheKey]: msgs };
+        return { ...prev, [cacheKey]: [...msgs, ...list] };
+      });
     } catch (err) {
       console.error(err);
     } finally {
@@ -965,101 +1204,160 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   }, []);
 
+  // -------------------------------------------------------------------------
+  // Memoized slice values
+  //
+  // Each useMemo only recomputes when its specific dependencies change. A
+  // message arriving (setMessages) won't churn the Identity slice; a friend
+  // request won't churn Messaging; etc. App.tsx (the legacy mega-consumer)
+  // pulls everything via useApp() and is unaffected — but smaller consumers
+  // like UserSettings (only reads `logout`) and ThemeLinkEmbed (only reads
+  // `currentUser`) now subscribe to a narrower context.
+  // -------------------------------------------------------------------------
+
+  const identityValue = useMemo<IdentityValue>(() => ({
+    currentUser,
+    notifications,
+    unreadNotificationCount,
+    updateCurrentUser,
+    logout,
+    receiveUserUpdate,
+    receiveNotification,
+    markNotificationRead,
+    markAllNotificationsRead,
+    loadNotifications,
+  }), [currentUser, notifications, unreadNotificationCount, updateCurrentUser, logout, receiveUserUpdate, receiveNotification, markNotificationRead, markAllNotificationsRead, loadNotifications]);
+
+  const serversValue = useMemo<ServersValue>(() => ({
+    servers,
+    activeServer,
+    channels,
+    activeChannel,
+    members,
+    isLoadingServers,
+    isLoadingChannels,
+    selectServer,
+    selectChannel,
+    selectChannelAround,
+    createServer,
+    updateServer,
+    deleteServer,
+    leaveServer,
+    createChannel,
+    deleteChannel,
+    reorderChannels,
+    reorderServers,
+    applyServersReorder,
+    addServer,
+    loadServers,
+    receiveChannelCreate,
+    receiveChannelUpdate,
+    receiveChannelDelete,
+    receiveMemberLeave,
+    receiveMemberRemoved,
+    receiveMemberRoleUpdate,
+    receiveBotStatusUpdate,
+    reloadMembers,
+    reloadChannels,
+  }), [servers, activeServer, channels, activeChannel, members, isLoadingServers, isLoadingChannels, selectServer, selectChannel, selectChannelAround, createServer, updateServer, deleteServer, leaveServer, createChannel, deleteChannel, reorderChannels, reorderServers, applyServersReorder, addServer, loadServers, receiveChannelCreate, receiveChannelUpdate, receiveChannelDelete, receiveMemberLeave, receiveMemberRemoved, receiveMemberRoleUpdate, receiveBotStatusUpdate, reloadMembers, reloadChannels]);
+
+  const messagingValue = useMemo<MessagingValue>(() => ({
+    messages,
+    hasMoreMessages,
+    isLoadingMessages,
+    pendingJumpMessageId,
+    clearJumpTarget,
+    sendMessage,
+    editMessage,
+    deleteMessage,
+    receiveMessage,
+    receiveMessageUpdate,
+    receiveMessageDelete,
+    toggleReaction,
+    applyReactionUpdate,
+    loadMoreMessages,
+  }), [messages, hasMoreMessages, isLoadingMessages, pendingJumpMessageId, clearJumpTarget, sendMessage, editMessage, deleteMessage, receiveMessage, receiveMessageUpdate, receiveMessageDelete, toggleReaction, applyReactionUpdate, loadMoreMessages]);
+
+  const dmValue = useMemo<DmValue>(() => ({
+    dmChannels,
+    activeDmChannel,
+    dmMessages,
+    hasMoreDmMessages,
+    isLoadingDms,
+    friends,
+    friendRequests,
+    pendingRequestCount,
+    blockedUsers,
+    loadDmChannels,
+    openDmChannel,
+    selectDmChannel,
+    sendDmMessage,
+    receiveDmMessage,
+    deleteDmMessage,
+    applyDmReactionUpdate,
+    receiveDmMessageDelete,
+    receiveDmChannelCreate,
+    applyDmChannelUpdate,
+    loadMoreDmMessages,
+    loadFriends,
+    sendFriendRequest,
+    acceptFriendRequest,
+    declineOrCancelRequest,
+    removeFriend,
+    blockUser,
+    unblockUser,
+    loadBlockedUsers,
+    receiveFriendRequest,
+    receiveFriendAccept,
+    receiveFriendRemove,
+  }), [dmChannels, activeDmChannel, dmMessages, hasMoreDmMessages, isLoadingDms, friends, friendRequests, pendingRequestCount, blockedUsers, loadDmChannels, openDmChannel, selectDmChannel, sendDmMessage, receiveDmMessage, deleteDmMessage, applyDmReactionUpdate, receiveDmMessageDelete, receiveDmChannelCreate, applyDmChannelUpdate, loadMoreDmMessages, loadFriends, sendFriendRequest, acceptFriendRequest, declineOrCancelRequest, removeFriend, blockUser, unblockUser, loadBlockedUsers, receiveFriendRequest, receiveFriendAccept, receiveFriendRemove]);
+
   return (
-    <AppContext.Provider value={{
-      currentUser,
-      servers,
-      activeServer,
-      channels,
-      activeChannel,
-      messages,
-      hasMoreMessages,
-      members,
-      isLoadingServers,
-      isLoadingChannels,
-      isLoadingMessages,
-      dmChannels,
-      activeDmChannel,
-      dmMessages,
-      hasMoreDmMessages,
-      isLoadingDms,
-      selectServer,
-      selectChannel,
-      selectChannelAround,
-      clearJumpTarget,
-      createServer,
-      updateServer,
-      deleteServer,
-      leaveServer,
-      addServer,
-      createChannel,
-      deleteChannel,
-      reorderChannels,
-      reorderServers,
-      applyServersReorder,
-      sendMessage,
-      editMessage,
-      deleteMessage,
-      receiveMessage,
-      receiveMessageUpdate,
-      receiveMessageDelete,
-      toggleReaction,
-      applyReactionUpdate,
-      logout,
-      loadDmChannels,
-      openDmChannel,
-      selectDmChannel,
-      sendDmMessage,
-      receiveDmMessage,
-      deleteDmMessage,
-      applyDmReactionUpdate,
-      receiveDmMessageDelete,
-      receiveDmChannelCreate,
-      applyDmChannelUpdate,
-      updateCurrentUser,
-      loadServers,
-      receiveChannelCreate,
-      receiveChannelUpdate,
-      receiveChannelDelete,
-      receiveMemberLeave,
-      receiveMemberRemoved,
-      receiveMemberRoleUpdate,
-      receiveBotStatusUpdate,
-      receiveUserUpdate,
-      reloadMembers,
-      reloadChannels,
-      loadMoreMessages,
-      loadMoreDmMessages,
-      friends,
-      friendRequests,
-      pendingRequestCount,
-      pendingJumpMessageId,
-      loadFriends,
-      sendFriendRequest,
-      acceptFriendRequest,
-      declineOrCancelRequest,
-      removeFriend,
-      blockedUsers,
-      blockUser,
-      unblockUser,
-      loadBlockedUsers,
-      receiveFriendRequest,
-      receiveFriendAccept,
-      receiveFriendRemove,
-      notifications,
-      unreadNotificationCount,
-      receiveNotification,
-      markNotificationRead,
-      markAllNotificationsRead,
-      loadNotifications,
-    }}>
-      {children}
-    </AppContext.Provider>
+    <IdentityContext.Provider value={identityValue}>
+      <ServersContext.Provider value={serversValue}>
+        <MessagingContext.Provider value={messagingValue}>
+          <DmContext.Provider value={dmValue}>
+            {children}
+          </DmContext.Provider>
+        </MessagingContext.Provider>
+      </ServersContext.Provider>
+    </IdentityContext.Provider>
   );
 }
 
-export function useApp() {
-  const ctx = useContext(AppContext);
-  if (!ctx) throw new Error('useApp must be used within AppProvider');
+// Narrow hooks — prefer these over useApp() for new consumers.
+export function useIdentity(): IdentityValue {
+  const ctx = useContext(IdentityContext);
+  if (!ctx) throw new Error('useIdentity must be used within AppProvider');
   return ctx;
+}
+export function useServers(): ServersValue {
+  const ctx = useContext(ServersContext);
+  if (!ctx) throw new Error('useServers must be used within AppProvider');
+  return ctx;
+}
+export function useMessaging(): MessagingValue {
+  const ctx = useContext(MessagingContext);
+  if (!ctx) throw new Error('useMessaging must be used within AppProvider');
+  return ctx;
+}
+export function useDm(): DmValue {
+  const ctx = useContext(DmContext);
+  if (!ctx) throw new Error('useDm must be used within AppProvider');
+  return ctx;
+}
+
+// Backwards-compatible facade: returns the union of all four slice values.
+// New code should prefer the narrow hooks above; this exists so App.tsx (which
+// reads ~80 fields across all slices) doesn't need a sweeping migration.
+//
+// NOTE: this hook subscribes to all four contexts, so it will re-render on
+// any state change — same as the pre-split AppContext. It does not regress
+// performance; the win is for consumers that DO migrate to a narrow hook.
+export function useApp(): IdentityValue & ServersValue & MessagingValue & DmValue {
+  const id = useIdentity();
+  const sv = useServers();
+  const ms = useMessaging();
+  const dm = useDm();
+  return useMemo(() => ({ ...id, ...sv, ...ms, ...dm }), [id, sv, ms, dm]);
 }

@@ -6,7 +6,7 @@ import { updateProfile, resendVerification, changeEmail, verifyPhone, resendPhon
 import { uploadFile } from '../../api/upload';
 import { listPasskeys, registerPasskey, deletePasskey, renamePasskey, removePassword, PasskeyInfo } from '../../api/passkeys';
 import { deleteAccount, exportMyData, DeleteAccountError, DeleteBlockersError } from '../../api/me';
-import { useApp } from '../../context/AppContext';
+import { useIdentity } from '../../context/AppContext';
 import { Modal } from '../ui/Modal';
 import { DeveloperTab } from './DeveloperTab';
 import { VoiceSettingsTab } from './VoiceSettings';
@@ -650,7 +650,7 @@ interface PrivacyDataSectionProps {
   currentUser: User | null;
 }
 const PrivacyDataSection: React.FC<PrivacyDataSectionProps> = ({ currentUser }) => {
-  const { logout } = useApp();
+  const { logout } = useIdentity();
   const [exporting, setExporting] = React.useState(false);
   const [exportMsg, setExportMsg] = React.useState<{ text: string; ok: boolean } | null>(null);
 

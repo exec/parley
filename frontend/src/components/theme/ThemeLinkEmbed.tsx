@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { getPublicTheme, installTheme, UserTheme } from '../../api/themes';
 import { useTheme } from '../../context/ThemeContext';
-import { useApp } from '../../context/AppContext';
+import { useIdentity } from '../../context/AppContext';
 import { buildEmbedPreviewHTML } from '../../lib/themePreview';
 import { EmbedCard } from '../EmbedCard';
 import './ThemeLinkEmbed.css';
@@ -14,7 +14,7 @@ export const ThemeLinkEmbed: React.FC<Props> = ({ token }) => {
   const [installing, setInstalling] = useState(false);
   const [installed, setInstalled] = useState(false);
   const themeCtx = useTheme();
-  const { currentUser } = useApp();
+  const { currentUser } = useIdentity();
 
   useEffect(() => {
     getPublicTheme(token)
