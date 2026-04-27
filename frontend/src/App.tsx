@@ -17,7 +17,10 @@ import { SharedThemePage } from './pages/SharedThemePage';
 const ThemeRepoPage = lazy(() => import('./pages/ThemeRepoPage').then(m => ({ default: m.ThemeRepoPage })));
 import { BotInvitePage } from './pages/BotInvitePage';
 import { useWebSocket, MemberRoleUpdate, UserUpdate, VoiceStateUpdate, VoiceForceMuteEvent, RoleUpdateEvent, RoleDeleteEvent, BotStatusUpdate, SoundboardPlayEvent } from './hooks/useWebSocket';
-import { VoiceChannel } from './components/voice/VoiceChannel';
+// VoiceChannel pulls in livekit-client's runtime enums (Track.Source, ParticipantEvent,
+// ConnectionQuality), so lazy-load it to keep that ~hundreds-of-kB bundle out of the
+// main chunk. The chunk only loads when the user actually enters voice.
+const VoiceChannel = lazy(() => import('./components/voice/VoiceChannel').then(m => ({ default: m.VoiceChannel })));
 import { SplitVoiceChat } from './components/voice/SplitVoiceChat';
 
 import { DmChannel, DmMessage, Message, BinChannelTag, ServerMember, AppNotification, Channel } from './api/types';
@@ -801,6 +804,86 @@ function MainApp() {
     [channels],
   );
 
+  // Project DM messages into the Message-shaped objects the chat panel expects.
+  // Recomputed only when dmMessages actually changes — without this, every
+  // MainApp render rebuilt the array (and every nested Message reference) and
+  // bust the chat panel's downstream memoization.
+  const dmAsMessages = useMemo<Message[]>(
+    () => dmMessages.map(dm => ({
+      id: dm.id,
+      channel_id: dm.dm_channel_id,
+      author_id: dm.author_id,
+      author_username: dm.author_username,
+      author_display_name: dm.author_display_name,
+      author_avatar_url: dm.author_avatar_url,
+      content: dm.content,
+      created_at: dm.created_at,
+      updated_at: dm.updated_at,
+      attachment_url: dm.attachment_url,
+      attachment_name: dm.attachment_name,
+      attachment_type: dm.attachment_type,
+      parent_id: dm.parent_id,
+      parent_author_username: dm.parent_author_username,
+      parent_author_display_name: dm.parent_author_display_name,
+      reactions: dm.reactions ?? [],
+      system_event: dm.system_event,
+    })),
+    [dmMessages],
+  );
+
+  // Build the DM "members" list once per upstream change. For groups: the
+  // live roster (refetched on DM_MEMBER_ADD/REMOVE). For 1:1: the partner +
+  // self pair. Powers dmMemberMap below for mention resolution.
+  const dmMembers = useMemo<ServerMember[]>(() => {
+    if (!activeDmChannel) return [];
+    if (activeDmChannel.is_group) {
+      return liveDmGroupMembers.map(m => ({
+        id: m.user_id,
+        server_id: '',
+        user_id: m.user_id,
+        username: m.username ?? '',
+        display_name: m.display_name,
+        avatar_url: m.avatar_url,
+        joined_at: m.joined_at,
+      }));
+    }
+    return [
+      {
+        id: activeDmChannel.other_user_id ?? '',
+        server_id: '',
+        user_id: activeDmChannel.other_user_id ?? '',
+        username: activeDmChannel.other_username ?? '',
+        display_name: activeDmChannel.other_display_name,
+        avatar_url: activeDmChannel.other_avatar_url,
+        joined_at: '',
+      },
+      ...(currentUser ? [{
+        id: currentUser.id,
+        server_id: '',
+        user_id: currentUser.id,
+        username: currentUser.username,
+        display_name: currentUser.display_name,
+        avatar_url: currentUser.avatar_url,
+        banner_url: currentUser.banner_url,
+        bio: currentUser.bio,
+        badges: currentUser.badges,
+        joined_at: '',
+      }] : []),
+    ];
+  }, [activeDmChannel, liveDmGroupMembers, currentUser]);
+
+  // userId → display name map for resolving <@id> mention tokens in DMs.
+  // Server channels use the global memberMap; DMs need their own sourced
+  // from dmMembers. Memoized so MarkdownRenderer's reference equality holds.
+  const dmMemberMap = useMemo(
+    () => new Map(
+      dmMembers
+        .filter(m => m.user_id && m.username)
+        .map(m => [m.user_id, m.display_name || m.username] as [string, string])
+    ),
+    [dmMembers],
+  );
+
   // Channel IDs for the active server (for unread notifications)
   const allChannelIds = useMemo(() => channels.map(c => c.id), [channels]);
 
@@ -1381,36 +1464,38 @@ function MainApp() {
     );
   } else if (isViewingVC && vcChannel && currentUser) {
     mainContent = (
-      <VoiceChannel
-        channel={vcChannel}
-        currentUser={{ id: currentUser.id, username: currentUser.display_name || currentUser.username, avatar_url: currentUser.avatar_url }}
-        participants={vcParticipants}
-        localParticipant={vcLocalParticipant}
-        voiceParticipants={Object.fromEntries(
-          (voiceParticipants[activeVoiceChannel!] ?? []).map(p => [p.user_id, p])
-        )}
-        activeSpeakers={vcActiveSpeakers}
-        connected={vcConnected}
-        connecting={vcConnecting}
-        error={vcError}
-        muted={vcMuted}
-        deafened={vcDeafened}
-        videoEnabled={vcVideoEnabled}
-        screenSharing={vcScreenSharing}
-        onToggleMute={vcToggleMute}
-        onToggleDeafen={vcToggleDeafen}
-        onToggleVideo={vcToggleVideo}
-        onToggleScreenShare={vcToggleScreenShare}
-        onLeave={vcDisconnect}
-        onRetry={vcRetry}
-        canMuteMembers={canMuteMembers}
-        canKickFromVoice={canKickFromVoice}
-        onMuteParticipant={async (userId) => { try { await muteVoiceParticipant(serverVc(activeVoiceChannel!), userId); } catch(e) { console.error(e); } }}
-        vcChatOpen={vcChatOpen}
-        onToggleVcChat={() => setVcChatOpen(v => !v)}
-        onParticipantClick={(userId, e) => handleVcParticipantClick(userId, e.clientX, e.clientY)}
-        activeSoundEmojis={activeSoundEmojis}
-      />
+      <Suspense fallback={null}>
+        <VoiceChannel
+          channel={vcChannel}
+          currentUser={{ id: currentUser.id, username: currentUser.display_name || currentUser.username, avatar_url: currentUser.avatar_url }}
+          participants={vcParticipants}
+          localParticipant={vcLocalParticipant}
+          voiceParticipants={Object.fromEntries(
+            (voiceParticipants[activeVoiceChannel!] ?? []).map(p => [p.user_id, p])
+          )}
+          activeSpeakers={vcActiveSpeakers}
+          connected={vcConnected}
+          connecting={vcConnecting}
+          error={vcError}
+          muted={vcMuted}
+          deafened={vcDeafened}
+          videoEnabled={vcVideoEnabled}
+          screenSharing={vcScreenSharing}
+          onToggleMute={vcToggleMute}
+          onToggleDeafen={vcToggleDeafen}
+          onToggleVideo={vcToggleVideo}
+          onToggleScreenShare={vcToggleScreenShare}
+          onLeave={vcDisconnect}
+          onRetry={vcRetry}
+          canMuteMembers={canMuteMembers}
+          canKickFromVoice={canKickFromVoice}
+          onMuteParticipant={async (userId) => { try { await muteVoiceParticipant(serverVc(activeVoiceChannel!), userId); } catch(e) { console.error(e); } }}
+          vcChatOpen={vcChatOpen}
+          onToggleVcChat={() => setVcChatOpen(v => !v)}
+          onParticipantClick={(userId, e) => handleVcParticipantClick(userId, e.clientX, e.clientY)}
+          activeSoundEmojis={activeSoundEmojis}
+        />
+      </Suspense>
     );
   } else if (view === 'homepage') {
     mainContent = (
@@ -1438,64 +1523,9 @@ function MainApp() {
       created_at: activeDmChannel.created_at,
       updated_at: activeDmChannel.created_at,
     };
-    const dmAsMessages: Message[] = dmMessages.map(dm => ({
-      id: dm.id,
-      channel_id: dm.dm_channel_id,
-      author_id: dm.author_id,
-      author_username: dm.author_username,
-      author_display_name: dm.author_display_name,
-      author_avatar_url: dm.author_avatar_url,
-      content: dm.content,
-      created_at: dm.created_at,
-      updated_at: dm.updated_at,
-      attachment_url: dm.attachment_url,
-      attachment_name: dm.attachment_name,
-      attachment_type: dm.attachment_type,
-      parent_id: dm.parent_id,
-      parent_author_username: dm.parent_author_username,
-      parent_author_display_name: dm.parent_author_display_name,
-      reactions: dm.reactions ?? [],
-      system_event: dm.system_event,
-    }));
-    // For groups, use the full members list. For 1:1, fall back to the
-    // existing pair construction.
-    const dmMembers = isGroup
-      // Use the live-updating roster (refetches on DM_MEMBER_ADD/REMOVE) so
-      // mentions resolve to newly-added members without a page reload.
-      // activeDmChannel.members is a load-time snapshot that doesn't refresh
-      // when the WS member-change event fires.
-      ? liveDmGroupMembers.map(m => ({
-          id: m.user_id,
-          server_id: '',
-          user_id: m.user_id,
-          username: m.username ?? '',
-          display_name: m.display_name,
-          avatar_url: m.avatar_url,
-          joined_at: m.joined_at,
-        }))
-      : [
-          {
-            id: activeDmChannel.other_user_id ?? '',
-            server_id: '',
-            user_id: activeDmChannel.other_user_id ?? '',
-            username: activeDmChannel.other_username ?? '',
-            display_name: activeDmChannel.other_display_name,
-            avatar_url: activeDmChannel.other_avatar_url,
-            joined_at: '',
-          },
-          ...(currentUser ? [{
-            id: currentUser.id,
-            server_id: '',
-            user_id: currentUser.id,
-            username: currentUser.username,
-            display_name: currentUser.display_name,
-            avatar_url: currentUser.avatar_url,
-            banner_url: currentUser.banner_url,
-            bio: currentUser.bio,
-            badges: currentUser.badges,
-            joined_at: '',
-          }] : []),
-        ];
+    // dmAsMessages, dmMembers, and dmMemberMap are memoized at the top of
+    // MainApp so they don't rebuild on every render — see the useMemo block
+    // near the other memoized maps.
 
     const groupAvatarTiles = isGroup
       ? (activeDmChannel.members ?? []).slice(0, 4).map(m => ({
@@ -1503,17 +1533,6 @@ function MainApp() {
           displayName: m.display_name || m.username || '?',
         }))
       : [];
-
-    // userId → display name map for resolving <@id> mention tokens in DM
-    // messages. Server channels use App.tsx's global memberMap built from
-    // server members; DMs need their own map sourced from dmMembers (which
-    // covers both 1:1 partners and full group rosters). Without this,
-    // MarkdownRenderer falls back to "@unknown" for every mention.
-    const dmMemberMap = new Map(
-      dmMembers
-        .filter(m => m.user_id && m.username)
-        .map(m => [m.user_id, m.display_name || m.username] as [string, string])
-    );
 
     const dmCallParticipantCount = activeCalls.get(activeDmChannel.id) ?? 0;
     const handleDmStartOrJoinCall = async () => {
@@ -1595,39 +1614,41 @@ function MainApp() {
         updated_at: activeDmChannel.created_at ?? '',
       };
       const voicePanel = (
-        <VoiceChannel
-          channel={dmAsChannel}
-          vc={dmVc(activeDmChannel.id)}
-          currentUser={{ id: currentUser.id, username: currentUser.display_name || currentUser.username, avatar_url: currentUser.avatar_url }}
-          participants={vcParticipants}
-          localParticipant={vcLocalParticipant}
-          voiceParticipants={Object.fromEntries(
-            (voiceParticipants[activeDmChannel.id] ?? []).map(p => [p.user_id, p])
-          )}
-          activeSpeakers={vcActiveSpeakers}
-          connected={vcConnected}
-          connecting={vcConnecting}
-          error={vcError}
-          muted={vcMuted}
-          deafened={vcDeafened}
-          videoEnabled={vcVideoEnabled}
-          screenSharing={vcScreenSharing}
-          onToggleMute={vcToggleMute}
-          onToggleDeafen={vcToggleDeafen}
-          onToggleVideo={vcToggleVideo}
-          onToggleScreenShare={vcToggleScreenShare}
-          onLeave={vcDisconnect}
-          onRetry={vcRetry}
-          canMuteMembers={false}
-          canKickFromVoice={false}
-          activeSoundEmojis={activeSoundEmojis}
-          showMembers={isGroup ? showMembers : undefined}
-          onToggleMembers={isGroup ? () => setShowMembers(next => {
-            const v = !next;
-            localStorage.setItem('parley:showMembers', String(v));
-            return v;
-          }) : undefined}
-        />
+        <Suspense fallback={null}>
+          <VoiceChannel
+            channel={dmAsChannel}
+            vc={dmVc(activeDmChannel.id)}
+            currentUser={{ id: currentUser.id, username: currentUser.display_name || currentUser.username, avatar_url: currentUser.avatar_url }}
+            participants={vcParticipants}
+            localParticipant={vcLocalParticipant}
+            voiceParticipants={Object.fromEntries(
+              (voiceParticipants[activeDmChannel.id] ?? []).map(p => [p.user_id, p])
+            )}
+            activeSpeakers={vcActiveSpeakers}
+            connected={vcConnected}
+            connecting={vcConnecting}
+            error={vcError}
+            muted={vcMuted}
+            deafened={vcDeafened}
+            videoEnabled={vcVideoEnabled}
+            screenSharing={vcScreenSharing}
+            onToggleMute={vcToggleMute}
+            onToggleDeafen={vcToggleDeafen}
+            onToggleVideo={vcToggleVideo}
+            onToggleScreenShare={vcToggleScreenShare}
+            onLeave={vcDisconnect}
+            onRetry={vcRetry}
+            canMuteMembers={false}
+            canKickFromVoice={false}
+            activeSoundEmojis={activeSoundEmojis}
+            showMembers={isGroup ? showMembers : undefined}
+            onToggleMembers={isGroup ? () => setShowMembers(next => {
+              const v = !next;
+              localStorage.setItem('parley:showMembers', String(v));
+              return v;
+            }) : undefined}
+          />
+        </Suspense>
       );
       mainContent = (
         <SplitVoiceChat
