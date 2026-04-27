@@ -85,7 +85,15 @@ func (c *Client) closeSend() {
 // ReadPump reads messages from the WebSocket connection
 func (c *Client) ReadPump() {
 	defer func() {
-		c.hub.unregister <- c
+		// Non-blocking unregister: if the hub's unregister channel is full
+		// (mass disconnect), fall back to a goroutine so this defer never
+		// stalls the connection teardown. A stalled defer here would leave
+		// the conn unclosed and the client registered in the hub's maps.
+		select {
+		case c.hub.unregister <- c:
+		default:
+			go func() { c.hub.unregister <- c }()
+		}
 		c.conn.Close()
 	}()
 
@@ -217,7 +225,13 @@ func (c *Client) allowWSMessage() bool {
 	return false
 }
 
-// WritePump writes messages to the WebSocket connection
+// WritePump writes messages to the WebSocket connection.
+//
+// On any write error we log + close the conn. Closing the conn unblocks
+// ReadPump's ReadMessage, which then unregisters the client via its
+// deferred handler. Without the close, a half-open TCP connection could
+// leave the client registered in the hub's userToClient map while no
+// frames actually reach the browser — a "zombie" connection.
 func (c *Client) WritePump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
@@ -236,6 +250,7 @@ func (c *Client) WritePump() {
 			}
 
 			if err := c.conn.WriteMessage(websocket.TextMessage, message); err != nil {
+				log.Printf("WritePump: write failed for user %s: %v (closing conn)", c.userID, err)
 				return
 			}
 
@@ -247,6 +262,7 @@ func (c *Client) WritePump() {
 			for i := 0; i < n; i++ {
 				c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 				if err := c.conn.WriteMessage(websocket.TextMessage, <-c.send); err != nil {
+					log.Printf("WritePump: flush write failed for user %s: %v (closing conn)", c.userID, err)
 					return
 				}
 			}
@@ -254,6 +270,7 @@ func (c *Client) WritePump() {
 		case <-ticker.C:
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				log.Printf("WritePump: ping failed for user %s: %v (closing conn)", c.userID, err)
 				return
 			}
 		}
