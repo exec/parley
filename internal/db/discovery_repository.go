@@ -130,17 +130,25 @@ func (r *Repository) SetServerCategories(ctx context.Context, serverID int64, ca
 
 // GetPublicServers returns paginated public servers with optional name search and category filter.
 func (r *Repository) GetPublicServers(ctx context.Context, categoryID *int64, q string, limit, offset int) ([]PublicServerRow, int, error) {
+	// Pattern bound at the Go layer (rather than `'%' || $2 || '%'`) so we
+	// can run the input through escapeLike + an ESCAPE clause. Otherwise
+	// `%%%%%` style attacker patterns hit the DB as wildcards and bypass
+	// the rate limiter's intent. (audit #11)
+	pattern := ""
+	if q != "" {
+		pattern = "%" + escapeLike(q) + "%"
+	}
 	const baseWhere = `
 		WHERE s.is_public = TRUE
 		  AND ($1::BIGINT IS NULL OR EXISTS (
 		      SELECT 1 FROM server_category_assignments sca
 		      WHERE sca.server_id = s.id AND sca.category_id = $1
 		  ))
-		  AND ($2 = '' OR s.name ILIKE '%' || $2 || '%')`
+		  AND ($2 = '' OR s.name ILIKE $2 ESCAPE '\')`
 
 	countQuery := `SELECT COUNT(*) FROM servers s` + baseWhere
 	var total int
-	if err := r.db.QueryRowContext(ctx, countQuery, categoryID, q).Scan(&total); err != nil {
+	if err := r.db.QueryRowContext(ctx, countQuery, categoryID, pattern).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
@@ -151,7 +159,7 @@ func (r *Repository) GetPublicServers(ctx context.Context, categoryID *int64, q 
 		ORDER BY s.name
 		LIMIT $3 OFFSET $4`
 
-	rows, err := r.db.QueryContext(ctx, rowQuery, categoryID, q, limit, offset)
+	rows, err := r.db.QueryContext(ctx, rowQuery, categoryID, pattern, limit, offset)
 	if err != nil {
 		return nil, 0, err
 	}

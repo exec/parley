@@ -88,6 +88,10 @@ func (s *Service) create(ctx context.Context, n *db.Notification) {
 
 // NotifyMentions parses @mentions from content and creates mention notifications
 // for each mentioned user (excluding the author themselves).
+//
+// Each recipient must be a member of the source server. Without this check, a
+// stranger with SendMessages on any server they share with no one could fan
+// arbitrary `<@uid>` strings out as cross-server notification spam. (audit #10)
 func (s *Service) NotifyMentions(ctx context.Context, authorID int64, authorUsername, authorAvatarURL, content, channelName string, serverID, channelID, messageID int64) {
 	matches := mentionRe.FindAllStringSubmatch(content, -1)
 	seen := map[int64]bool{}
@@ -97,6 +101,11 @@ func (s *Service) NotifyMentions(ctx context.Context, authorID int64, authorUser
 			continue
 		}
 		seen[uid] = true
+		// Skip notifications for users who aren't members of the source
+		// server. GetMember returns ErrNotFound for non-members.
+		if _, err := s.repo.GetMember(ctx, serverID, uid); err != nil {
+			continue
+		}
 		sid, cid, mid := serverID, channelID, messageID
 		s.create(ctx, &db.Notification{
 			UserID:         uid,

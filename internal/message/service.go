@@ -260,7 +260,15 @@ func (s *MessageService) SendMessage(ctx context.Context, channelID, authorID, c
 		trigger(ctx, msg.ID, channelID, serverIDStr, authorID, content, parentIDStr)
 	}
 	if mentionFn != nil && content != "" {
-		go mentionFn(ctx, authorIDInt, authorUsername, authorAvatarURL, content, ch.Name, srv.ID, channelIDInt, dbMsg.ID)
+		// Detach from the request context: chi cancels it right after the
+		// 201 response, which would silently kill the notification create
+		// with `context canceled`. Use a fresh background context with a
+		// generous timeout instead. (audit #10)
+		go func() {
+			bgCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			mentionFn(bgCtx, authorIDInt, authorUsername, authorAvatarURL, content, ch.Name, srv.ID, channelIDInt, dbMsg.ID)
+		}()
 	}
 
 	return msg, nil
@@ -743,10 +751,20 @@ func (s *MessageService) PinMessage(ctx context.Context, channelID, messageID, u
 		return ErrServerNotFound
 	}
 
-	canPin, err := permissions.HasChannelPermission(ctx, s.repo, srv.ID, userIDInt, srv.OwnerID, chIDInt,
-		permissions.PermManageMessages|permissions.PermPinMessages)
+	// Either ManageMessages or PinMessages is sufficient. The previous form
+	// passed PermManageMessages|PermPinMessages as a single bitmask to
+	// HasChannelPermission, which delegates to HasPerm (perms&perm == perm)
+	// — i.e. the actor needed *both* bits. Two calls express the OR
+	// correctly. (audit #13)
+	canPin, err := permissions.HasChannelPermission(ctx, s.repo, srv.ID, userIDInt, srv.OwnerID, chIDInt, permissions.PermManageMessages)
 	if err != nil {
 		return err
+	}
+	if !canPin {
+		canPin, err = permissions.HasChannelPermission(ctx, s.repo, srv.ID, userIDInt, srv.OwnerID, chIDInt, permissions.PermPinMessages)
+		if err != nil {
+			return err
+		}
 	}
 	if !canPin {
 		return ErrForbidden
@@ -803,10 +821,17 @@ func (s *MessageService) UnpinMessage(ctx context.Context, channelID, messageID,
 		return ErrServerNotFound
 	}
 
-	canPin, err := permissions.HasChannelPermission(ctx, s.repo, srv.ID, userIDInt, srv.OwnerID, chIDInt,
-		permissions.PermManageMessages|permissions.PermPinMessages)
+	// Either ManageMessages or PinMessages is sufficient (audit #13 — see
+	// PinMessage above for rationale).
+	canPin, err := permissions.HasChannelPermission(ctx, s.repo, srv.ID, userIDInt, srv.OwnerID, chIDInt, permissions.PermManageMessages)
 	if err != nil {
 		return err
+	}
+	if !canPin {
+		canPin, err = permissions.HasChannelPermission(ctx, s.repo, srv.ID, userIDInt, srv.OwnerID, chIDInt, permissions.PermPinMessages)
+		if err != nil {
+			return err
+		}
 	}
 	if !canPin {
 		return ErrForbidden

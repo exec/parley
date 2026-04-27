@@ -55,6 +55,33 @@ type AuthService struct {
 // memory for the typical request.
 const sessionCacheTTL = 3 * time.Second
 
+// dummyBcryptHash is a real bcrypt hash used to equalise the cost of Login
+// when no user row exists. Without this, the no-user branch returns ~80ms
+// faster than the user-exists branch (which always runs CompareHashAndPassword),
+// producing a clean account-existence side channel. Generated once at process
+// start so every login does roughly the same amount of work regardless of
+// whether the supplied identifier matches a real account. (audit #8)
+var (
+	dummyBcryptHash     []byte
+	dummyBcryptHashOnce sync.Once
+)
+
+func ensureDummyBcryptHash() {
+	dummyBcryptHashOnce.Do(func() {
+		// Cost matches the package default used elsewhere (see HashPassword).
+		// The plaintext value is meaningless; the hash exists solely to make
+		// CompareHashAndPassword take its full ~80ms on the no-user branch.
+		h, err := bcrypt.GenerateFromPassword([]byte("parley-login-timing-equaliser"), bcrypt.DefaultCost)
+		if err != nil {
+			// Falls back to a hardcoded valid bcrypt hash so the login path
+			// still does work even if the local CSPRNG glitches at boot.
+			dummyBcryptHash = []byte("$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy")
+			return
+		}
+		dummyBcryptHash = h
+	})
+}
+
 type cachedSessionStatus struct {
 	st        *SessionStatus
 	expiresAt time.Time
@@ -357,6 +384,11 @@ func (s *AuthService) Login(ctx context.Context, emailOrPhone, password, ip stri
 	}
 	if err != nil {
 		if err == db.ErrNotFound {
+			// Equalise timing with the user-exists branch by running bcrypt
+			// against a static dummy hash. Result is discarded; we still
+			// return the same generic error. (audit #8)
+			ensureDummyBcryptHash()
+			_ = bcrypt.CompareHashAndPassword(dummyBcryptHash, []byte(password))
 			return User{}, "", errors.New("invalid credentials")
 		}
 		return User{}, "", err

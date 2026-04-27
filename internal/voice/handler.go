@@ -238,13 +238,23 @@ func (h *Handler) Participants(w http.ResponseWriter, r *http.Request) {
 
 // Heartbeat refreshes the per-user voice presence TTL.
 // POST /api/voice/{vc}/heartbeat
+//
+// Gated by AuthorizeJoin so only members of the channel/DM can write to the
+// `voice:heartbeat:*` keys. Without this, any authenticated user can forge
+// presence-TTL keys for channels they aren't in — currently no consumer reads
+// those keys, but a future presence reaper would turn this into presence
+// forgery. (audit #9)
 func (h *Handler) Heartbeat(w http.ResponseWriter, r *http.Request) {
-	_, userIDStr, ok := h.userFromCtx(w, r)
+	userID, userIDStr, ok := h.userFromCtx(w, r)
 	if !ok {
 		return
 	}
-	_, vcStr, ok := h.parseVC(w, r)
+	vc, vcStr, ok := h.parseVC(w, r)
 	if !ok {
+		return
+	}
+	if allowed, err := h.authz.AuthorizeJoin(r.Context(), vc, userID); err != nil || !allowed {
+		httputil.JSONError(w, "forbidden", http.StatusForbidden)
 		return
 	}
 	if err := h.svc.RefreshHeartbeat(r.Context(), vcStr, userIDStr); err != nil {

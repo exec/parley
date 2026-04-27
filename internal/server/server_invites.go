@@ -58,14 +58,21 @@ func (s *ServerService) CreateInvite(ctx context.Context, serverID, createdBy st
 		return nil, err
 	}
 
+	// Redact the invite code in the audit row. The full code lives in
+	// `invites` and is reachable via the invite-management UI for users
+	// with PermCreateInvite; storing it here lets anyone with
+	// PermViewAuditLog scrape every code historically (audit #12). The
+	// frontend's audit-log renderer already ignores target_id/target_name
+	// for `invite.create`, so a redacted value is purely informational.
+	redactedCode := redactInviteCode(invite.Code)
 	s.auditSvc.Log(ctx, audit.Entry{
 		ServerID:      serverIDInt,
 		ActorID:       &createdByInt,
 		ActorUsername: actorUsername,
 		Action:        "invite.create",
-		TargetID:      invite.Code,
+		TargetID:      redactedCode,
 		TargetType:    "invite",
-		TargetName:    invite.Code,
+		TargetName:    redactedCode,
 	})
 
 	return &Invite{
@@ -266,17 +273,31 @@ func (s *ServerService) RevokeInvite(ctx context.Context, serverID, code, reques
 		return err
 	}
 
+	// Redact the invite code (audit #12). See CreateInvite for rationale.
+	redactedCode := redactInviteCode(code)
 	s.auditSvc.Log(ctx, audit.Entry{
 		ServerID:      serverIDInt,
 		ActorID:       &userIDInt,
 		ActorUsername: actorUsername,
 		Action:        "invite.revoke",
-		TargetID:      code,
+		TargetID:      redactedCode,
 		TargetType:    "invite",
-		TargetName:    code,
+		TargetName:    redactedCode,
 	})
 
 	return nil
+}
+
+// redactInviteCode replaces all but the first 4 and last 4 chars of an invite
+// code with "..." so audit-log readers can correlate rows for the same invite
+// without learning the literal join code. Codes shorter than 9 chars are
+// fully replaced with "redacted" since 4+4 truncation would either reveal
+// most of the code or overlap.
+func redactInviteCode(code string) string {
+	if len(code) < 9 {
+		return "redacted"
+	}
+	return code[:4] + "..." + code[len(code)-4:]
 }
 
 func (s *ServerService) GetInviteMembers(ctx context.Context, serverID, code, requestingUserID string) ([]*db.InviteMember, error) {
