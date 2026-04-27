@@ -128,6 +128,8 @@ function MainApp() {
     receiveMemberLeave,
     receiveMemberRemoved,
     receiveMemberRoleUpdate,
+    receiveRoleUpdate,
+    receiveRoleDelete,
     receiveBotStatusUpdate,
     receiveUserUpdate,
     reloadMembers,
@@ -542,12 +544,14 @@ function MainApp() {
   }, [receiveMemberRoleUpdate, currentUser?.id, reloadChannels]);
 
   const handleRoleUpdate = useCallback((event: RoleUpdateEvent) => {
+    receiveRoleUpdate(event);
     if (event.server_id) invalidatePermCache(event.server_id);
-  }, []);
+  }, [receiveRoleUpdate]);
 
   const handleRoleDelete = useCallback((event: RoleDeleteEvent) => {
+    receiveRoleDelete(event);
     if (event.server_id) invalidatePermCache(event.server_id);
-  }, []);
+  }, [receiveRoleDelete]);
 
   const handleUserUpdate = useCallback((update: UserUpdate) => {
     receiveUserUpdate(update);

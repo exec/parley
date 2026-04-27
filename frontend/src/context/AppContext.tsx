@@ -41,7 +41,7 @@ import * as dmsApi from '../api/dms';
 import * as friendsApi from '../api/friends';
 import * as notificationsApi from '../api/notifications';
 import { getCurrentUser, logout as serverLogout } from '../api/auth';
-import { ReactionUpdate, MemberRoleUpdate, UserUpdate, BotStatusUpdate } from '../hooks/useWebSocket';
+import { ReactionUpdate, MemberRoleUpdate, UserUpdate, BotStatusUpdate, RoleUpdateEvent, RoleDeleteEvent } from '../hooks/useWebSocket';
 import { resetThemeOnLogout } from './ThemeContext';
 
 // ---------------------------------------------------------------------------
@@ -96,6 +96,8 @@ interface ServersValue {
   receiveMemberLeave: (serverId: string, userId: string) => void;
   receiveMemberRemoved: (serverId: string, userId: string) => void;
   receiveMemberRoleUpdate: (update: MemberRoleUpdate) => void;
+  receiveRoleUpdate: (update: RoleUpdateEvent) => void;
+  receiveRoleDelete: (event: RoleDeleteEvent) => void;
   receiveBotStatusUpdate: (update: BotStatusUpdate) => void;
   reloadMembers: (serverId: string) => Promise<void>;
   reloadChannels: (serverId: string) => Promise<void>;
@@ -966,6 +968,50 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  // Role property change (name/color/hoist/position/permissions). Patch the
+  // role inline anywhere it appears in members[].roles arrays, plus the
+  // per-server cache. Without this, sidebar role pills stay stale until the
+  // user refreshes.
+  const receiveRoleUpdate = useCallback((update: RoleUpdateEvent) => {
+    const patchMember = (m: ServerMember): ServerMember => {
+      if (m.server_id !== update.server_id || !m.roles) return m;
+      const idx = m.roles.findIndex(r => r.id === update.id);
+      if (idx < 0) return m;
+      const next = [...m.roles];
+      next[idx] = {
+        ...next[idx],
+        name: update.name,
+        color: update.color,
+        permissions: update.permissions,
+        hoist: update.hoist,
+        position: update.position,
+      };
+      return { ...m, roles: next };
+    };
+    setMembers(prev => prev.map(patchMember));
+    setMembersByServerId(prev => {
+      const list = prev[update.server_id];
+      if (!list) return prev;
+      return { ...prev, [update.server_id]: list.map(patchMember) };
+    });
+  }, []);
+
+  // Role deletion: strip the role from every member's roles array + cache.
+  const receiveRoleDelete = useCallback((event: RoleDeleteEvent) => {
+    const stripFromMember = (m: ServerMember): ServerMember => {
+      if (m.server_id !== event.server_id || !m.roles) return m;
+      const filtered = m.roles.filter(r => r.id !== event.role_id);
+      if (filtered.length === m.roles.length) return m;
+      return { ...m, roles: filtered };
+    };
+    setMembers(prev => prev.map(stripFromMember));
+    setMembersByServerId(prev => {
+      const list = prev[event.server_id];
+      if (!list) return prev;
+      return { ...prev, [event.server_id]: list.map(stripFromMember) };
+    });
+  }, []);
+
   const receiveBotStatusUpdate = useCallback((update: BotStatusUpdate) => {
     setMembers(prev => prev.map(m =>
       m.user_id === update.bot_user_id && m.server_id === update.server_id
@@ -1256,10 +1302,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     receiveMemberLeave,
     receiveMemberRemoved,
     receiveMemberRoleUpdate,
+    receiveRoleUpdate,
+    receiveRoleDelete,
     receiveBotStatusUpdate,
     reloadMembers,
     reloadChannels,
-  }), [servers, activeServer, channels, activeChannel, members, isLoadingServers, isLoadingChannels, selectServer, selectChannel, selectChannelAround, createServer, updateServer, deleteServer, leaveServer, createChannel, deleteChannel, reorderChannels, reorderServers, applyServersReorder, addServer, loadServers, receiveChannelCreate, receiveChannelUpdate, receiveChannelDelete, receiveMemberLeave, receiveMemberRemoved, receiveMemberRoleUpdate, receiveBotStatusUpdate, reloadMembers, reloadChannels]);
+  }), [servers, activeServer, channels, activeChannel, members, isLoadingServers, isLoadingChannels, selectServer, selectChannel, selectChannelAround, createServer, updateServer, deleteServer, leaveServer, createChannel, deleteChannel, reorderChannels, reorderServers, applyServersReorder, addServer, loadServers, receiveChannelCreate, receiveChannelUpdate, receiveChannelDelete, receiveMemberLeave, receiveMemberRemoved, receiveMemberRoleUpdate, receiveRoleUpdate, receiveRoleDelete, receiveBotStatusUpdate, reloadMembers, reloadChannels]);
 
   const messagingValue = useMemo<MessagingValue>(() => ({
     messages,
