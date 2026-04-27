@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blocked · Parley</title>
+<meta name="theme-color" content="#0a1628">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #07101e;
+    --bg-elev: #0a1628;
+    --border: rgba(139, 163, 191, 0.10);
+    --border-strong: rgba(139, 163, 191, 0.18);
+    --text: #cad5e2;
+    --muted: #8ba3bf;
+    --accent: #00b4d8;
+    --danger: #ff5b5b;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background:
+      radial-gradient(ellipse 70% 50% at 50% -10%, rgba(0, 180, 216, 0.07), transparent 65%),
+      radial-gradient(ellipse 60% 40% at 50% 110%, rgba(0, 180, 216, 0.04), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: 'Outfit', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    display: grid;
+    place-items: center;
+    padding: 32px 20px;
+  }
+  .card {
+    max-width: 480px;
+    width: 100%;
+    background: linear-gradient(180deg, rgba(202, 213, 226, 0.025), rgba(202, 213, 226, 0));
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 44px 40px 36px;
+    text-align: center;
+    box-shadow:
+      0 30px 70px -24px rgba(0, 0, 0, 0.7),
+      inset 0 1px 0 rgba(202, 213, 226, 0.04);
+  }
+  .robot {
+    width: 168px;
+    height: auto;
+    margin: 0 auto 28px;
+    color: var(--text);
+    display: block;
+  }
+  h1 {
+    font-family: 'Syne', 'Outfit', sans-serif;
+    font-size: 30px;
+    line-height: 1.18;
+    margin: 0 0 14px;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    color: #e3ecf4;
+  }
+  p {
+    margin: 0 0 14px;
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 1.6;
+    font-weight: 400;
+  }
+  p strong { color: var(--text); font-weight: 600; }
+  a {
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(0, 180, 216, 0.35);
+    transition: border-color 120ms ease;
+  }
+  a:hover { border-bottom-color: var(--accent); }
+  footer {
+    margin-top: 30px;
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    font-family: 'Syne', 'Outfit', sans-serif;
+    font-weight: 600;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+  }
+  .pulse { animation: pulse 2.4s ease-in-out infinite; transform-origin: center; }
+</style>
+</head>
+<body>
+  <main class="card" role="alert" aria-labelledby="title">
+    <svg class="robot" viewBox="0 0 200 240" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs>
+        <radialGradient id="eyeGlow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#ff5b5b" stop-opacity="0.85"/>
+          <stop offset="100%" stop-color="#ff5b5b" stop-opacity="0"/>
+        </radialGradient>
+        <radialGradient id="bulbGlow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#ff5b5b" stop-opacity="0.65"/>
+          <stop offset="100%" stop-color="#ff5b5b" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+
+      <!-- antenna + bulb glow -->
+      <line x1="100" y1="14" x2="100" y2="38" stroke="currentColor" stroke-width="2"/>
+      <circle class="pulse" cx="100" cy="11" r="9" fill="url(#bulbGlow)"/>
+      <circle cx="100" cy="11" r="4" fill="#ff5b5b"/>
+
+      <!-- head -->
+      <rect x="52" y="38" width="96" height="84" rx="6"
+            fill="none" stroke="currentColor" stroke-width="2.5"/>
+
+      <!-- corner rivets -->
+      <circle cx="60" cy="46" r="2" fill="currentColor"/>
+      <circle cx="140" cy="46" r="2" fill="currentColor"/>
+      <circle cx="60" cy="114" r="2" fill="currentColor"/>
+      <circle cx="140" cy="114" r="2" fill="currentColor"/>
+
+      <!-- eye glow halos -->
+      <circle class="pulse" cx="78" cy="74" r="16" fill="url(#eyeGlow)"/>
+      <circle class="pulse" cx="122" cy="74" r="16" fill="url(#eyeGlow)"/>
+
+      <!-- angry slit eyes -->
+      <path d="M 68 70 L 88 78" stroke="#ff5b5b" stroke-width="3.5" stroke-linecap="round"/>
+      <path d="M 132 70 L 112 78" stroke="#ff5b5b" stroke-width="3.5" stroke-linecap="round"/>
+
+      <!-- mouth grille -->
+      <rect x="72" y="94" width="56" height="14"
+            fill="none" stroke="currentColor" stroke-width="2"/>
+      <line x1="84" y1="94" x2="84" y2="108" stroke="currentColor" stroke-width="1.5"/>
+      <line x1="94" y1="94" x2="94" y2="108" stroke="currentColor" stroke-width="1.5"/>
+      <line x1="106" y1="94" x2="106" y2="108" stroke="currentColor" stroke-width="1.5"/>
+      <line x1="116" y1="94" x2="116" y2="108" stroke="currentColor" stroke-width="1.5"/>
+
+      <!-- neck -->
+      <rect x="92" y="122" width="16" height="10"
+            fill="none" stroke="currentColor" stroke-width="2"/>
+
+      <!-- body trapezoid -->
+      <path d="M 48 132 L 152 132 L 156 224 L 44 224 Z"
+            fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
+
+      <!-- chest panel -->
+      <rect x="80" y="148" width="40" height="28" rx="3"
+            fill="none" stroke="currentColor" stroke-width="1.5"/>
+      <circle cx="90" cy="162" r="2" fill="#ff5b5b"/>
+      <circle cx="110" cy="162" r="2" fill="currentColor"/>
+      <line x1="84" y1="172" x2="116" y2="172" stroke="currentColor" stroke-width="1"/>
+
+      <!-- arms hanging -->
+      <rect x="34" y="134" width="14" height="64" rx="3"
+            fill="none" stroke="currentColor" stroke-width="2.5"/>
+      <rect x="152" y="134" width="14" height="64" rx="3"
+            fill="none" stroke="currentColor" stroke-width="2.5"/>
+      <!-- fists -->
+      <circle cx="41" cy="206" r="9" fill="none" stroke="currentColor" stroke-width="2.5"/>
+      <circle cx="159" cy="206" r="9" fill="none" stroke="currentColor" stroke-width="2.5"/>
+      <line x1="35" y1="204" x2="47" y2="208" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="153" y1="204" x2="165" y2="208" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+
+    <h1 id="title">You pissed off the robot.</h1>
+    <p>Parley's automated gatekeeper flagged something off about your traffic and slammed the gates. Sometimes it gets it wrong.</p>
+    <p>If that's the case, email <a href="mailto:hello@parley.byexec.com">hello@parley.byexec.com</a> and we'll bail you out. Otherwise, take a breather — the ban lifts shortly.</p>
+    <footer>Parley</footer>
+  </main>
+</body>
+</html>
