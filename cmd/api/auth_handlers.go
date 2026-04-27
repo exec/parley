@@ -23,6 +23,11 @@ func handleAuthRegister(authService *auth.AuthService) http.HandlerFunc {
 			return
 		}
 
+		if !req.IsAdult {
+			jsonError(w, "you must be 18 or older to register", http.StatusBadRequest)
+			return
+		}
+
 		user, token, err := authService.Register(r.Context(), req.Username, req.Email, req.Phone, req.Password, req.InviteCode, requestIP(r))
 		if err != nil {
 			jsonError(w, err.Error(), http.StatusBadRequest)

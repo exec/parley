@@ -23,6 +23,9 @@ type RegisterRequest struct {
 	Phone      string `json:"phone"`
 	Password   string `json:"password"`
 	InviteCode string `json:"invite_code"`
+	// IsAdult is asserted by the client after a local DOB check. The DOB
+	// itself is never sent or stored — see PRIVACY.md §11.
+	IsAdult bool `json:"is_adult"`
 }
 
 type LoginRequest struct {

@@ -26,6 +26,11 @@ export const Register: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   // const [smsConsent, setSmsConsent] = useState(false);
   const [inviteCode, setInviteCode] = useState('');
+  // DOB is computed client-side and discarded; only `is_adult: true` is sent
+  // to the server. See PRIVACY.md §11.
+  const [dobMonth, setDobMonth] = useState('');
+  const [dobDay, setDobDay] = useState('');
+  const [dobYear, setDobYear] = useState('');
   const [preReleaseAck, setPreReleaseAck] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -67,6 +72,14 @@ export const Register: React.FC = () => {
       if (!confirmPassword) e.confirmPassword = 'Please confirm your password';
       else if (password !== confirmPassword) e.confirmPassword = 'Passwords do not match';
     }
+    if (!dobYear || !dobMonth || !dobDay) {
+      e.dob = 'Please enter your date of birth';
+    } else {
+      const dob = new Date(parseInt(dobYear, 10), parseInt(dobMonth, 10) - 1, parseInt(dobDay, 10));
+      const cutoff = new Date();
+      cutoff.setFullYear(cutoff.getFullYear() - 18);
+      if (Number.isNaN(dob.getTime()) || dob > cutoff) e.dob = 'You must be 18 or older to use Parley';
+    }
     if (!preReleaseAck) e.preReleaseAck = 'You must acknowledge the pre-release disclaimer to continue';
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -78,7 +91,9 @@ export const Register: React.FC = () => {
     if (!validate()) return;
     setLoading(true);
     try {
-      const body: Record<string, string> = { username, email, invite_code: inviteCode.trim() };
+      // is_adult is the only thing transmitted from the DOB check —
+      // the date itself stays in the browser. See PRIVACY.md §11.
+      const body: Record<string, string | boolean> = { username, email, invite_code: inviteCode.trim(), is_adult: true };
       if (password) body.password = password;
       // Phone signup disabled — see note at top of file.
       // if (method === 'phone') body.phone = phone.replace(/[\s\-()]/g, '');
@@ -288,6 +303,58 @@ export const Register: React.FC = () => {
                 {errors.confirmPassword && <span className="input-error-message">{errors.confirmPassword}</span>}
               </div>
             )}
+
+            <div className="input-wrapper">
+              <label className="input-label">Date of birth</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <select
+                  className={`input ${errors.dob ? 'input-error' : ''}`}
+                  value={dobMonth}
+                  onChange={e => setDobMonth(e.target.value)}
+                  aria-label="Month"
+                  style={{ flex: 1.4 }}
+                >
+                  <option value="">Month</option>
+                  {[
+                    'January', 'February', 'March', 'April', 'May', 'June',
+                    'July', 'August', 'September', 'October', 'November', 'December',
+                  ].map((name, i) => (
+                    <option key={i + 1} value={String(i + 1)}>{name}</option>
+                  ))}
+                </select>
+                <select
+                  className={`input ${errors.dob ? 'input-error' : ''}`}
+                  value={dobDay}
+                  onChange={e => setDobDay(e.target.value)}
+                  aria-label="Day"
+                  style={{ flex: 1 }}
+                >
+                  <option value="">Day</option>
+                  {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
+                    <option key={d} value={String(d)}>{d}</option>
+                  ))}
+                </select>
+                <select
+                  className={`input ${errors.dob ? 'input-error' : ''}`}
+                  value={dobYear}
+                  onChange={e => setDobYear(e.target.value)}
+                  aria-label="Year"
+                  style={{ flex: 1.2 }}
+                >
+                  <option value="">Year</option>
+                  {(() => {
+                    const now = new Date().getFullYear();
+                    return Array.from({ length: 101 }, (_, i) => now - i).map(y => (
+                      <option key={y} value={String(y)}>{y}</option>
+                    ));
+                  })()}
+                </select>
+              </div>
+              {errors.dob && <span className="input-error-message">{errors.dob}</span>}
+              <span className="input-hint">
+                Parley is for adults (18+). Your date of birth is checked locally and never sent to our servers.
+              </span>
+            </div>
 
             <div className="input-wrapper">
               <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
