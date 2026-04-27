@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { LocalParticipant } from 'livekit-client';
 import { Headphones, Volume2, Square, X } from 'lucide-react';
 import { listAllSounds, playSound, SoundWithServer } from '../../api/soundboard';
@@ -125,13 +125,14 @@ export const SoundboardPanel: React.FC<SoundboardPanelProps> = ({
     }
   };
 
-  // Group by server_name
-  const grouped = sounds.reduce<Record<string, SoundWithServer[]>>((acc, s) => {
-    const key = s.server_name || 'Unknown Server';
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(s);
-    return acc;
-  }, {});
+  const grouped = useMemo(() => (
+    sounds.reduce<Record<string, SoundWithServer[]>>((acc, s) => {
+      const key = s.server_name || 'Unknown Server';
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(s);
+      return acc;
+    }, {})
+  ), [sounds]);
 
   return (
     <div className="soundboard-panel" ref={panelRef}>

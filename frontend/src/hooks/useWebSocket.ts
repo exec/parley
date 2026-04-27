@@ -245,6 +245,7 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
       reconnectAttemptsRef.current += 1;
       const base = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
       const delay = base + Math.random() * 1000;
+      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = setTimeout(connect, delay);
       return;
     }
@@ -510,6 +511,7 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
       reconnectAttemptsRef.current = attempt + 1;
       const base = Math.min(1000 * Math.pow(2, attempt), 30000);
       const delay = base + Math.random() * 1000;
+      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = setTimeout(connect, delay);
     };
 

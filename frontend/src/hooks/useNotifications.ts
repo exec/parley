@@ -9,20 +9,37 @@ import type { ChannelKind, NotificationSetting } from '../api/types';
 const SOUND_URL = 'https://raw.githubusercontent.com/exec/parley/main/assets/audio/ping.mp3';
 
 // In-memory per-(kind, channelId) cache of notification settings. Populated by
-// a top-level listener on the parley:channel_notification CustomEvent (which
-// App.tsx dispatches from the WS update event). Defaults to ALL when missing.
+// a single shared listener on parley:channel_notification (registered once
+// when the first useNotifications hook mounts and cleaned up when the last
+// unmounts), so we don't accumulate listeners across mount/unmount cycles.
 const notificationSettingCache = new Map<string, NotificationSetting>();
 
 function cacheKey(kind: ChannelKind, channelId: string): string {
   return `${kind}:${channelId}`;
 }
 
-if (typeof window !== 'undefined') {
-  window.addEventListener('parley:channel_notification', (e: Event) => {
+let cacheListenerRefCount = 0;
+let cacheListener: ((e: Event) => void) | null = null;
+
+function attachCacheListener() {
+  if (typeof window === 'undefined') return;
+  cacheListenerRefCount += 1;
+  if (cacheListener) return;
+  cacheListener = (e: Event) => {
     const detail = (e as CustomEvent<{channel_kind: ChannelKind; channel_id: string; notification_setting: 0 | 1 | 2}>).detail;
     const map: Record<0 | 1 | 2, NotificationSetting> = { 0: 'ALL', 1: 'MENTIONS_ONLY', 2: 'MUTED' };
     notificationSettingCache.set(cacheKey(detail.channel_kind, detail.channel_id), map[detail.notification_setting]);
-  });
+  };
+  window.addEventListener('parley:channel_notification', cacheListener);
+}
+
+function detachCacheListener() {
+  if (typeof window === 'undefined') return;
+  cacheListenerRefCount = Math.max(0, cacheListenerRefCount - 1);
+  if (cacheListenerRefCount === 0 && cacheListener) {
+    window.removeEventListener('parley:channel_notification', cacheListener);
+    cacheListener = null;
+  }
 }
 
 export function getNotificationSettingForChannel(kind: ChannelKind, channelId: string): NotificationSetting {
@@ -58,6 +75,7 @@ export function useNotifications() {
   const inForegroundRef = useRef(true);
 
   useEffect(() => {
+    attachCacheListener();
     const audio = new Audio(SOUND_URL);
     audio.volume = 0.4;
     audio.preload = 'auto';
@@ -96,6 +114,7 @@ export function useNotifications() {
     // as a belt-and-braces signal for raw focus changes.
     let unlistenTauriFocus: (() => void) | null = null;
     let unlistenForegroundEvent: (() => void) | null = null;
+    let cancelled = false;
     if (isTauri()) {
       (async () => {
         try {
@@ -103,12 +122,14 @@ export function useNotifications() {
           const { listen } = await import('@tauri-apps/api/event');
           const w = getCurrentWindow();
           inForegroundRef.current = await w.isFocused();
-          unlistenTauriFocus = await w.onFocusChanged(({ payload: focused }) => {
+          const fnFocus = await w.onFocusChanged(({ payload: focused }) => {
             inForegroundRef.current = focused;
           });
-          unlistenForegroundEvent = await listen<boolean>('parley:foreground', (event) => {
+          if (cancelled) { fnFocus(); } else { unlistenTauriFocus = fnFocus; }
+          const fnFg = await listen<boolean>('parley:foreground', (event) => {
             inForegroundRef.current = event.payload;
           });
+          if (cancelled) { fnFg(); } else { unlistenForegroundEvent = fnFg; }
         } catch {
           // fall back to DOM listeners only
         }
@@ -116,6 +137,8 @@ export function useNotifications() {
     }
 
     return () => {
+      cancelled = true;
+      detachCacheListener();
       document.removeEventListener('click', unlock);
       document.removeEventListener('keydown', unlock);
       window.removeEventListener('focus', onFocus);

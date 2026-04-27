@@ -101,6 +101,10 @@ export function useVoiceConnection(
   const remoteCountRef = useRef(0);
   remoteCountRef.current = remoteParticipantCount;
 
+  // Mirror connected so register-once event handlers can gate without
+  // listing connected as a dep (which would re-bind the listeners).
+  const connectedRef = useRef(false);
+
   const deafenedRef = useRef(false);
 
   const [settings, setSettings] = useState<VoiceSettings>(loadVoiceSettings);
@@ -108,6 +112,7 @@ export function useVoiceConnection(
   settingsRef.current = settings;
 
   const [connected, setConnected] = useState(false);
+  connectedRef.current = connected;
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
@@ -490,8 +495,8 @@ export function useVoiceConnection(
     if (isTauri()) {
       (async () => {
         const { listen } = await import('@tauri-apps/api/event');
-        if (cancelled) return;
-        unlistenTauri = await listen('parley:quitting', () => sendLeave());
+        const fn = await listen('parley:quitting', () => sendLeave());
+        if (cancelled) { fn(); } else { unlistenTauri = fn; }
       })();
     }
 
@@ -526,9 +531,8 @@ export function useVoiceConnection(
   }, [getVolume, room]);
 
   useEffect(() => {
-    if (!connected) return;
-
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (!connectedRef.current) return;
       if (settingsRef.current.vadMode !== 'ptt') return;
       if (e.code !== settingsRef.current.pttKey) return;
       const target = e.target as HTMLElement;
@@ -539,6 +543,7 @@ export function useVoiceConnection(
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
+      if (!connectedRef.current) return;
       if (settingsRef.current.vadMode !== 'ptt') return;
       if (e.code !== settingsRef.current.pttKey) return;
       const target = e.target as HTMLElement;
@@ -554,7 +559,7 @@ export function useVoiceConnection(
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [connected]);
+  }, []);
 
   const toggleMute = useCallback(() => {
     const next = !muted;

@@ -278,7 +278,7 @@ export const MessageList: React.FC<MessageListProps> = ({
     }
   }, [triggerLoadMore]);
 
-  const groupedMessages = groupMessagesByDate(sortedMessages);
+  const groupedMessages = useMemo(() => groupMessagesByDate(sortedMessages), [sortedMessages]);
   const GROUP_WINDOW_MS = 10 * 60 * 1000;
   const MAX_GROUP_SIZE = 10;
 
