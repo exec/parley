@@ -4,6 +4,23 @@ Parley is a self-hosted community platform. It provides servers with text, voice
 
 ---
 
+> **Pre-launch checklist (delete this section once done):**
+> - [x] ~~**Build the age gate.** Registration must verify date of birth client-side and post only `is_adult: true` to the server, per `PRIVACY.md` §11.~~ Done 2026-04-27 — `Register.tsx` posts only `is_adult: true`, and `cmd/api/auth_handlers.go` rejects registration without it.
+> - [ ] **File DMCA Designated Agent registration** with the U.S. Copyright Office before opening public signups. Online form at <https://www.copyright.gov/dmca-directory/>, $6 fee, 3-year renewal. Update `TOS.md` section 10 with the registration URL once filed. Without this, Parley loses DMCA safe-harbor immunity for user-uploaded content.
+> - [ ] Provide a real physical address (PO Box / registered-agent service is fine) for the DMCA Designated Agent listing in `TOS.md` section 10 and the DMCA registry.
+> - [x] ~~**Manually transcribe Brevo's privacy-policy quotes** from a real browser into `PRIVACY.md` §4.~~ Done 2026-04-27.
+> - [ ] Configure the Cloudflare WAF rule blocking signups from North Korea (`country == KP`).
+> - [ ] Build the user-facing report flow referenced in `TOS.md` section 5.
+> - [ ] Implement the free-tier API-key warning at bot configuration time (referenced in `PRIVACY.md` "Free-tier warning at bot configuration").
+> - [ ] **Notice at Collection placement on signup.** CCPA requires the Privacy Policy link to be conspicuous *at the point of collection*, not just in the footer. Add a one-line "by signing up you accept the [Terms](/terms) and [Privacy Policy](/privacy)" *adjacent to the submit button* on the registration form.
+> - [ ] Render `TOS.md` and `PRIVACY.md` at `/terms` and `/privacy` on the public site (currently only repo files), and link from the footer + Settings.
+> - [ ] **Image upload disabled by default** until the four-layer moderation pipeline (Falconsai self-hosted classifier, Hive Visual Moderation, Hive/Thorn Safer CSAM Detection, Cloudflare CSAM Scanning Tool) is verified working end-to-end in production. Pipeline order and quarantine/notify/NCMEC workflows are described in `PRIVACY.md` §6 and the image-upload-moderation design spec.
+> - [ ] **Capture Hive Moderation's DPA** in plain text into `PRIVACY.md` §4 (image-retention stance, training stance, international-transfer mechanism). The §4 entry is a stub until this is done.
+> - [ ] **Enable Cloudflare CSAM Scanning Tool** on the parley.byexec.com zone (Cloudflare dashboard → Caching → Configuration → CSAM Scanning Tool). Set `hello@parley.byexec.com` as the notification address; verify a test notification round-trips before flipping image upload on.
+> - [ ] **NCMEC reporter registration.** Operator (Dylan Hart) registers with NCMEC's CyberTipline as a reporter so flagged content has a delivery channel that satisfies 18 U.S.C. § 2258A.
+
+---
+
 ## Features
 
 ### Servers and channels
