@@ -580,19 +580,30 @@ function MainApp() {
     ).then(results => {
       setVoiceParticipants(prev => {
         const next = { ...prev };
-        results.forEach(({ channelId, participants }) => { next[channelId] = participants; });
+        results.forEach(({ channelId, participants }) => {
+          // Don't clobber the active VC — the gated active-VC fetch is the
+          // source of truth for it (avoids racing joinVoiceChannel with a
+          // bulk fetch that fires due to a concurrent channel-list mutation).
+          if (channelId === activeVoiceChannel) return;
+          next[channelId] = participants;
+        });
         return next;
       });
     });
-  }, [voiceChannelIdsKey]);
+  }, [voiceChannelIdsKey, activeVoiceChannel]);
 
   // Fetch initial voice presence on join so existing participants render with
   // their avatars + display names and so useVoiceConnection knows whether to
   // attach LiveKit immediately. Without this, the roster (and the LK-attach
   // trigger) only fill in via VOICE_STATE_UPDATE events — which only fire for
   // joins/leaves AFTER you, leaving the pre-existing roster blank.
+  //
+  // Gate on vcConnected: joinVoiceChannel races with this fetch, and if the
+  // fetch hits Redis before the join API write lands, the result excludes
+  // self and clobbers the WS-added self entry. Waiting for vcConnected
+  // guarantees the user is registered server-side before we read.
   useEffect(() => {
-    if (!activeVoiceChannel) return;
+    if (!activeVoiceChannel || !vcConnected) return;
     const vc = activeVoiceKind === 'dm' ? dmVc(activeVoiceChannel) : serverVc(activeVoiceChannel);
     let cancelled = false;
     getVoiceParticipants(vc)
@@ -602,7 +613,7 @@ function MainApp() {
       })
       .catch(() => { /* offline ok */ });
     return () => { cancelled = true; };
-  }, [activeVoiceKind, activeVoiceChannel]);
+  }, [activeVoiceKind, activeVoiceChannel, vcConnected]);
 
   const handleVoiceForceMute = useCallback((_event: VoiceForceMuteEvent) => {
     vcForceMute();
