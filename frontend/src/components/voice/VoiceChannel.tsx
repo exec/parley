@@ -151,6 +151,37 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
 
   const statusLabel = connected ? 'Connected' : connecting ? 'Connecting…' : 'Disconnected';
 
+  // When alone in the channel, useVoiceConnection skips LK attach, so
+  // localParticipant is null. Render a static self-placeholder so the user
+  // sees themselves in the grid/spotlight (matches the "you're in here" UX
+  // they had before lazy LK). Drops out the moment LK attaches.
+  const showSelfPlaceholder = connected && !localParticipant;
+  const selfInitial = (currentUser.username.charAt(0) || '?').toUpperCase();
+  const selfPlaceholder = showSelfPlaceholder ? (
+    <div className="participant-tile">
+      <div className="participant-tile-media">
+        <div className="participant-tile-avatar">
+          {currentUser.avatar_url ? (
+            <img src={currentUser.avatar_url} alt={currentUser.username} />
+          ) : (
+            <span className="participant-tile-initial">{selfInitial}</span>
+          )}
+        </div>
+      </div>
+      <div className="participant-tile-footer">
+        <span className="participant-tile-name">
+          {currentUser.username}
+          <span className="participant-tile-you">You</span>
+        </span>
+        {muted && (
+          <span className="participant-tile-muted">
+            <MicOff size={12} color="var(--parley-danger)" />
+          </span>
+        )}
+      </div>
+    </div>
+  ) : null;
+
   return (
     <div className={`vc-view vc-view--${layout}`}>
       {/* Header */}
@@ -270,7 +301,8 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
               </div>
             );
           })}
-          {allParticipants.length === 0 && (
+          {selfPlaceholder}
+          {allParticipants.length === 0 && !showSelfPlaceholder && (
             <div className="vc-empty">No one else here yet…</div>
           )}
         </div>
@@ -293,6 +325,8 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
                 avatarUrl={spotlightItem.isLocal ? localMeta.avatarUrl : getMeta(spotlightItem.participant.identity, spotlightItem.participant as RemoteParticipant).avatarUrl}
               />
             </div>
+          ) : showSelfPlaceholder ? (
+            <div className="vc-spotlight">{selfPlaceholder}</div>
           ) : (
             <div className="vc-empty">No one here yet…</div>
           )}
