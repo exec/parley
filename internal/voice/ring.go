@@ -17,6 +17,8 @@ import (
 var (
 	ErrRingNotFound      = errors.New("ring not found")
 	ErrCancelByNonCaller = errors.New("only the caller may cancel")
+	ErrAcceptByCaller    = errors.New("the caller cannot accept their own ring")
+	ErrDeclineByNonTarget = errors.New("only the ring target may decline")
 )
 
 // RingHub is the small subset of *ws.Hub the ring service needs.
@@ -137,12 +139,20 @@ func (rs *RingService) timeoutRing(ctx context.Context, ringID string) error {
 
 // Accept resolves a ring as accepted by the target. Caller and target both
 // receive CALL_ACCEPT so other sessions of the target dismiss their modal.
+//
+// Only the target may accept. Letting the caller self-accept would emit a
+// forged "X started a call" system message into the DM transcript and
+// dismiss the legitimate ring modal on the target's other tabs.
 func (rs *RingService) Accept(ctx context.Context, ringID string, accepterID int64) error {
 	rs.mu.Lock()
 	r, ok := rs.rings[ringID]
 	if !ok {
 		rs.mu.Unlock()
 		return ErrRingNotFound
+	}
+	if accepterID == r.CallerID {
+		rs.mu.Unlock()
+		return ErrAcceptByCaller
 	}
 	r.timer.Stop()
 	delete(rs.rings, ringID)
@@ -163,12 +173,21 @@ func (rs *RingService) Accept(ctx context.Context, ringID string, accepterID int
 
 // Decline resolves a ring as declined by the receiver. Caller is notified;
 // no event is sent to the receiver (their modal closes locally on click).
+//
+// Only the target may decline. Caller-self-decline would write a forged
+// "X declined the call" system message into the DM transcript attributed
+// to whoever the handler resolved as decliner, and dismiss the modal on
+// the target's other tabs.
 func (rs *RingService) Decline(ctx context.Context, ringID string, declinerID int64) error {
 	rs.mu.Lock()
 	r, ok := rs.rings[ringID]
 	if !ok {
 		rs.mu.Unlock()
 		return ErrRingNotFound
+	}
+	if declinerID != r.TargetID {
+		rs.mu.Unlock()
+		return ErrDeclineByNonTarget
 	}
 	r.timer.Stop()
 	delete(rs.rings, ringID)

@@ -165,6 +165,14 @@ func (h *RingHandler) terminate(w http.ResponseWriter, r *http.Request, op strin
 		httputil.JSONError(w, "only the caller may cancel", http.StatusForbidden)
 		return
 	}
+	if errors.Is(err, ErrAcceptByCaller) {
+		httputil.JSONError(w, "the caller cannot accept their own ring", http.StatusForbidden)
+		return
+	}
+	if errors.Is(err, ErrDeclineByNonTarget) {
+		httputil.JSONError(w, "only the ring target may decline", http.StatusForbidden)
+		return
+	}
 	if errors.Is(err, ErrRingNotFound) {
 		httputil.JSONError(w, "ring not found", http.StatusNotFound)
 		return
