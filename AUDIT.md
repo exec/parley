@@ -16,10 +16,10 @@ PII against any user inside ~10 minutes from a fresh account.
 
 | # | Title | Severity | Status |
 |---|---|---|---|
-| 1 | Group-DM force-add → PII exfiltration | HIGH | **deferred** — friend system not built; intentional state |
+| 1 | Group-DM force-add → PII exfiltration | HIGH | ✅ `bb9ce51` |
 | 2 | Forwarded-message forgery | HIGH | ✅ `bd7bed3` |
-| 3 | Ring spam → modal/audio DoS + transcript flood | HIGH | **open** |
-| 4 | DM-stranger notification spam | HIGH | **open** |
+| 3 | Ring spam → modal/audio DoS + transcript flood | HIGH | ✅ `bb9ce51` |
+| 4 | DM-stranger notification spam | HIGH | ✅ `bb9ce51` |
 | 5 | Role-position bump → leapfrog hierarchy | HIGH | ✅ `b46b826` |
 | 6 | Login-CSRF / session fixation via /auth/desktop/exchange | MED | ✅ `3ed5da2` |
 | 7 | Self-accept / self-decline own ring | MED | ✅ `916b64d` |
@@ -34,23 +34,38 @@ PII against any user inside ~10 minutes from a fresh account.
 
 ---
 
-## Open items
+## Closed in `bb9ce51` (friend-gates + blocking)
 
-### #1 Group-DM force-add → PII exfiltration *(deferred)*
-Anyone can add anyone to GCs in the current product state because there's no
-visible friend system yet — that's intentional. Refit when friend-graph lands:
-add IsBlocked check + recipient consent gate to `internal/dm/service.go`
-CreateChannel + AddMembers. Track at that point.
+Spec: `docs/superpowers/specs/2026-04-26-friend-gates-and-blocking-design.md`.
+Migration #68 adds `user_blocks(blocker_id, blocked_id, created_at, PK
+(blocker_id, blocked_id), idx blocked_id)`.
 
-### #3 Ring spam → modal/audio DoS + transcript flood
-- Surface: `POST /api/dms/{id}/call/ring` + `/cancel`
-- File: `internal/voice/ring_handler.go:67-127`, route registration `cmd/api/routes.go:358-361`
-- Fix: add `userRateLimitMiddleware(ringInitiateLimiter)` to both routes (e.g. 5/min keyed on actor:dmID). Consider also: suppress `call_missed` system message for cancels that fire within ~3s of the ring (human couldn't have missed it).
+- **#1** — `dm.Service.CreateChannel` and `AddMembers` now require the actor
+  to be friends with each invitee via the new `FriendChecker` interface
+  (wired via setter from `cmd/api/routes.go` to avoid an import cycle).
+  Either-side block also rejects. 1:1 DMs stay open as a discovery surface
+  but reject when blocked.
+- **#3** — Added `ringInitiateLimiter` (5/min per actor) on `/call/ring`
+  AND `/call/cancel`. `RingService.Initiate` rejects if the parties aren't
+  friends or if either has blocked the other. `Cancel` suppresses the
+  `call_missed` system message when the cancel arrives within 3 s of the
+  ring start (humans can't miss a 3 s ring; it's a transcript-flood vector).
+- **#4** — Added `notification.BlockChecker` hook so `NotifyDM`,
+  `NotifyMentions`, `NotifyFriendRequest`, and `NotifyFriendAccept` all
+  silently drop when the recipient has blocked the actor. Friend
+  `SendRequest` folds `ErrBlocked` into the existing fake-success response
+  so block status isn't enumerable through the friend-request endpoint.
 
-### #4 DM-stranger notification spam
-- Surface: `POST /api/dms` (no friend gate) + `POST /api/dms/{id}/messages`
-- Files: `internal/dm/service.go:69`, `internal/notification/service.go:71-87`, `internal/dm/handler.go:347-368`
-- Fix: same recipient-consent gate as #1 (friend system) + per-pair `(actor, recipient)` rate limit (e.g. 1 unsolicited DM/min) until accepted.
+New endpoints: `GET /blocks`, `POST /users/{id}/block`,
+`DELETE /users/{id}/block`. Frontend gets a "Blocked" tab in `FriendsView`
+plus a Block button on each friend row; AppContext exposes
+`blockedUsers`, `blockUser`, `unblockUser`.
+
+Live verification on https://parley.byexec.com:
+- Ring as non-friend → `403`
+- GC create with non-friend invitee → `403`
+- 5 quick rings → 5th returns `429`
+- Migration `68 applied` in startup logs
 
 ---
 
