@@ -157,6 +157,100 @@ func TestIsParticipant(t *testing.T) {
 	}
 }
 
+// TestIsParticipant_LazyEvictsStalePresence verifies that IsParticipant
+// removes presence-hash entries whose heartbeat key has expired, so a vanished
+// client doesn't appear "in voice" forever.
+func TestIsParticipant_LazyEvictsStalePresence(t *testing.T) {
+	svc, mr := newTestService(t)
+	ctx := context.Background()
+
+	if _, err := svc.Join(ctx, "s:1", "u1", "Alice", ""); err != nil {
+		t.Fatalf("Join: %v", err)
+	}
+	if ok, _ := svc.IsParticipant(ctx, "s:1", "u1"); !ok {
+		t.Fatal("expected true while heartbeat alive")
+	}
+
+	// Simulate heartbeat expiry (instead of waiting 30s).
+	mr.Del(heartbeatKey("s:1", "u1"))
+
+	if ok, _ := svc.IsParticipant(ctx, "s:1", "u1"); ok {
+		t.Error("expected false after heartbeat expired")
+	}
+	// The eviction should have removed the presence entry; a subsequent join
+	// should be treated as a brand-new join (HSet returns 1 for new field).
+	added, err := svc.Join(ctx, "s:1", "u1", "Alice", "")
+	if err != nil {
+		t.Fatalf("re-Join: %v", err)
+	}
+	if !added {
+		t.Error("re-join after eviction should report added=true (presence was removed)")
+	}
+}
+
+// TestParticipants_LazyEvictsStalePresence is the multi-user variant.
+func TestParticipants_LazyEvictsStalePresence(t *testing.T) {
+	svc, mr := newTestService(t)
+	ctx := context.Background()
+
+	svc.Join(ctx, "s:1", "u1", "Alice", "")
+	svc.Join(ctx, "s:1", "u2", "Bob", "")
+
+	mr.Del(heartbeatKey("s:1", "u1"))
+
+	ps, err := svc.Participants(ctx, "s:1")
+	if err != nil {
+		t.Fatalf("Participants: %v", err)
+	}
+	if len(ps) != 1 || ps[0].UserID != "u2" {
+		t.Errorf("expected only u2 to remain, got %+v", ps)
+	}
+	if ok, _ := svc.IsParticipant(ctx, "s:1", "u1"); ok {
+		t.Error("u1 should be fully evicted")
+	}
+}
+
+// TestSweepStale removes only the participants whose heartbeats have expired,
+// leaves heartbeat-alive ones intact, and ignores non-presence keys.
+func TestSweepStale(t *testing.T) {
+	svc, mr := newTestService(t)
+	ctx := context.Background()
+
+	svc.Join(ctx, "s:1", "u1", "Alice", "")
+	svc.Join(ctx, "s:1", "u2", "Bob", "")
+	svc.Join(ctx, "dm:7", "u3", "Carol", "")
+
+	// Plant a non-presence key that matches voice:* glob — sweeper must skip.
+	mr.Set("voice:s:1:activity", `{"type":"watch_party"}`)
+
+	// Kill u1's and u3's heartbeats; u2 stays alive.
+	mr.Del(heartbeatKey("s:1", "u1"))
+	mr.Del(heartbeatKey("dm:7", "u3"))
+
+	evicted, err := svc.SweepStale(ctx)
+	if err != nil {
+		t.Fatalf("SweepStale: %v", err)
+	}
+	if len(evicted) != 2 {
+		t.Fatalf("expected 2 evictions, got %d: %+v", len(evicted), evicted)
+	}
+	got := map[string]string{}
+	for _, e := range evicted {
+		got[e.ChannelID] = e.UserID
+	}
+	if got["s:1"] != "u1" || got["dm:7"] != "u3" {
+		t.Errorf("unexpected evictions: %+v", got)
+	}
+
+	// u2 still in presence; activity key untouched.
+	if ok, _ := svc.IsParticipant(ctx, "s:1", "u2"); !ok {
+		t.Error("u2 should still be present")
+	}
+	if v, _ := mr.Get("voice:s:1:activity"); v == "" {
+		t.Error("activity key should not be evicted by the sweeper")
+	}
+}
+
 // TestIsParticipant_ServerVoiceChannelKeyFormat documents the "s:" prefix
 // convention for server voice channels (see wrapServerVoice in cmd/api/routes.go)
 // and locks in the regression: querying with the raw channel ID returns false

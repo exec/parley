@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	lkauth "github.com/livekit/protocol/auth"
@@ -182,7 +183,9 @@ func (s *Service) RefreshHeartbeat(ctx context.Context, channelID, userID string
 	return s.rdb.Set(ctx, heartbeatKey(channelID, userID), "1", voiceHeartbeatTTL).Err()
 }
 
-// Participants returns all current participants in a voice channel.
+// Participants returns all current participants in a voice channel. Stale
+// entries (presence hash members whose heartbeat key has expired) are evicted
+// inline before returning.
 func (s *Service) Participants(ctx context.Context, channelID string) ([]Participant, error) {
 	if s.rdb == nil {
 		return []Participant{}, nil
@@ -192,23 +195,94 @@ func (s *Service) Participants(ctx context.Context, channelID string) ([]Partici
 		return nil, err
 	}
 	out := make([]Participant, 0, len(res))
-	for _, v := range res {
+	for uid, v := range res {
 		var p Participant
-		if err := json.Unmarshal([]byte(v), &p); err == nil {
-			out = append(out, p)
+		if err := json.Unmarshal([]byte(v), &p); err != nil {
+			continue
 		}
+		// Lazy-evict if the heartbeat key has expired. Reads stay self-healing
+		// without needing a sweeper to be running.
+		hbExists, _ := s.rdb.Exists(ctx, heartbeatKey(channelID, uid)).Result()
+		if hbExists == 0 {
+			s.rdb.HDel(ctx, presenceKey(channelID), uid)
+			continue
+		}
+		out = append(out, p)
 	}
 	return out, nil
 }
 
 // IsParticipant returns true if the user is currently in the voice channel.
+// Lazy-evicts the presence entry if the heartbeat has expired.
 func (s *Service) IsParticipant(ctx context.Context, channelID, userID string) (bool, error) {
 	if s.rdb == nil {
 		log.Printf("voice: IsParticipant called but Redis is not configured; returning false")
 		return false, nil
 	}
 	exists, err := s.rdb.HExists(ctx, presenceKey(channelID), userID).Result()
-	return exists, err
+	if err != nil || !exists {
+		return exists, err
+	}
+	hbExists, _ := s.rdb.Exists(ctx, heartbeatKey(channelID, userID)).Result()
+	if hbExists == 0 {
+		s.rdb.HDel(ctx, presenceKey(channelID), userID)
+		return false, nil
+	}
+	return true, nil
+}
+
+// EvictedParticipant identifies a presence entry that the sweeper removed.
+// The Topic is left to the caller (sweep wiring in cmd/api) which has DB
+// access for server-VC topic resolution.
+type EvictedParticipant struct {
+	ChannelID string
+	UserID    string
+}
+
+// SweepStale scans every presence hash and removes members whose heartbeat
+// keys have expired. Returns the (channelID, userID) pairs that were removed
+// so the caller can broadcast leave events. Designed to be called on a
+// timer (~15s) from a single goroutine; safe to call concurrently with
+// Join/Leave/Refresh because each HDel is atomic.
+func (s *Service) SweepStale(ctx context.Context) ([]EvictedParticipant, error) {
+	if s.rdb == nil {
+		return nil, nil
+	}
+	var evicted []EvictedParticipant
+	var cursor uint64
+	for {
+		keys, c, err := s.rdb.Scan(ctx, cursor, "voice:*", 200).Result()
+		if err != nil {
+			return evicted, err
+		}
+		cursor = c
+		for _, key := range keys {
+			// Presence keys are exactly "voice:s:N" or "voice:dm:N" — two colons.
+			// Heartbeat ("voice:heartbeat:..."), activity ("voice:s:N:activity"),
+			// started_at, and call_ended:* keys all have more colons.
+			if strings.Count(key, ":") != 2 {
+				continue
+			}
+			channelID := strings.TrimPrefix(key, "voice:")
+			users, err := s.rdb.HKeys(ctx, key).Result()
+			if err != nil {
+				continue
+			}
+			for _, uid := range users {
+				hbExists, _ := s.rdb.Exists(ctx, heartbeatKey(channelID, uid)).Result()
+				if hbExists != 0 {
+					continue
+				}
+				if removed, _ := s.rdb.HDel(ctx, key, uid).Result(); removed > 0 {
+					evicted = append(evicted, EvictedParticipant{ChannelID: channelID, UserID: uid})
+				}
+			}
+		}
+		if cursor == 0 {
+			break
+		}
+	}
+	return evicted, nil
 }
 
 // Activity is the per-call active activity record stored in Redis.

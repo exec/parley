@@ -86,6 +86,11 @@ export const SoundboardPanel: React.FC<SoundboardPanelProps> = ({
 
       let publishedTrack: import('livekit-client').LocalAudioTrack | null = null;
 
+      // localParticipant is non-null only when LiveKit is attached, which under
+      // useVoiceConnection's count-driven lifecycle implies at least one other
+      // user is in the channel. When alone, we skip the publish entirely — the
+      // sound has already played locally above; uploading to an empty room
+      // would just burn bandwidth.
       if (localParticipant) {
         // Fan out to a MediaStreamDestination and publish as a separate VC track.
         // Others auto-subscribe to all tracks — no mic mixing needed.

@@ -392,6 +392,47 @@ func main() {
 		log.Println("LiveKit voice service not configured (LIVEKIT_API_KEY/LIVEKIT_API_SECRET/LIVEKIT_URL not set)")
 	}
 
+	// Voice-presence sweeper: when a client vanishes ungracefully (browser
+	// crash, OS kill, network drop), the heartbeat key expires after 30s but
+	// the presence hash entry sticks around. The lazy-evict in IsParticipant
+	// /Participants is enough for read paths, but other clients' UIs only
+	// learn about it via WS leave events — so we sweep every 15s and broadcast.
+	if redisHub != nil {
+		go func() {
+			ctx := context.Background()
+			sweep := func() {
+				evicted, err := voiceSvc.SweepStale(ctx)
+				if err != nil {
+					log.Printf("voice sweeper: %v", err)
+					return
+				}
+				for _, e := range evicted {
+					topic := voiceBroadcastTopic(ctx, repo, e.ChannelID)
+					if topic == "" {
+						continue
+					}
+					payload, _ := json.Marshal(map[string]string{
+						"channel_id": e.ChannelID,
+						"user_id":    e.UserID,
+						"username":   "",
+						"avatar_url": "",
+						"action":     "leave",
+					})
+					hub.BroadcastToChannel(topic, websocket.EventVoiceStateUpdate, payload)
+				}
+				if len(evicted) > 0 {
+					log.Printf("voice sweeper: evicted %d stale participant(s)", len(evicted))
+				}
+			}
+			sweep() // catch leftover state from a previous crash
+			ticker := time.NewTicker(15 * time.Second)
+			defer ticker.Stop()
+			for range ticker.C {
+				sweep()
+			}
+		}()
+	}
+
 	// Register production origin in CORS allowlist from env
 	if siteURL != "" {
 		allowedOrigins[siteURL] = true
@@ -570,6 +611,27 @@ func (h *HubBroadcaster) BroadcastToUser(userID string, event string, data inter
 		return
 	}
 	h.hub.SendToUser(userID, event, payload)
+}
+
+// voiceBroadcastTopic mirrors voice.Handler.broadcastTarget: server VCs fan
+// out on the per-server topic ("server:<serverID>"), DMs use their vc string
+// directly. Returns "" if the channel can't be resolved.
+func voiceBroadcastTopic(ctx context.Context, repo *db.Repository, channelID string) string {
+	vc, err := voice.ParseVirtualChannel(channelID)
+	if err != nil {
+		return ""
+	}
+	switch vc.Kind {
+	case voice.KindDM:
+		return vc.String()
+	case voice.KindServer:
+		ch, err := repo.GetChannelByID(ctx, vc.ID)
+		if err != nil {
+			return ""
+		}
+		return "server:" + strconv.FormatInt(ch.ServerID, 10)
+	}
+	return ""
 }
 
 // botCommandsHubNotifier adapts the WebSocket hub to the narrower

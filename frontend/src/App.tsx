@@ -324,6 +324,10 @@ function MainApp() {
   } = useVoiceConnection(
     activeVoiceChannel ? (activeVoiceKind === 'dm' ? dmVc(activeVoiceChannel) : serverVc(activeVoiceChannel)) : null,
     handleVcLeave,
+    // Other parley users present in the active VC. The list at
+    // voiceParticipants[activeVoiceChannel] already excludes the current
+    // user (filtered in the effect below). LiveKit only attaches when >= 1.
+    activeVoiceChannel ? (voiceParticipants[activeVoiceChannel]?.length ?? 0) : 0,
   );
 
   // Reply-to state for nested replies
@@ -575,14 +579,16 @@ function MainApp() {
     });
   }, [channels]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch initial DM/GC voice presence when the user joins a DM call so existing
-  // participants render with their avatars + display names. Without this, those
-  // tiles only fill in via VOICE_STATE_UPDATE events — which only fire for
+  // Fetch initial voice presence on join so existing participants render with
+  // their avatars + display names and so useVoiceConnection knows whether to
+  // attach LiveKit immediately. Without this, the roster (and the LK-attach
+  // trigger) only fill in via VOICE_STATE_UPDATE events — which only fire for
   // joins/leaves AFTER you, leaving the pre-existing roster blank.
   useEffect(() => {
-    if (activeVoiceKind !== 'dm' || !activeVoiceChannel) return;
+    if (!activeVoiceChannel) return;
+    const vc = activeVoiceKind === 'dm' ? dmVc(activeVoiceChannel) : serverVc(activeVoiceChannel);
     let cancelled = false;
-    getVoiceParticipants(dmVc(activeVoiceChannel))
+    getVoiceParticipants(vc)
       .then(ps => {
         if (cancelled) return;
         setVoiceParticipants(prev => ({ ...prev, [activeVoiceChannel]: ps }));

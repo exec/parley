@@ -435,7 +435,10 @@ export const VoiceChannel: React.FC<VoiceChannelProps> = ({
           >
             <Music2 size={18} color={soundboardOpen ? 'var(--parley-accent)' : 'var(--parley-text-muted)'} />
           </button>
-          {soundboardOpen && connected && localParticipant && (
+          {soundboardOpen && connected && (
+            // localParticipant is null when alone (LiveKit not attached) — that's
+            // intentional. SoundboardPanel still plays sounds locally and skips
+            // the LK publish in that case.
             <SoundboardPanel
               channelId={channel.id}
               localParticipant={localParticipant}

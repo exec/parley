@@ -16,6 +16,7 @@ import { MicVAD } from '@ricky0123/vad-web';
 import { getVoiceToken, joinVoiceChannel, leaveVoiceChannel, refreshVoiceHeartbeat } from '../api/voice';
 import { getActivity, type ActivityRecord } from '../api/activities';
 import { useLocalVolumes } from './useLocalVolumes';
+import { isTauri } from '../lib/tauri';
 
 export interface VoiceSettings {
   micDeviceId?: string;
@@ -73,9 +74,15 @@ export interface VoiceConnectionReturn {
 }
 
 // virtualChannelId must be a formatted VC string: "s:{channelId}" for server VCs, "dm:{channelId}" for DM/GC.
+//
+// remoteParticipantCount is the number of OTHER parley users currently in the
+// voice channel (derived from VOICE_STATE_UPDATE events in App.tsx). When it
+// reaches >=1 we attach to LiveKit and publish the mic; when it drops to 0 we
+// detach so a user sitting alone never uploads audio or holds an SFU slot.
 export function useVoiceConnection(
   virtualChannelId: string | null,
   onDisconnected: () => void,
+  remoteParticipantCount: number = 0,
 ): VoiceConnectionReturn {
   const roomRef = useRef<Room | null>(null);
   const bcRef = useRef<BroadcastChannel | null>(null);
@@ -83,9 +90,16 @@ export function useVoiceConnection(
   const vadRef = useRef<MicVAD | null>(null);
   const audioTrackRef = useRef<LocalAudioTrack | null>(null);
   const videoTrackRef = useRef<LocalVideoTrack | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const channelIdRef = useRef<string | null>(null);
   const onDisconnectedRef = useRef(onDisconnected);
   onDisconnectedRef.current = onDisconnected;
+
+  // LK lifecycle guards: attach/detach is async + count can flip mid-flight.
+  const livekitAttachedRef = useRef(false);
+  const attachInFlightRef = useRef(false);
+  const remoteCountRef = useRef(0);
+  remoteCountRef.current = remoteParticipantCount;
 
   const deafenedRef = useRef(false);
 
@@ -97,6 +111,10 @@ export function useVoiceConnection(
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
+  // Mirror muted in a ref so attachLivekit can apply current intent without
+  // listing it as a dep (avoids re-creating the callback on every mute toggle).
+  const mutedRef = useRef(false);
+  mutedRef.current = muted;
   const [deafened, setDeafened] = useState(false);
   const [videoEnabled, setVideoEnabled] = useState(false);
   const [screenSharing, setScreenSharing] = useState(false);
@@ -160,67 +178,49 @@ export function useVoiceConnection(
     });
   }, [detachAudioTrack]);
 
-  const doCleanup = useCallback(() => {
-    vadRef.current?.destroy();
-    vadRef.current = null;
-    bcRef.current?.close();
-    bcRef.current = null;
+  // detachLivekit tears down the LK room and unpublishes tracks but preserves
+  // the user's parley presence (channelIdRef, streamRef, VAD, mute intent).
+  // Called when the last remote participant leaves OR on full disconnect.
+  const detachLivekit = useCallback(async () => {
+    if (!livekitAttachedRef.current && !roomRef.current) return;
+    livekitAttachedRef.current = false;
+
     if (videoTrackRef.current) {
+      try { await roomRef.current?.localParticipant.unpublishTrack(videoTrackRef.current); } catch { /* noop */ }
       videoTrackRef.current.stop();
       videoTrackRef.current = null;
+      setVideoEnabled(false);
     }
-    audioTrackRef.current = null;
-    channelIdRef.current = null;
+    if (audioTrackRef.current) {
+      try { await roomRef.current?.localParticipant.unpublishTrack(audioTrackRef.current); } catch { /* noop */ }
+      audioTrackRef.current = null;
+    }
+
+    const r = roomRef.current;
     roomRef.current = null;
     setRoom(null);
     cleanupAudio();
-    setConnected(false);
-    setMuted(false);
-    setDeafened(false);
-    deafenedRef.current = false;
-    setVideoEnabled(false);
-    setScreenSharing(false);
-    setSpeaking(false);
-    setActiveSpeakers(new Set());
     setParticipants([]);
     setLocalParticipant(null);
-    setActivity(null);
-    onDisconnectedRef.current();
+    setActiveSpeakers(new Set());
+    setScreenSharing(false);
+    r?.disconnect();
   }, [cleanupAudio]);
 
-  const doDisconnect = useCallback(() => {
-    const cid = channelIdRef.current;
-    channelIdRef.current = null; // null first so Disconnected handler is a no-op
-    if (cid) leaveVoiceChannel(cid).catch(() => {});
-    const r = roomRef.current;
-    doCleanup();
-    r?.disconnect(); // call disconnect AFTER cleanup (room ref already nulled in doCleanup)
-  }, [doCleanup]);
+  // attachLivekit connects the cached mic stream to a fresh LiveKit room and
+  // publishes the audio track. Idempotent — safe to call repeatedly.
+  // Pre-conditions: parley presence joined (connected=true), stream cached.
+  const attachLivekit = useCallback(async () => {
+    if (livekitAttachedRef.current || attachInFlightRef.current) return;
+    if (!streamRef.current || !channelIdRef.current) return;
+    attachInFlightRef.current = true;
 
-  const connect = useCallback(async (cid: string) => {
-    if (roomRef.current) return;
-    channelIdRef.current = cid;
-    setConnecting(true);
-    setError(null);
-
-    let stream: MediaStream | null = null;
     try {
+      const cid = channelIdRef.current;
       const { token, url } = await getVoiceToken(cid);
 
-      const bc = new BroadcastChannel('parley_voice');
-      bcRef.current = bc;
-      bc.onmessage = (e) => { if (e.data?.action === 'claim') doDisconnect(); };
-      bc.postMessage({ action: 'claim', channelId: cid });
-
-      const s = settingsRef.current;
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          deviceId: s.micDeviceId ? { exact: s.micDeviceId } : undefined,
-          noiseSuppression: s.noiseSuppression,
-          echoCancellation: s.noiseSuppression,
-          autoGainControl: true,
-        },
-      });
+      // Bail if the user disconnected or count dropped to 0 mid-fetch.
+      if (channelIdRef.current !== cid || remoteCountRef.current < 1) return;
 
       const r = new Room({ adaptiveStream: true, dynacast: true });
       roomRef.current = r;
@@ -261,18 +261,135 @@ export function useVoiceConnection(
         setActiveSpeakers(ids);
       });
       r.on(RoomEvent.Disconnected, () => {
-        if (!channelIdRef.current) return; // user-initiated, already handled
-        const vcId = channelIdRef.current;
-        leaveVoiceChannel(vcId).catch(() => {});
-        doCleanup();
+        // Unexpected disconnect (network, server). If the user is still in the
+        // parley channel and others are present, the count-driven effect will
+        // re-attach. If they're alone, this is the expected detach path.
+        if (livekitAttachedRef.current) {
+          livekitAttachedRef.current = false;
+          roomRef.current = null;
+          setRoom(null);
+          cleanupAudio();
+          setParticipants([]);
+          setLocalParticipant(null);
+          setActiveSpeakers(new Set());
+        }
       });
 
       await r.connect(url, token);
 
-      const micTrack = new LocalAudioTrack(stream.getAudioTracks()[0]);
+      // Re-check after the handshake: user may have left or peer may have left.
+      if (channelIdRef.current !== cid || remoteCountRef.current < 1) {
+        r.disconnect();
+        roomRef.current = null;
+        return;
+      }
+
+      const audioTracks = streamRef.current.getAudioTracks();
+      if (audioTracks.length === 0) {
+        r.disconnect();
+        roomRef.current = null;
+        return;
+      }
+      const micTrack = new LocalAudioTrack(audioTracks[0]);
       audioTrackRef.current = micTrack;
+      // Apply current mute intent before the first byte hits the wire.
+      if (mutedRef.current) micTrack.mute();
       await r.localParticipant.publishTrack(micTrack, { audioPreset: { maxBitrate: 24_000 } });
 
+      r.remoteParticipants.forEach(p => attachAudio(p));
+      const s = settingsRef.current;
+      if (s.speakerDeviceId) applyOutputDevice(s.speakerDeviceId);
+
+      setRoom(r);
+      updateParticipantList();
+      livekitAttachedRef.current = true;
+
+      // Count may have dropped during the handshake; tear down if so.
+      if (remoteCountRef.current < 1) detachLivekit();
+    } catch (err) {
+      console.error('voice: LiveKit attach failed', err);
+      try { roomRef.current?.disconnect(); } catch { /* noop */ }
+      roomRef.current = null;
+      setRoom(null);
+    } finally {
+      attachInFlightRef.current = false;
+    }
+  }, [attachAudio, attachAudioTrack, applyOutputDevice, cleanupAudio, detachAudio, detachAudioTrack, detachLivekit, getVolume, updateParticipantList]);
+
+  // doCleanup tears down everything (LK + parley + stream + state). Called on
+  // user-initiated disconnect AND on unexpected room disconnects we can't recover.
+  const doCleanup = useCallback(() => {
+    vadRef.current?.destroy();
+    vadRef.current = null;
+    bcRef.current?.close();
+    bcRef.current = null;
+    if (videoTrackRef.current) {
+      videoTrackRef.current.stop();
+      videoTrackRef.current = null;
+    }
+    audioTrackRef.current = null;
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+    channelIdRef.current = null;
+    livekitAttachedRef.current = false;
+    roomRef.current = null;
+    setRoom(null);
+    cleanupAudio();
+    setConnected(false);
+    setMuted(false);
+    setDeafened(false);
+    deafenedRef.current = false;
+    setVideoEnabled(false);
+    setScreenSharing(false);
+    setSpeaking(false);
+    setActiveSpeakers(new Set());
+    setParticipants([]);
+    setLocalParticipant(null);
+    setActivity(null);
+    onDisconnectedRef.current();
+  }, [cleanupAudio]);
+
+  const doDisconnect = useCallback(() => {
+    const cid = channelIdRef.current;
+    channelIdRef.current = null; // null first so async paths bail early
+    if (cid) leaveVoiceChannel(cid).catch(() => {});
+    const r = roomRef.current;
+    livekitAttachedRef.current = false;
+    doCleanup();
+    r?.disconnect();
+  }, [doCleanup]);
+
+  // connect (Phase 1): acquire mic, register parley presence, set up VAD.
+  // Does NOT touch LiveKit — that happens later via attachLivekit when at
+  // least one other parley user is present in the channel.
+  const connect = useCallback(async (cid: string) => {
+    if (channelIdRef.current === cid && (connecting || connected)) return;
+    if (channelIdRef.current && channelIdRef.current !== cid) return; // already in another channel
+    channelIdRef.current = cid;
+    setConnecting(true);
+    setError(null);
+
+    let stream: MediaStream | null = null;
+    try {
+      const bc = new BroadcastChannel('parley_voice');
+      bcRef.current = bc;
+      bc.onmessage = (e) => { if (e.data?.action === 'claim') doDisconnect(); };
+      bc.postMessage({ action: 'claim', channelId: cid });
+
+      const s = settingsRef.current;
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          deviceId: s.micDeviceId ? { exact: s.micDeviceId } : undefined,
+          noiseSuppression: s.noiseSuppression,
+          echoCancellation: s.noiseSuppression,
+          autoGainControl: true,
+        },
+      });
+      streamRef.current = stream;
+
+      // VAD operates on the mic stream and only flips local mute state +
+      // optionally toggles audioTrackRef.mute() if a LiveKit track exists.
+      // Safe to start before LiveKit is attached.
       if (s.vadMode === 'vad') {
         try {
           const vad = await MicVAD.new({
@@ -294,39 +411,43 @@ export function useVoiceConnection(
           });
           vadRef.current = vad;
           vad.start();
-          micTrack.mute();
           setMuted(true);
         } catch (vadErr) {
           console.warn('VAD initialization failed, falling back to always-on mode:', vadErr);
-          // mic stays unmuted — voice still works, just without VAD
         }
       }
 
-      r.remoteParticipants.forEach(p => attachAudio(p));
-      if (s.speakerDeviceId) applyOutputDevice(s.speakerDeviceId);
-
       await joinVoiceChannel(cid);
-      setRoom(r);
-      updateParticipantList();
       setConnected(true);
     } catch (err) {
       stream?.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
       setError(err instanceof Error ? err.message : 'Failed to connect');
-      roomRef.current?.disconnect();
-      roomRef.current = null;
-      setRoom(null);
       bcRef.current?.close();
       bcRef.current = null;
+      channelIdRef.current = null;
     } finally {
       setConnecting(false);
     }
-  }, [attachAudio, detachAudio, doCleanup, doDisconnect, updateParticipantList, applyOutputDevice, getVolume]);
+  }, [connected, connecting, doDisconnect]);
 
   useEffect(() => {
     if (!virtualChannelId) return;
     connect(virtualChannelId);
     return () => { doDisconnect(); };
   }, [virtualChannelId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Phase 2/3: react to remote-participant count changes.
+  // 0 → 1+: attach LK and publish mic.
+  // 1+ → 0: detach LK so we don't burn bandwidth or SFU slots when alone.
+  useEffect(() => {
+    if (!connected) return;
+    if (remoteParticipantCount >= 1) {
+      attachLivekit();
+    } else {
+      detachLivekit();
+    }
+  }, [connected, remoteParticipantCount, attachLivekit, detachLivekit]);
 
   // 15s heartbeat to keep the server-side presence alive.
   useEffect(() => {
@@ -335,6 +456,38 @@ export function useVoiceConnection(
       refreshVoiceHeartbeat(virtualChannelId).catch(() => { /* swallow */ });
     }, 15_000);
     return () => clearInterval(id);
+  }, [connected, virtualChannelId]);
+
+  // Fire a leave beacon on any path that's about to tear the renderer down.
+  //   - Web: pagehide on tab/window close, browser quit, navigation.
+  //   - Tauri: a "parley:quitting" event from the Rust side — fired when the
+  //     user actually quits (tray Quit, cmd+Q, OS shutdown). The native
+  //     handler delays exit by ~250ms so this beacon has time to flush.
+  //     Clicking the X just hides the window, so no event fires there.
+  // Non-graceful paths (process kill, power loss) fall back to the server-side
+  // sweeper which evicts stale presence within ~30-45s.
+  useEffect(() => {
+    if (!connected || !virtualChannelId) return;
+    const sendLeave = () => {
+      try { navigator.sendBeacon(`/api/voice/${virtualChannelId}/leave`); } catch { /* noop */ }
+    };
+    window.addEventListener('pagehide', sendLeave);
+
+    let unlistenTauri: (() => void) | null = null;
+    let cancelled = false;
+    if (isTauri()) {
+      (async () => {
+        const { listen } = await import('@tauri-apps/api/event');
+        if (cancelled) return;
+        unlistenTauri = await listen('parley:quitting', () => sendLeave());
+      })();
+    }
+
+    return () => {
+      window.removeEventListener('pagehide', sendLeave);
+      cancelled = true;
+      unlistenTauri?.();
+    };
   }, [connected, virtualChannelId]);
 
   // Hydrate current activity on (re)connect.
@@ -390,30 +543,28 @@ export function useVoiceConnection(
   }, [connected]);
 
   const toggleMute = useCallback(() => {
-    if (!audioTrackRef.current) return;
     const next = !muted;
     if (next) {
-      audioTrackRef.current.mute();
+      audioTrackRef.current?.mute();
     } else {
       // User explicitly unmuting — destroy VAD so it stops auto-muting
       if (vadRef.current) {
         vadRef.current.destroy();
         vadRef.current = null;
       }
-      audioTrackRef.current.unmute();
+      audioTrackRef.current?.unmute();
     }
     setMuted(next);
     // DO NOT set speaking here — speaking is managed by VAD/PTT
   }, [muted]);
 
   const forceMute = useCallback(() => {
-    if (!audioTrackRef.current) return;
     // Destroy VAD so it doesn't interfere
     if (vadRef.current) {
       vadRef.current.destroy();
       vadRef.current = null;
     }
-    audioTrackRef.current.mute();
+    audioTrackRef.current?.mute();
     setMuted(true);
     setSpeaking(false);
   }, []);
@@ -426,7 +577,7 @@ export function useVoiceConnection(
   }, [deafened]);
 
   const toggleVideo = useCallback(async () => {
-    if (!roomRef.current) return;
+    if (!roomRef.current) return; // requires LK attached (i.e., others present)
     if (videoEnabled) {
       if (videoTrackRef.current) {
         await roomRef.current.localParticipant.unpublishTrack(videoTrackRef.current);
@@ -448,7 +599,7 @@ export function useVoiceConnection(
   }, [videoEnabled, updateParticipantList]);
 
   const toggleScreenShare = useCallback(async () => {
-    if (!roomRef.current) return;
+    if (!roomRef.current) return; // requires LK attached
     if (screenSharing) {
       await roomRef.current.localParticipant.setScreenShareEnabled(false);
       setScreenSharing(false);

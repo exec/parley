@@ -1,9 +1,34 @@
 use tauri::{Emitter, Manager};
 #[cfg(desktop)]
 use tauri::WindowEvent;
-#[cfg(target_os = "macos")]
+#[cfg(desktop)]
+use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(desktop)]
+use std::time::Duration;
 use tauri::RunEvent;
 use tauri_plugin_deep_link::DeepLinkExt;
+
+// Set once when the app begins shutting down so we don't loop on the second
+// ExitRequested that fires from our own delayed app.exit(0). Also lets the
+// tray Quit and ExitRequested paths share the same emit-then-exit logic.
+#[cfg(desktop)]
+static EXITING: AtomicBool = AtomicBool::new(false);
+
+// begin_graceful_exit notifies the renderer ("parley:quitting") so it can
+// flush a voice-leave beacon (and any other pre-exit cleanup), then exits
+// after a short delay. Idempotent — repeated calls are no-ops.
+#[cfg(desktop)]
+fn begin_graceful_exit<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+    if EXITING.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let _ = app.emit("parley:quitting", ());
+    let h = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(250));
+        h.exit(0);
+    });
+}
 
 mod ring_window;
 
@@ -79,6 +104,19 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|_app, _event| {
+            // Cmd+Q (macOS), Alt+F4 (Windows), and OS shutdown all surface as
+            // ExitRequested. Intercept the first one to give the renderer
+            // ~250ms to fire a voice-leave beacon, then exit. Subsequent
+            // ExitRequested events (from our own delayed app.exit(0)) pass
+            // through because EXITING is already set.
+            #[cfg(desktop)]
+            if let RunEvent::ExitRequested { api, .. } = &_event {
+                if !EXITING.load(Ordering::SeqCst) {
+                    api.prevent_exit();
+                    begin_graceful_exit(_app);
+                }
+            }
+
             // macOS: clicking the Dock icon after closing (hiding) the main
             // window fires applicationShouldHandleReopen. We re-show the
             // hidden window so the Dock click matches the tray-click path.
@@ -117,7 +155,7 @@ fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
             "show" => reveal_main_window(app),
-            "quit" => app.exit(0),
+            "quit" => begin_graceful_exit(app),
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
