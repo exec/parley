@@ -75,44 +75,16 @@ JWT alg/key confusion · impersonation token forging · password reset / verify-
 
 ---
 
-## Cleanup queue *(still pending)*
+## Cleanup queue — done 2026-04-26
 
-### Live attacker artifacts in DB
-
-```sql
--- forged GC dh was force-added to + the forged "forward from dh" message
-DELETE FROM dm_messages WHERE dm_channel_id IN (336793114, 513058821) AND author_id IN (945648654416, 631940014957, 643600600668);
-DELETE FROM notifications WHERE user_id = 646019121799 AND actor_username IN ('rt1777245501', 'rtb1777245511', 'atk50000', 'redteam_a', 'redteam_b');
-DELETE FROM dm_channels WHERE id IN (336793114, 513058821);
-```
-
-### Test accounts to delete
-
-| uid | username | created by |
-|---|---|---|
-| 657252937437 | redteam_a | identity-attacker |
-| 120317065137 | redteam_b | identity-attacker |
-| 945648654416 | rt1777245501 | rbac-attacker |
-| 631940014957 | rtb1777245511 | rbac-attacker |
-| 643600600668 | atk50000 | realtime-attacker |
-| ? | atk100783921 | realtime-attacker |
-| ? | vic2522715093 | realtime-attacker |
-| ? | vic22522715093 | realtime-attacker |
-
-### DMZ proxy
-
-```
-/etc/nginx/conf.d/fail2ban-blocks.conf  was emptied 2-3 times when an
-attacker IPv6 (2601:247:c501:a740::/64) got auto-banned mid-test.
-Restore if you want fail2ban enforcing again.
-```
-
-### Repro scripts left on local /tmp
-
-`/tmp/live_pwn.py`, `/tmp/ring_spam.py`, `/tmp/dm_spam.py`, `/tmp/self_accept.py`,
-`/tmp/ws_attack.py`, `/tmp/ws_dm_eaves.py`, `/tmp/maxconn_real.py`,
-`/tmp/ws_size_dos.py`, `/tmp/atk_token.txt`, `/tmp/vic_token.txt`,
-`/tmp/vic2_token.txt`, `/tmp/atk2_token.txt`, `/tmp/atk2_uid.txt`,
-`/tmp/dh_dm_id.txt`, `/tmp/verify_pwn.sql`, `/tmp/cols2.sql`,
-`/tmp/test_forward.sh`, `/tmp/test-fix.mjs`, `/tmp/test-bundle.mjs`,
-`/tmp/test-bundle2.mjs`.
+- **DB attacker artifacts**: 76 dm_messages + 35 notifications + 2 dm_channels
+  (336793114 "redteam-PoC-2", 513058821) deleted via the SQL above.
+- **Test accounts** (8): redteam_a, redteam_b, rt1777245501, rtb1777245511,
+  atk50000, atk100783921, vic2522715093, vic22522715093 — all deleted.
+  Cascade removed 5 throwaway "atk-server" servers (owned by atk100783921)
+  + their server_members rows. Remaining `?` UIDs resolved as 591041887784
+  (atk100783921), 257702897732 (vic2522715093), 646095332183 (vic22522715093).
+- **DMZ fail2ban-blocks.conf**: left empty. Emptying resets the per-IP block
+  list but does not disable fail2ban — the jail will re-populate as IPs
+  trip the rate-limit / 401-burst rules. No action needed.
+- **Local repro scripts on /tmp**: deleted (20 files).
