@@ -294,7 +294,7 @@ server {
     add_header Referrer-Policy strict-origin-when-cross-origin always;
     add_header X-Permitted-Cross-Domain-Policies none always;
     add_header Permissions-Policy "camera=(self), microphone=(self), geolocation=(), payment=(), usb=(), accelerometer=(), gyroscope=(), magnetometer=(), midi=(), serial=()" always;
-    add_header Content-Security-Policy "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; connect-src 'self' wss: https:; img-src 'self' data: https:; media-src 'self' https:; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;" always;
+    add_header Content-Security-Policy "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; connect-src 'self' wss: https:; img-src 'self' data: https:; media-src 'self' https: data:; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;" always;
 
     # Health check endpoint
     location /health {
@@ -356,6 +356,15 @@ server {
     location /docs/ {
         alias /parley/docs/.vitepress/dist/;
         try_files \$uri \$uri/ \$uri.html =404;
+    }
+
+    # Hashed bundle assets must NOT fall back to index.html — otherwise a
+    # missing chunk (stale tab references a hash that's been replaced by a
+    # redeploy) gets served as text/html and the browser refuses the module
+    # with a MIME-type error. Return a real 404 so the lazy-import promise
+    # rejects cleanly.
+    location ^~ /assets/ {
+        try_files \$uri =404;
     }
 
     # Serve frontend - fallback to index.html for SPA routing.
