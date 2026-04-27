@@ -435,8 +435,11 @@ func (h *Handler) broadcastChannelOverwriteUpdate(r *http.Request, serverID, cha
 		log.Printf("broadcastChannelOverwriteUpdate: failed to marshal payload: %v", err)
 		return
 	}
-	channelIDStr := strconv.FormatInt(channelID, 10)
-	h.service.hub.BroadcastToChannel("channel:"+channelIDStr, ws.EventChannelOverwriteUpdate, payload)
+	// Broadcast on the server topic so every member gets it. The previous
+	// "channel:N" topic was never subscribed to by any client, so the event
+	// silently dropped on the floor.
+	serverIDStr := strconv.FormatInt(serverID, 10)
+	h.service.hub.BroadcastToChannel("server:"+serverIDStr, ws.EventChannelOverwriteUpdate, payload)
 }
 
 // handleOverwriteSync handles the synced flag logic after an overwrite change.

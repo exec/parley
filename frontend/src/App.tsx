@@ -16,7 +16,7 @@ import { Landing } from './pages/Landing';
 import { SharedThemePage } from './pages/SharedThemePage';
 const ThemeRepoPage = lazy(() => import('./pages/ThemeRepoPage').then(m => ({ default: m.ThemeRepoPage })));
 import { BotInvitePage } from './pages/BotInvitePage';
-import { useWebSocket, MemberRoleUpdate, UserUpdate, VoiceStateUpdate, VoiceForceMuteEvent, RoleUpdateEvent, RoleDeleteEvent, BotStatusUpdate, SoundboardPlayEvent } from './hooks/useWebSocket';
+import { useWebSocket, MemberRoleUpdate, UserUpdate, VoiceStateUpdate, VoiceForceMuteEvent, RoleUpdateEvent, RoleDeleteEvent, BotStatusUpdate, SoundboardPlayEvent, ChannelOverwriteUpdateEvent } from './hooks/useWebSocket';
 // VoiceChannel pulls in livekit-client's runtime enums (Track.Source, ParticipantEvent,
 // ConnectionQuality), so lazy-load it to keep that ~hundreds-of-kB bundle out of the
 // main chunk. The chunk only loads when the user actually enters voice.
@@ -553,6 +553,16 @@ function MainApp() {
     if (event.server_id) invalidatePermCache(event.server_id);
   }, [receiveRoleDelete]);
 
+  // Channel permission overwrites changed: bust perm cache for the active
+  // server and refetch its channel list — a deny on ViewChannel can hide a
+  // channel the user used to see, and an allow can reveal a new one.
+  const handleChannelOverwriteUpdate = useCallback((_event: ChannelOverwriteUpdateEvent) => {
+    if (activeServer?.id) {
+      invalidatePermCache(activeServer.id);
+      reloadChannels(activeServer.id);
+    }
+  }, [activeServer?.id, reloadChannels]);
+
   const handleUserUpdate = useCallback((update: UserUpdate) => {
     receiveUserUpdate(update);
     // Sync userStatuses so sidebar/mini-profile status dots update live
@@ -1024,6 +1034,7 @@ function MainApp() {
     onBotStatusUpdate: handleBotStatusUpdate,
     onRoleUpdate: handleRoleUpdate,
     onRoleDelete: handleRoleDelete,
+    onChannelOverwriteUpdate: handleChannelOverwriteUpdate,
     onConnect: clearAllPermCaches,
     onUserUpdate: handleUserUpdate,
     onVoiceStateUpdate: handleVoiceStateUpdate,
