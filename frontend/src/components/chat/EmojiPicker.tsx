@@ -1,8 +1,16 @@
 import React, { useState, useEffect, useRef, useCallback, useImperativeHandle } from 'react';
 import { createPortal } from 'react-dom';
-import data from '@emoji-mart/data';
 import { SearchIndex, init } from 'emoji-mart';
-init({ data });
+
+let emojiInitPromise: Promise<void> | null = null;
+function ensureEmojiInit(): Promise<void> {
+  if (!emojiInitPromise) {
+    emojiInitPromise = import('@emoji-mart/data').then(mod => {
+      init({ data: mod.default });
+    });
+  }
+  return emojiInitPromise;
+}
 
 const EMOJI_CATEGORIES = [
   {
@@ -63,6 +71,15 @@ export const EmojiPicker = React.forwardRef<HTMLDivElement, EmojiPickerProps>(({
   const [activeCategory, setActiveCategory] = useState(0);
   const [search, setSearch] = useState('');
   const [searchResults, setSearchResults] = useState<string[]>([]);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    ensureEmojiInit().then(() => {
+      if (!cancelled) setReady(true);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   // Anchor pattern: an invisible inline span lives where this component is rendered;
   // we measure its parent element's bounding rect to position the (portaled) picker
@@ -138,10 +155,11 @@ export const EmojiPicker = React.forwardRef<HTMLDivElement, EmojiPickerProps>(({
       setSearchResults([]);
       return;
     }
+    if (!ready) return;
     (SearchIndex as any).search(search).then((results: any[]) => {
       setSearchResults(results.map((r: any) => r.skins[0].native));
     });
-  }, [search]);
+  }, [search, ready]);
 
   const displayEmojis: string[] = search.trim() ? searchResults : EMOJI_CATEGORIES[activeCategory].emojis;
 

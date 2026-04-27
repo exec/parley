@@ -6,7 +6,7 @@ import { MentionDropdown } from './MentionDropdown';
 import { ChannelTagDropdown } from './ChannelTagDropdown';
 import { detectMention, useMentionSuggestions, insertMentionText, resolveMentions, MentionSuggestion } from '../../hooks/useMentionAutocomplete';
 import { detectChannelTag, useChannelSuggestions, insertChannelTag, resolveChannelTags } from '../../hooks/useChannelAutocomplete';
-import { detectEmojiTrigger, useEmojiSuggestions, insertEmoji, resolveEmojis, EmojiSuggestion } from '../../hooks/useEmojiAutocomplete';
+import { detectEmojiTrigger, useEmojiSuggestions, insertEmoji, resolveEmojis, getEmojiData, EmojiSuggestion } from '../../hooks/useEmojiAutocomplete';
 import { EmojiDropdown } from './EmojiDropdown';
 import { SlashCommandDropdown } from './SlashCommandDropdown';
 import { detectSlashCommand, useSlashCommands } from '../../hooks/useSlashCommands';
@@ -303,6 +303,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   }, [emojiMatch, message]);
 
   const handleSend = useCallback(async () => {
+    // If the message has any :shortcode: candidates, ensure the emoji data is
+    // loaded so resolveEmojis can replace them. Skip the await on the fast path.
+    if (message.includes(':')) await getEmojiData();
     const trimmedMessage = resolveEmojis(resolveMentions(resolveChannelTags(message.trim(), channels), members));
     if (!trimmedMessage && !pendingFile && !voiceBlob) return;
 
