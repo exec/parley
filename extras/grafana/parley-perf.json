@@ -1,0 +1,372 @@
+{
+  "title": "Parley Performance",
+  "uid": "parley-perf",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "refresh": "30s",
+  "tags": ["parley", "performance"],
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "panels": [
+    {
+      "id": 100,
+      "type": "row",
+      "title": "HTTP Health",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "panels": []
+    },
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "5xx rate (parley.byexec.com)",
+      "description": "Count of 5xx responses per interval from the DMZ nginx access log. Yellow at >=1, red at >=10.",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 1 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({job=\"nginx-dmz\", vhost=\"parley.byexec.com\", status=~\"5..\"}[$__interval]))",
+          "legendFormat": "5xx"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 10 }
+            ]
+          },
+          "custom": {
+            "thresholdsStyle": { "mode": "line" }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single" }
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Status codes by class (stacked)",
+      "description": "2xx / 4xx / 5xx counts per interval, stacked.",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 1 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({job=\"nginx-dmz\", vhost=\"parley.byexec.com\", status=~\"2..\"}[$__interval]))",
+          "legendFormat": "2xx"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({job=\"nginx-dmz\", vhost=\"parley.byexec.com\", status=~\"4..\"}[$__interval]))",
+          "legendFormat": "4xx"
+        },
+        {
+          "refId": "C",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({job=\"nginx-dmz\", vhost=\"parley.byexec.com\", status=~\"5..\"}[$__interval]))",
+          "legendFormat": "5xx"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "stacking": { "mode": "normal", "group": "A" },
+            "fillOpacity": 70,
+            "lineWidth": 1
+          }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "2xx" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }] },
+          { "matcher": { "id": "byName", "options": "4xx" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "yellow" } }] },
+          { "matcher": { "id": "byName", "options": "5xx" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] }
+        ]
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      }
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Top 5xx routes (1h)",
+      "description": "Top 10 API routes returning 5xx in the selected window. Path is extracted from the nginx access log line via the `pattern` parser; only /api/* routes are kept. CAVEAT: depends on the request line being present in the logged message; if the DMZ nginx log_format omits the request, this will return 0 rows.",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 1 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "topk(10, sum by (path) (count_over_time({job=\"nginx-dmz\", vhost=\"parley.byexec.com\", status=~\"5..\"} | pattern \"<_> \\\"<method> <path> <_>\\\" <_>\" [1h])))",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "options": { "showHeader": true }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Latency p50/p95/p99 (STUB — needs nginx log_format)",
+      "description": "STUB PANEL. Requires the DMZ nginx log_format to include $upstream_response_time so we can unwrap it from the log line. Neither terraform/userdata-lb.sh (internal LB) nor the existing parley.json LogQL reference upstream_response_time, so this is not yet wired up. Add `$upstream_response_time` to the nginx-dmz log_format, ensure promtail/Loki ingests it, then this query becomes live. LogQL it WILL use is in the panel target.",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 9 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "quantile_over_time(0.50, {job=\"nginx-dmz\", vhost=\"parley.byexec.com\"} | pattern \"<_> upstream_response_time=<urt> <_>\" | unwrap urt [$__interval])",
+          "legendFormat": "p50"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "quantile_over_time(0.95, {job=\"nginx-dmz\", vhost=\"parley.byexec.com\"} | pattern \"<_> upstream_response_time=<urt> <_>\" | unwrap urt [$__interval])",
+          "legendFormat": "p95"
+        },
+        {
+          "refId": "C",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "quantile_over_time(0.99, {job=\"nginx-dmz\", vhost=\"parley.byexec.com\"} | pattern \"<_> upstream_response_time=<urt> <_>\" | unwrap urt [$__interval])",
+          "legendFormat": "p99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      }
+    },
+    {
+      "id": 200,
+      "type": "row",
+      "title": "App health",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
+      "panels": []
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "WS connections",
+      "description": "Active WebSocket connection count parsed from parley_stats lines. Uses last_over_time to show the most recent value within each step.",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 18 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "last_over_time({host=~\"parley-.*\", job=\"journald\"} |~ \"parley_stats:\" | pattern \"<_>parley_stats: ws_connections=<ws_conns> voice_rooms=<v_rooms> voice_participants=<v_parts> goroutines=<gr> heap_mb=<heap> broadcasts_total=<b_total> recipients_total=<r_total>\" | unwrap ws_conns [1m])",
+          "legendFormat": "{{host}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Voice rooms",
+      "description": "Active voice room count parsed from parley_stats lines.",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 18 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "last_over_time({host=~\"parley-.*\", job=\"journald\"} |~ \"parley_stats:\" | pattern \"<_>parley_stats: ws_connections=<ws_conns> voice_rooms=<v_rooms> voice_participants=<v_parts> goroutines=<gr> heap_mb=<heap> broadcasts_total=<b_total> recipients_total=<r_total>\" | unwrap v_rooms [1m])",
+          "legendFormat": "{{host}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Voice participants",
+      "description": "Total voice participants across all rooms parsed from parley_stats lines.",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 18 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "last_over_time({host=~\"parley-.*\", job=\"journald\"} |~ \"parley_stats:\" | pattern \"<_>parley_stats: ws_connections=<ws_conns> voice_rooms=<v_rooms> voice_participants=<v_parts> goroutines=<gr> heap_mb=<heap> broadcasts_total=<b_total> recipients_total=<r_total>\" | unwrap v_parts [1m])",
+          "legendFormat": "{{host}}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Heap MB",
+      "description": "Go heap allocation in MB parsed from parley_stats lines.",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 26 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "last_over_time({host=~\"parley-.*\", job=\"journald\"} |~ \"parley_stats:\" | pattern \"<_>parley_stats: ws_connections=<ws_conns> voice_rooms=<v_rooms> voice_participants=<v_parts> goroutines=<gr> heap_mb=<heap> broadcasts_total=<b_total> recipients_total=<r_total>\" | unwrap heap [1m])",
+          "legendFormat": "{{host}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "decmbytes" },
+        "overrides": []
+      }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Goroutines",
+      "description": "Goroutine count parsed from parley_stats lines.",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 26 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "last_over_time({host=~\"parley-.*\", job=\"journald\"} |~ \"parley_stats:\" | pattern \"<_>parley_stats: ws_connections=<ws_conns> voice_rooms=<v_rooms> voice_participants=<v_parts> goroutines=<gr> heap_mb=<heap> broadcasts_total=<b_total> recipients_total=<r_total>\" | unwrap gr [1m])",
+          "legendFormat": "{{host}}"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Broadcasts/sec",
+      "description": "Broadcast rate computed from the broadcasts_total counter. NOTE: counter resets at process restart — expect a brief drop or a clamped negative spike across restarts.",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 26 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "rate({host=~\"parley-.*\", job=\"journald\"} |~ \"parley_stats:\" | pattern \"<_>parley_stats: ws_connections=<ws_conns> voice_rooms=<v_rooms> voice_participants=<v_parts> goroutines=<gr> heap_mb=<heap> broadcasts_total=<b_total> recipients_total=<r_total>\" | unwrap b_total [1m])",
+          "legendFormat": "{{host}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ops" },
+        "overrides": []
+      }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Recipients/sec",
+      "description": "Recipient rate computed from the recipients_total counter. NOTE: counter resets at process restart.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 34 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "rate({host=~\"parley-.*\", job=\"journald\"} |~ \"parley_stats:\" | pattern \"<_>parley_stats: ws_connections=<ws_conns> voice_rooms=<v_rooms> voice_participants=<v_parts> goroutines=<gr> heap_mb=<heap> broadcasts_total=<b_total> recipients_total=<r_total>\" | unwrap r_total [1m])",
+          "legendFormat": "{{host}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ops" },
+        "overrides": []
+      }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Avg recipients per broadcast",
+      "description": "Two series: broadcasts/sec (refA) and recipients/sec (refB). Visual ratio gives avg recipients per broadcast. A native math expression isn't used because Loki ad-hoc math expressions across two unwrap streams aren't reliable in older Grafana 10.x; eyeball the ratio for now.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 34 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "rate({host=~\"parley-.*\", job=\"journald\"} |~ \"parley_stats:\" | pattern \"<_>parley_stats: ws_connections=<ws_conns> voice_rooms=<v_rooms> voice_participants=<v_parts> goroutines=<gr> heap_mb=<heap> broadcasts_total=<b_total> recipients_total=<r_total>\" | unwrap b_total [1m])",
+          "legendFormat": "broadcasts/sec {{host}}"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "rate({host=~\"parley-.*\", job=\"journald\"} |~ \"parley_stats:\" | pattern \"<_>parley_stats: ws_connections=<ws_conns> voice_rooms=<v_rooms> voice_participants=<v_parts> goroutines=<gr> heap_mb=<heap> broadcasts_total=<b_total> recipients_total=<r_total>\" | unwrap r_total [1m])",
+          "legendFormat": "recipients/sec {{host}}"
+        }
+      ]
+    },
+    {
+      "id": 300,
+      "type": "row",
+      "title": "Voice sweeper",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 42 },
+      "panels": []
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Sweep duration ms",
+      "description": "Per-tick voice sweep duration in milliseconds, parsed from parley_sweep lines.",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 43 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "last_over_time({host=~\"parley-.*\", job=\"journald\"} |~ \"parley_sweep:\" | pattern \"<_>parley_sweep: duration_ms=<ms> evicted=<ev> channels=<ch>\" | unwrap ms [1m])",
+          "legendFormat": "{{host}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ms" },
+        "overrides": []
+      }
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Evictions per tick",
+      "description": "Stale voice participants evicted per sweep tick.",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 43 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "last_over_time({host=~\"parley-.*\", job=\"journald\"} |~ \"parley_sweep:\" | pattern \"<_>parley_sweep: duration_ms=<ms> evicted=<ev> channels=<ch>\" | unwrap ev [1m])",
+          "legendFormat": "{{host}}"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "type": "timeseries",
+      "title": "Channels scanned per tick",
+      "description": "Voice channels scanned per sweep tick.",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 43 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "last_over_time({host=~\"parley-.*\", job=\"journald\"} |~ \"parley_sweep:\" | pattern \"<_>parley_sweep: duration_ms=<ms> evicted=<ev> channels=<ch>\" | unwrap ch [1m])",
+          "legendFormat": "{{host}}"
+        }
+      ]
+    }
+  ]
+}
