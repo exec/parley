@@ -500,3 +500,189 @@ class HTTPClient:
     async def delete_api_key(self, key_id: int) -> None:
         """``DELETE /api/developer/keys/{id}``"""
         await self.delete(f"/api/developer/keys/{key_id}")
+
+    # ==================================================================
+    # ===== Friend / DM-group / Notification / Member-role =====
+    # ==================================================================
+
+    # ------------------------------------------------------------------
+    # Friends
+    # ------------------------------------------------------------------
+
+    async def get_friends(self) -> list[dict]:
+        """``GET /api/friends`` — accepted friendships."""
+        return await self.get("/api/friends")
+
+    async def get_friend_requests(self) -> dict:
+        """``GET /api/friend-requests`` — ``{incoming: [...], outgoing: [...]}``."""
+        return await self.get("/api/friend-requests")
+
+    async def send_friend_request(self, username: str) -> dict:
+        """``POST /api/friend-requests`` — send a request by *username*."""
+        return await self.post("/api/friend-requests", {"username": username})
+
+    async def accept_friend_request(self, request_id: int) -> dict:
+        """``POST /api/friend-requests/{id}/accept`` — returns the new friend."""
+        return await self.post(f"/api/friend-requests/{request_id}/accept")
+
+    async def decline_friend_request(self, request_id: int) -> None:
+        """``DELETE /api/friend-requests/{id}`` — decline (incoming) or cancel (outgoing)."""
+        await self.delete(f"/api/friend-requests/{request_id}")
+
+    async def cancel_friend_request(self, request_id: int) -> None:
+        """Alias for :meth:`decline_friend_request` — cancel an outgoing request."""
+        await self.delete(f"/api/friend-requests/{request_id}")
+
+    async def remove_friend(self, user_id: int) -> None:
+        """``DELETE /api/friends/{userId}`` — unfriend a user."""
+        await self.delete(f"/api/friends/{user_id}")
+
+    # ------------------------------------------------------------------
+    # Blocks
+    # ------------------------------------------------------------------
+
+    async def get_blocks(self) -> list[dict]:
+        """``GET /api/blocks`` — list blocked users."""
+        return await self.get("/api/blocks")
+
+    async def block_user(self, user_id: int) -> None:
+        """``POST /api/users/{id}/block``"""
+        await self.post(f"/api/users/{user_id}/block")
+
+    async def unblock_user(self, user_id: int) -> None:
+        """``DELETE /api/users/{id}/block``"""
+        await self.delete(f"/api/users/{user_id}/block")
+
+    # ------------------------------------------------------------------
+    # DM groups
+    # ------------------------------------------------------------------
+
+    async def create_dm_group(
+        self,
+        user_ids: list[int],
+        *,
+        name: Optional[str] = None,
+    ) -> dict:
+        """``POST /api/dms`` — open a group DM with multiple users.
+
+        For 1:1 DMs, prefer :meth:`open_dm`.
+        """
+        body: dict = {"user_ids": [str(uid) for uid in user_ids]}
+        if name is not None:
+            body["name"] = name
+        return await self.post("/api/dms", body)
+
+    async def get_dm_members(self, dm_channel_id: int) -> list[dict]:
+        """``GET /api/dms/{id}/members``"""
+        return await self.get(f"/api/dms/{dm_channel_id}/members")
+
+    async def add_dm_members(
+        self, dm_channel_id: int, user_ids: list[int]
+    ) -> None:
+        """``POST /api/dms/{id}/members`` — add users to a group DM."""
+        await self.post(
+            f"/api/dms/{dm_channel_id}/members",
+            {"user_ids": [str(uid) for uid in user_ids]},
+        )
+
+    async def add_dm_member(self, dm_channel_id: int, user_id: int) -> None:
+        """Convenience wrapper around :meth:`add_dm_members` for a single user."""
+        await self.add_dm_members(dm_channel_id, [user_id])
+
+    async def remove_dm_member(self, dm_channel_id: int, user_id: int) -> None:
+        """``DELETE /api/dms/{id}/members/{userID}`` — owner-only kick."""
+        await self.delete(f"/api/dms/{dm_channel_id}/members/{user_id}")
+
+    async def leave_dm(
+        self,
+        dm_channel_id: int,
+        *,
+        transfer_to: Optional[int] = None,
+    ) -> None:
+        """``POST /api/dms/{id}/leave``.
+
+        Parameters
+        ----------
+        dm_channel_id:
+            Group DM channel ID.
+        transfer_to:
+            If the actor is the owner, transfer ownership to this user before leaving.
+        """
+        body: dict = {}
+        if transfer_to is not None:
+            body["transfer_to"] = str(transfer_to)
+        await self.request("POST", f"/api/dms/{dm_channel_id}/leave", json=body)
+
+    async def update_dm_group(
+        self,
+        dm_channel_id: int,
+        *,
+        name: Optional[str] = None,
+        avatar_url: Optional[str] = None,
+        clear_avatar: bool = False,
+    ) -> None:
+        """``PATCH /api/dms/{id}`` — rename and/or update avatar of a group DM."""
+        body: dict = {}
+        if name is not None:
+            body["name"] = name
+        if avatar_url is not None:
+            body["avatar_url"] = avatar_url
+        if clear_avatar:
+            body["clear_avatar"] = True
+        await self.patch(f"/api/dms/{dm_channel_id}", body)
+
+    async def transfer_dm_ownership(
+        self, dm_channel_id: int, new_owner_id: int
+    ) -> None:
+        """``POST /api/dms/{id}/transfer-ownership``"""
+        await self.post(
+            f"/api/dms/{dm_channel_id}/transfer-ownership",
+            {"new_owner_id": str(new_owner_id)},
+        )
+
+    # ------------------------------------------------------------------
+    # Notifications
+    # ------------------------------------------------------------------
+
+    async def get_notifications(self, *, limit: int = 50) -> list[dict]:
+        """``GET /api/notifications?limit=N``"""
+        return await self.get("/api/notifications", limit=limit)
+
+    async def mark_notification_read(self, notification_id: int) -> None:
+        """``PATCH /api/notifications/{id}/read``"""
+        await self.patch(f"/api/notifications/{notification_id}/read")
+
+    async def mark_all_notifications_read(self) -> None:
+        """``PATCH /api/notifications/read-all``"""
+        await self.patch("/api/notifications/read-all")
+
+    # ------------------------------------------------------------------
+    # Member roles
+    # ------------------------------------------------------------------
+
+    async def get_member_roles(self, server_id: int, user_id: int) -> list[dict]:
+        """``GET /api/servers/{id}/members/{userID}/roles``"""
+        return await self.get(
+            f"/api/servers/{server_id}/members/{user_id}/roles"
+        )
+
+    async def assign_role_to_member(
+        self, server_id: int, user_id: int, role_id: int
+    ) -> None:
+        """``POST /api/servers/{id}/members/{userID}/roles`` — assign a role."""
+        await self.post(
+            f"/api/servers/{server_id}/members/{user_id}/roles",
+            {"role_id": str(role_id)},
+        )
+
+    async def remove_role_from_member(
+        self, server_id: int, user_id: int, role_id: int
+    ) -> None:
+        """``DELETE /api/servers/{id}/members/{userID}/roles/{roleID}``"""
+        await self.delete(
+            f"/api/servers/{server_id}/members/{user_id}/roles/{role_id}"
+        )
+
+    async def get_members_with_roles(self, server_id: int) -> list[dict]:
+        """``GET /api/servers/{id}/members-with-roles`` — roster joined with roles."""
+        return await self.get(f"/api/servers/{server_id}/members-with-roles")

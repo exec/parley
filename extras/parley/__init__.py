@@ -112,6 +112,10 @@ from .slash import InteractionContext, SlashCommand, SlashOption
 # -- Utils -------------------------------------------------------------------
 from .utils import MISSING, format_mention, parse_mentions, snowflake_time, strip_mention
 
+# -- Friend / DM-group / Notification / Member-role models -------------------
+from .models.friend import Friend, FriendRequest
+from .models.notification import Notification
+
 __all__ = [
     # Version
     "__version__",
@@ -176,4 +180,8 @@ __all__ = [
     "parse_mentions",
     "strip_mention",
     "format_mention",
+    # Friend / Notification
+    "Friend",
+    "FriendRequest",
+    "Notification",
 ]

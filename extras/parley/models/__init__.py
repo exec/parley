@@ -13,6 +13,10 @@ from .role import Role
 from .server import Server
 from .user import ClientUser, PublicUser, User
 
+# Friend / DM-group / Notification / Member-role exports
+from .friend import Friend, FriendRequest
+from .notification import Notification
+
 __all__ = [
     "User",
     "ClientUser",
@@ -29,4 +33,8 @@ __all__ = [
     "DmMessage",
     "DmChannel",
     "Invite",
+    # Friend / Notification
+    "Friend",
+    "FriendRequest",
+    "Notification",
 ]
