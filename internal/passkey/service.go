@@ -282,10 +282,19 @@ func (s *Service) LoginFinish(ctx context.Context, sessionID string, credentialB
 		return "", err
 	}
 
-	// Update sign count and last used timestamp
+	// Update sign count and last used timestamp. WebAuthn sign counters MUST
+	// be strictly monotonic per credential — if the incoming counter is
+	// non-zero and not greater than the stored one, the authenticator may
+	// have been cloned. Reject the login. Counter == 0 is the documented
+	// "unsupported" sentinel (iCloud Keychain, many platform authenticators)
+	// and skips the check; that's the WebAuthn spec's escape hatch.
 	pk, lookupErr := s.repo.GetPasskeyByCredentialID(ctx, credential.ID)
 	if lookupErr == nil && pk != nil {
-		_ = s.repo.UpdatePasskeySignCount(ctx, pk.ID, int64(credential.Authenticator.SignCount))
+		incoming := credential.Authenticator.SignCount
+		if incoming > 0 && uint32(pk.SignCount) >= incoming {
+			return "", fmt.Errorf("authenticator sign count regression detected")
+		}
+		_ = s.repo.UpdatePasskeySignCount(ctx, pk.ID, int64(incoming))
 	}
 	return resolvedUserIDStr, nil
 }
