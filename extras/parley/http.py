@@ -686,3 +686,349 @@ class HTTPClient:
     async def get_members_with_roles(self, server_id: int) -> list[dict]:
         """``GET /api/servers/{id}/members-with-roles`` — roster joined with roles."""
         return await self.get(f"/api/servers/{server_id}/members-with-roles")
+
+    # ==================================================================
+    # ===== Uploads / Passkey / GDPR / Overwrites / Messages =====
+    # ==================================================================
+
+    # ------------------------------------------------------------------
+    # Typed upload wrappers
+    # ------------------------------------------------------------------
+    #
+    # The server exposes a single ``POST /api/upload`` endpoint that returns
+    # the public CDN URL of the stored object. Setting that URL on a profile,
+    # banner, or server icon is a separate PATCH/PUT against the relevant
+    # resource. The wrappers below upload the file and then issue that PATCH
+    # in one call so callers don't have to wire two requests together.
+
+    async def upload_avatar(self, file_bytes: bytes, filename: str) -> str:
+        """Upload an image and set it as the authenticated user's avatar.
+
+        Returns
+        -------
+        str
+            The public URL now stored as ``avatar_url``.
+        """
+        url = await self.upload_file(file_bytes, filename)
+        await self.request("PATCH", "/api/users/me", json={"avatar_url": url})
+        return url
+
+    async def upload_banner(self, file_bytes: bytes, filename: str) -> str:
+        """Upload an image and set it as the authenticated user's profile banner.
+
+        Returns
+        -------
+        str
+            The public URL now stored as ``banner_url``.
+        """
+        url = await self.upload_file(file_bytes, filename)
+        await self.request("PATCH", "/api/users/me", json={"banner_url": url})
+        return url
+
+    async def upload_server_icon(
+        self, server_id: int, file_bytes: bytes, filename: str
+    ) -> str:
+        """Upload an image and set it as the icon of *server_id*.
+
+        Returns
+        -------
+        str
+            The public URL now stored as the server's ``icon_url``.
+        """
+        url = await self.upload_file(file_bytes, filename)
+        await self.put(f"/api/servers/{server_id}", {"icon_url": url})
+        return url
+
+    # ------------------------------------------------------------------
+    # Passkeys
+    # ------------------------------------------------------------------
+    #
+    # Note on the LOGIN ceremony: ``/api/auth/passkey/login/begin`` and
+    # ``/api/auth/passkey/login/finish`` are *unauthenticated* endpoints —
+    # they execute before a session token exists. The :class:`HTTPClient`
+    # is constructed with a bearer token in the Authorization header, so it
+    # is not the right transport for those routes. Library users who need
+    # WebAuthn login should drive a fresh :class:`httpx.AsyncClient` against
+    # the two endpoints, then construct an :class:`HTTPClient` with the
+    # token returned by ``login/finish``.
+    #
+    # The register ceremony below is authenticated (you must already be
+    # signed in to add a passkey to your account) and therefore fits cleanly
+    # on this client.
+
+    async def passkey_register_begin(self) -> dict:
+        """``POST /api/auth/passkey/register/begin``.
+
+        Returns
+        -------
+        dict
+            ``{"options": <PublicKeyCredentialCreationOptions>, "session_id": str}``.
+            The ``options`` blob is opaque WebAuthn data — feed it to a
+            browser-side ``navigator.credentials.create()`` call and pass
+            the resulting credential back to :meth:`passkey_register_finish`.
+        """
+        return await self.post("/api/auth/passkey/register/begin")
+
+    async def passkey_register_finish(
+        self, session_id: str, name: str, credential: dict
+    ) -> None:
+        """``POST /api/auth/passkey/register/finish`` — complete registration.
+
+        Parameters
+        ----------
+        session_id:
+            The ``session_id`` returned by :meth:`passkey_register_begin`.
+        name:
+            User-supplied label for the new passkey.
+        credential:
+            The ``PublicKeyCredential`` JSON produced by the browser.
+        """
+        await self.post(
+            "/api/auth/passkey/register/finish",
+            {"session_id": session_id, "name": name, "credential": credential},
+        )
+
+    async def list_passkeys(self) -> list[dict]:
+        """``GET /api/auth/passkeys`` — passkeys registered to the current user."""
+        return await self.get("/api/auth/passkeys")
+
+    async def delete_passkey(self, passkey_id: str) -> None:
+        """``DELETE /api/auth/passkeys/{id}``"""
+        await self.delete(f"/api/auth/passkeys/{passkey_id}")
+
+    async def rename_passkey(self, passkey_id: str, name: str) -> None:
+        """``PUT /api/auth/passkeys/{id}`` — rename a registered passkey."""
+        await self.put(f"/api/auth/passkeys/{passkey_id}", {"name": name})
+
+    async def remove_password(self) -> None:
+        """``DELETE /api/auth/password`` — clear the account password.
+
+        Only succeeds if at least one passkey is registered. Backend
+        enforces this atomically so the account cannot be left with neither
+        credential after a concurrent passkey deletion.
+        """
+        await self.delete("/api/auth/password")
+
+    # ------------------------------------------------------------------
+    # GDPR — self-serve account deletion + data export
+    # ------------------------------------------------------------------
+
+    async def export_account_data(self) -> dict:
+        """``GET /api/me/export`` — full GDPR-portability envelope.
+
+        Returns the entire export payload as a parsed dict (profile, messages,
+        DMs, friends, audit, themes, etc.). The response can be sizeable —
+        callers that intend to persist it should write it to disk rather than
+        keeping the dict in memory.
+        """
+        return await self.get("/api/me/export")
+
+    async def delete_account(self, confirm_username: str) -> None:
+        """``DELETE /api/me`` — irreversibly delete the authenticated account.
+
+        WARNING — this is destructive and cannot be undone. The backend
+        purges the user's profile, messages, DMs, friends, themes, sessions,
+        and uploads. Bots and servers owned solely by this user are removed;
+        servers or group DMs that still have other members will respond with
+        HTTP 409 (raised as :class:`~parley.errors.HTTPError` here) and you
+        must transfer ownership before retrying.
+
+        Parameters
+        ----------
+        confirm_username:
+            Must exactly match the authenticated user's current username.
+            The server rejects the request with 400 if it doesn't.
+        """
+        await self.request(
+            "DELETE", "/api/me", json={"confirm_username": confirm_username}
+        )
+
+    # ------------------------------------------------------------------
+    # Channel permission overwrites
+    # ------------------------------------------------------------------
+    #
+    # ``target_type`` follows the backend convention: ``0`` for a role
+    # overwrite, ``1`` for a user overwrite. The :class:`~parley.models.Overwrite`
+    # model exposes role_id/user_id convenience properties on top of these.
+
+    async def get_channel_overwrites(self, channel_id: int) -> list[dict]:
+        """``GET /api/channels/{id}/overwrites`` — list permission overwrites.
+
+        Backend gates this on ViewChannel — callers that cannot see the
+        channel will receive 404, not an empty list.
+        """
+        return await self.get(f"/api/channels/{channel_id}/overwrites")
+
+    async def upsert_channel_overwrite(
+        self,
+        channel_id: int,
+        *,
+        target_type: int,
+        target_id: int,
+        allow: int = 0,
+        deny: int = 0,
+    ) -> dict:
+        """``PUT /api/channels/{id}/overwrites`` — create or update an overwrite.
+
+        Parameters
+        ----------
+        channel_id:
+            Channel the overwrite scopes to.
+        target_type:
+            ``0`` for a role, ``1`` for a user.
+        target_id:
+            Snowflake ID of the role or user being overridden.
+        allow, deny:
+            Bit-flag :class:`~parley.enums.Permissions` values granted/revoked
+            in this channel. Conflicting bits are resolved by the backend
+            (allow wins).
+        """
+        return await self.put(
+            f"/api/channels/{channel_id}/overwrites",
+            {
+                "target_type": target_type,
+                "target_id": str(target_id),
+                "allow": allow,
+                "deny": deny,
+            },
+        )
+
+    async def delete_channel_overwrite(
+        self, channel_id: int, overwrite_id: int
+    ) -> None:
+        """``DELETE /api/channels/{id}/overwrites/{overwriteId}``"""
+        await self.delete(
+            f"/api/channels/{channel_id}/overwrites/{overwrite_id}"
+        )
+
+    async def get_my_channel_permissions(self, channel_id: int) -> dict:
+        """``GET /api/channels/{id}/my-permissions`` — effective bits for the actor."""
+        return await self.get(f"/api/channels/{channel_id}/my-permissions")
+
+    # ------------------------------------------------------------------
+    # Message extras — search, forward, history, reactions
+    # ------------------------------------------------------------------
+
+    async def search_messages(
+        self,
+        server_id: int,
+        *,
+        q: str,
+        from_user_id: Optional[int] = None,
+        in_channel_id: Optional[int] = None,
+        limit: int = 25,
+        before: Optional[int] = None,
+    ) -> list[dict]:
+        """``GET /api/servers/{id}/messages/search``.
+
+        Parameters
+        ----------
+        server_id:
+            Server to search within.
+        q:
+            Query string (server-side ILIKE, rate limited at 20/min).
+        from_user_id:
+            Restrict results to messages by this author.
+        in_channel_id:
+            Restrict results to a single channel.
+        limit:
+            Max results (1–50, default 25).
+        before:
+            Snowflake ID — return messages older than this.
+        """
+        # `from` and `in` are Python keywords, so build the params dict
+        # manually and route through ``request`` (which strips None values).
+        params: dict = {"q": q, "limit": limit}
+        if from_user_id is not None:
+            params["from"] = str(from_user_id)
+        if in_channel_id is not None:
+            params["in"] = str(in_channel_id)
+        if before is not None:
+            params["before"] = before
+        return await self.request(
+            "GET",
+            f"/api/servers/{server_id}/messages/search",
+            params=params,
+        )
+
+    async def forward_message(
+        self,
+        target_channel_id: int,
+        *,
+        source_message_id: int,
+        source_channel_id: Optional[int] = None,
+    ) -> dict:
+        """``POST /api/channels/{channelID}/forward`` — forward into a server channel.
+
+        Parameters
+        ----------
+        target_channel_id:
+            Channel to deliver the forwarded snapshot into.
+        source_message_id:
+            Snowflake ID of the message being forwarded. The server
+            re-resolves the snapshot (author, content, channel/server names,
+            timestamp) from the source row — caller-supplied content is
+            ignored.
+        source_channel_id:
+            Optional source channel ID for disambiguation when the source
+            is a DM/group DM.
+        """
+        body: dict = {"message_id": str(source_message_id)}
+        if source_channel_id is not None:
+            body["channel_id"] = str(source_channel_id)
+        return await self.post(
+            f"/api/channels/{target_channel_id}/forward", body
+        )
+
+    async def forward_message_to_dm(
+        self,
+        target_dm_channel_id: int,
+        *,
+        source_message_id: int,
+        source_channel_id: Optional[int] = None,
+    ) -> dict:
+        """``POST /api/dms/{id}/forward`` — forward into a DM or group DM."""
+        body: dict = {"message_id": str(source_message_id)}
+        if source_channel_id is not None:
+            body["channel_id"] = str(source_channel_id)
+        return await self.post(
+            f"/api/dms/{target_dm_channel_id}/forward", body
+        )
+
+    async def get_message_versions(self, message_id: int) -> list[dict]:
+        """``GET /api/messages/{id}/versions`` — full edit history of a message."""
+        return await self.get(f"/api/messages/{message_id}/versions")
+
+    async def get_channel_pins(self, channel_id: int) -> list[dict]:
+        """``GET /api/channels/{channelID}/pins`` — pinned messages in a channel."""
+        return await self.get(f"/api/channels/{channel_id}/pins")
+
+    async def pin_message(self, channel_id: int, message_id: int) -> None:
+        """``POST /api/channels/{channelID}/pins/{messageID}``"""
+        await self.post(f"/api/channels/{channel_id}/pins/{message_id}")
+
+    async def unpin_message(self, channel_id: int, message_id: int) -> None:
+        """``DELETE /api/channels/{channelID}/pins/{messageID}``"""
+        await self.delete(f"/api/channels/{channel_id}/pins/{message_id}")
+
+    async def toggle_reaction(self, message_id: int, emoji: str) -> None:
+        """``POST /api/messages/{id}/reactions`` — toggle a reaction.
+
+        The backend has a single toggle endpoint: calling this when the
+        emoji is absent adds it, calling it again removes it. There is no
+        separate "remove reaction" route. To list the current reactions on
+        a message, fetch the message itself — reactions are returned inline
+        on the message payload.
+        """
+        await self.post(
+            f"/api/messages/{message_id}/reactions", {"emoji": emoji}
+        )
+
+    async def toggle_dm_reaction(
+        self, dm_channel_id: int, message_id: int, emoji: str
+    ) -> None:
+        """``POST /api/dms/{id}/messages/{messageId}/reactions`` — DM toggle."""
+        await self.post(
+            f"/api/dms/{dm_channel_id}/messages/{message_id}/reactions",
+            {"emoji": emoji},
+        )

@@ -17,6 +17,10 @@ from .user import ClientUser, PublicUser, User
 from .friend import Friend, FriendRequest
 from .notification import Notification
 
+# Uploads / Passkey / GDPR / Overwrites / Message extras
+from .overwrite import Overwrite
+from .passkey import Passkey
+
 __all__ = [
     "User",
     "ClientUser",
@@ -37,4 +41,7 @@ __all__ = [
     "Friend",
     "FriendRequest",
     "Notification",
+    # Passkey / Overwrite
+    "Overwrite",
+    "Passkey",
 ]
