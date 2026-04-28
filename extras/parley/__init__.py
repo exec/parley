@@ -116,6 +116,23 @@ from .utils import MISSING, format_mention, parse_mentions, snowflake_time, stri
 from .models.friend import Friend, FriendRequest
 from .models.notification import Notification
 
+# -- Uploads / Passkey / GDPR / Overwrites / Message-extras models -----------
+from .models.overwrite import Overwrite
+from .models.passkey import Passkey
+
+# -- Voice / Soundboard / Theme / Bin models ---------------------------------
+from .models.bin import (
+    BinChannelTag,
+    BinLineComment,
+    BinPost,
+    BinPostFile,
+    BinPostVersion,
+    BinPostVersionFile,
+)
+from .models.soundboard import Sound
+from .models.theme import ThemePreferences, UserTheme
+from .models.voice import ActiveCalls, Ring, VoiceParticipant, VoiceToken
+
 __all__ = [
     # Version
     "__version__",
@@ -184,4 +201,7 @@ __all__ = [
     "Friend",
     "FriendRequest",
     "Notification",
+    # Passkey / Overwrite
+    "Overwrite",
+    "Passkey",
 ]
