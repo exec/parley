@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { CodeBlock } from '../ui/CodeBlock';
 import { languageFromFilename } from '../../lib/shiki';
 import {
@@ -7,16 +8,11 @@ import {
 } from '../../api/git';
 import './RepoExplorer.css';
 
-export interface ExplorerTarget {
+interface Props {
   provider: GitProvider;
   owner: string;
   repo: string;
-  ref?: string;          // empty/missing → default branch
-  initialPath?: string;  // file to auto-open
-}
-
-interface Props {
-  target: ExplorerTarget;
+  /** Where to navigate when the user closes the explorer. Defaults to /. */
   onClose: () => void;
 }
 
@@ -51,10 +47,16 @@ function formatBytes(n: number): string {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export const RepoExplorer: React.FC<Props> = ({ target, onClose }) => {
+export const RepoExplorer: React.FC<Props> = ({ provider, owner, repo, onClose }) => {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  const urlRef = searchParams.get('ref') || '';
+  const urlPath = searchParams.get('path') || '';
+
   const [meta, setMeta] = useState<GitRepo | null>(null);
   const [metaError, setMetaError] = useState<string | null>(null);
-  const [activeRef, setActiveRef] = useState<string>(target.ref || '');
+
   const [dir, setDir] = useState<DirState>({ path: '', entries: [], loading: true, error: null });
   const [file, setFile] = useState<BlobState | null>(null);
 
@@ -64,66 +66,73 @@ export const RepoExplorer: React.FC<Props> = ({ target, onClose }) => {
   const [branchesLoading, setBranchesLoading] = useState(false);
   const branchBtnRef = useRef<HTMLButtonElement | null>(null);
 
-  // Load repo metadata once.
+  // Effective ref: URL wins over the repo's default branch.
+  const ref = urlRef || meta?.default_branch || '';
+
+  // Helper: rebuild the search-params object so we can navigate to "same
+  // base path, updated query" without reaching for window.location.
+  const updateQuery = useCallback((next: { ref?: string | null; path?: string | null }) => {
+    const sp = new URLSearchParams(searchParams);
+    if ('ref'  in next) { next.ref  ? sp.set('ref',  next.ref!)  : sp.delete('ref'); }
+    if ('path' in next) { next.path ? sp.set('path', next.path!) : sp.delete('path'); }
+    navigate({ search: sp.toString() ? `?${sp}` : '' }, { replace: true });
+  }, [navigate, searchParams]);
+
+  // Load repo metadata once per (provider, owner, repo).
   useEffect(() => {
     let cancelled = false;
     setMetaError(null);
     setMeta(null);
-    getRepo(target.provider, target.owner, target.repo)
-      .then(r => {
-        if (cancelled) return;
-        setMeta(r);
-        // If the caller didn't pin a ref, lock onto the default branch now
-        // so subsequent tree/blob requests get a stable name.
-        if (!target.ref && !activeRef) setActiveRef(r.default_branch);
-      })
+    getRepo(provider, owner, repo)
+      .then(r => { if (!cancelled) setMeta(r); })
       .catch(e => { if (!cancelled) setMetaError((e as Error)?.message || 'failed to load repo'); });
     return () => { cancelled = true; };
-  // activeRef intentionally NOT in deps — we set it once on first metadata.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target.provider, target.owner, target.repo, target.ref]);
+  }, [provider, owner, repo]);
 
-  const ref = activeRef || meta?.default_branch || '';
-
-  // Load directory listing whenever path or ref changes.
-  const loadDir = useCallback((path: string) => {
+  // Resolve URL `path` against ref. The path may be either a file or a dir;
+  // we try the tree endpoint first, fall back to the blob endpoint when the
+  // backend says "this path is a file".
+  useEffect(() => {
     if (!ref) return;
-    setDir({ path, entries: [], loading: true, error: null });
     let cancelled = false;
-    getTree(target.provider, target.owner, target.repo, ref, path)
+    // Empty path → just load root tree, clear any open file.
+    if (!urlPath) {
+      setFile(null);
+      setDir({ path: '', entries: [], loading: true, error: null });
+      getTree(provider, owner, repo, ref, '')
+        .then(entries => { if (!cancelled) setDir({ path: '', entries: [...entries].sort(compareEntries), loading: false, error: null }); })
+        .catch(e => { if (!cancelled) setDir({ path: '', entries: [], loading: false, error: (e as Error)?.message || 'failed to load tree' }); });
+      return () => { cancelled = true; };
+    }
+    // Non-empty path: try as directory. If the backend answers with a 400
+    // (path is a file), interpret as a file path and fetch the blob.
+    setDir({ path: urlPath, entries: [], loading: true, error: null });
+    getTree(provider, owner, repo, ref, urlPath)
       .then(entries => {
         if (cancelled) return;
-        setDir({ path, entries: [...entries].sort(compareEntries), loading: false, error: null });
+        setDir({ path: urlPath, entries: [...entries].sort(compareEntries), loading: false, error: null });
+        setFile(null);
       })
-      .catch(e => {
+      .catch(() => {
+        // Treat any tree error as "probably a file" — fall back to blob.
         if (cancelled) return;
-        setDir({ path, entries: [], loading: false, error: (e as Error)?.message || 'failed to load tree' });
+        const dirOfFile = parentOf(urlPath);
+        setDir({ path: dirOfFile, entries: [], loading: true, error: null });
+        // Load the parent dir for tree pane, plus the file itself in parallel.
+        Promise.all([
+          getTree(provider, owner, repo, ref, dirOfFile).catch(() => [] as GitTreeEntry[]),
+          getBlob(provider, owner, repo, ref, urlPath),
+        ]).then(([entries, blob]) => {
+          if (cancelled) return;
+          setDir({ path: dirOfFile, entries: [...entries].sort(compareEntries), loading: false, error: null });
+          setFile({ path: urlPath, blob, loading: false, error: null });
+        }).catch(e => {
+          if (cancelled) return;
+          setFile({ path: urlPath, blob: null, loading: false, error: (e as Error)?.message || 'failed to load file' });
+        });
       });
     return () => { cancelled = true; };
-  }, [target.provider, target.owner, target.repo, ref]);
-
-  useEffect(() => { loadDir(''); }, [loadDir]);
-
-  const openFile = useCallback((path: string) => {
-    if (!ref) return;
-    setFile({ path, blob: null, loading: true, error: null });
-    let cancelled = false;
-    getBlob(target.provider, target.owner, target.repo, ref, path)
-      .then(b => {
-        if (cancelled) return;
-        setFile({ path, blob: b, loading: false, error: null });
-      })
-      .catch(e => {
-        if (cancelled) return;
-        setFile({ path, blob: null, loading: false, error: (e as Error)?.message || 'failed to load file' });
-      });
-    return () => { cancelled = true; };
-  }, [target.provider, target.owner, target.repo, ref]);
-
-  // Auto-open initial path.
-  useEffect(() => {
-    if (target.initialPath && ref) openFile(target.initialPath);
-  }, [target.initialPath, ref, openFile]);
+  }, [provider, owner, repo, ref, urlPath]);
 
   // Esc closes.
   useEffect(() => {
@@ -147,22 +156,18 @@ export const RepoExplorer: React.FC<Props> = ({ target, onClose }) => {
   }, [branchMenuOpen]);
 
   const handleEntryClick = (e: GitTreeEntry) => {
-    if (e.type === 'dir') {
-      loadDir(e.path);
-      return;
-    }
-    if (e.type === 'file') {
-      openFile(e.path);
-      return;
-    }
+    if (e.type === 'dir') { updateQuery({ path: e.path }); return; }
+    if (e.type === 'file') { updateQuery({ path: e.path }); return; }
     // submodule / symlink — no in-app browse
   };
+
+  const goToDir = (path: string) => updateQuery({ path: path || null });
 
   const openBranchMenu = () => {
     setBranchMenuOpen(true);
     if (!branches && !branchesLoading) {
       setBranchesLoading(true);
-      getBranches(target.provider, target.owner, target.repo)
+      getBranches(provider, owner, repo)
         .then(bs => setBranches(bs))
         .catch(() => setBranches([]))
         .finally(() => setBranchesLoading(false));
@@ -172,23 +177,23 @@ export const RepoExplorer: React.FC<Props> = ({ target, onClose }) => {
   const switchBranch = (name: string) => {
     setBranchMenuOpen(false);
     if (name === ref) return;
-    setActiveRef(name);
-    setFile(null);          // viewing file from old ref no longer makes sense
-    // dir reload triggers via the loadDir useCallback dep on `ref`
+    // Branch switch invalidates the current path (it may not exist on the
+    // new ref). Drop path; user can re-navigate from the root tree.
+    updateQuery({ ref: name, path: null });
   };
 
-  // Breadcrumbs live in the tree pane header now.
+  // Breadcrumbs live in the tree pane header; first crumb is the repo name.
   const treePaneBreadcrumbs = (() => {
     const segments = dir.path === '' ? [] : dir.path.split('/');
     return (
       <div className="explorer-breadcrumbs">
-        <button className="explorer-crumb" onClick={() => loadDir('')}>{target.repo}</button>
+        <button className="explorer-crumb" onClick={() => goToDir('')}>{repo}</button>
         {segments.map((seg, i) => {
           const sub = segments.slice(0, i + 1).join('/');
           return (
             <React.Fragment key={sub}>
               <span className="explorer-crumb-sep">/</span>
-              <button className="explorer-crumb" onClick={() => loadDir(sub)}>{seg}</button>
+              <button className="explorer-crumb" onClick={() => goToDir(sub)}>{seg}</button>
             </React.Fragment>
           );
         })}
@@ -200,7 +205,7 @@ export const RepoExplorer: React.FC<Props> = ({ target, onClose }) => {
     if (!file) {
       return (
         <div className="explorer-empty">
-          <div className="explorer-empty-title">{meta?.description || `${target.owner}/${target.repo}`}</div>
+          <div className="explorer-empty-title">{meta?.description || `${owner}/${repo}`}</div>
           <div className="explorer-empty-hint">Select a file from the tree to view its contents.</div>
         </div>
       );
@@ -239,7 +244,7 @@ export const RepoExplorer: React.FC<Props> = ({ target, onClose }) => {
       <div className="explorer-header">
         <button className="explorer-close" onClick={onClose} aria-label="Close explorer">←</button>
         {meta?.owner_avatar_url && <img className="explorer-avatar" src={meta.owner_avatar_url} alt="" />}
-        <span className="explorer-title-text">{target.owner}/{target.repo}</span>
+        <span className="explorer-title-text">{owner}/{repo}</span>
         {ref && (
           <span className="explorer-ref-wrap">
             <button
@@ -277,7 +282,7 @@ export const RepoExplorer: React.FC<Props> = ({ target, onClose }) => {
           </span>
         )}
         <span className="explorer-spacer" />
-        <a className="explorer-link" href={`https://github.com/${target.owner}/${target.repo}`} target="_blank" rel="noopener noreferrer">
+        <a className="explorer-link" href={`https://github.com/${owner}/${repo}`} target="_blank" rel="noopener noreferrer">
           Open on GitHub ↗
         </a>
       </div>
@@ -290,9 +295,6 @@ export const RepoExplorer: React.FC<Props> = ({ target, onClose }) => {
         </div>
 
         <aside className="explorer-tree">
-          {/* Breadcrumbs scoped to the tree pane (right side): clicking any
-           * segment navigates to that directory. The repo name is the first
-           * crumb so the tree pane has its own "where am I" affordance. */}
           <div className="explorer-tree-header">{treePaneBreadcrumbs}</div>
           {dir.loading && <div className="explorer-tree-loading">Loading…</div>}
           {dir.error && <div className="explorer-tree-error">{dir.error}</div>}
@@ -300,7 +302,7 @@ export const RepoExplorer: React.FC<Props> = ({ target, onClose }) => {
             <ul className="explorer-tree-list">
               {dir.path !== '' && (
                 <li>
-                  <button className="explorer-tree-item explorer-tree-item--up" onClick={() => loadDir(parentOf(dir.path))}>
+                  <button className="explorer-tree-item explorer-tree-item--up" onClick={() => goToDir(parentOf(dir.path))}>
                     <span className="explorer-tree-icon">↶</span> ..
                   </button>
                 </li>

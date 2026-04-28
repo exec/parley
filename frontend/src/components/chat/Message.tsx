@@ -24,7 +24,7 @@ import './NestedReplies.css';
 type EmbedDescriptor =
   | { type: 'theme'; token: string }
   | { type: 'bot-invite'; token: string }
-  | { type: 'github-repo'; owner: string; repo: string };
+  | { type: 'github-repo'; owner: string; repo: string; ref?: string; path?: string; isFile?: boolean };
 
 const TOKEN_EMBED_DEFS: { type: 'theme' | 'bot-invite'; source: string }[] = [
   { type: 'theme',      source: 'https?://[^/\\s]+/theme/([0-9a-f-]{36})' },
@@ -43,7 +43,13 @@ function extractEmbeds(content: string): EmbedDescriptor[] {
   }
   for (const link of extractRepoLinks(content)) {
     const key = `github-repo:${link.owner}/${link.repo}`;
-    if (!seen.has(key)) { seen.add(key); results.push({ type: 'github-repo', owner: link.owner, repo: link.repo }); }
+    if (!seen.has(key)) {
+      seen.add(key);
+      results.push({
+        type: 'github-repo', owner: link.owner, repo: link.repo,
+        ref: link.ref, path: link.path, isFile: link.isFile,
+      });
+    }
   }
   return results;
 }
@@ -598,7 +604,7 @@ export const Message: React.FC<MessageProps> = ({
                         if (e.type === 'bot-invite') {
                           return <BotInviteEmbed key={`bot-invite:${e.token}`} token={e.token} />;
                         }
-                        return <GitHubRepoEmbed key={`gh:${e.owner}/${e.repo}`} provider="github" owner={e.owner} repo={e.repo} />;
+                        return <GitHubRepoEmbed key={`gh:${e.owner}/${e.repo}`} provider="github" owner={e.owner} repo={e.repo} ref={e.ref} initialPath={e.path} isFile={e.isFile} />;
                       })}
                     </>
                   );

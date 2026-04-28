@@ -26,7 +26,7 @@ import { SplitVoiceChat } from './components/voice/SplitVoiceChat';
 import { DmChannel, DmMessage, Message, BinChannelTag, ServerMember, AppNotification, Channel } from './api/types';
 import NotificationPanel from './components/notifications/NotificationPanel';
 import { ForwardModal } from './components/chat/ForwardModal';
-import { RepoExplorer, type ExplorerTarget } from './components/explorer/RepoExplorer';
+import { RepoExplorer } from './components/explorer/RepoExplorer';
 import * as serversApi from './api/servers';
 import * as channelsApi from './api/channels';
 import * as dmsApi from './api/dms';
@@ -294,21 +294,22 @@ function MainApp() {
   // arrives while the socket is briefly disconnected is lost forever and
   // the sidebar shows stale participants until the user manually refreshes.
   const [wsConnectEpoch, setWsConnectEpoch] = useState(0);
-  // Repo Explorer takeover. When non-null, replaces chat + member-list (the
-  // server/channel sidebar stays). Opened via the 'parley:open-explorer'
-  // CustomEvent dispatched from GitHubRepoEmbed; closed via Esc, the
-  // explorer's back button, or by selecting another channel.
-  const [activeExplorer, setActiveExplorer] = useState<ExplorerTarget | null>(null);
+  // Repo Explorer takeover is URL-driven. When the user is on
+  //   /explore/{provider}/{owner}/{repo}[?ref=…&path=…]
+  // we render the RepoExplorer in place of chat + member-list (server/
+  // channel sidebars stay). Closing navigates back to the last non-explorer
+  // pathname so the user lands on the channel they came from.
+  const exploreMatch = location.pathname.match(/^\/explore\/(github)\/([^/]+)\/([^/]+)\/?$/);
+  const explorerTarget = exploreMatch
+    ? { provider: exploreMatch[1] as 'github', owner: exploreMatch[2], repo: exploreMatch[3] }
+    : null;
+  const lastNonExplorerPathRef = useRef<string>('/channels/@me');
   useEffect(() => {
-    const onOpen = (e: Event) => {
-      const detail = (e as CustomEvent).detail as ExplorerTarget | undefined;
-      if (detail?.provider && detail?.owner && detail?.repo) {
-        setActiveExplorer(detail);
-      }
-    };
-    window.addEventListener('parley:open-explorer', onOpen as EventListener);
-    return () => window.removeEventListener('parley:open-explorer', onOpen as EventListener);
-  }, []);
+    if (!exploreMatch) lastNonExplorerPathRef.current = location.pathname + location.search;
+  }, [location.pathname, location.search, exploreMatch]);
+  const closeExplorer = useCallback(() => {
+    navigate(lastNonExplorerPathRef.current || '/channels/@me');
+  }, [navigate]);
   const [activeVoiceChannel, setActiveVoiceChannel] = useState<string | null>(null);
   // 'server' for guild VCs, 'dm' for 1:1/GC calls. Drives whether the LiveKit
   // room is `s:N` or `dm:N`. Reset to 'server' whenever activeVoiceChannel clears.
@@ -1780,14 +1781,14 @@ function MainApp() {
         servers={servers}
         activeServerId={activeServer?.id ?? null}
         currentUserId={currentUser?.id}
-        onServerSelect={(serverId) => { setActiveExplorer(null); selectServer(serverId); }}
+        onServerSelect={(serverId) => selectServer(serverId)}
         onCreateServer={() => setShowCreateServer(true)}
-        onHomepage={() => { setActiveExplorer(null); handleGoHome(); }}
-        onDiscovery={() => { setActiveExplorer(null); handleDiscovery(); }}
+        onHomepage={handleGoHome}
+        onDiscovery={handleDiscovery}
         discoveryActive={showDiscovery}
         leftPanel={leftPanel}
         leftPanelOpen={showChannelList}
-        rightPanel={activeExplorer ? null : rightPanel}
+        rightPanel={explorerTarget ? null : rightPanel}
         serverUnreadCounts={serverUnreadCounts}
         onMarkServerRead={(serverId) => {
           const serverChannelIds = Object.entries(channelToServerRef.current)
@@ -1819,8 +1820,13 @@ function MainApp() {
         notifPanelOpen={showNotifPanel}
         onToggleNotifPanel={() => setShowNotifPanel(p => !p)}
       >
-        {activeExplorer
-          ? <RepoExplorer target={activeExplorer} onClose={() => setActiveExplorer(null)} />
+        {explorerTarget
+          ? <RepoExplorer
+              provider={explorerTarget.provider}
+              owner={explorerTarget.owner}
+              repo={explorerTarget.repo}
+              onClose={closeExplorer}
+            />
           : mainContent}
         {/* Mobile backdrop — closes drawers when tapping outside */}
         {(showChannelList || showMembers) && (
@@ -2192,6 +2198,11 @@ function App() {
       {/* Channel routes — all handled by MainApp which syncs URL with state */}
       <Route path="/" element={<HomeRoute />} />
       <Route path="/channels/*" element={ProtectedApp} />
+      {/* Code Explorer takeover — same MainApp, server sidebar still rendered.
+       * MainApp parses location.pathname and renders RepoExplorer when it
+       * matches /explore/{provider}/{owner}/{repo}. Query params drive ref +
+       * path. Deep-linkable; refresh-safe; pasteable. */}
+      <Route path="/explore/:provider/:owner/:repo" element={ProtectedApp} />
       <Route path="/theme/:token" element={<ThemeProvider><SharedThemePage /></ThemeProvider>} />
       <Route path="/themes" element={<ThemeProvider><Suspense fallback={null}><ThemeRepoPage /></Suspense></ThemeProvider>} />
       <Route path="/bots/invite/:token" element={<BotInvitePage />} />

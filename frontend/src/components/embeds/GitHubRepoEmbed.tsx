@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { EmbedCard } from '../EmbedCard';
 import { getRepo, type GitProvider, type GitRepo } from '../../api/git';
 import './GitHubRepoEmbed.css';
@@ -7,6 +8,12 @@ interface Props {
   provider: GitProvider; // 'github' for V1
   owner: string;
   repo: string;
+  /** Pinned ref from a tree/blob URL — Explore opens at this branch/tag/SHA. */
+  ref?: string;
+  /** Path captured from a tree/blob URL — Explore opens at this directory or file. */
+  initialPath?: string;
+  /** True when initialPath points at a file (a `blob/` URL was matched). */
+  isFile?: boolean;
 }
 
 /**
@@ -64,9 +71,13 @@ function formatCount(n: number): string {
   return String(n);
 }
 
-export const GitHubRepoEmbed: React.FC<Props> = ({ provider, owner, repo }) => {
+export const GitHubRepoEmbed: React.FC<Props> = ({ provider, owner, repo, ref, initialPath, isFile }) => {
+  const navigate = useNavigate();
   const [data, setData] = useState<GitRepo | null>(null);
   const [error, setError] = useState<'not_found' | 'rate_limited' | 'other' | null>(null);
+  // isFile is currently informational only — the URL we navigate to encodes
+  // path either way and the explorer resolves file vs dir at load time.
+  void isFile;
 
   useEffect(() => {
     let cancelled = false;
@@ -123,9 +134,12 @@ export const GitHubRepoEmbed: React.FC<Props> = ({ provider, owner, repo }) => {
     : <GitHubMark />;
 
   const onExplore = () => {
-    window.dispatchEvent(new CustomEvent('parley:open-explorer', {
-      detail: { provider, owner, repo, ref: data.default_branch },
-    }));
+    const sp = new URLSearchParams();
+    const effectiveRef = ref || data.default_branch;
+    if (effectiveRef) sp.set('ref', effectiveRef);
+    if (initialPath) sp.set('path', initialPath);
+    const qs = sp.toString();
+    navigate(`/explore/${provider}/${owner}/${repo}${qs ? `?${qs}` : ''}`);
   };
 
   return (

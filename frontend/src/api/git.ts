@@ -117,30 +117,61 @@ export function decodeBlobText(blob: GitBlob): string {
 }
 
 /**
- * Match a bare GitHub repo URL: https://github.com/{owner}/{repo} (with
- * optional trailing slash). Issue/PR/tree/blob URLs intentionally do NOT
- * match in V1 — they fall through to plain link rendering.
+ * Match GitHub URLs we know how to render in chat. Three shapes:
+ *   - https://github.com/{owner}/{repo}           — bare repo
+ *   - https://github.com/{owner}/{repo}/tree/{ref}[/{path}]
+ *   - https://github.com/{owner}/{repo}/blob/{ref}/{path}
+ *
+ * `ref` is captured as a single path segment. Branches that contain slashes
+ * (e.g. `release/v2`) collide with `path` ambiguously without contacting
+ * GitHub to disambiguate; those URLs fall through to plain links rather
+ * than mis-parse. Issue/PR/commit URLs intentionally do not match — they
+ * are P3 (separate spec).
  */
 export const GITHUB_REPO_URL_RE =
-  /https?:\/\/github\.com\/([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)\/?(?=\s|$|[?#])/gi;
+  /https?:\/\/github\.com\/([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)(?:\/(tree|blob)\/([A-Za-z0-9._\-]+)(?:\/([^\s?#]+?))?)?\/?(?=\s|$|[?#])/gi;
 
 export interface ParsedRepoLink {
   provider: GitProvider;
   owner: string;
   repo: string;
+  /** Branch / tag / SHA — present only when the URL was a tree/blob URL. */
+  ref?: string;
+  /** Path within the repo. Refers to a directory for `tree/`, file for `blob/`. */
+  path?: string;
+  /** True for `blob/` URLs (file), false for `tree/` URLs (directory). */
+  isFile?: boolean;
 }
 
-/** Extract all bare GitHub repo links from a message body, deduped. */
+/** Extract every supported GitHub link from a message body, deduped. */
 export function extractRepoLinks(content: string): ParsedRepoLink[] {
   const seen = new Set<string>();
   const out: ParsedRepoLink[] = [];
   for (const m of content.matchAll(GITHUB_REPO_URL_RE)) {
     // Strip a trailing ".git" if pasted from a clone URL.
     const repo = m[2].replace(/\.git$/, '');
+    const kind = m[3] as 'tree' | 'blob' | undefined;
+    const ref = m[4];
+    const path = m[5];
+    // Dedup by (owner, repo) only — multiple posts of the same repo at
+    // different paths still produce a single embed; the LAST occurrence wins
+    // on ref/path so the most specific link in the message drives the embed.
     const key = `github:${m[1]}/${repo}`;
-    if (!seen.has(key)) {
+    const link: ParsedRepoLink = { provider: 'github', owner: m[1], repo };
+    if (kind && ref) {
+      link.ref = ref;
+      if (path) link.path = path;
+      link.isFile = kind === 'blob';
+    }
+    if (seen.has(key)) {
+      // Replace earlier (less specific) entry if this one carries a path.
+      if (link.ref || link.path) {
+        const idx = out.findIndex(o => o.owner === link.owner && o.repo === link.repo);
+        if (idx >= 0) out[idx] = link;
+      }
+    } else {
       seen.add(key);
-      out.push({ provider: 'github', owner: m[1], repo });
+      out.push(link);
     }
   }
   return out;
