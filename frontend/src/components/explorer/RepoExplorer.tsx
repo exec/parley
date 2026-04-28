@@ -188,15 +188,16 @@ export const RepoExplorer: React.FC<Props> = ({ target, onClose }) => {
 
   return (
     <div className="explorer-root">
+      {/* Header: close + avatar (visual anchor) + ref + external link.
+       * Owner/repo text intentionally omitted — the breadcrumbs render
+       * `owner/repo` as their first crumb so we don't show it twice. */}
       <div className="explorer-header">
         <button className="explorer-close" onClick={onClose} aria-label="Close explorer">←</button>
-        <div className="explorer-title">
-          {meta?.owner_avatar_url && <img className="explorer-avatar" src={meta.owner_avatar_url} alt="" />}
-          <span className="explorer-title-text">{target.owner}/{target.repo}</span>
-          {ref && <span className="explorer-ref">{ref}</span>}
-        </div>
+        {meta?.owner_avatar_url && <img className="explorer-avatar" src={meta.owner_avatar_url} alt="" />}
+        {ref && <span className="explorer-ref">{ref}</span>}
+        <span className="explorer-spacer" />
         <a className="explorer-link" href={`https://github.com/${target.owner}/${target.repo}`} target="_blank" rel="noopener noreferrer">
-          GitHub ↗
+          Open on GitHub ↗
         </a>
       </div>
 
@@ -209,9 +210,9 @@ export const RepoExplorer: React.FC<Props> = ({ target, onClose }) => {
         </div>
 
         <aside className="explorer-tree">
-          <div className="explorer-tree-header">
-            {dir.path === '' ? 'Root' : dir.path}
-          </div>
+          {/* Static label — the current path lives in the breadcrumbs (left).
+           * Repeating it here was visually noisy. */}
+          <div className="explorer-tree-header">Files</div>
           {dir.loading && <div className="explorer-tree-loading">Loading…</div>}
           {dir.error && <div className="explorer-tree-error">{dir.error}</div>}
           {!dir.loading && !dir.error && (

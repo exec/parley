@@ -1,11 +1,28 @@
+/* All surfaces below resolve through the parley theme vars in the same
+ * order parley itself uses everywhere — glass-mode panel/chat overrides
+ * first, then the base theme vars, then a sane dark fallback. This keeps
+ * the explorer consistent with sakura, neon-nights, citron, frosted user
+ * themes, etc. */
+
 .explorer-root {
   display: flex;
   flex-direction: column;
   height: 100%;
   width: 100%;
-  background: var(--parley-bg-primary, #181818);
-  color: var(--parley-text, #eee);
+  /* Same surface as the chat area — replaces the chat. */
+  background: var(--parley-chat-bg, var(--parley-channel-bg, #181818));
+  color: var(--parley-text-normal, #eee);
   font-family: sans-serif;
+}
+
+/* Panel surfaces (header, toolbar, tree) all share the channel-list look,
+ * including frosted blur when the active theme enables it. */
+.explorer-header,
+.explorer-toolbar,
+.explorer-tree {
+  background: var(--parley-panel-bg, var(--parley-bg-secondary, #1e1e1e));
+  backdrop-filter: blur(var(--parley-panel-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--parley-panel-blur, 0px));
 }
 
 .explorer-header {
@@ -13,63 +30,61 @@
   align-items: center;
   gap: 12px;
   padding: 8px 14px;
-  border-bottom: 1px solid var(--parley-border, #2a2a2a);
-  background: var(--parley-bg-secondary, #1e1e1e);
+  border-bottom: 1px solid var(--parley-bg-hover, rgba(255, 255, 255, 0.06));
   min-height: 44px;
 }
+
 .explorer-close {
   background: transparent;
   border: none;
-  color: var(--parley-text, #eee);
+  color: var(--parley-text-normal, #eee);
   font-size: 18px;
   cursor: pointer;
-  padding: 4px 8px;
+  padding: 4px 10px;
   border-radius: 4px;
+  line-height: 1;
 }
-.explorer-close:hover { background: var(--parley-bg-hover, #252525); }
-.explorer-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-}
+.explorer-close:hover { background: var(--parley-bg-hover, rgba(255, 255, 255, 0.06)); }
+
+.explorer-spacer { flex: 1; }
+
 .explorer-avatar {
   width: 22px;
   height: 22px;
   border-radius: 50%;
+  flex-shrink: 0;
 }
-.explorer-title-text {
-  font-weight: 600;
-  font-size: 14px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+
 .explorer-ref {
-  font-family: ui-monospace, monospace;
+  font-family: ui-monospace, SFMono-Regular, monospace;
   font-size: 11px;
-  background: var(--parley-input, #1a1a1a);
-  border: 1px solid var(--parley-border, #333);
-  padding: 1px 8px;
+  background: var(--parley-input, var(--parley-bg-hover, rgba(255, 255, 255, 0.06)));
+  border: 1px solid var(--parley-bg-hover, rgba(255, 255, 255, 0.10));
+  padding: 2px 9px;
   border-radius: 999px;
   color: var(--parley-text-muted, #888);
 }
+
 .explorer-link {
   color: var(--parley-text-muted, #888);
   text-decoration: none;
   font-size: 13px;
+  padding: 4px 8px;
+  border-radius: 4px;
 }
-.explorer-link:hover { color: var(--parley-accent, #32CD32); }
+.explorer-link:hover {
+  color: var(--parley-accent, #32CD32);
+  background: var(--parley-bg-hover, rgba(255, 255, 255, 0.06));
+}
 
 .explorer-banner {
   padding: 10px 14px;
   font-size: 13px;
 }
 .explorer-banner--error {
-  background: rgba(240, 71, 71, 0.1);
-  color: var(--parley-danger, #f04747);
-  border-bottom: 1px solid rgba(240, 71, 71, 0.3);
+  background: rgba(240, 71, 71, 0.12);
+  color: #f04747;
+  border-bottom: 1px solid rgba(240, 71, 71, 0.30);
 }
 
 .explorer-body {
@@ -88,8 +103,7 @@
 
 .explorer-toolbar {
   padding: 8px 14px;
-  border-bottom: 1px solid var(--parley-border, #2a2a2a);
-  background: var(--parley-bg-secondary, #1e1e1e);
+  border-bottom: 1px solid var(--parley-bg-hover, rgba(255, 255, 255, 0.06));
   font-size: 13px;
 }
 
@@ -98,7 +112,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 2px;
-  font-family: ui-monospace, monospace;
+  font-family: ui-monospace, SFMono-Regular, monospace;
 }
 
 .explorer-crumb {
@@ -106,13 +120,12 @@
   border: none;
   color: var(--parley-accent, #32CD32);
   cursor: pointer;
-  font-family: inherit;
-  font-size: 13px;
-  padding: 2px 4px;
+  font: inherit;
+  padding: 2px 6px;
   border-radius: 3px;
 }
-.explorer-crumb:hover { background: var(--parley-bg-hover, #252525); }
-.explorer-crumb-sep { color: var(--parley-text-muted, #888); }
+.explorer-crumb:hover { background: var(--parley-bg-hover, rgba(255, 255, 255, 0.06)); }
+.explorer-crumb-sep { color: var(--parley-text-muted, #888); padding: 0 1px; }
 
 .explorer-file {
   flex: 1;
@@ -130,33 +143,44 @@
   color: var(--parley-text-muted, #888);
   padding: 24px;
 }
-.explorer-empty-title { font-size: 18px; margin-bottom: 8px; color: var(--parley-text, #eee); }
+.explorer-empty-title {
+  font-size: 18px;
+  margin-bottom: 8px;
+  color: var(--parley-text-normal, #eee);
+}
 .explorer-empty-hint { font-size: 13px; }
-.explorer-loading, .explorer-tree-loading { padding: 18px; color: var(--parley-text-muted, #888); font-size: 13px; }
-.explorer-error, .explorer-tree-error {
+
+.explorer-loading,
+.explorer-tree-loading {
   padding: 18px;
-  color: var(--parley-danger, #f04747);
+  color: var(--parley-text-muted, #888);
+  font-size: 13px;
+}
+
+.explorer-error,
+.explorer-tree-error {
+  padding: 18px;
+  color: #f04747;
   font-size: 13px;
 }
 
 .explorer-tree {
   width: 280px;
   flex-shrink: 0;
-  border-left: 1px solid var(--parley-border, #2a2a2a);
-  background: var(--parley-bg-secondary, #1e1e1e);
+  border-left: 1px solid var(--parley-bg-hover, rgba(255, 255, 255, 0.06));
   overflow: auto;
   display: flex;
   flex-direction: column;
 }
+
 .explorer-tree-header {
-  padding: 10px 14px;
+  padding: 9px 14px;
   font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   color: var(--parley-text-muted, #888);
-  border-bottom: 1px solid var(--parley-border, #2a2a2a);
-  font-family: ui-monospace, monospace;
-  word-break: break-all;
+  border-bottom: 1px solid var(--parley-bg-hover, rgba(255, 255, 255, 0.06));
+  font-weight: 600;
 }
 
 .explorer-tree-list {
@@ -164,6 +188,7 @@
   margin: 0;
   padding: 4px 0;
 }
+
 .explorer-tree-item {
   display: flex;
   align-items: center;
@@ -171,19 +196,32 @@
   width: 100%;
   background: transparent;
   border: none;
-  color: var(--parley-text, #eee);
+  color: var(--parley-text-normal, #eee);
   padding: 5px 14px;
   font-size: 13px;
   cursor: pointer;
   text-align: left;
   font-family: inherit;
 }
-.explorer-tree-item:hover:not(:disabled) { background: var(--parley-bg-hover, #252525); }
+.explorer-tree-item:hover:not(:disabled) {
+  background: var(--parley-bg-hover, rgba(255, 255, 255, 0.06));
+}
 .explorer-tree-item:disabled { opacity: 0.4; cursor: not-allowed; }
-.explorer-tree-item.is-active { background: var(--parley-bg-active, #2a2a2a); }
+.explorer-tree-item.is-active {
+  background: var(--parley-bg-hover, rgba(255, 255, 255, 0.10));
+  color: var(--parley-accent, #32CD32);
+}
 .explorer-tree-item--dir .explorer-tree-name { font-weight: 500; }
 .explorer-tree-item--up { color: var(--parley-text-muted, #888); }
-.explorer-tree-icon { width: 18px; flex-shrink: 0; text-align: center; font-size: 13px; }
+
+.explorer-tree-icon {
+  width: 18px;
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 13px;
+  opacity: 0.85;
+}
+
 .explorer-tree-name {
   white-space: nowrap;
   overflow: hidden;
@@ -196,5 +234,10 @@
 }
 @media (max-width: 600px) {
   .explorer-body { flex-direction: column-reverse; }
-  .explorer-tree { width: 100%; max-height: 35%; border-left: none; border-top: 1px solid var(--parley-border, #2a2a2a); }
+  .explorer-tree {
+    width: 100%;
+    max-height: 35%;
+    border-left: none;
+    border-top: 1px solid var(--parley-bg-hover, rgba(255, 255, 255, 0.06));
+  }
 }

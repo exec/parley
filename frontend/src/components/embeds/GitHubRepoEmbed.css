@@ -1,4 +1,6 @@
-/* Sits inside .embed-card; targets only the GitHub-specific bits. */
+/* Sits inside .embed-card; targets only the GitHub-specific bits.
+ * All colors resolve through parley theme vars so the embed picks up
+ * abyss / sakura / neon-nights / frosted user themes consistently. */
 
 .gh-embed-meta {
   display: flex;
@@ -17,12 +19,12 @@
 
 .gh-embed-meta-tag {
   font-family: ui-monospace, SFMono-Regular, monospace;
-  background: var(--parley-input, #1a1a1a);
-  border: 1px solid var(--parley-border, #333);
+  background: var(--parley-input, var(--parley-bg-hover, rgba(255, 255, 255, 0.06)));
+  border: 1px solid var(--parley-bg-hover, rgba(255, 255, 255, 0.10));
   border-radius: 999px;
   padding: 1px 8px;
   font-size: 11px;
-  color: var(--parley-text, #eee);
+  color: var(--parley-text-normal, #eee);
 }
 
 .gh-embed-lang-dot {
@@ -50,13 +52,18 @@
   text-decoration: none;
   border: 1px solid transparent;
   transition: filter 120ms;
+  font-family: inherit;
 }
 .gh-embed-button:hover { filter: brightness(1.15); }
 
 .gh-embed-button--ghost {
   background: transparent;
-  border-color: var(--parley-border, #333);
-  color: var(--parley-text, #eee);
+  border-color: var(--parley-bg-hover, rgba(255, 255, 255, 0.10));
+  color: var(--parley-text-normal, #eee);
+}
+.gh-embed-button--ghost:hover {
+  background: var(--parley-bg-hover, rgba(255, 255, 255, 0.06));
+  filter: none;
 }
 
 .gh-embed-button--primary {
