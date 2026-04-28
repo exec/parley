@@ -88,19 +88,24 @@ export function isCodeFile(filename: string): boolean {
 /**
  * Pick the Shiki theme that pairs well with the active parley theme.
  *
- * Method: read the computed `--parley-channel-bg` (the surface code blocks
- * actually render on) and pick light vs dark by relative luminance. Works for
- * any custom user theme, not just the built-in ones, because it inspects the
- * resolved CSS variable rather than guessing from a known list.
+ * Method: read the computed `--parley-channel-bg` from `document.body` (parley
+ * applies its theme vars via `body[data-theme="…"]` so they're scoped to
+ * body and below — reading from the html element would miss them) and pick
+ * light vs dark by relative luminance. Works for any custom user theme, not
+ * just the built-in ones, because it inspects the resolved CSS variable
+ * rather than guessing from a known list.
  */
 export function parleyShikiTheme(): ShikiTheme {
-  if (typeof window === 'undefined' || typeof document === 'undefined') return 'github-dark';
-  const cs = getComputedStyle(document.documentElement);
+  if (typeof window === 'undefined' || typeof document === 'undefined' || !document.body) {
+    return 'github-dark';
+  }
+  const cs = getComputedStyle(document.body);
   // Code blocks render on chat-bg (or the panel-bg fallback). Either is fine
   // as a luminance probe — both reflect the active theme's "background feel."
   const probe = cs.getPropertyValue('--parley-channel-bg').trim()
     || cs.getPropertyValue('--parley-bg-secondary').trim()
     || cs.getPropertyValue('--parley-app-bg').trim()
+    || cs.backgroundColor // ultimate fallback: the body's own bg
     || '';
   return colorIsLight(probe) ? 'github-light' : 'github-dark';
 }
