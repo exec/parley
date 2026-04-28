@@ -1,17 +1,27 @@
 .auth-page {
-  min-height: 100vh;
+  /* html/body are overflow:hidden (anti-keyboard-jump on the chat shell),
+     so this page has to own its own scroll. Fix height + overflow-y:auto;
+     the radial gradient + dot grid still cover the visible viewport. */
+  height: 100%;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   background-color: var(--parley-bg-primary);
   background-image:
     radial-gradient(ellipse at 50% -5%, rgba(var(--accent-rgb), 0.1) 0%, transparent 55%),
     radial-gradient(ellipse at 15% 80%, rgba(var(--accent-rgb), 0.05) 0%, transparent 45%),
     radial-gradient(ellipse at 90% 20%, rgba(var(--accent-rgb), 0.04) 0%, transparent 40%);
+  background-attachment: local;
   padding: 20px;
   position: relative;
-  overflow: hidden;
+}
+
+/* `margin: auto` on the inner card centers it vertically when the viewport
+   is taller than the form, and collapses to 0 when the form overflows so
+   the entire form is reachable from the scroll origin (no top clipping). */
+.auth-container {
+  margin: auto;
 }
 
 /* Dot grid — matches landing page */
