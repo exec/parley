@@ -493,9 +493,32 @@ class HTTPClient:
         """``GET /api/developer/keys``"""
         return await self.get("/api/developer/keys")
 
-    async def create_api_key(self, name: str) -> dict:
-        """``POST /api/developer/keys``"""
-        return await self.post("/api/developer/keys", {"name": name})
+    async def create_api_key(
+        self,
+        name: str,
+        *,
+        key_type: str = "user",
+        bot_username: Optional[str] = None,
+        scopes: Optional[list[str]] = None,
+    ) -> dict:
+        """``POST /api/developer/keys``.
+
+        ``key_type`` is ``"user"`` (selfbot — full access to your account) or
+        ``"bot"`` (separate bot identity, requires ``bot_username``). ``scopes``
+        is required by the server; defaults to ``["full"]`` if omitted. Pick
+        narrow scopes (e.g. ``["messages:read", "messages:write"]``) for safer
+        bot keys. Known scopes: ``full``, ``messages:read``, ``messages:write``,
+        ``commands:write``, ``interactions:respond``, ``profile:write``,
+        ``servers:read``, ``developer:manage``.
+        """
+        body: dict = {
+            "type": key_type,
+            "name": name,
+            "scopes": scopes if scopes else ["full"],
+        }
+        if bot_username:
+            body["bot_username"] = bot_username
+        return await self.post("/api/developer/keys", body)
 
     async def delete_api_key(self, key_id: int) -> None:
         """``DELETE /api/developer/keys/{id}``"""

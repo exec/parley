@@ -26,15 +26,28 @@ export async function listAPIKeys(): Promise<APIKeyInfo[]> {
   return apiClient.get<APIKeyInfo[]>('/developer/keys');
 }
 
+export const KNOWN_SCOPES = [
+  'full',
+  'messages:read',
+  'messages:write',
+  'commands:write',
+  'interactions:respond',
+  'profile:write',
+  'servers:read',
+  'developer:manage',
+] as const;
+
 export async function createAPIKey(
   type: 'bot' | 'user',
   name: string,
   botUsername?: string,
+  scopes: string[] = ['full'],
 ): Promise<CreateKeyResponse> {
   return apiClient.post<CreateKeyResponse>('/developer/keys', {
     type,
     name,
     bot_username: botUsername,
+    scopes,
   });
 }
 
