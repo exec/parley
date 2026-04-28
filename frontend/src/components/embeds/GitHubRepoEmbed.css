@@ -1,0 +1,71 @@
+/* Sits inside .embed-card; targets only the GitHub-specific bits. */
+
+.gh-embed-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--parley-text-muted, #888);
+  margin-bottom: 4px;
+}
+
+.gh-embed-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.gh-embed-meta-tag {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  background: var(--parley-input, #1a1a1a);
+  border: 1px solid var(--parley-border, #333);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 11px;
+  color: var(--parley-text, #eee);
+}
+
+.gh-embed-lang-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--parley-accent, #32CD32);
+  display: inline-block;
+}
+
+.gh-embed-actions-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.gh-embed-button {
+  flex: 1;
+  text-align: center;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  border: 1px solid transparent;
+  transition: filter 120ms;
+}
+.gh-embed-button:hover { filter: brightness(1.15); }
+
+.gh-embed-button--ghost {
+  background: transparent;
+  border-color: var(--parley-border, #333);
+  color: var(--parley-text, #eee);
+}
+
+.gh-embed-button--primary {
+  background: var(--parley-accent, #32CD32);
+  color: #fff;
+}
+
+/* Pull the GitHub mark icon down to a sensible size inside .embed-card-icon. */
+.embed-card-icon svg {
+  width: 28px;
+  height: 28px;
+}

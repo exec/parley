@@ -26,6 +26,7 @@ import { SplitVoiceChat } from './components/voice/SplitVoiceChat';
 import { DmChannel, DmMessage, Message, BinChannelTag, ServerMember, AppNotification, Channel } from './api/types';
 import NotificationPanel from './components/notifications/NotificationPanel';
 import { ForwardModal } from './components/chat/ForwardModal';
+import { RepoExplorer, type ExplorerTarget } from './components/explorer/RepoExplorer';
 import * as serversApi from './api/servers';
 import * as channelsApi from './api/channels';
 import * as dmsApi from './api/dms';
@@ -293,6 +294,21 @@ function MainApp() {
   // arrives while the socket is briefly disconnected is lost forever and
   // the sidebar shows stale participants until the user manually refreshes.
   const [wsConnectEpoch, setWsConnectEpoch] = useState(0);
+  // Repo Explorer takeover. When non-null, replaces chat + member-list (the
+  // server/channel sidebar stays). Opened via the 'parley:open-explorer'
+  // CustomEvent dispatched from GitHubRepoEmbed; closed via Esc, the
+  // explorer's back button, or by selecting another channel.
+  const [activeExplorer, setActiveExplorer] = useState<ExplorerTarget | null>(null);
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const detail = (e as CustomEvent).detail as ExplorerTarget | undefined;
+      if (detail?.provider && detail?.owner && detail?.repo) {
+        setActiveExplorer(detail);
+      }
+    };
+    window.addEventListener('parley:open-explorer', onOpen as EventListener);
+    return () => window.removeEventListener('parley:open-explorer', onOpen as EventListener);
+  }, []);
   const [activeVoiceChannel, setActiveVoiceChannel] = useState<string | null>(null);
   // 'server' for guild VCs, 'dm' for 1:1/GC calls. Drives whether the LiveKit
   // room is `s:N` or `dm:N`. Reset to 'server' whenever activeVoiceChannel clears.
@@ -1764,14 +1780,14 @@ function MainApp() {
         servers={servers}
         activeServerId={activeServer?.id ?? null}
         currentUserId={currentUser?.id}
-        onServerSelect={selectServer}
+        onServerSelect={(serverId) => { setActiveExplorer(null); selectServer(serverId); }}
         onCreateServer={() => setShowCreateServer(true)}
-        onHomepage={handleGoHome}
-        onDiscovery={handleDiscovery}
+        onHomepage={() => { setActiveExplorer(null); handleGoHome(); }}
+        onDiscovery={() => { setActiveExplorer(null); handleDiscovery(); }}
         discoveryActive={showDiscovery}
         leftPanel={leftPanel}
         leftPanelOpen={showChannelList}
-        rightPanel={rightPanel}
+        rightPanel={activeExplorer ? null : rightPanel}
         serverUnreadCounts={serverUnreadCounts}
         onMarkServerRead={(serverId) => {
           const serverChannelIds = Object.entries(channelToServerRef.current)
@@ -1803,7 +1819,9 @@ function MainApp() {
         notifPanelOpen={showNotifPanel}
         onToggleNotifPanel={() => setShowNotifPanel(p => !p)}
       >
-        {mainContent}
+        {activeExplorer
+          ? <RepoExplorer target={activeExplorer} onClose={() => setActiveExplorer(null)} />
+          : mainContent}
         {/* Mobile backdrop — closes drawers when tapping outside */}
         {(showChannelList || showMembers) && (
           <div

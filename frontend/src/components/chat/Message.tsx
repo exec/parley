@@ -13,38 +13,47 @@ import { getParentAuthor, getParentPreview } from './NestedReplies';
 import { EditHistoryPopover } from './EditHistoryPopover';
 import { ThemeLinkEmbed } from '../theme/ThemeLinkEmbed';
 import { BotInviteEmbed } from '../BotInviteEmbed';
+import { GitHubRepoEmbed } from '../embeds/GitHubRepoEmbed';
+import { extractRepoLinks, GITHUB_REPO_URL_RE } from '../../api/git';
 import { PinIcon } from './PinnedPanel';
 import { ForwardEmbed } from './ForwardEmbed';
 import { useTheme } from '../../context/ThemeContext';
 import './Chat.css';
 import './NestedReplies.css';
 
-type EmbedType = 'theme' | 'bot-invite';
+type EmbedDescriptor =
+  | { type: 'theme'; token: string }
+  | { type: 'bot-invite'; token: string }
+  | { type: 'github-repo'; owner: string; repo: string };
 
-const EMBED_PATTERN_DEFS: { type: EmbedType; source: string }[] = [
+const TOKEN_EMBED_DEFS: { type: 'theme' | 'bot-invite'; source: string }[] = [
   { type: 'theme',      source: 'https?://[^/\\s]+/theme/([0-9a-f-]{36})' },
   { type: 'bot-invite', source: 'https?://[^/\\s]+/invite/bot/([0-9a-f-]{36})' },
 ];
 
-function extractEmbeds(content: string): { type: EmbedType; token: string }[] {
+function extractEmbeds(content: string): EmbedDescriptor[] {
   const seen = new Set<string>();
-  const results: { type: EmbedType; token: string }[] = [];
-  for (const def of EMBED_PATTERN_DEFS) {
-    const re = new RegExp(def.source, 'gi');
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(content)) !== null) {
-      const key = def.type + ':' + m[1];
+  const results: EmbedDescriptor[] = [];
+  for (const def of TOKEN_EMBED_DEFS) {
+    const matches = content.matchAll(new RegExp(def.source, 'gi'));
+    for (const m of matches) {
+      const key = `${def.type}:${m[1]}`;
       if (!seen.has(key)) { seen.add(key); results.push({ type: def.type, token: m[1] }); }
     }
+  }
+  for (const link of extractRepoLinks(content)) {
+    const key = `github-repo:${link.owner}/${link.repo}`;
+    if (!seen.has(key)) { seen.add(key); results.push({ type: 'github-repo', owner: link.owner, repo: link.repo }); }
   }
   return results;
 }
 
 function stripEmbedURLs(content: string): string {
   let out = content;
-  for (const def of EMBED_PATTERN_DEFS) {
+  for (const def of TOKEN_EMBED_DEFS) {
     out = out.replace(new RegExp(def.source, 'gi'), '');
   }
+  out = out.replace(GITHUB_REPO_URL_RE, '');
   return out.trim();
 }
 
@@ -582,11 +591,15 @@ export const Message: React.FC<MessageProps> = ({
                           )}
                         </>
                       )}
-                      {embeds.map(({ type, token }) =>
-                        type === 'theme'
-                          ? <ThemeLinkEmbed key={type + ':' + token} token={token} />
-                          : <BotInviteEmbed key={type + ':' + token} token={token} />
-                      )}
+                      {embeds.map(e => {
+                        if (e.type === 'theme') {
+                          return <ThemeLinkEmbed key={`theme:${e.token}`} token={e.token} />;
+                        }
+                        if (e.type === 'bot-invite') {
+                          return <BotInviteEmbed key={`bot-invite:${e.token}`} token={e.token} />;
+                        }
+                        return <GitHubRepoEmbed key={`gh:${e.owner}/${e.repo}`} provider="github" owner={e.owner} repo={e.repo} />;
+                      })}
                     </>
                   );
                 })()

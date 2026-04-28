@@ -29,6 +29,8 @@ import (
 	"parley/internal/channel"
 	"parley/internal/db"
 	"parley/internal/email"
+	"parley/internal/gitprovider"
+	"parley/internal/gitprovider/github"
 	"parley/internal/message"
 	"parley/internal/passkey"
 	"parley/internal/permissions"
@@ -356,6 +358,23 @@ func main() {
 	botTriggerFn := dispatcher.BuildTrigger(postFn)
 	messageService.SetBotTrigger(botTriggerFn)
 
+	// Initialize git provider integration (GitHub embeds + code Explorer).
+	// Unauthenticated mode (60/hr/IP) when env is unset — fine for dev.
+	ghCfg, err := github.LoadConfigFromEnv(os.Getenv, os.ReadFile)
+	if err != nil {
+		log.Fatalf("github app config: %v", err)
+	}
+	ghClient := github.NewClient(ghCfg)
+	gitRegistry := gitprovider.NewRegistry()
+	gitRegistry.Register(ghClient)
+	var gitCache *gitprovider.Cache
+	if redisHub != nil {
+		gitCache = gitprovider.NewCache(redisHub.Client())
+	} else {
+		gitCache = gitprovider.NewCache(nil)
+	}
+	gitHandler := gitprovider.NewHandler(gitRegistry, gitCache)
+
 	// Start hub in a goroutine
 	go hub.Run()
 	log.Println("WebSocket hub started")
@@ -472,7 +491,7 @@ func main() {
 	}
 
 	// Setup chi router
-	router := setupRouter(config, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, passkeySvc, redisHub, parseCDNHost(spacesCDNURL), siteURL, botsHandler, auditSvc, botCommandsHandler)
+	router := setupRouter(config, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, passkeySvc, redisHub, parseCDNHost(spacesCDNURL), siteURL, botsHandler, auditSvc, botCommandsHandler, gitHandler)
 
 	// Start version purge goroutine
 	go func() {
@@ -560,6 +579,7 @@ func setupRouter(
 	botsHandler *bots.Handler,
 	auditSvc *audit.AuditService,
 	botCommandsHandler *botcommands.Handler,
+	gitHandler *gitprovider.Handler,
 ) *chi.Mux {
 	router := chi.NewRouter()
 
@@ -581,7 +601,7 @@ func setupRouter(
 		log.Println("WARNING: using in-memory ticket store — WebSocket tickets will NOT work across multiple API nodes")
 		tickets = newTicketStore()
 	}
-	registerRoutes(router, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, tickets, passkeySvc, redisHub, config.OllamaAPIURL, config.OllamaAPIKey, config.OllamaModel, cdnHost, siteURL, botsHandler, auditSvc, botCommandsHandler)
+	registerRoutes(router, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, tickets, passkeySvc, redisHub, config.OllamaAPIURL, config.OllamaAPIKey, config.OllamaModel, cdnHost, siteURL, botsHandler, auditSvc, botCommandsHandler, gitHandler)
 
 	return router
 }

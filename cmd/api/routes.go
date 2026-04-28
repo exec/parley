@@ -23,6 +23,7 @@ import (
 	"parley/internal/desktopauth"
 	"parley/internal/dm"
 	"parley/internal/friend"
+	"parley/internal/gitprovider"
 	"parley/internal/message"
 	"parley/internal/notification"
 	"parley/internal/passkey"
@@ -66,6 +67,7 @@ func registerRoutes(
 	botsHandler *bots.Handler,
 	auditSvc *audit.AuditService,
 	botCommandsHandler *botcommands.Handler,
+	gitHandler *gitprovider.Handler,
 ) {
 	// Global 64 KB body cap. Upload-class routes (file upload, AI theme
 	// generation, soundboard) are exempted by path so their per-route
@@ -119,6 +121,11 @@ func registerRoutes(
 	// authenticated bot per hour. Keyed on the authenticated user ID (bot user)
 	// via userRateLimitMiddleware.
 	botCmdRegLimiter := newRateLimiterFor(rdb, 50, time.Hour)
+	// Git provider integration (GitHub embeds + Explorer): 200 calls/hr/user.
+	// Sized so a heavy explorer session (browsing 30-50 files) stays well under
+	// the cap while link-spam abuse is contained. Backend cache absorbs most
+	// reads — 200 unique calls/hr is a lot of distinct repos/files.
+	gitProviderLimiter := newRateLimiterFor(rdb, 200, time.Hour)
 
 	router.Route("/api", func(r chi.Router) {
 		// Auth routes
@@ -311,6 +318,22 @@ func registerRoutes(
 			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/channels/{channelId}/voice/participants", wrapServerVoice(voiceHandler.Participants))
 			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Post("/channels/{channelId}/voice/participants/{targetUserId}/mute", wrapServerVoice(voiceHandler.MuteParticipant))
 			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Post("/channels/{channelId}/voice/participants/{targetUserId}/kick", wrapServerVoice(voiceHandler.KickParticipant))
+
+			// Git provider integration: GitHub embeds + code Explorer.
+			// All endpoints share servers:read scope (read-only repo metadata
+			// is in the same trust class as listing channels/server members).
+			// Path layout puts {provider} in the URL; a tiny wrapper lifts it
+			// into context so the handler stays chi-free.
+			withGitProvider := func(next http.HandlerFunc) http.HandlerFunc {
+				return func(w http.ResponseWriter, req *http.Request) {
+					name := chi.URLParam(req, "provider")
+					next(w, req.WithContext(gitprovider.WithProvider(req.Context(), name)))
+				}
+			}
+			r.With(auth.RequireScope(auth.ScopeServersRead), userRateLimitMiddleware(gitProviderLimiter)).Get("/git/{provider}/repo", withGitProvider(gitHandler.HandleRepo))
+			r.With(auth.RequireScope(auth.ScopeServersRead), userRateLimitMiddleware(gitProviderLimiter)).Get("/git/{provider}/tree", withGitProvider(gitHandler.HandleTree))
+			r.With(auth.RequireScope(auth.ScopeServersRead), userRateLimitMiddleware(gitProviderLimiter)).Get("/git/{provider}/blob", withGitProvider(gitHandler.HandleBlob))
+			r.With(auth.RequireScope(auth.ScopeServersRead), userRateLimitMiddleware(gitProviderLimiter)).Get("/git/{provider}/releases", withGitProvider(gitHandler.HandleReleases))
 
 			// Notification service — wired into DM, friend, and message flows.
 			// Notifications are per-user inbox reads/marks; map to servers:read
