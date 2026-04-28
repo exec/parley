@@ -58,7 +58,14 @@ func (a *Authorizer) AuthorizeJoin(ctx context.Context, vc VirtualChannel, userI
 		if err != nil {
 			return false, err
 		}
-		return m != nil, nil
+		if m == nil {
+			return false, nil
+		}
+		canView, err := a.serverChannelPerm(ctx, vc.ID, userID, permissions.PermViewChannel)
+		if err != nil || !canView {
+			return false, err
+		}
+		return a.serverChannelPerm(ctx, vc.ID, userID, permissions.PermConnect)
 	}
 	return false, nil
 }

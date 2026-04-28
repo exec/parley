@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"parley/internal/db"
+	"parley/internal/permissions"
 )
 
 // authRepoFake is a hand-rolled stub implementing the small surface we need.
@@ -75,6 +76,63 @@ func TestAuthorizeJoin_DM(t *testing.T) {
 			t.Errorf("AuthorizeJoin(%v,%d) = %v, want %v", c.vc, c.uid, ok, c.want)
 		}
 	}
+}
+
+func TestAuthorizeJoin_Server_RequiresViewAndConnect(t *testing.T) {
+	const serverID, channelID, userID int64 = 7, 70, 100
+	repo := &authRepoFake{
+		srvMember: map[int64]map[int64]*db.ServerMember{
+			serverID: {userID: {ServerID: serverID, UserID: userID}},
+		},
+		srvOwner: map[int64]int64{serverID: 1},
+		chByID:   map[int64]*db.Channel{channelID: {ID: channelID, ServerID: serverID}},
+	}
+	vc := VirtualChannel{Kind: KindServer, ID: channelID}
+
+	makePerm := func(view, connect bool) permChecker {
+		return func(_ context.Context, _ *db.Repository, _, _, _, _, perm int64) (bool, error) {
+			switch perm {
+			case permissions.PermViewChannel:
+				return view, nil
+			case permissions.PermConnect:
+				return connect, nil
+			}
+			return false, nil
+		}
+	}
+
+	t.Run("both perms granted", func(t *testing.T) {
+		a := &Authorizer{repo: repo, hasChannelPerm: makePerm(true, true)}
+		ok, err := a.AuthorizeJoin(context.Background(), vc, userID)
+		if err != nil {
+			t.Fatalf("err: %v", err)
+		}
+		if !ok {
+			t.Fatal("expected join allowed when ViewChannel + Connect granted")
+		}
+	})
+
+	t.Run("ViewChannel denied", func(t *testing.T) {
+		a := &Authorizer{repo: repo, hasChannelPerm: makePerm(false, true)}
+		ok, err := a.AuthorizeJoin(context.Background(), vc, userID)
+		if err != nil {
+			t.Fatalf("err: %v", err)
+		}
+		if ok {
+			t.Fatal("expected join denied when ViewChannel revoked")
+		}
+	})
+
+	t.Run("Connect denied", func(t *testing.T) {
+		a := &Authorizer{repo: repo, hasChannelPerm: makePerm(true, false)}
+		ok, err := a.AuthorizeJoin(context.Background(), vc, userID)
+		if err != nil {
+			t.Fatalf("err: %v", err)
+		}
+		if ok {
+			t.Fatal("expected join denied when Connect revoked")
+		}
+	})
 }
 
 func TestAuthorizeMute_DM_GC_OwnerOnly(t *testing.T) {
