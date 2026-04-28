@@ -799,9 +799,6 @@ func (s *AuthService) ValidateTokenFull(tokenString string) (TokenInfo, error) {
 		return TokenInfo{}, errors.New("invalid token claims")
 	}
 	exp := int64(expF)
-	if time.Now().Unix() > exp {
-		return TokenInfo{}, errors.New("token has expired")
-	}
 	uid, ok := claims["user_id"].(string)
 	if !ok {
 		return TokenInfo{}, errors.New("invalid user_id in token")
