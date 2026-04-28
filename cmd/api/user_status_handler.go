@@ -8,6 +8,7 @@ import (
 
 	"parley/internal/auth"
 	"parley/internal/db"
+	"parley/internal/validation"
 	ws "parley/internal/websocket"
 )
 
@@ -43,6 +44,10 @@ func handleUpdateStatus(hub *ws.Hub, repo *db.Repository) http.HandlerFunc {
 			return
 		}
 
+		// Strip control / bidi / zero-width chars before length check so the
+		// stripped runes don't burn the user's quota and the broadcast text
+		// matches what gets persisted.
+		req.StatusText = validation.SanitizeSingleLine(req.StatusText)
 		// Trim status_text to 128 Unicode code points.
 		if len([]rune(req.StatusText)) > 128 {
 			req.StatusText = string([]rune(req.StatusText)[:128])

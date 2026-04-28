@@ -277,14 +277,15 @@ func handlePatchMe(repo *db.Repository, hub *ws.Hub, cdnHost string) http.Handle
 		}
 
 		if req.Username != nil && *req.Username != "" {
-			if !validation.ValidUsername(*req.Username) {
+			normalized := validation.NormalizeUsername(*req.Username)
+			if !validation.ValidUsername(normalized) {
 				jsonError(w, "username may only contain letters, numbers, underscores, hyphens and dots", http.StatusBadRequest)
 				return
 			}
-			user.Username = *req.Username
+			user.Username = normalized
 		}
 		if req.DisplayName != nil {
-			user.DisplayName = *req.DisplayName
+			user.DisplayName = validation.SanitizeSingleLine(*req.DisplayName)
 		}
 		if req.AvatarURL != nil {
 			user.AvatarURL = *req.AvatarURL

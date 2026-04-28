@@ -129,6 +129,11 @@ func (s *AuthService) SetEmailClient(client *email.Client, siteURL string) {
 // was nonfunctional; reinstating it should restore the commented-out block
 // below.
 func (s *AuthService) Register(ctx context.Context, username, email_, phone, password, inviteCode, registrationIP string) (User, string, error) {
+	// NFC-normalize before any byte comparison so visually-identical
+	// confusables collapse to the same form. The ASCII-only UsernameRe below
+	// does most of the defense, but normalizing first prevents zero-width or
+	// pre-composed/decomposed pairs from sneaking past a future regex change.
+	username = validation.NormalizeUsername(username)
 	username = strings.ToLower(username)
 
 	// Validate input
@@ -435,6 +440,11 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername, cu
 	}
 
 	if newUsername != "" {
+		// NFC first so the regex (and the duplicate-username lookup) sees the
+		// same canonical form a future read will see. Without this, a user
+		// could register with a decomposed sequence that the regex accepts
+		// but the DB sees as distinct from a pre-composed homograph.
+		newUsername = validation.NormalizeUsername(newUsername)
 		newUsername = strings.ToLower(newUsername)
 	}
 
@@ -480,16 +490,22 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername, cu
 		dbUser.BannerURL = bannerURL
 	}
 	if bio != nil {
-		if validation.HasSpoofedLink(*bio) {
+		// Strip control / bidi-override / zero-width chars before any length
+		// or content check so attackers can't burn a victim's quota with
+		// invisible padding (and so the spoofed-link scan sees the same text
+		// the renderer will).
+		cleaned := validation.SanitizeMultiLine(*bio)
+		if validation.HasSpoofedLink(cleaned) {
 			return User{}, errors.New("bio contains a spoofed link")
 		}
-		dbUser.Bio = *bio
+		dbUser.Bio = cleaned
 	}
 	if displayName != nil {
-		if len(*displayName) > 32 {
+		cleaned := validation.SanitizeSingleLine(*displayName)
+		if len(cleaned) > 32 {
 			return User{}, errors.New("display name must be 32 characters or fewer")
 		}
-		dbUser.DisplayName = *displayName
+		dbUser.DisplayName = cleaned
 	}
 
 	if err := s.repo.UpdateUser(ctx, dbUser); err != nil {
