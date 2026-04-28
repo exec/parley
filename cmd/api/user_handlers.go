@@ -183,9 +183,11 @@ func handleUpdateProfile(authService *auth.AuthService, repo *db.Repository, hub
 						"bio":          user.Bio,
 					})
 					if marshalErr == nil {
+						topics := make([]string, 0, len(servers))
 						for _, srv := range servers {
-							hub.BroadcastToChannel(fmt.Sprintf("server:%d", srv.ID), ws.EventUserUpdate, payload)
+							topics = append(topics, fmt.Sprintf("server:%d", srv.ID))
 						}
+						hub.BroadcastToChannels(topics, ws.EventUserUpdate, payload)
 					}
 				}
 			}
@@ -313,9 +315,11 @@ func handlePatchMe(repo *db.Repository, hub *ws.Hub, cdnHost string) http.Handle
 					"avatar_url":   updated.AvatarURL,
 				})
 				if marshalErr == nil {
+					topics := make([]string, 0, len(servers))
 					for _, srv := range servers {
-						hub.BroadcastToChannel(fmt.Sprintf("server:%d", srv.ID), ws.EventUserUpdate, payload)
+						topics = append(topics, fmt.Sprintf("server:%d", srv.ID))
 					}
+					hub.BroadcastToChannels(topics, ws.EventUserUpdate, payload)
 				}
 			}
 		}

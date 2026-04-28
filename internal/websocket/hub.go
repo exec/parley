@@ -121,8 +121,12 @@ func NewHub() *Hub {
 		channelSubs:    make(map[string]map[*Client]bool),
 		clientChannels: make(map[*Client]map[string]bool),
 		register:       make(chan *Client, 64),
-		unregister:     make(chan *Client, 64),
-		broadcast:      make(chan *Message, 1024),
+		// unregister buffer is sized to absorb a thundering-herd disconnect
+		// (e.g. node restart). Without a wide buffer, ReadPump's defer falls
+		// back to spawning a goroutine per disconnect — 5k disconnects = 5k
+		// goroutines fighting to push into the channel.
+		unregister: make(chan *Client, 8192),
+		broadcast:  make(chan *Message, 1024),
 	}
 }
 
@@ -224,6 +228,7 @@ func (h *Hub) RegisterClient(client *Client) {
 	if pub != nil {
 		onlineUserIDs = pub.GetOnlineUserIDs()
 	} else {
+		onlineUserIDs = make([]string, 0, presenceSnapshotMax)
 		h.mu.RLock()
 		for uid := range h.userToClient {
 			onlineUserIDs = append(onlineUserIDs, uid)
@@ -238,17 +243,13 @@ func (h *Hub) RegisterClient(client *Client) {
 	}
 
 	// Send the new client a snapshot of everyone currently online
-	if snapshotPayload, err := json.Marshal(map[string]interface{}{
-		"user_ids": onlineUserIDs,
-	}); err == nil {
+	if snapshotPayload, err := json.Marshal(PresenceSnapshotPayload{UserIDs: onlineUserIDs}); err == nil {
 		client.Send(EventPresenceSnapshot, snapshotPayload)
 	}
 
 	// Announce arrival (only once per user, not once per tab/connection)
 	if isFirstConnection {
-		if onlinePayload, err := json.Marshal(map[string]string{
-			"user_id": client.userID,
-		}); err == nil {
+		if onlinePayload, err := json.Marshal(UserPresencePayload{UserID: client.userID}); err == nil {
 			// Deliver to clients on this node
 			h.broadcastToAllLocal(EventUserOnline, onlinePayload)
 			// Deliver to clients on other nodes via Redis
@@ -317,9 +318,7 @@ func (h *Hub) UnregisterClient(client *Client) {
 
 	// Broadcast USER_OFFLINE only when the user has no remaining connections.
 	if userFullyOffline {
-		if offlinePayload, err := json.Marshal(map[string]string{
-			"user_id": client.userID,
-		}); err == nil {
+		if offlinePayload, err := json.Marshal(UserPresencePayload{UserID: client.userID}); err == nil {
 			// Deliver to clients on this node
 			h.broadcastToAllLocal(EventUserOffline, offlinePayload)
 			// Remove from cross-node presence store and notify other nodes
@@ -595,10 +594,10 @@ func (h *Hub) broadcastToAllLocal(messageType string, payload []byte) {
 
 // BroadcastStatusUpdate broadcasts a USER_STATUS_UPDATE event to all clients.
 func (h *Hub) BroadcastStatusUpdate(userID, statusType, statusText string) {
-	payload, err := json.Marshal(map[string]string{
-		"user_id":     userID,
-		"status_type": statusType,
-		"status_text": statusText,
+	payload, err := json.Marshal(UserStatusUpdatePayload{
+		UserID:     userID,
+		StatusType: statusType,
+		StatusText: statusText,
 	})
 	if err != nil {
 		return
@@ -700,15 +699,38 @@ func (h *Hub) SendLocalToUser(userID string, messageType string, payload []byte)
 // is taken under RLock. Sends happen outside all locks. Evictions (slow/full
 // send buffers) take a brief WLock at the end.
 func (h *Hub) BroadcastToChannel(channelID string, messageType string, payload []byte) {
-	// Step 1: Marshal outside all locks — pure CPU, no shared state.
 	wsMsg := WSMessage{Type: messageType, Payload: payload}
 	msgBytes, err := json.Marshal(wsMsg)
 	if err != nil {
 		log.Printf("BroadcastToChannel: marshal error: %v", err)
 		return
 	}
+	h.fanoutChannel(channelID, messageType, payload, msgBytes)
+}
 
-	// Step 2: Snapshot subscribers and publisher under RLock.
+// BroadcastToChannels marshals the WSMessage envelope once and fans out to
+// every channel ID. Saves N-1 marshals when broadcasting the same payload to
+// many channels (e.g. profile updates across every server a user belongs to).
+func (h *Hub) BroadcastToChannels(channelIDs []string, messageType string, payload []byte) {
+	if len(channelIDs) == 0 {
+		return
+	}
+	wsMsg := WSMessage{Type: messageType, Payload: payload}
+	msgBytes, err := json.Marshal(wsMsg)
+	if err != nil {
+		log.Printf("BroadcastToChannels: marshal error: %v", err)
+		return
+	}
+	for _, channelID := range channelIDs {
+		h.fanoutChannel(channelID, messageType, payload, msgBytes)
+	}
+}
+
+// fanoutChannel is the shared 3-phase send path used by BroadcastToChannel and
+// BroadcastToChannels. msgBytes is the pre-marshaled WSMessage envelope;
+// messageType and payload are forwarded to the cross-node Publisher.
+func (h *Hub) fanoutChannel(channelID, messageType string, payload, msgBytes []byte) {
+	// Phase 1: Snapshot subscribers and publisher under RLock.
 	h.mu.RLock()
 	pub := h.publisher
 	subs := h.channelSubs[channelID]
@@ -725,7 +747,7 @@ func (h *Hub) BroadcastToChannel(channelID string, messageType string, payload [
 	}
 	h.mu.RUnlock()
 
-	// Step 3: Send outside all locks. safeSend handles closed channels (evicted
+	// Phase 2: Send outside all locks. safeSend handles closed channels (evicted
 	// clients) and full buffers without panicking.
 	var toEvict []*Client
 	for _, client := range clients {
@@ -734,7 +756,7 @@ func (h *Hub) BroadcastToChannel(channelID string, messageType string, payload [
 		}
 	}
 
-	// Step 4: Minimal eviction under a brief WLock.
+	// Phase 3: Minimal eviction under a brief WLock.
 	// We remove from channelSubs so future broadcasts skip this dead client.
 	// We do NOT delete from h.clients — that would bypass UnregisterClient's
 	// guard and cause USER_OFFLINE to never fire. The natural teardown chain
@@ -755,8 +777,65 @@ func (h *Hub) BroadcastToChannel(channelID string, messageType string, payload [
 		h.mu.Unlock()
 	}
 
-	// Step 5: Cross-node publish.
 	if pub != nil {
 		pub.PublishToChannel(channelID, messageType, payload)
+	}
+}
+
+// SendBytesToUsers marshals the WSMessage envelope once and delivers it to all
+// of the given users' active connections on this node, plus a Redis publish
+// per user for cross-node delivery. Use when fanning out the same payload to
+// many users (e.g. group DM channel-create) — the hot path is one marshal
+// regardless of recipient count.
+//
+// User IDs are int64 to match the rest of the codebase; they're stringified
+// internally to align with the userToClient map's string keys.
+func (h *Hub) SendBytesToUsers(userIDs []int64, messageType string, payload []byte) {
+	if len(userIDs) == 0 {
+		return
+	}
+	wsMsg := WSMessage{Type: messageType, Payload: payload}
+	msgBytes, err := json.Marshal(wsMsg)
+	if err != nil {
+		log.Printf("SendBytesToUsers: marshal error: %v", err)
+		return
+	}
+
+	// Phase 1: snapshot all clients across all target users under a single RLock.
+	h.mu.RLock()
+	pub := h.publisher
+	var clients []*Client
+	for _, uid := range userIDs {
+		userClients := h.userToClient[strconv.FormatInt(uid, 10)]
+		for c := range userClients {
+			clients = append(clients, c)
+		}
+	}
+	h.mu.RUnlock()
+
+	// Phase 2: send outside locks (same safeSend semantics as SendToUser).
+	var toEvict []*Client
+	for _, client := range clients {
+		if !safeSend(client, msgBytes) {
+			toEvict = append(toEvict, client)
+		}
+	}
+
+	// Phase 3: minimal eviction — close the send channel only. userToClient
+	// cleanup is deferred to UnregisterClient (matches SendToUser semantics).
+	if len(toEvict) > 0 {
+		h.mu.Lock()
+		for _, client := range toEvict {
+			client.closeSend()
+		}
+		h.mu.Unlock()
+	}
+
+	// Cross-node publish: one PublishToUser per user. Each user has its own
+	// Redis topic, so this can't be batched at the publisher layer.
+	if pub != nil {
+		for _, uid := range userIDs {
+			pub.PublishToUser(strconv.FormatInt(uid, 10), messageType, payload)
+		}
 	}
 }

@@ -1,5 +1,26 @@
 package websocket
 
+// Typed event payload structs. Used in place of inline map literals to skip the
+// reflection-heavy json.Marshal map path and to give callers a stable shape.
+
+// PresenceSnapshotPayload is the body of the PRESENCE_SNAPSHOT event sent to a
+// new client at connect time.
+type PresenceSnapshotPayload struct {
+	UserIDs []string `json:"user_ids"`
+}
+
+// UserPresencePayload is the body of USER_ONLINE / USER_OFFLINE events.
+type UserPresencePayload struct {
+	UserID string `json:"user_id"`
+}
+
+// UserStatusUpdatePayload is the body of USER_STATUS_UPDATE events.
+type UserStatusUpdatePayload struct {
+	UserID     string `json:"user_id"`
+	StatusType string `json:"status_type"`
+	StatusText string `json:"status_text"`
+}
+
 // Event types for WebSocket messages
 const (
 	EventMessageCreate    = "MESSAGE_CREATE"
@@ -20,20 +41,20 @@ const (
 	EventChannelDelete = "CHANNEL_DELETE"
 
 	// Server events
-	EventServerUpdate         = "SERVER_UPDATE"
-	EventServerDelete         = "SERVER_DELETE"
-	EventUserServersReorder   = "USER_SERVERS_REORDER"
+	EventServerUpdate       = "SERVER_UPDATE"
+	EventServerDelete       = "SERVER_DELETE"
+	EventUserServersReorder = "USER_SERVERS_REORDER"
 
 	// Member events
-	EventMemberJoin   = "SERVER_MEMBER_JOIN"
-	EventMemberLeave  = "SERVER_MEMBER_LEAVE"
-	EventMemberKick   = "SERVER_MEMBER_KICK"
-	EventMemberBan    = "SERVER_MEMBER_BAN"
+	EventMemberJoin  = "SERVER_MEMBER_JOIN"
+	EventMemberLeave = "SERVER_MEMBER_LEAVE"
+	EventMemberKick  = "SERVER_MEMBER_KICK"
+	EventMemberBan   = "SERVER_MEMBER_BAN"
 
 	// Role events
-	EventMemberRoleUpdate      = "MEMBER_ROLE_UPDATE"
-	EventRoleUpdate            = "ROLE_UPDATE"
-	EventRoleDelete            = "ROLE_DELETE"
+	EventMemberRoleUpdate = "MEMBER_ROLE_UPDATE"
+	EventRoleUpdate       = "ROLE_UPDATE"
+	EventRoleDelete       = "ROLE_DELETE"
 
 	// Channel permission events
 	EventChannelOverwriteUpdate = "CHANNEL_OVERWRITE_UPDATE"

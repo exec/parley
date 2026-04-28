@@ -88,7 +88,8 @@ type fakeHub struct {
 func (h *fakeHub) BroadcastToChannel(topic, eventType string, payload []byte) {
 	h.broadcasts = append(h.broadcasts, recordedBroadcast{topic, eventType, payload})
 }
-func (h *fakeHub) SendToUser(_ string, _ string, _ []byte) error { return nil }
+func (h *fakeHub) SendToUser(_ string, _ string, _ []byte) error  { return nil }
+func (h *fakeHub) SendBytesToUsers(_ []int64, _ string, _ []byte) {}
 func (h *fakeHub) BroadcastedTo(topic, eventType string) bool {
 	for _, b := range h.broadcasts {
 		if b.topic == topic && b.eventType == eventType {

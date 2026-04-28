@@ -52,6 +52,7 @@ type dmRepo interface {
 type dmHub interface {
 	BroadcastToChannel(channelID string, messageType string, payload []byte)
 	SendToUser(userID string, messageType string, payload []byte) error
+	SendBytesToUsers(userIDs []int64, messageType string, payload []byte)
 }
 
 // Service is the DM business-logic layer. Methods enforce membership rules,
@@ -154,9 +155,9 @@ func (s *Service) CreateChannel(ctx context.Context, actorUserID int64, otherUse
 	}
 
 	eventJSON, _ := json.Marshal(map[string]any{
-		"type":                "group_created",
-		"actor_user_id":       strconv.FormatInt(actorUserID, 10),
-		"actor_display_name":  s.resolveDisplayName(ctx, actorUserID),
+		"type":               "group_created",
+		"actor_user_id":      strconv.FormatInt(actorUserID, 10),
+		"actor_display_name": s.resolveDisplayName(ctx, actorUserID),
 	})
 	if _, err := s.repo.InsertSystemMessage(ctx, ch.ID, actorUserID, eventJSON); err != nil {
 		return nil, fmt.Errorf("insert group_created event: %w", err)
@@ -164,9 +165,7 @@ func (s *Service) CreateChannel(ctx context.Context, actorUserID int64, otherUse
 
 	if s.hub != nil {
 		payload, _ := json.Marshal(map[string]any{"channel": ch})
-		for _, uid := range members {
-			s.hub.SendToUser(strconv.FormatInt(uid, 10), ws.EventDmChannelCreate, payload)
-		}
+		s.hub.SendBytesToUsers(members, ws.EventDmChannelCreate, payload)
 	}
 
 	return ch, nil
@@ -294,10 +293,10 @@ func (s *Service) LeaveGroup(ctx context.Context, channelID, actorUserID int64, 
 			return err
 		}
 		eventJSON, _ := json.Marshal(map[string]any{
-			"type":                  "owner_transferred",
-			"actor_user_id":         strconv.FormatInt(actorUserID, 10),
-			"actor_display_name":    s.resolveDisplayName(ctx, actorUserID),
-			"new_owner_user_id":     strconv.FormatInt(*transferTo, 10),
+			"type":                   "owner_transferred",
+			"actor_user_id":          strconv.FormatInt(actorUserID, 10),
+			"actor_display_name":     s.resolveDisplayName(ctx, actorUserID),
+			"new_owner_user_id":      strconv.FormatInt(*transferTo, 10),
 			"new_owner_display_name": s.resolveDisplayName(ctx, *transferTo),
 		})
 		if sysMsg, err := s.repo.InsertSystemMessage(ctx, channelID, actorUserID, eventJSON); err == nil && s.hub != nil {
