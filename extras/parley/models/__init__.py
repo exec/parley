@@ -21,6 +21,19 @@ from .notification import Notification
 from .overwrite import Overwrite
 from .passkey import Passkey
 
+# Voice / Soundboard / Theme / Bin
+from .bin import (
+    BinChannelTag,
+    BinLineComment,
+    BinPost,
+    BinPostFile,
+    BinPostVersion,
+    BinPostVersionFile,
+)
+from .soundboard import Sound
+from .theme import ThemePreferences, UserTheme
+from .voice import ActiveCalls, Ring, VoiceParticipant, VoiceToken
+
 __all__ = [
     "User",
     "ClientUser",
@@ -44,4 +57,18 @@ __all__ = [
     # Passkey / Overwrite
     "Overwrite",
     "Passkey",
+    # Voice / Soundboard / Theme / Bin
+    "VoiceToken",
+    "VoiceParticipant",
+    "Ring",
+    "ActiveCalls",
+    "Sound",
+    "UserTheme",
+    "ThemePreferences",
+    "BinPost",
+    "BinPostFile",
+    "BinPostVersion",
+    "BinPostVersionFile",
+    "BinLineComment",
+    "BinChannelTag",
 ]

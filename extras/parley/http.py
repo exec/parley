@@ -1032,3 +1032,416 @@ class HTTPClient:
             f"/api/dms/{dm_channel_id}/messages/{message_id}/reactions",
             {"emoji": emoji},
         )
+
+    # ==================================================================
+    # ===== Voice / Soundboard / Theme / Bin =====
+    # ==================================================================
+    #
+    # NOTE: voice methods cover only the **parley-side control plane** —
+    # presence, force-mute/kick, and ringing. Actual audio I/O requires
+    # the official ``livekit`` Python SDK; pass the token returned by
+    # :meth:`get_voice_token` to ``livekit.rtc.Room.connect``.
+
+    # ------------------------------------------------------------------
+    # Voice — virtual-channel control plane
+    # ------------------------------------------------------------------
+    #
+    # ``vc`` is a *virtual channel* identifier — either ``"s:<channelID>"``
+    # for a server voice channel or ``"dm:<dmChannelID>"`` for a DM call.
+    # The convenience helpers below accept either a raw vc string or a
+    # plain server-channel int (in which case ``s:`` is prepended).
+
+    @staticmethod
+    def _coerce_vc(vc: Any) -> str:
+        if isinstance(vc, str):
+            return vc
+        return f"s:{int(vc)}"
+
+    async def get_voice_token(self, vc: Any) -> dict:
+        """``GET /api/voice/{vc}/token`` — returns ``{token, url}``.
+
+        The ``token`` is a LiveKit JWT; the ``url`` is the LiveKit SFU URL.
+        Audio I/O is **not** handled by this client — pass these to the
+        ``livekit`` Python SDK to publish/subscribe audio.
+        """
+        return await self.get(f"/api/voice/{self._coerce_vc(vc)}/token")
+
+    async def join_voice(self, vc: Any) -> None:
+        """``POST /api/voice/{vc}/join`` — register parley-side presence."""
+        await self.post(f"/api/voice/{self._coerce_vc(vc)}/join")
+
+    async def leave_voice(self, vc: Any) -> None:
+        """``POST /api/voice/{vc}/leave``."""
+        await self.post(f"/api/voice/{self._coerce_vc(vc)}/leave")
+
+    async def voice_heartbeat(self, vc: Any) -> None:
+        """``POST /api/voice/{vc}/heartbeat`` — refresh presence TTL."""
+        await self.post(f"/api/voice/{self._coerce_vc(vc)}/heartbeat")
+
+    async def list_voice_participants(self, vc: Any) -> list[dict]:
+        """``GET /api/voice/{vc}/participants``."""
+        return await self.get(f"/api/voice/{self._coerce_vc(vc)}/participants")
+
+    async def voice_mute(self, vc: Any, target_user_id: int) -> None:
+        """``POST /api/voice/{vc}/participants/{userID}/mute`` — force-mute a user."""
+        await self.post(
+            f"/api/voice/{self._coerce_vc(vc)}/participants/{target_user_id}/mute"
+        )
+
+    async def voice_kick(self, vc: Any, target_user_id: int) -> None:
+        """``POST /api/voice/{vc}/participants/{userID}/kick`` — force-disconnect a user."""
+        await self.post(
+            f"/api/voice/{self._coerce_vc(vc)}/participants/{target_user_id}/kick"
+        )
+
+    # Voice activity (Watch Together / shared activity announce)
+    async def start_voice_activity(
+        self, vc: Any, activity_type: str, params: Optional[dict] = None
+    ) -> None:
+        """``POST /api/voice/{vc}/activity/start``."""
+        body: dict = {"type": activity_type}
+        if params is not None:
+            body["params"] = params
+        await self.post(f"/api/voice/{self._coerce_vc(vc)}/activity/start", body)
+
+    async def end_voice_activity(self, vc: Any) -> None:
+        """``POST /api/voice/{vc}/activity/end``."""
+        await self.post(f"/api/voice/{self._coerce_vc(vc)}/activity/end")
+
+    async def get_voice_activity(self, vc: Any) -> Optional[dict]:
+        """``GET /api/voice/{vc}/activity`` — ``None`` when no activity is running."""
+        return await self.get(f"/api/voice/{self._coerce_vc(vc)}/activity")
+
+    # DM call ring (1:1) and group-call start
+    async def ring_dm(self, dm_channel_id: int) -> dict:
+        """``POST /api/dms/{id}/call/ring`` — initiate a 1:1 call ring.
+
+        Returns ``{ring_id: str}``. Use that ID with :meth:`cancel_ring`.
+        Group DMs cannot be rung — call :meth:`start_dm_call` instead.
+        """
+        return await self.post(f"/api/dms/{dm_channel_id}/call/ring")
+
+    async def accept_ring(self, dm_channel_id: int, ring_id: str) -> None:
+        """``POST /api/dms/{id}/call/accept`` — accept an incoming 1:1 ring."""
+        await self.post(
+            f"/api/dms/{dm_channel_id}/call/accept", {"ring_id": ring_id}
+        )
+
+    async def decline_ring(self, dm_channel_id: int, ring_id: str) -> None:
+        """``POST /api/dms/{id}/call/decline`` — decline an incoming 1:1 ring."""
+        await self.post(
+            f"/api/dms/{dm_channel_id}/call/decline", {"ring_id": ring_id}
+        )
+
+    async def cancel_ring(self, dm_channel_id: int, ring_id: str) -> None:
+        """``POST /api/dms/{id}/call/cancel`` — cancel an outgoing 1:1 ring."""
+        await self.post(
+            f"/api/dms/{dm_channel_id}/call/cancel", {"ring_id": ring_id}
+        )
+
+    async def start_dm_call(self, dm_channel_id: int) -> None:
+        """``POST /api/dms/{id}/call/start`` — emit ``call_started`` for a group DM."""
+        await self.post(f"/api/dms/{dm_channel_id}/call/start")
+
+    async def get_active_calls(self) -> dict:
+        """``GET /api/calls/active`` — returns ``{rings, in_call}``."""
+        return await self.get("/api/calls/active")
+
+    # ------------------------------------------------------------------
+    # Soundboard
+    # ------------------------------------------------------------------
+
+    async def get_all_sounds(self) -> list[dict]:
+        """``GET /api/soundboard`` — sounds across every server the user is in."""
+        return await self.get("/api/soundboard")
+
+    async def get_server_sounds(self, server_id: int) -> list[dict]:
+        """``GET /api/servers/{id}/soundboard``."""
+        return await self.get(f"/api/servers/{server_id}/soundboard")
+
+    async def upload_sound(
+        self,
+        server_id: int,
+        *,
+        name: str,
+        file_bytes: bytes,
+        filename: str,
+        emoji: str = "",
+    ) -> dict:
+        """``POST /api/servers/{id}/soundboard`` — multipart upload.
+
+        Mirrors the pattern of :meth:`upload_file`: sends ``multipart/form-data``
+        with ``file`` plus ``name`` / ``emoji`` form fields.
+        """
+        client = await self._ensure_client()
+        resp = await client.post(
+            f"/api/servers/{server_id}/soundboard",
+            data={"name": name, "emoji": emoji},
+            files={"file": (filename, file_bytes)},
+            headers={"Authorization": f"Bearer {self._token}"},
+        )
+        _raise_for_status(resp)
+        return resp.json()
+
+    async def update_sound(
+        self,
+        server_id: int,
+        sound_id: int,
+        *,
+        name: Optional[str] = None,
+        emoji: Optional[str] = None,
+    ) -> dict:
+        """``PATCH /api/servers/{id}/soundboard/{soundID}``."""
+        body: dict = {}
+        if name is not None:
+            body["name"] = name
+        if emoji is not None:
+            body["emoji"] = emoji
+        return await self.patch(
+            f"/api/servers/{server_id}/soundboard/{sound_id}", body
+        )
+
+    async def delete_sound(self, server_id: int, sound_id: int) -> None:
+        """``DELETE /api/servers/{id}/soundboard/{soundID}``."""
+        await self.delete(f"/api/servers/{server_id}/soundboard/{sound_id}")
+
+    async def play_sound(
+        self,
+        channel_id: int,
+        sound_id: int,
+        *,
+        duration_ms: int = 0,
+    ) -> None:
+        """``POST /api/channels/{id}/soundboard/play``.
+
+        Caller must currently be present in the voice channel. ``duration_ms``
+        defaults server-side to 30s and is capped at 60s.
+        """
+        await self.post(
+            f"/api/channels/{channel_id}/soundboard/play",
+            {"sound_id": str(sound_id), "duration_ms": duration_ms},
+        )
+
+    # ------------------------------------------------------------------
+    # Themes
+    # ------------------------------------------------------------------
+
+    async def get_theme_preferences(self) -> dict:
+        """``GET /api/me/preferences`` — active theme + the user's custom themes."""
+        return await self.get("/api/me/preferences")
+
+    async def set_active_theme(
+        self, theme: str, *, custom_theme_id: Optional[int] = None
+    ) -> None:
+        """``PUT /api/me/preferences/theme``.
+
+        Pass a built-in id (``rory``, ``citron-dark``, ``citron-light``,
+        ``neon-nights``, ``abyss``, ``sakura``) or ``"custom"`` together with
+        a ``custom_theme_id``.
+        """
+        body: dict = {"theme": theme}
+        if custom_theme_id is not None:
+            body["custom_theme_id"] = custom_theme_id
+        await self.put("/api/me/preferences/theme", body)
+
+    async def create_theme(
+        self,
+        *,
+        name: str,
+        css: str,
+        base_theme: str = "rory",
+        background_url: Optional[str] = None,
+    ) -> dict:
+        """``POST /api/me/themes``."""
+        body: dict = {"name": name, "css": css, "base_theme": base_theme}
+        if background_url is not None:
+            body["background_url"] = background_url
+        return await self.post("/api/me/themes", body)
+
+    async def update_theme(
+        self,
+        theme_id: int,
+        *,
+        name: str,
+        css: str,
+        base_theme: str = "rory",
+        background_url: Optional[str] = None,
+    ) -> dict:
+        """``PUT /api/me/themes/{id}``."""
+        body: dict = {"name": name, "css": css, "base_theme": base_theme}
+        if background_url is not None:
+            body["background_url"] = background_url
+        return await self.put(f"/api/me/themes/{theme_id}", body)
+
+    async def delete_theme(self, theme_id: int) -> None:
+        """``DELETE /api/me/themes/{id}``."""
+        await self.delete(f"/api/me/themes/{theme_id}")
+
+    async def share_theme(self, theme_id: int) -> dict:
+        """``POST /api/me/themes/{id}/share`` — returns ``{share_url}``."""
+        return await self.post(f"/api/me/themes/{theme_id}/share")
+
+    async def publish_theme(self, theme_id: int, *, published: bool) -> None:
+        """``POST /api/me/themes/{id}/publish``."""
+        await self.post(
+            f"/api/me/themes/{theme_id}/publish", {"published": published}
+        )
+
+    async def install_theme(self, share_token: str) -> dict:
+        """``POST /api/me/themes/install/{token}`` — install a shared theme."""
+        return await self.post(f"/api/me/themes/install/{share_token}")
+
+    async def feature_theme(self, theme_id: int, *, featured: bool) -> None:
+        """``PUT /api/themes/{id}/feature`` — Parley admin only."""
+        await self.put(f"/api/themes/{theme_id}/feature", {"featured": featured})
+
+    async def get_theme_repo(
+        self, *, page: int = 1, limit: int = 24
+    ) -> dict:
+        """``GET /api/themes/repo`` — public listing, ``{themes, total}``."""
+        return await self.get("/api/themes/repo", page=page, limit=limit)
+
+    async def get_public_theme(self, share_token: str) -> dict:
+        """``GET /api/themes/{token}`` — public, no auth required."""
+        return await self.get(f"/api/themes/{share_token}")
+
+    # ------------------------------------------------------------------
+    # Bin (pastebin-style code post channels)
+    # ------------------------------------------------------------------
+
+    async def create_bin_post(
+        self,
+        channel_id: int,
+        *,
+        title: str,
+        files: list[dict],
+        description: str = "",
+        tags: Optional[list[str]] = None,
+    ) -> dict:
+        """``POST /api/channels/{channelID}/posts``.
+
+        Each entry in *files* should be a dict with ``filename``, ``content``
+        and optional ``language`` / ``position``.
+        """
+        body: dict = {
+            "title": title,
+            "description": description,
+            "tags": tags or [],
+            "files": files,
+        }
+        return await self.post(f"/api/channels/{channel_id}/posts", body)
+
+    async def list_bin_posts(
+        self,
+        channel_id: int,
+        *,
+        tag: Optional[str] = None,
+        language: Optional[str] = None,
+        author_id: Optional[int] = None,
+        sort: Optional[str] = None,
+        limit: int = 25,
+        offset: int = 0,
+    ) -> list[dict]:
+        """``GET /api/channels/{channelID}/posts``."""
+        return await self.get(
+            f"/api/channels/{channel_id}/posts",
+            tag=tag,
+            language=language,
+            author_id=str(author_id) if author_id is not None else None,
+            sort=sort,
+            limit=limit,
+            offset=offset,
+        )
+
+    async def get_bin_post(self, post_id: int) -> dict:
+        """``GET /api/posts/{postID}``."""
+        return await self.get(f"/api/posts/{post_id}")
+
+    async def edit_bin_post(
+        self,
+        post_id: int,
+        *,
+        title: str,
+        files: list[dict],
+        description: str = "",
+        tags: Optional[list[str]] = None,
+    ) -> dict:
+        """``PUT /api/posts/{postID}``."""
+        body: dict = {
+            "title": title,
+            "description": description,
+            "tags": tags or [],
+            "files": files,
+        }
+        return await self.put(f"/api/posts/{post_id}", body)
+
+    async def delete_bin_post(self, post_id: int) -> None:
+        """``DELETE /api/posts/{postID}``."""
+        await self.delete(f"/api/posts/{post_id}")
+
+    async def get_bin_versions(self, post_id: int) -> list[dict]:
+        """``GET /api/posts/{postID}/versions``."""
+        return await self.get(f"/api/posts/{post_id}/versions")
+
+    async def get_bin_version(self, post_id: int, version_id: int) -> dict:
+        """``GET /api/posts/{postID}/versions/{versionID}``."""
+        return await self.get(f"/api/posts/{post_id}/versions/{version_id}")
+
+    async def create_bin_line_comment(
+        self,
+        post_id: int,
+        *,
+        version_id: int,
+        file_id: int,
+        line_number: int,
+        content: str,
+        parent_id: Optional[str] = None,
+    ) -> dict:
+        """``POST /api/posts/{postID}/line-comments``."""
+        body: dict = {
+            "version_id": version_id,
+            "file_id": file_id,
+            "line_number": line_number,
+            "content": content,
+        }
+        if parent_id is not None:
+            body["parent_id"] = parent_id
+        return await self.post(f"/api/posts/{post_id}/line-comments", body)
+
+    async def get_bin_line_comments(
+        self,
+        post_id: int,
+        *,
+        version_id: Optional[int] = None,
+        file_id: Optional[int] = None,
+    ) -> list[dict]:
+        """``GET /api/posts/{postID}/line-comments``."""
+        return await self.get(
+            f"/api/posts/{post_id}/line-comments",
+            version_id=str(version_id) if version_id is not None else None,
+            file_id=str(file_id) if file_id is not None else None,
+        )
+
+    async def update_bin_line_comment(self, comment_id: int, content: str) -> dict:
+        """``PUT /api/line-comments/{id}``."""
+        return await self.put(f"/api/line-comments/{comment_id}", {"content": content})
+
+    async def delete_bin_line_comment(self, comment_id: int) -> None:
+        """``DELETE /api/line-comments/{id}``."""
+        await self.delete(f"/api/line-comments/{comment_id}")
+
+    async def get_bin_tags(self, channel_id: int) -> list[dict]:
+        """``GET /api/channels/{channelID}/tags``."""
+        return await self.get(f"/api/channels/{channel_id}/tags")
+
+    async def create_bin_tag(
+        self, channel_id: int, *, name: str, color: str = ""
+    ) -> dict:
+        """``POST /api/channels/{channelID}/tags``."""
+        return await self.post(
+            f"/api/channels/{channel_id}/tags", {"name": name, "color": color}
+        )
+
+    async def delete_bin_tag(self, channel_id: int, tag_id: int) -> None:
+        """``DELETE /api/channels/{channelID}/tags/{tagID}``."""
+        await self.delete(f"/api/channels/{channel_id}/tags/{tag_id}")

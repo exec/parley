@@ -204,4 +204,21 @@ __all__ = [
     # Passkey / Overwrite
     "Overwrite",
     "Passkey",
+    # Voice
+    "VoiceToken",
+    "VoiceParticipant",
+    "Ring",
+    "ActiveCalls",
+    # Soundboard
+    "Sound",
+    # Theme
+    "UserTheme",
+    "ThemePreferences",
+    # Bin
+    "BinPost",
+    "BinPostFile",
+    "BinPostVersion",
+    "BinPostVersionFile",
+    "BinLineComment",
+    "BinChannelTag",
 ]
