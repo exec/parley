@@ -407,16 +407,18 @@ func main() {
 					return
 				}
 				for _, e := range evicted {
-					topic := voiceBroadcastTopic(ctx, repo, e.ChannelID)
+					topic := voiceBroadcastTopic(ctx, repo, memberCache, e.ChannelID)
 					if topic == "" {
 						continue
 					}
-					payload, _ := json.Marshal(map[string]string{
-						"channel_id": e.ChannelID,
-						"user_id":    e.UserID,
-						"username":   "",
-						"avatar_url": "",
-						"action":     "leave",
+					// Field order is alphabetical to match the byte layout of the
+					// map[string]string version json.Marshal previously produced.
+					payload, _ := json.Marshal(voiceStatePayload{
+						Action:    "leave",
+						AvatarURL: "",
+						ChannelID: e.ChannelID,
+						UserID:    e.UserID,
+						Username:  "",
 					})
 					hub.BroadcastToChannel(topic, websocket.EventVoiceStateUpdate, payload)
 				}
@@ -613,10 +615,29 @@ func (h *HubBroadcaster) BroadcastToUser(userID string, event string, data inter
 	h.hub.SendToUser(userID, event, payload)
 }
 
+// voiceStatePayload is the wire shape of a VOICE_STATE_UPDATE event body.
+// Replaces an inline map[string]string allocated in the sweeper hot path.
+//
+// TODO: move to internal/websocket/events.go once shared with other broadcast
+// sites (voice.Handler.broadcastVoiceState in internal/voice/handler.go uses
+// the same shape).
+type voiceStatePayload struct {
+	Action    string `json:"action"`
+	AvatarURL string `json:"avatar_url"`
+	ChannelID string `json:"channel_id"`
+	UserID    string `json:"user_id"`
+	Username  string `json:"username"`
+}
+
 // voiceBroadcastTopic mirrors voice.Handler.broadcastTarget: server VCs fan
 // out on the per-server topic ("server:<serverID>"), DMs use their vc string
 // directly. Returns "" if the channel can't be resolved.
-func voiceBroadcastTopic(ctx context.Context, repo *db.Repository, channelID string) string {
+//
+// The channel→server lookup hits memberCache first; the mapping is immutable
+// for the channel's lifetime so cache misses are the only DB cost. The sweeper
+// fires every 15s, so without caching every evicted server-VC user costs one
+// query.
+func voiceBroadcastTopic(ctx context.Context, repo *db.Repository, mc *cache.MembershipCache, channelID string) string {
 	vc, err := voice.ParseVirtualChannel(channelID)
 	if err != nil {
 		return ""
@@ -625,10 +646,14 @@ func voiceBroadcastTopic(ctx context.Context, repo *db.Repository, channelID str
 	case voice.KindDM:
 		return vc.String()
 	case voice.KindServer:
+		if sID, ok := mc.GetChannelServer(vc.ID); ok {
+			return "server:" + strconv.FormatInt(sID, 10)
+		}
 		ch, err := repo.GetChannelByID(ctx, vc.ID)
 		if err != nil {
 			return ""
 		}
+		mc.SetChannelServer(vc.ID, ch.ServerID)
 		return "server:" + strconv.FormatInt(ch.ServerID, 10)
 	}
 	return ""
