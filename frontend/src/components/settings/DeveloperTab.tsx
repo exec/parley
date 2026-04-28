@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { SITE_URL, siteOrigin } from '../../config';
 import { copyToClipboard } from '../../lib/tauri';
-import { listAPIKeys, createAPIKey, revokeAPIKey, renameBotUser, APIKeyInfo, CreateKeyResponse } from '../../api/developer';
+import { listAPIKeys, createAPIKey, revokeAPIKey, renameBotUser, APIKeyInfo, CreateKeyResponse, KNOWN_SCOPES } from '../../api/developer';
 import { getMyBots, updateBotInvitePermissions, updateBotShowAuthor, UserBot } from '../../api/bots';
 import { PERMISSION_CATEGORIES, permFromNumber } from '../../lib/permissions';
 
@@ -19,6 +19,10 @@ export const DeveloperTab: React.FC = () => {
   const [createError, setCreateError] = useState('');
   const [createdKey, setCreatedKey] = useState<CreateKeyResponse | null>(null);
   const [copied, setCopied] = useState(false);
+  // Scope selection for the new key. "full" is the meta-scope; toggling it
+  // clears the others and vice versa so users can't end up in the redundant
+  // "full + narrow" state.
+  const [selectedScopes, setSelectedScopes] = useState<string[]>(['full']);
 
   const [myBots, setMyBots] = useState<UserBot[]>([]);
   const [botPerms, setBotPerms] = useState<Record<number, bigint>>({});
@@ -81,11 +85,17 @@ export const DeveloperTab: React.FC = () => {
     setCreating(true);
     setCreateError('');
     try {
-      const result = await createAPIKey(createType, createName.trim(), createType === 'bot' ? botUsername.trim() : undefined);
+      if (selectedScopes.length === 0) {
+        setCreateError('Pick at least one scope');
+        setCreating(false);
+        return;
+      }
+      const result = await createAPIKey(createType, createName.trim(), createType === 'bot' ? botUsername.trim() : undefined, selectedScopes);
       setCreatedKey(result);
       setShowCreate(false);
       setCreateName('');
       setBotUsername('');
+      setSelectedScopes(['full']);
       await load();
     } catch (e: unknown) {
       setCreateError((e as { message?: string })?.message || 'Failed to create key');
@@ -240,9 +250,38 @@ export const DeveloperTab: React.FC = () => {
                 Selfbot keys authenticate as you. Keep them secret &mdash; they have full access to your account.
               </p>
             )}
+            <div className="settings-form-group">
+              <label className="settings-form-label">Scopes</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 12px' }}>
+                {KNOWN_SCOPES.map(scope => {
+                  const checked = selectedScopes.includes(scope);
+                  return (
+                    <label key={scope} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          setSelectedScopes(prev => {
+                            if (scope === 'full') {
+                              return checked ? [] : ['full'];
+                            }
+                            const without = prev.filter(s => s !== 'full' && s !== scope);
+                            return checked ? without : [...without, scope];
+                          });
+                        }}
+                      />
+                      <code style={{ fontSize: 12 }}>{scope}</code>
+                    </label>
+                  );
+                })}
+              </div>
+              <p className="settings-form-hint" style={{ marginTop: 6 }}>
+                <code>full</code> grants every scope. Prefer narrow scopes for bot keys.
+              </p>
+            </div>
             {createError && <div className="settings-error" style={{ marginBottom: 8 }}>{createError}</div>}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button className="settings-btn settings-btn-ghost" onClick={() => { setShowCreate(false); setCreateError(''); }}>
+              <button className="settings-btn settings-btn-ghost" onClick={() => { setShowCreate(false); setCreateError(''); setSelectedScopes(['full']); }}>
                 Cancel
               </button>
               <button className="settings-btn settings-btn-primary" onClick={handleCreate} disabled={creating}>

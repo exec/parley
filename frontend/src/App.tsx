@@ -288,6 +288,11 @@ function MainApp() {
 
   // Voice state: channelId → list of participants
   const [voiceParticipants, setVoiceParticipants] = useState<Record<string, { user_id: string; username: string; avatar_url?: string }[]>>({});
+  // Bumps on every WS (re)connect so the voice-roster bulk-fetch effect
+  // resyncs after a drop. Without this, a VOICE_STATE_UPDATE leave that
+  // arrives while the socket is briefly disconnected is lost forever and
+  // the sidebar shows stale participants until the user manually refreshes.
+  const [wsConnectEpoch, setWsConnectEpoch] = useState(0);
   const [activeVoiceChannel, setActiveVoiceChannel] = useState<string | null>(null);
   // 'server' for guild VCs, 'dm' for 1:1/GC calls. Drives whether the LiveKit
   // room is `s:N` or `dm:N`. Reset to 'server' whenever activeVoiceChannel clears.
@@ -607,7 +612,7 @@ function MainApp() {
         return next;
       });
     });
-  }, [voiceChannelIdsKey, activeVoiceChannel]);
+  }, [voiceChannelIdsKey, activeVoiceChannel, wsConnectEpoch]);
 
   // Fetch initial voice presence on join so existing participants render with
   // their avatars + display names and so useVoiceConnection knows whether to
@@ -1035,7 +1040,12 @@ function MainApp() {
     onRoleUpdate: handleRoleUpdate,
     onRoleDelete: handleRoleDelete,
     onChannelOverwriteUpdate: handleChannelOverwriteUpdate,
-    onConnect: clearAllPermCaches,
+    onConnect: useCallback(() => {
+      clearAllPermCaches();
+      // Force the voice-roster bulk fetch to re-run so any leave events
+      // missed during the drop are reconciled from the source of truth.
+      setWsConnectEpoch(e => e + 1);
+    }, []),
     onUserUpdate: handleUserUpdate,
     onVoiceStateUpdate: handleVoiceStateUpdate,
     onVoiceForceMute: handleVoiceForceMute,
