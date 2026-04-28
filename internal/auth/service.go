@@ -158,6 +158,9 @@ func (s *AuthService) Register(ctx context.Context, username, email_, phone, pas
 	if len(password) > 72 {
 		return User{}, "", errors.New("password must be 72 characters or fewer (bcrypt limit)")
 	}
+	if password != "" && IsBannedPassword(password) {
+		return User{}, "", errors.New("password is too common — please pick something less guessable")
+	}
 
 	// All pre-transaction failure modes below return a single generic error
 	// to the caller so registration responses cannot be used as an oracle to
@@ -476,6 +479,9 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID, newUsername, cu
 		if len(newPassword) > 72 {
 			return User{}, errors.New("password must be 72 characters or fewer (bcrypt limit)")
 		}
+		if IsBannedPassword(newPassword) {
+			return User{}, errors.New("password is too common — please pick something less guessable")
+		}
 		hashed := s.HashPassword(newPassword)
 		if hashed == "" {
 			return User{}, errors.New("failed to hash password")
@@ -685,6 +691,9 @@ func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword stri
 	}
 	if len(newPassword) > 72 {
 		return errors.New("password must be 72 characters or fewer (bcrypt limit)")
+	}
+	if IsBannedPassword(newPassword) {
+		return errors.New("password is too common — please pick something less guessable")
 	}
 	hashed := s.HashPassword(newPassword)
 	if hashed == "" {
