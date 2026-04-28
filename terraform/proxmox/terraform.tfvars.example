@@ -41,6 +41,15 @@ admin_origin             = "http://192.168.1.15"
 bot_key_secret           = "change-me"
 redis_password           = "change-me"
 
+# GitHub App for the gitprovider integration (in-chat repo embeds + Explorer).
+# Optional — leave empty to run unauthenticated at 60/hr/IP. To enable
+# 5000/hr/installation: register a GitHub App, install it on any account/org
+# you own, and fill these in. The PEM file at the configured path is shipped
+# to each API LXC at /etc/parley/github-app.pem.
+github_app_id               = ""
+github_app_installation_id  = ""
+github_app_private_key_path = "~/.config/parley/github-app.pem"
+
 # Repo
 repo_url = "https://github.com/exec/parley.git"
 

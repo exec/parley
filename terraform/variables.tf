@@ -203,3 +203,27 @@ variable "admin_allowed_ip" {
   description = "CIDR allowed to reach the admin panel (e.g. your home IP /32)"
   type        = string
 }
+
+# ---- GitHub App (gitprovider integration) ----
+# Used by internal/gitprovider/github to fetch repo metadata, file trees, and
+# blobs for the in-chat embed + code Explorer. Leaving any of these blank
+# makes the API run unauthenticated against api.github.com (60/hr/IP) instead
+# of authenticated through the App (5000/hr/installation).
+
+variable "github_app_id" {
+  description = "Numeric GitHub App ID for the parley gitprovider integration. Empty disables auth."
+  type        = string
+  default     = ""
+}
+
+variable "github_app_installation_id" {
+  description = "Installation ID of the parley GitHub App on whatever account/org we use as a credential vehicle."
+  type        = string
+  default     = ""
+}
+
+variable "github_app_private_key_path" {
+  description = "Local path to the GitHub App private key PEM. Contents are read at apply time and shipped into /etc/parley/github-app.pem on each API LXC."
+  type        = string
+  default     = "~/.config/parley/github-app.pem"
+}

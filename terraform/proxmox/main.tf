@@ -70,6 +70,9 @@ locals {
       OLLAMA_MODEL             = var.ollama_model
       BOT_KEY_SECRET           = var.bot_key_secret
       REDIS_PASSWORD           = var.redis_password
+      GITHUB_APP_ID            = var.github_app_id
+      GITHUB_APP_INSTALLATION_ID = var.github_app_installation_id
+      GITHUB_APP_PRIVATE_KEY   = (var.github_app_id != "" && fileexists(pathexpand(var.github_app_private_key_path))) ? file(pathexpand(var.github_app_private_key_path)) : ""
     })
   ]
 

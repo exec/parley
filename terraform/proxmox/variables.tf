@@ -357,3 +357,26 @@ variable "redis_password" {
   sensitive   = true
   default     = ""
 }
+
+# ---- GitHub App (gitprovider integration) ----
+# See internal/gitprovider/github. Optional — empty values run unauth at
+# 60/hr/IP. With all three set, the API authenticates as the App for
+# 5000/hr/installation budget.
+
+variable "github_app_id" {
+  description = "Numeric GitHub App ID for the parley gitprovider integration."
+  type        = string
+  default     = ""
+}
+
+variable "github_app_installation_id" {
+  description = "Installation ID of the parley GitHub App."
+  type        = string
+  default     = ""
+}
+
+variable "github_app_private_key_path" {
+  description = "Local path to the GitHub App private key PEM (read at apply time, shipped to each API LXC at /etc/parley/github-app.pem)."
+  type        = string
+  default     = "~/.config/parley/github-app.pem"
+}

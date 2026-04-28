@@ -29,6 +29,15 @@ OLLAMA_API_KEY="${OLLAMA_API_KEY}"
 OLLAMA_MODEL="${OLLAMA_MODEL}"
 BOT_KEY_SECRET="${BOT_KEY_SECRET}"
 REDIS_PASSWORD="${REDIS_PASSWORD}"
+# GitHub App credentials for the gitprovider integration (repo embeds +
+# in-app Explorer). Optional: leaving any blank makes the API run
+# unauthenticated against api.github.com (60/hr/IP) instead of 5000/hr.
+GITHUB_APP_ID="${GITHUB_APP_ID}"
+GITHUB_APP_INSTALLATION_ID="${GITHUB_APP_INSTALLATION_ID}"
+GITHUB_APP_PRIVATE_KEY=$(cat <<'__PARLEY_GH_PEM__'
+${GITHUB_APP_PRIVATE_KEY}
+__PARLEY_GH_PEM__
+)
 
 echo "=== Starting Parley API setup ==="
 
@@ -185,6 +194,13 @@ id -u parley >/dev/null 2>&1 || useradd -r -s /bin/false parley
 echo "=== Creating environment configuration ==="
 mkdir -p /etc/parley
 
+# Drop the GitHub App private key (PEM) into a separate file so the env
+# stays single-line-per-key. Empty value → skip and run unauthenticated.
+if [ -n "$GITHUB_APP_PRIVATE_KEY" ] && [ "$GITHUB_APP_PRIVATE_KEY" != "" ]; then
+  printf '%s\n' "$GITHUB_APP_PRIVATE_KEY" > /etc/parley/github-app.pem
+  chmod 600 /etc/parley/github-app.pem
+fi
+
 # URL-encode the DB password to handle special characters
 DB_PASSWORD_ENCODED=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$DB_PASSWORD")
 
@@ -213,7 +229,22 @@ OLLAMA_API_KEY=${OLLAMA_API_KEY}
 OLLAMA_MODEL=${OLLAMA_MODEL}
 BOT_KEY_SECRET=${BOT_KEY_SECRET}
 GIPHY_API_KEY=${GIPHY_API_KEY}
+GITHUB_APP_ID=${GITHUB_APP_ID}
+GITHUB_APP_INSTALLATION_ID=${GITHUB_APP_INSTALLATION_ID}
+GITHUB_APP_PRIVATE_KEY_PATH=/etc/parley/github-app.pem
 EOF
+
+# If the GitHub App credentials were not supplied, drop the PATH var so the
+# Go client falls back to unauthenticated mode rather than failing on a
+# missing PEM file.
+if [ ! -s /etc/parley/github-app.pem ]; then
+  sed -i '/^GITHUB_APP_PRIVATE_KEY_PATH=/d' /etc/parley/env
+fi
+
+# Ensure the parley user can read the PEM (owned alongside env).
+if [ -f /etc/parley/github-app.pem ]; then
+  chown parley:parley /etc/parley/github-app.pem
+fi
 
 # Set proper permissions
 chown parley:parley /etc/parley/env
