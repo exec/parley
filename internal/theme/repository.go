@@ -82,9 +82,11 @@ func (r *Repository) DeleteTheme(ctx context.Context, id, userID int64) error {
 		return err
 	}
 	defer tx.Rollback()
-	// Atomically reset preference if this was the active theme
+	// Atomically reset preference if this was the active theme. Fall back to
+	// the system default (midnight-tokyo) so the user lands on the same theme
+	// a fresh signup gets, not the historical rory default.
 	if _, err = tx.ExecContext(ctx,
-		`UPDATE user_preferences SET active_theme='rory', active_custom_theme_id=NULL
+		`UPDATE user_preferences SET active_theme='midnight-tokyo', active_custom_theme_id=NULL
 		 WHERE user_id=$1 AND active_custom_theme_id=$2`, userID, id); err != nil {
 		return err
 	}

@@ -202,10 +202,13 @@ func (r *Repository) RunMigrations(ctx context.Context) error {
 }
 
 // CreateUserPreferences inserts a default preferences row for a new user.
+// active_theme is intentionally omitted from the column list so the column's
+// DEFAULT (currently 'midnight-tokyo' — see Migration #71) is authoritative.
+// Hardcoding a value here was bypassing the DEFAULT and shipping new users
+// onto whatever literal was last edited into this query.
 func (r *Repository) CreateUserPreferences(ctx context.Context, userID int64) error {
 	_, err := r.db.ExecContext(ctx,
-		`INSERT INTO user_preferences (user_id, active_theme)
-		 VALUES ($1, 'rory') ON CONFLICT DO NOTHING`, userID)
+		`INSERT INTO user_preferences (user_id) VALUES ($1) ON CONFLICT DO NOTHING`, userID)
 	return err
 }
 
