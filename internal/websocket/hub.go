@@ -6,6 +6,7 @@ import (
 	"log"
 	"strconv"
 	"sync"
+	"sync/atomic"
 )
 
 // Lock ordering: h.mu must always be acquired before sendMu (Client.sendMu).
@@ -111,6 +112,12 @@ type Hub struct {
 	// UnsubscribeUserFromServer. If nil, only "server:{id}" virtual channels
 	// can be matched.
 	channelServerResolver func(channelID string) (serverID string, ok bool)
+
+	// Cumulative observability counters. Incremented once per broadcast call
+	// (broadcastsTotal) and by the count of recipients actually sent to after
+	// slow-client eviction (recipientsTotal). Read via accessors; never reset.
+	broadcastsTotal atomic.Int64
+	recipientsTotal atomic.Int64
 }
 
 // NewHub creates a new Hub
@@ -162,6 +169,21 @@ func (h *Hub) SetChannelServerResolver(fn func(channelID string) (serverID strin
 	defer h.mu.Unlock()
 	h.channelServerResolver = fn
 }
+
+// ConnectionCount returns the number of currently registered WebSocket clients
+// on this node. Used by the stats log emitter; cheap (one map len under RLock).
+func (h *Hub) ConnectionCount() int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return len(h.clients)
+}
+
+// BroadcastsTotal returns the cumulative number of broadcast calls served.
+func (h *Hub) BroadcastsTotal() int64 { return h.broadcastsTotal.Load() }
+
+// RecipientsTotal returns the cumulative number of WS recipients sent to
+// across all broadcast calls (after slow-client eviction).
+func (h *Hub) RecipientsTotal() int64 { return h.recipientsTotal.Load() }
 
 // CheckChannelAccess returns true only if the channelAccessChecker confirms the
 // user has access. Fails closed (returns false) when no checker is configured.
@@ -396,6 +418,7 @@ func (h *Hub) UnsubscribeFromChannel(channelID string, client *Client) {
 // SendToUser sends a message to a specific user by their userID.
 // It also publishes to Redis (if a publisher is set) so other nodes deliver it too.
 func (h *Hub) SendToUser(userID string, messageType string, payload []byte) error {
+	h.broadcastsTotal.Add(1)
 	wsMsg := WSMessage{Type: messageType, Payload: payload}
 	msgBytes, err := json.Marshal(wsMsg)
 	if err != nil {
@@ -424,6 +447,7 @@ func (h *Hub) SendToUser(userID string, messageType string, payload []byte) erro
 			toEvict = append(toEvict, client)
 		}
 	}
+	h.recipientsTotal.Add(int64(len(clients) - len(toEvict)))
 
 	if len(toEvict) > 0 {
 		h.mu.Lock()
@@ -560,6 +584,7 @@ func (h *Hub) BroadcastToAllLocal(messageType string, payload []byte) {
 
 // broadcastToAllLocal is the unexported implementation.
 func (h *Hub) broadcastToAllLocal(messageType string, payload []byte) {
+	h.broadcastsTotal.Add(1)
 	wsMsg := WSMessage{Type: messageType, Payload: payload}
 	msgBytes, err := json.Marshal(wsMsg)
 	if err != nil {
@@ -579,6 +604,7 @@ func (h *Hub) broadcastToAllLocal(messageType string, payload []byte) {
 			toEvict = append(toEvict, client)
 		}
 	}
+	h.recipientsTotal.Add(int64(len(clients) - len(toEvict)))
 
 	if len(toEvict) > 0 {
 		h.mu.Lock()
@@ -615,6 +641,7 @@ func (h *Hub) BroadcastStatusUpdate(userID, statusType, statusText string) {
 // No Redis publish — use this when delivering events received from Redis to avoid
 // the infinite re-broadcast loop that would occur if we published back to Redis.
 func (h *Hub) BroadcastLocalToChannel(channelID string, messageType string, payload []byte) {
+	h.broadcastsTotal.Add(1)
 	wsMsg := WSMessage{Type: messageType, Payload: payload}
 	msgBytes, err := json.Marshal(wsMsg)
 	if err != nil {
@@ -640,6 +667,7 @@ func (h *Hub) BroadcastLocalToChannel(channelID string, messageType string, payl
 			toEvict = append(toEvict, client)
 		}
 	}
+	h.recipientsTotal.Add(int64(len(clients) - len(toEvict)))
 
 	if len(toEvict) > 0 {
 		h.mu.Lock()
@@ -659,6 +687,7 @@ func (h *Hub) BroadcastLocalToChannel(channelID string, messageType string, payl
 
 // SendLocalToUser delivers to local clients for a user ONLY — no Redis publish.
 func (h *Hub) SendLocalToUser(userID string, messageType string, payload []byte) {
+	h.broadcastsTotal.Add(1)
 	wsMsg := WSMessage{Type: messageType, Payload: payload}
 	msgBytes, err := json.Marshal(wsMsg)
 	if err != nil {
@@ -679,6 +708,7 @@ func (h *Hub) SendLocalToUser(userID string, messageType string, payload []byte)
 			toEvict = append(toEvict, client)
 		}
 	}
+	h.recipientsTotal.Add(int64(len(clients) - len(toEvict)))
 
 	if len(toEvict) > 0 {
 		h.mu.Lock()
@@ -699,6 +729,7 @@ func (h *Hub) SendLocalToUser(userID string, messageType string, payload []byte)
 // is taken under RLock. Sends happen outside all locks. Evictions (slow/full
 // send buffers) take a brief WLock at the end.
 func (h *Hub) BroadcastToChannel(channelID string, messageType string, payload []byte) {
+	h.broadcastsTotal.Add(1)
 	wsMsg := WSMessage{Type: messageType, Payload: payload}
 	msgBytes, err := json.Marshal(wsMsg)
 	if err != nil {
@@ -715,6 +746,7 @@ func (h *Hub) BroadcastToChannels(channelIDs []string, messageType string, paylo
 	if len(channelIDs) == 0 {
 		return
 	}
+	h.broadcastsTotal.Add(1)
 	wsMsg := WSMessage{Type: messageType, Payload: payload}
 	msgBytes, err := json.Marshal(wsMsg)
 	if err != nil {
@@ -755,6 +787,7 @@ func (h *Hub) fanoutChannel(channelID, messageType string, payload, msgBytes []b
 			toEvict = append(toEvict, client)
 		}
 	}
+	h.recipientsTotal.Add(int64(len(clients) - len(toEvict)))
 
 	// Phase 3: Minimal eviction under a brief WLock.
 	// We remove from channelSubs so future broadcasts skip this dead client.
@@ -794,6 +827,7 @@ func (h *Hub) SendBytesToUsers(userIDs []int64, messageType string, payload []by
 	if len(userIDs) == 0 {
 		return
 	}
+	h.broadcastsTotal.Add(1)
 	wsMsg := WSMessage{Type: messageType, Payload: payload}
 	msgBytes, err := json.Marshal(wsMsg)
 	if err != nil {
@@ -820,6 +854,7 @@ func (h *Hub) SendBytesToUsers(userIDs []int64, messageType string, payload []by
 			toEvict = append(toEvict, client)
 		}
 	}
+	h.recipientsTotal.Add(int64(len(clients) - len(toEvict)))
 
 	// Phase 3: minimal eviction — close the send channel only. userToClient
 	// cleanup is deferred to UnregisterClient (matches SendToUser semantics).

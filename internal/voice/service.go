@@ -366,6 +366,54 @@ func (s *Service) SweepStale(ctx context.Context) ([]EvictedParticipant, error) 
 	return evicted, nil
 }
 
+// Stats counts the live voice presence rooms and the total participants
+// across them. Implemented via SCAN over `voice:*` keys filtered to the
+// 2-colon presence shape (matches SweepStale's filter), summing HLENs in
+// pipelined batches. Cheap enough for a 30s observability ticker; callers
+// should pass a ctx with a short deadline so a slow Redis can't stall the
+// emitter.
+func (s *Service) Stats(ctx context.Context) (rooms, participants int, err error) {
+	if s.rdb == nil {
+		return 0, 0, nil
+	}
+	var cursor uint64
+	for {
+		keys, c, scanErr := s.rdb.Scan(ctx, cursor, "voice:*", 200).Result()
+		if scanErr != nil {
+			return rooms, participants, scanErr
+		}
+		cursor = c
+
+		pipe := s.rdb.Pipeline()
+		hlenCmds := make([]*redis.IntCmd, 0, len(keys))
+		for _, key := range keys {
+			// Presence keys are "voice:s:N" or "voice:dm:N" — exactly two colons.
+			// Heartbeat / activity / started_at / call_ended:* keys all have more.
+			if strings.Count(key, ":") != 2 {
+				continue
+			}
+			hlenCmds = append(hlenCmds, pipe.HLen(ctx, key))
+		}
+		if len(hlenCmds) > 0 {
+			if _, execErr := pipe.Exec(ctx); execErr != nil {
+				return rooms, participants, execErr
+			}
+			for _, cmd := range hlenCmds {
+				n, _ := cmd.Result()
+				if n > 0 {
+					rooms++
+					participants += int(n)
+				}
+			}
+		}
+
+		if cursor == 0 {
+			break
+		}
+	}
+	return rooms, participants, nil
+}
+
 // Activity is the per-call active activity record stored in Redis.
 type Activity struct {
 	Type        string          `json:"type"`

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -401,12 +402,15 @@ func main() {
 		go func() {
 			ctx := context.Background()
 			sweep := func() {
+				start := time.Now()
 				evicted, err := voiceSvc.SweepStale(ctx)
 				if err != nil {
 					log.Printf("voice sweeper: %v", err)
 					return
 				}
+				channelSet := make(map[string]struct{}, len(evicted))
 				for _, e := range evicted {
+					channelSet[e.ChannelID] = struct{}{}
 					topic := voiceBroadcastTopic(ctx, repo, memberCache, e.ChannelID)
 					if topic == "" {
 						continue
@@ -422,9 +426,8 @@ func main() {
 					})
 					hub.BroadcastToChannel(topic, websocket.EventVoiceStateUpdate, payload)
 				}
-				if len(evicted) > 0 {
-					log.Printf("voice sweeper: evicted %d stale participant(s)", len(evicted))
-				}
+				log.Printf("parley_sweep: duration_ms=%d evicted=%d channels=%d",
+					time.Since(start).Milliseconds(), len(evicted), len(channelSet))
 			}
 			sweep() // catch leftover state from a previous crash
 			ticker := time.NewTicker(15 * time.Second)
@@ -434,6 +437,34 @@ func main() {
 			}
 		}()
 	}
+
+	// Periodic structured stats emitter — Loki/Grafana parses these lines.
+	// Single space separators, lowercase keys, non-negative ints. Counters are
+	// cumulative; LogQL computes rates via rate()/increase().
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			rooms, participants, vErr := voiceSvc.Stats(ctx)
+			cancel()
+			if vErr != nil {
+				log.Printf("parley_stats: voice.Stats failed: %v", vErr)
+				rooms, participants = 0, 0
+			}
+			var ms runtime.MemStats
+			runtime.ReadMemStats(&ms)
+			log.Printf("parley_stats: ws_connections=%d voice_rooms=%d voice_participants=%d goroutines=%d heap_mb=%d broadcasts_total=%d recipients_total=%d",
+				hub.ConnectionCount(),
+				rooms,
+				participants,
+				runtime.NumGoroutine(),
+				int(ms.HeapAlloc/1024/1024),
+				hub.BroadcastsTotal(),
+				hub.RecipientsTotal(),
+			)
+		}
+	}()
 
 	// Register production origin in CORS allowlist from env
 	if siteURL != "" {
