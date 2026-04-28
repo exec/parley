@@ -311,12 +311,25 @@ input {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  min-height: 100%;
+  /* html/body have `overflow: hidden` to stop iOS document-scrolling above
+     the chat shell. Pages with growable content (the long Register form,
+     theme repo, etc.) need their own scroll container — fix the height to
+     100% and let the page itself scroll. */
+  height: 100%;
+  overflow-y: auto;
   background-color: var(--parley-bg-secondary);
   /* html already has safe-area padding, but give a bit extra breathing room
      so content isn't flush against the Dynamic Island / home indicator */
   padding: 24px 16px;
+}
+
+/* `margin: auto` on the inner form lets it center vertically when the
+   viewport is taller than the form (the original `justify-content: center`
+   look) AND collapse to 0 when the form is taller than the viewport, so
+   nothing gets clipped above the scroll origin. */
+.login-form,
+.register-form {
+  margin: auto;
 }
 
 .login-page h1,

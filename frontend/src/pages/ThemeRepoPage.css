@@ -1,5 +1,9 @@
 .theme-repo-page {
-  min-height: 100vh;
+  /* html/body have overflow:hidden — see comments in index.css. Pages with
+     long content (this grid scrolls past viewport on most repos) need to
+     own their scroll. Fix height + overflow-y:auto on the page root. */
+  height: 100%;
+  overflow-y: auto;
   background: var(--parley-bg);
   color: var(--parley-text);
   font-family: inherit;
