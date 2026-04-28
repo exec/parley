@@ -1,7 +1,7 @@
 import { useState, useEffect, type MouseEvent } from 'react';
 import DOMPurify from 'dompurify';
 import type { Components } from 'react-markdown';
-import { highlight } from '../../lib/shiki';
+import { highlight, useShikiTheme } from '../../lib/shiki';
 import { copyToClipboard } from '../../lib/tauri';
 import './CodeBlock.css';
 
@@ -22,15 +22,16 @@ const ShikiCodeBlock: Components['code'] = ({ className, children, ...props }) =
 
   const [html, setHtml] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const shikiTheme = useShikiTheme();
 
   useEffect(() => {
     if (!lang) return;
     let cancelled = false;
-    highlight(code, lang).then((result) => {
+    highlight(code, lang, shikiTheme).then((result) => {
       if (!cancelled) setHtml(result);
     });
     return () => { cancelled = true; };
-  }, [code, lang]);
+  }, [code, lang, shikiTheme]);
 
   const handleCopy = async (e: MouseEvent) => {
     e.stopPropagation();

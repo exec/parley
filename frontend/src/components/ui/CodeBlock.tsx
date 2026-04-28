@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import DOMPurify from 'dompurify';
-import { highlight, highlightLines, type ThemedToken } from '../../lib/shiki';
+import { highlight, highlightLines, useShikiTheme, type ThemedToken } from '../../lib/shiki';
 import { copyToClipboard } from '../../lib/tauri';
 import './CodeBlock.css';
 
@@ -43,22 +43,23 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
 
   const lang = language || 'plaintext';
   const displayLang = language || (filename ? '' : 'plaintext');
+  const shikiTheme = useShikiTheme();
 
   useEffect(() => {
     let cancelled = false;
     if (showLineNumbers) {
       setLineTokens(null);
-      highlightLines(content, lang).then((tokens) => {
+      highlightLines(content, lang, shikiTheme).then((tokens) => {
         if (!cancelled) setLineTokens(tokens);
       });
     } else {
       setHtml(null);
-      highlight(content, lang).then((result) => {
+      highlight(content, lang, shikiTheme).then((result) => {
         if (!cancelled) setHtml(result);
       });
     }
     return () => { cancelled = true; };
-  }, [content, lang, showLineNumbers]);
+  }, [content, lang, showLineNumbers, shikiTheme]);
 
   const lines = content.split('\n');
   // Remove trailing empty line that split adds if content ends with \n
