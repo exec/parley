@@ -1,7 +1,18 @@
+/* @imports must precede every other rule in the stylesheet — Midnight Tokyo
+ * uses Roboto Mono, declared once here so the font is loaded only when the
+ * theme is active (font-family declarations below decide whether to use it). */
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500&display=swap');
+
 /* =====================================================
    THEMES — one [data-theme] block per built-in theme.
    No [data-theme="custom"] block exists by design;
    custom themes are injected via <style id="custom-theme">.
+
+   "Rich" built-ins (Midnight Tokyo) declare frosted glass vars + a body
+   background image directly in their CSS rule, the same shape custom
+   themes produce. This keeps the runtime path identical (one CSS rule
+   per built-in) — no special data structure or extra injection step is
+   needed to promote a future user theme into the built-in set.
    ===================================================== */
 
 [data-theme="rory"] {
@@ -128,6 +139,49 @@
   --parley-sidebar: #f8e0ec; --parley-channel-bg: #fff9fb;
   --parley-input: #fde8f0; --parley-border: #f0c0d8; --parley-border-light: #f8d8e8;
   --accent-rgb: 212, 96, 156; --parley-danger-rgb: 230, 57, 70;
+}
+
+/* Midnight Tokyo — promoted from a published user theme. Cyberpunk skyline
+ * background + frosted glass panels + magenta accent. Body bg image is
+ * scoped to body[data-theme=…] so it doesn't bleed into other themes. */
+[data-theme="midnight-tokyo"] {
+  --sidebar-width: 232px;
+  --bg-primary: #0a0e1a; --bg-secondary: #121826; --bg-tertiary: #1a202e;
+  --bg-hover: rgba(56, 68, 102, 0.2);
+  --text-primary: #e0e0e0; --text-secondary: #a0a0a0; --text-muted: #a0a0a0;
+  --accent: #ff00aa; --accent-hover: #ff40cc; --border: #2a3040;
+  --parley-bg: #0a0e1a; --parley-bg-primary: #0a0e1a;
+  --parley-bg-secondary: #121826; --parley-bg-tertiary: #1a202e;
+  --parley-bg-hover: rgba(56, 68, 102, 0.2); --parley-hover: rgba(56, 68, 102, 0.2);
+  --parley-dark: #05080f; --parley-gray: #384466;
+  --parley-text: #e0e0e0; --parley-text-normal: #e0e0e0;
+  --parley-text-muted: #a0a0a0; --parley-text-dim: #6a6a6a;
+  --parley-text-link: #00ffff;
+  --parley-accent: #ff00aa; --parley-accent-hover: #ff40cc;
+  --parley-blurple: #00ffff; --parley-green: #00ff80;
+  --parley-danger: #ff0000; --parley-danger-hover: #ff4040;
+  --parley-success: #00ff80; --parley-yellow: #ffff00; --parley-red: #ff0000;
+  --parley-sidebar: #0a0e1a; --parley-channel-bg: #121826;
+  --parley-input: #1a202e; --parley-border: #2a3040; --parley-border-light: #384466;
+  --accent-rgb: 255, 0, 170; --parley-danger-rgb: 255, 0, 0;
+  /* Frosted-glass overlay vars — same pattern themeGlass.ts emits for user
+   * themes, applied directly here so backdrop-filter blurs of the bg image
+   * show through panels. */
+  --parley-app-bg: transparent;
+  --parley-panel-bg: rgba(10, 10, 10, 0.6);
+  --parley-panel-blur: 14px;
+  --parley-panel-header-bg: transparent;
+  --parley-panel-footer-bg: rgba(0, 0, 0, 0.7);
+  --parley-chat-bg: rgba(0, 0, 0, 0.78);
+  --parley-input-bg: rgba(10, 10, 10, 0.55);
+  font-family: 'Roboto Mono', monospace;
+}
+
+body[data-theme="midnight-tokyo"] {
+  background-image: url('/themes/midnight-tokyo.jpg');
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
 }
 
 /* Sakura cherry blossom background for chat area */

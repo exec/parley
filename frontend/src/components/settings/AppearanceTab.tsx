@@ -9,6 +9,7 @@ import '../ui/styles.css';
 import './AppearanceTab.css';
 
 const PALETTES: Record<string,[string,string,string,string]> = {
+  'midnight-tokyo': ['#0a0e1a','#121826','#ff00aa','#00ffff'],
   'rory':         ['#000','#0a0a0a','#32CD32','#1a1a1a'],
   'citron-dark':  ['#36393f','#2f3136','#5865f2','#dcddde'],
   'citron-light': ['#fff','#f2f3f5','#5865f2','#2e3338'],
@@ -17,6 +18,7 @@ const PALETTES: Record<string,[string,string,string,string]> = {
   'sakura':       ['#fff9fb','#fde8f0','#d4609c','#3d1a2e'],
 };
 const NAMES: Record<string,string> = {
+  'midnight-tokyo':'Midnight Tokyo',
   'rory':'Rory','citron-dark':'Citron Dark','citron-light':'Citron Light',
   'neon-nights':'Neon Nights','abyss':'Abyss','sakura':'Sakura',
 };

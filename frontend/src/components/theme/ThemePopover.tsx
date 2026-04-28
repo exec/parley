@@ -5,6 +5,7 @@ import { useTheme } from '../../context/ThemeContext';
 import './ThemePopover.css';
 
 const SWATCH: Record<string,string> = {
+  'midnight-tokyo':'linear-gradient(135deg,#0a0e1a 50%,#ff00aa 50%)',
   'rory':'linear-gradient(135deg,#000 50%,#32CD32 50%)',
   'citron-dark':'linear-gradient(135deg,#36393f 50%,#5865f2 50%)',
   'citron-light':'linear-gradient(135deg,#fff 50%,#5865f2 50%)',
@@ -13,6 +14,7 @@ const SWATCH: Record<string,string> = {
   'sakura':'linear-gradient(135deg,#fff9fb 50%,#d4609c 50%)',
 };
 const NAMES: Record<string,string> = {
+  'midnight-tokyo':'Midnight Tokyo',
   'rory':'Rory','citron-dark':'Citron Dark','citron-light':'Citron Light',
   'neon-nights':'Neon Nights','abyss':'Abyss','sakura':'Sakura',
 };

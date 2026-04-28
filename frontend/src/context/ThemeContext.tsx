@@ -5,7 +5,9 @@ import {
   createTheme, updateTheme, deleteTheme,
 } from '../api/themes';
 
-export const BUILTIN_IDS = ['abyss','citron-dark','citron-light','neon-nights','rory','sakura'];
+// Order = display order in the picker. Midnight Tokyo first since it's the
+// new default for new users; the rest follow alphabetically.
+export const BUILTIN_IDS = ['midnight-tokyo','abyss','citron-dark','citron-light','neon-nights','rory','sakura'];
 
 interface ThemeContextValue {
   activeTheme: string;
@@ -28,6 +30,7 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 const THEME_BG_COLORS: Record<string, string> = {
   'abyss': '#0a1628', 'rory': '#000000', 'citron-dark': '#36393f',
   'citron-light': '#ffffff', 'neon-nights': '#0d0221', 'sakura': '#fff9fb',
+  'midnight-tokyo': '#0a0e1a',
 };
 
 function setThemeColor(id: string) {

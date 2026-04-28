@@ -1008,6 +1008,23 @@ ON CONFLICT (username) DO NOTHING;`,
 	// Migration #70: index on user_blocks(blocker_id) to support the
 	// "who has $user blocked?" lookups in the friend service.
 	`CREATE INDEX IF NOT EXISTS idx_user_blocks_blocker ON user_blocks(blocker_id);`,
+
+	// Migration #71: promote "Midnight Tokyo" from a published user theme to a
+	// built-in. The new theme is rendered entirely client-side via a CSS rule
+	// in index.css plus a bundled background asset, but the server allowlist
+	// (the user_preferences.active_theme CHECK constraint) has to learn about
+	// the new ID before it can be saved. Same migration switches the column
+	// DEFAULT from 'rory' to 'midnight-tokyo' so future user_preferences rows
+	// initialize on Midnight Tokyo. Existing rows are intentionally left alone
+	// (per the request: do not retheme users who are already on rory).
+	`ALTER TABLE user_preferences DROP CONSTRAINT IF EXISTS user_preferences_active_theme_check;
+ALTER TABLE user_preferences ADD CONSTRAINT user_preferences_active_theme_check
+  CHECK (active_theme IN (
+    'rory','citron-dark','citron-light',
+    'neon-nights','abyss','sakura',
+    'midnight-tokyo','custom'
+  ));
+ALTER TABLE user_preferences ALTER COLUMN active_theme SET DEFAULT 'midnight-tokyo';`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

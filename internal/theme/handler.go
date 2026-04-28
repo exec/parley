@@ -51,8 +51,9 @@ func userID(r *http.Request) (int64, bool) {
 }
 
 var validBuiltin = map[string]bool{
-	"rory": true, "citron-dark": true, "citron-light": true,
-	"neon-nights": true, "abyss": true, "sakura": true,
+	"midnight-tokyo": true,
+	"rory":           true, "citron-dark": true, "citron-light": true,
+	"neon-nights":    true, "abyss": true, "sakura": true,
 }
 
 func (h *Handler) GetPreferences(w http.ResponseWriter, r *http.Request) {
@@ -66,7 +67,7 @@ func (h *Handler) GetPreferences(w http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, ErrNotFound) {
 		// User predates the themes feature — return sensible defaults
 		render.JSON(w, r, &UserPreferences{
-			ActiveTheme:         "rory",
+			ActiveTheme:         "midnight-tokyo",
 			ActiveCustomThemeID: nil,
 			CustomThemes:        []UserTheme{},
 		})
