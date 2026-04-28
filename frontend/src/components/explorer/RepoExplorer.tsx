@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { CodeBlock } from '../ui/CodeBlock';
 import { languageFromFilename } from '../../lib/shiki';
 import {
-  getRepo, getTree, getBlob, decodeBlobText,
-  type GitProvider, type GitRepo, type GitTreeEntry, type GitBlob,
+  getRepo, getTree, getBlob, getBranches, decodeBlobText,
+  type GitProvider, type GitRepo, type GitTreeEntry, type GitBlob, type GitBranch,
 } from '../../api/git';
 import './RepoExplorer.css';
 
@@ -35,7 +35,6 @@ interface BlobState {
 }
 
 function compareEntries(a: GitTreeEntry, b: GitTreeEntry): number {
-  // Dirs first, then alpha by name (case-insensitive).
   if (a.type === 'dir' && b.type !== 'dir') return -1;
   if (b.type === 'dir' && a.type !== 'dir') return 1;
   return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
@@ -55,8 +54,15 @@ function formatBytes(n: number): string {
 export const RepoExplorer: React.FC<Props> = ({ target, onClose }) => {
   const [meta, setMeta] = useState<GitRepo | null>(null);
   const [metaError, setMetaError] = useState<string | null>(null);
+  const [activeRef, setActiveRef] = useState<string>(target.ref || '');
   const [dir, setDir] = useState<DirState>({ path: '', entries: [], loading: true, error: null });
   const [file, setFile] = useState<BlobState | null>(null);
+
+  // Branch dropdown state
+  const [branchMenuOpen, setBranchMenuOpen] = useState(false);
+  const [branches, setBranches] = useState<GitBranch[] | null>(null);
+  const [branchesLoading, setBranchesLoading] = useState(false);
+  const branchBtnRef = useRef<HTMLButtonElement | null>(null);
 
   // Load repo metadata once.
   useEffect(() => {
@@ -64,12 +70,20 @@ export const RepoExplorer: React.FC<Props> = ({ target, onClose }) => {
     setMetaError(null);
     setMeta(null);
     getRepo(target.provider, target.owner, target.repo)
-      .then(r => { if (!cancelled) setMeta(r); })
+      .then(r => {
+        if (cancelled) return;
+        setMeta(r);
+        // If the caller didn't pin a ref, lock onto the default branch now
+        // so subsequent tree/blob requests get a stable name.
+        if (!target.ref && !activeRef) setActiveRef(r.default_branch);
+      })
       .catch(e => { if (!cancelled) setMetaError((e as Error)?.message || 'failed to load repo'); });
     return () => { cancelled = true; };
-  }, [target.provider, target.owner, target.repo]);
+  // activeRef intentionally NOT in deps — we set it once on first metadata.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target.provider, target.owner, target.repo, target.ref]);
 
-  const ref = target.ref || meta?.default_branch || '';
+  const ref = activeRef || meta?.default_branch || '';
 
   // Load directory listing whenever path or ref changes.
   const loadDir = useCallback((path: string) => {
@@ -118,6 +132,20 @@ export const RepoExplorer: React.FC<Props> = ({ target, onClose }) => {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  // Close branch menu on outside click.
+  useEffect(() => {
+    if (!branchMenuOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as Node;
+      const menu = document.querySelector('.explorer-branch-menu');
+      if (branchBtnRef.current?.contains(t)) return;
+      if (menu && menu.contains(t)) return;
+      setBranchMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [branchMenuOpen]);
+
   const handleEntryClick = (e: GitTreeEntry) => {
     if (e.type === 'dir') {
       loadDir(e.path);
@@ -130,11 +158,31 @@ export const RepoExplorer: React.FC<Props> = ({ target, onClose }) => {
     // submodule / symlink — no in-app browse
   };
 
-  const breadcrumbs = (() => {
+  const openBranchMenu = () => {
+    setBranchMenuOpen(true);
+    if (!branches && !branchesLoading) {
+      setBranchesLoading(true);
+      getBranches(target.provider, target.owner, target.repo)
+        .then(bs => setBranches(bs))
+        .catch(() => setBranches([]))
+        .finally(() => setBranchesLoading(false));
+    }
+  };
+
+  const switchBranch = (name: string) => {
+    setBranchMenuOpen(false);
+    if (name === ref) return;
+    setActiveRef(name);
+    setFile(null);          // viewing file from old ref no longer makes sense
+    // dir reload triggers via the loadDir useCallback dep on `ref`
+  };
+
+  // Breadcrumbs live in the tree pane header now.
+  const treePaneBreadcrumbs = (() => {
     const segments = dir.path === '' ? [] : dir.path.split('/');
     return (
       <div className="explorer-breadcrumbs">
-        <button className="explorer-crumb" onClick={() => loadDir('')}>{target.owner}/{target.repo}</button>
+        <button className="explorer-crumb" onClick={() => loadDir('')}>{target.repo}</button>
         {segments.map((seg, i) => {
           const sub = segments.slice(0, i + 1).join('/');
           return (
@@ -188,13 +236,46 @@ export const RepoExplorer: React.FC<Props> = ({ target, onClose }) => {
 
   return (
     <div className="explorer-root">
-      {/* Header: close + avatar (visual anchor) + ref + external link.
-       * Owner/repo text intentionally omitted — the breadcrumbs render
-       * `owner/repo` as their first crumb so we don't show it twice. */}
       <div className="explorer-header">
         <button className="explorer-close" onClick={onClose} aria-label="Close explorer">←</button>
         {meta?.owner_avatar_url && <img className="explorer-avatar" src={meta.owner_avatar_url} alt="" />}
-        {ref && <span className="explorer-ref">{ref}</span>}
+        <span className="explorer-title-text">{target.owner}/{target.repo}</span>
+        {ref && (
+          <span className="explorer-ref-wrap">
+            <button
+              ref={branchBtnRef}
+              className="explorer-ref-btn"
+              onClick={() => (branchMenuOpen ? setBranchMenuOpen(false) : openBranchMenu())}
+              title="Switch branch"
+              aria-haspopup="listbox"
+              aria-expanded={branchMenuOpen}
+            >
+              <span className="explorer-ref-icon">⎇</span>
+              <span className="explorer-ref-name">{ref}</span>
+              <span className="explorer-ref-caret">▾</span>
+            </button>
+            {branchMenuOpen && (
+              <div className="explorer-branch-menu" role="listbox">
+                {branchesLoading && <div className="explorer-branch-loading">Loading branches…</div>}
+                {!branchesLoading && branches?.length === 0 && (
+                  <div className="explorer-branch-loading">No branches found.</div>
+                )}
+                {!branchesLoading && branches?.map(b => (
+                  <button
+                    key={b.name}
+                    className={`explorer-branch-item${b.name === ref ? ' is-active' : ''}`}
+                    onClick={() => switchBranch(b.name)}
+                    role="option"
+                    aria-selected={b.name === ref}
+                  >
+                    <span className="explorer-branch-name">{b.name}</span>
+                    {b.is_default && <span className="explorer-branch-default">default</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </span>
+        )}
         <span className="explorer-spacer" />
         <a className="explorer-link" href={`https://github.com/${target.owner}/${target.repo}`} target="_blank" rel="noopener noreferrer">
           Open on GitHub ↗
@@ -205,14 +286,14 @@ export const RepoExplorer: React.FC<Props> = ({ target, onClose }) => {
 
       <div className="explorer-body">
         <div className="explorer-main">
-          <div className="explorer-toolbar">{breadcrumbs}</div>
           <div className="explorer-file">{fileContent}</div>
         </div>
 
         <aside className="explorer-tree">
-          {/* Static label — the current path lives in the breadcrumbs (left).
-           * Repeating it here was visually noisy. */}
-          <div className="explorer-tree-header">Files</div>
+          {/* Breadcrumbs scoped to the tree pane (right side): clicking any
+           * segment navigates to that directory. The repo name is the first
+           * crumb so the tree pane has its own "where am I" affordance. */}
+          <div className="explorer-tree-header">{treePaneBreadcrumbs}</div>
           {dir.loading && <div className="explorer-tree-loading">Loading…</div>}
           {dir.error && <div className="explorer-tree-error">{dir.error}</div>}
           {!dir.loading && !dir.error && (

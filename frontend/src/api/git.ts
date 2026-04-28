@@ -45,6 +45,12 @@ export interface GitRelease {
   published_at: string;
 }
 
+export interface GitBranch {
+  name: string;
+  sha: string;
+  is_default: boolean;
+}
+
 export type GitProvider = 'github';
 
 export async function getRepo(provider: GitProvider, owner: string, repo: string): Promise<GitRepo> {
@@ -85,6 +91,15 @@ export async function getReleases(
 ): Promise<GitRelease[]> {
   const q = new URLSearchParams({ owner, repo, limit: String(limit) });
   return apiClient.get<GitRelease[]>(`/git/${provider}/releases?${q.toString()}`);
+}
+
+export async function getBranches(
+  provider: GitProvider,
+  owner: string,
+  repo: string,
+): Promise<GitBranch[]> {
+  const q = new URLSearchParams({ owner, repo }).toString();
+  return apiClient.get<GitBranch[]>(`/git/${provider}/branches?${q}`);
 }
 
 /**

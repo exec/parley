@@ -405,6 +405,55 @@ func (c *Client) GetBlob(ctx context.Context, owner, repo, ref, path string) (*g
 	return blob, nil
 }
 
+type apiBranch struct {
+	Name   string `json:"name"`
+	Commit struct {
+		SHA string `json:"sha"`
+	} `json:"commit"`
+	Protected bool `json:"protected"`
+}
+
+func (c *Client) ListBranches(ctx context.Context, owner, repo string) ([]gitprovider.Branch, error) {
+	if err := gitprovider.ValidateOwnerRepo(owner, repo); err != nil {
+		return nil, err
+	}
+	// Resolve the default branch first so we can flag it. Cheaper than
+	// piggy-backing on /repos because callers usually already have the repo
+	// metadata cached, and ListBranches is paginated separately.
+	repoMeta, err := c.GetRepo(ctx, owner, repo)
+	if err != nil {
+		return nil, err
+	}
+	defaultName := repoMeta.DefaultBranch
+
+	// Page through up to 200 branches (4 pages × 50). Most repos have a
+	// handful of branches; very large ones get truncated rather than blowing
+	// up the cache. Increase if real-world repos exceed this.
+	const perPage = 50
+	const maxPages = 4
+	out := make([]gitprovider.Branch, 0, perPage)
+	for page := 1; page <= maxPages; page++ {
+		q := url.Values{}
+		q.Set("per_page", fmt.Sprintf("%d", perPage))
+		q.Set("page", fmt.Sprintf("%d", page))
+		var arr []apiBranch
+		if err := c.do(ctx, "/repos/"+owner+"/"+repo+"/branches", q, &arr); err != nil {
+			return nil, err
+		}
+		for _, b := range arr {
+			out = append(out, gitprovider.Branch{
+				Name:      b.Name,
+				SHA:       b.Commit.SHA,
+				IsDefault: b.Name == defaultName,
+			})
+		}
+		if len(arr) < perPage {
+			break
+		}
+	}
+	return out, nil
+}
+
 type apiRelease struct {
 	TagName     string    `json:"tag_name"`
 	Name        string    `json:"name"`

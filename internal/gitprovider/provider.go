@@ -51,6 +51,10 @@ type Provider interface {
 	// ListReleases returns up to limit recent releases, newest first. limit<=0
 	// uses an implementation default (currently 5).
 	ListReleases(ctx context.Context, owner, repo string, limit int) ([]Release, error)
+
+	// ListBranches returns every branch on the repo, with the default branch
+	// flagged. Used by the in-app Explorer's branch-switcher dropdown.
+	ListBranches(ctx context.Context, owner, repo string) ([]Branch, error)
 }
 
 // Repo is the metadata payload powering a repo unfurl embed.
@@ -98,6 +102,13 @@ type Release struct {
 	Body        string    `json:"body,omitempty"`
 	HTMLURL     string    `json:"html_url"`
 	PublishedAt time.Time `json:"published_at"`
+}
+
+// Branch is one ref under refs/heads. SHA points at the current head commit.
+type Branch struct {
+	Name      string `json:"name"`
+	SHA       string `json:"sha"`
+	IsDefault bool   `json:"is_default"`
 }
 
 // MaxBlobBytes is the size cap for inline blob content. Files beyond this are

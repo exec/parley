@@ -105,6 +105,10 @@ func ReleasesKey(prov, owner, repo string) string {
 	return fmt.Sprintf("git:%s:releases:%s:%s", prov, owner, repo)
 }
 
+func BranchesKey(prov, owner, repo string) string {
+	return fmt.Sprintf("git:%s:branches:%s:%s", prov, owner, repo)
+}
+
 // GetRepo / SetRepo
 
 func (c *Cache) GetRepo(ctx context.Context, key string) (*Repo, bool, error) {
@@ -206,4 +210,27 @@ func (c *Cache) SetReleases(ctx context.Context, key string, rs []Release) error
 		return err
 	}
 	return c.set(ctx, key, string(b), TTLReleases)
+}
+
+// GetBranches / SetBranches — same TTL as tree, since branch lists move
+// roughly as often as a tree at HEAD.
+
+func (c *Cache) GetBranches(ctx context.Context, key string) ([]Branch, bool, error) {
+	v, ok, err := c.get(ctx, key)
+	if err != nil || !ok || v == notFoundSentinel {
+		return nil, false, err
+	}
+	var bs []Branch
+	if err := json.Unmarshal([]byte(v), &bs); err != nil {
+		return nil, false, err
+	}
+	return bs, true, nil
+}
+
+func (c *Cache) SetBranches(ctx context.Context, key string, bs []Branch) error {
+	raw, err := json.Marshal(bs)
+	if err != nil {
+		return err
+	}
+	return c.set(ctx, key, string(raw), TTLTree)
 }

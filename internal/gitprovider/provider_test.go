@@ -48,6 +48,9 @@ func (f *fakeProvider) GetBlob(ctx context.Context, o, r, ref, p string) (*Blob,
 func (f *fakeProvider) ListReleases(ctx context.Context, o, r string, n int) ([]Release, error) {
 	return nil, nil
 }
+func (f *fakeProvider) ListBranches(ctx context.Context, o, r string) ([]Branch, error) {
+	return nil, nil
+}
 
 func TestRegistry(t *testing.T) {
 	reg := NewRegistry()

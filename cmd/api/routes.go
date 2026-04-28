@@ -333,6 +333,7 @@ func registerRoutes(
 			r.With(auth.RequireScope(auth.ScopeServersRead), userRateLimitMiddleware(gitProviderLimiter)).Get("/git/{provider}/repo", withGitProvider(gitHandler.HandleRepo))
 			r.With(auth.RequireScope(auth.ScopeServersRead), userRateLimitMiddleware(gitProviderLimiter)).Get("/git/{provider}/tree", withGitProvider(gitHandler.HandleTree))
 			r.With(auth.RequireScope(auth.ScopeServersRead), userRateLimitMiddleware(gitProviderLimiter)).Get("/git/{provider}/blob", withGitProvider(gitHandler.HandleBlob))
+			r.With(auth.RequireScope(auth.ScopeServersRead), userRateLimitMiddleware(gitProviderLimiter)).Get("/git/{provider}/branches", withGitProvider(gitHandler.HandleBranches))
 			r.With(auth.RequireScope(auth.ScopeServersRead), userRateLimitMiddleware(gitProviderLimiter)).Get("/git/{provider}/releases", withGitProvider(gitHandler.HandleReleases))
 
 			// Notification service — wired into DM, friend, and message flows.

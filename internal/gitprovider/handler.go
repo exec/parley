@@ -190,6 +190,32 @@ func (h *Handler) HandleBlob(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, got)
 }
 
+// HandleBranches: GET /api/git/{provider}/branches?owner=X&repo=Y
+func (h *Handler) HandleBranches(w http.ResponseWriter, r *http.Request) {
+	p := h.resolveProvider(w, r)
+	if p == nil {
+		return
+	}
+	owner, repo, ok := h.validateOwnerRepo(w, r)
+	if !ok {
+		return
+	}
+	ctx := r.Context()
+	key := BranchesKey(p.Name(), owner, repo)
+
+	if cached, ok, _ := h.cache.GetBranches(ctx, key); ok {
+		writeJSON(w, cached)
+		return
+	}
+	got, err := p.ListBranches(ctx, owner, repo)
+	if err != nil {
+		h.handleProviderErr(w, r, err, key, func() any { return nil })
+		return
+	}
+	_ = h.cache.SetBranches(ctx, key, got)
+	writeJSON(w, got)
+}
+
 // HandleReleases: GET /api/git/{provider}/releases?owner=X&repo=Y&limit=N
 func (h *Handler) HandleReleases(w http.ResponseWriter, r *http.Request) {
 	p := h.resolveProvider(w, r)
