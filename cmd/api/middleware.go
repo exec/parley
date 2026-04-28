@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -295,6 +296,49 @@ func maxBodyMiddleware(maxBytes int64) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// defaultBodyLimit (64 KB) is the global cap for any request that doesn't carry
+// a per-route override. Sized for typical JSON payloads (messages, profile
+// patches, settings); large uploads (file/avatar/soundboard, AI theme
+// generation) carry their own per-route maxBodyMiddleware.
+const defaultBodyLimitBytes = 64 * 1024
+
+// largeBodyPaths lists routes that handle bigger-than-default payloads and so
+// must NOT be wrapped by the global cap. http.MaxBytesReader composes such
+// that the OUTERMOST wrapper wins (its limit fires first when the handler
+// reads the body), so a 64 KB outer cap would defeat a per-route 50 MB cap if
+// applied unconditionally. Skipping these paths lets the per-route
+// maxBodyMiddleware be the only wrapper and remain authoritative.
+//
+// Suffix-matched so it works under any chi mount prefix (we mount under /api,
+// but tests bench routes elsewhere).
+var largeBodyPathSuffixes = []string{
+	"/api/upload",
+	"/api/me/themes/generate",
+	"/soundboard", // server soundboard upload: /api/servers/{id}/soundboard
+}
+
+// globalBodyLimitMiddleware wraps every request body with
+// http.MaxBytesReader(defaultBodyLimitBytes) except for the upload-class
+// routes listed in largeBodyPathSuffixes. Applied as a router-level
+// r.Use(...) so it covers every endpoint without per-route opt-in.
+func globalBodyLimitMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isLargeBodyPath(r.URL.Path) {
+			r.Body = http.MaxBytesReader(w, r.Body, defaultBodyLimitBytes)
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func isLargeBodyPath(path string) bool {
+	for _, suffix := range largeBodyPathSuffixes {
+		if strings.HasSuffix(path, suffix) {
+			return true
+		}
+	}
+	return false
 }
 
 // newRateLimiterFor returns a Redis-backed rate limiter if rdb is non-nil,

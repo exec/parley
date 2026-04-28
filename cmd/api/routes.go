@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -68,17 +67,12 @@ func registerRoutes(
 	auditSvc *audit.AuditService,
 	botCommandsHandler *botcommands.Handler,
 ) {
-	// Cap request bodies at 64 KB for all routes except /api/upload,
-	// which applies its own 50 MB limit inside the handler.
-	router.Use(func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			isSoundboardUpload := r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/soundboard")
-			if r.URL.Path != "/api/upload" && r.URL.Path != "/api/me/themes/generate" && !isSoundboardUpload {
-				r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
-			}
-			next.ServeHTTP(w, r)
-		})
-	})
+	// Global 64 KB body cap. Upload-class routes (file upload, AI theme
+	// generation, soundboard) are exempted by path so their per-route
+	// maxBodyMiddleware(50 MB / 1 MB) remains the sole MaxBytesReader
+	// wrapper — Go's MaxBytesReader composes outermost-wins, so a global
+	// 64 KB cap would otherwise truncate legitimate uploads.
+	router.Use(globalBodyLimitMiddleware)
 
 	// Health check
 	router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -205,7 +199,7 @@ func registerRoutes(
 		aiHandler := theme.NewAIHandler(aiQueue)
 
 		// Server handler — used by both authenticated and public routes
-		serverHandler := server.NewHandler(serverService, auditSvc)
+		serverHandler := server.NewHandler(serverService, auditSvc, cdnHost)
 
 		// Protected routes — require authentication
 		r.Group(func(r chi.Router) {

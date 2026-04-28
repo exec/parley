@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 )
@@ -39,11 +40,15 @@ type emailAddr struct {
 
 // SendVerificationEmail sends an account verification email to the given address.
 func (c *Client) SendVerificationEmail(ctx context.Context, toEmail, toName, token, siteURL string) error {
+	// link components are server-minted (siteURL from config, token from CSPRNG)
+	// but escape anyway as defense-in-depth — the href value lands in HTML so
+	// any future drift toward user influence over either component must not
+	// allow attribute breakout.
 	link := fmt.Sprintf("%s/verify-email?token=%s", siteURL, token)
 	htmlContent := fmt.Sprintf(`<p>Welcome to Parley!</p>
 <p>Click the link below to verify your email address:</p>
 <p><a href="%s">Verify Email</a></p>
-<p>If you didn't create a Parley account, you can safely ignore this email.</p>`, link)
+<p>If you didn't create a Parley account, you can safely ignore this email.</p>`, html.EscapeString(link))
 
 	reqBody := sendEmailRequest{
 		Sender:      emailAddr{Email: c.fromEmail, Name: c.fromName},
@@ -80,12 +85,15 @@ func (c *Client) SendVerificationEmail(ctx context.Context, toEmail, toName, tok
 
 // SendPasswordResetEmail sends a password reset link to the given address.
 func (c *Client) SendPasswordResetEmail(ctx context.Context, toEmail, toName, token, siteURL string) error {
+	// toName is user-controlled (display name / username) and lands in raw
+	// HTML — html.EscapeString prevents tag injection / link spoofing in the
+	// rendered email. link is server-minted, escaped as defense-in-depth.
 	link := fmt.Sprintf("%s/reset-password?token=%s", siteURL, token)
 	htmlContent := fmt.Sprintf(`<p>Hi %s,</p>
 <p>You requested a password reset for your Parley account.</p>
 <p>Click the link below to set a new password (valid for 24 hours):</p>
 <p><a href="%s">Reset Password</a></p>
-<p>If you didn't request this, you can safely ignore this email.</p>`, toName, link)
+<p>If you didn't request this, you can safely ignore this email.</p>`, html.EscapeString(toName), html.EscapeString(link))
 
 	reqBody := sendEmailRequest{
 		Sender:      emailAddr{Email: c.fromEmail, Name: c.fromName},
