@@ -603,7 +603,7 @@ the API server command above).
 ### Run the test suite
 
 ```bash
-JWT_SECRET=test-secret BOT_KEY_SECRET=test-secret go test ./...
+JWT_SECRET=test-secret-at-least-32-bytes-long-1234 BOT_KEY_SECRET=test-secret go test ./...
 ```
 
 ---

@@ -292,7 +292,7 @@ func TestExportHandler_FilenameHeader(t *testing.T) {
 		// auth init guard is tied to package-level config that other
 		// tests in this binary may have triggered. Set a dummy value
 		// so the package's TestMain (if any) is happy.
-		os.Setenv("JWT_SECRET", "test")
+		os.Setenv("JWT_SECRET", "test-secret-at-least-32-bytes-long-1234")
 	}
 
 	// Build a handler whose svc returns a canned envelope. We can't

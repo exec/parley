@@ -1,9 +1,10 @@
 // internal/account/service_test.go
 //
 // NOTE: This package imports internal/auth (via handler.go), which calls
-// log.Fatal at package init if JWT_SECRET is unset. Run tests with:
+// log.Fatal at package init if JWT_SECRET is unset or under 32 bytes. Run
+// tests with:
 //
-//	JWT_SECRET=test go test ./internal/account/...
+//	JWT_SECRET=test-secret-at-least-32-bytes-long-1234 go test ./internal/account/...
 package account
 
 import (

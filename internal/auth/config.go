@@ -34,10 +34,16 @@ func DefaultConfig() *Config {
 	if secretKey == "" {
 		log.Fatal("JWT_SECRET environment variable is not set — refusing to start with an insecure default")
 	}
+	if len(secretKey) < 32 {
+		log.Fatalf("JWT_SECRET must be at least 32 bytes (got %d) — refusing to start with a weak key", len(secretKey))
+	}
 
 	// Optional: api nodes without an admin panel don't need to verify
 	// impersonation tokens at all.
 	impersonationKey := os.Getenv("IMPERSONATION_JWT_SECRET")
+	if impersonationKey != "" && len(impersonationKey) < 32 {
+		log.Fatalf("IMPERSONATION_JWT_SECRET must be at least 32 bytes (got %d) — refusing to start with a weak key", len(impersonationKey))
+	}
 
 	// JWT_EXPIRY accepts any time.ParseDuration string ("720h", "30d" is NOT
 	// supported by stdlib — use hours). Default is 30 days for a user-friendly

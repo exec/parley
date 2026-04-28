@@ -6,8 +6,9 @@ import (
 )
 
 // NOTE: This package imports internal/auth (via handler.go), which calls
-// log.Fatal at package init if JWT_SECRET is unset. Run tests with:
-//   JWT_SECRET=test go test ./internal/bin/...
+// log.Fatal at package init if JWT_SECRET is unset or under 32 bytes. Run
+// tests with:
+//   JWT_SECRET=test-secret-at-least-32-bytes-long-1234 go test ./internal/bin/...
 
 // TestSentinelErrorsAreDistinct verifies that all sentinel errors in the bin
 // package are unique and can be distinguished with errors.Is.
