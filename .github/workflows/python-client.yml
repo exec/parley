@@ -1,0 +1,32 @@
+name: python-client
+
+on:
+  push:
+    paths:
+      - "extras/parley/**"
+      - ".github/workflows/python-client.yml"
+  pull_request:
+    paths:
+      - "extras/parley/**"
+      - ".github/workflows/python-client.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install package + test deps
+        working-directory: extras/parley
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test]"
+      - name: Run smoke tests
+        working-directory: extras/parley
+        run: pytest -v

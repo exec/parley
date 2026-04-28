@@ -57,7 +57,7 @@ Cog example::
 from __future__ import annotations
 
 # -- Version -----------------------------------------------------------------
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __author__ = "Parley Contributors"
 
 # -- Client classes ----------------------------------------------------------

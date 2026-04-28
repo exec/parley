@@ -1,0 +1,83 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "parley"
+dynamic = ["version"]
+description = "Async Python library for the Parley chat platform"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Parley Contributors" }]
+dependencies = [
+    "httpx>=0.27",
+    "websockets>=12",
+]
+keywords = ["parley", "chat", "discord", "bot", "async"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: AsyncIO",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+]
+
+[project.urls]
+Homepage = "https://github.com/exec/parley"
+Repository = "https://github.com/exec/parley"
+
+[tool.hatch.version]
+path = "__init__.py"
+
+# This directory IS the `parley` package (its __init__.py lives here).
+# For wheel builds, map every source file into a `parley/` namespace so
+# `import parley` resolves correctly after install. For editable installs
+# (PEP 660), point the .pth at the parent directory (`extras/`) so Python
+# discovers `extras/parley/` as the `parley` package directly.
+[tool.hatch.build.targets.wheel]
+only-include = [
+    "__init__.py",
+    "client.py",
+    "enums.py",
+    "errors.py",
+    "gateway.py",
+    "http.py",
+    "slash.py",
+    "state.py",
+    "utils.py",
+    "ext",
+    "models",
+]
+sources = { "" = "parley" }
+dev-mode-dirs = [".."]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/__init__.py",
+    "/client.py",
+    "/enums.py",
+    "/errors.py",
+    "/gateway.py",
+    "/http.py",
+    "/slash.py",
+    "/state.py",
+    "/utils.py",
+    "/ext",
+    "/models",
+    "/tests",
+    "/CHANGELOG.md",
+    "/pyproject.toml",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
