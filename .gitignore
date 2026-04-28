@@ -59,7 +59,9 @@ bench/parley-bench
 /terraform.tfstate
 docs/node_modules/
 docs/.vitepress/dist/
-extras/parley/__pycache__/
+extras/parley/**/__pycache__/
+extras/parley/**/*.pyc
+extras/parley/**/*.egg-info/
 
 # Claude Code session lock file
 .claude/scheduled_tasks.lock
