@@ -404,11 +404,11 @@ func TestBanMember_Validation(t *testing.T) {
 func TestGetMembers_Validation(t *testing.T) {
 	svc := NewServerService(nil, nil)
 
-	_, err := svc.GetMembers(context.Background(), "")
+	_, err := svc.GetMembers(context.Background(), "", 0)
 	if err == nil || err.Error() != "server ID is required" {
 		t.Errorf("got %v, want 'server ID is required'", err)
 	}
-	_, err = svc.GetMembers(context.Background(), "abc")
+	_, err = svc.GetMembers(context.Background(), "abc", 0)
 	if err == nil || err.Error() != "invalid server ID format" {
 		t.Errorf("got %v, want 'invalid server ID format'", err)
 	}
@@ -689,7 +689,7 @@ func TestGetServerInvites_InvalidID(t *testing.T) {
 
 func TestGetMembersWithRoles_InvalidID(t *testing.T) {
 	svc := NewServerService(nil, nil)
-	_, err := svc.GetMembersWithRoles(context.Background(), "abc")
+	_, err := svc.GetMembersWithRoles(context.Background(), "abc", 0)
 	if err == nil || err.Error() != "invalid server ID" {
 		t.Errorf("got %v, want 'invalid server ID'", err)
 	}

@@ -250,7 +250,11 @@ func (s *ServerService) UnbanMember(ctx context.Context, serverID, userID string
 	return nil
 }
 
-func (s *ServerService) GetMembers(ctx context.Context, serverID string) ([]*ServerMember, error) {
+// GetMembers returns the member roster as seen by viewerID. Block-filtering
+// is applied at the repo layer — see Repository.GetServerMembers. Passing
+// viewerID = 0 returns the unfiltered list and must only be used by trusted
+// internal callers (no such caller currently exists).
+func (s *ServerService) GetMembers(ctx context.Context, serverID string, viewerID int64) ([]*ServerMember, error) {
 	if serverID == "" {
 		return nil, errors.New("server ID is required")
 	}
@@ -260,7 +264,7 @@ func (s *ServerService) GetMembers(ctx context.Context, serverID string) ([]*Ser
 		return nil, errors.New("invalid server ID format")
 	}
 
-	members, err := s.repo.GetServerMembers(ctx, serverIDInt)
+	members, err := s.repo.GetServerMembers(ctx, serverIDInt, viewerID)
 	if err != nil {
 		return nil, err
 	}
@@ -287,12 +291,14 @@ func (s *ServerService) GetMembers(ctx context.Context, serverID string) ([]*Ser
 	return result, nil
 }
 
-func (s *ServerService) GetMembersWithRoles(ctx context.Context, serverID string) ([]*ServerMember, error) {
+// GetMembersWithRoles is the role-aware variant of GetMembers. Same
+// block-filter contract — see GetMembers.
+func (s *ServerService) GetMembersWithRoles(ctx context.Context, serverID string, viewerID int64) ([]*ServerMember, error) {
 	id, err := idToInt64(serverID)
 	if err != nil {
 		return nil, errors.New("invalid server ID")
 	}
-	dbMembers, err := s.repo.GetServerMembersWithRoles(ctx, id)
+	dbMembers, err := s.repo.GetServerMembersWithRoles(ctx, id, viewerID)
 	if err != nil {
 		return nil, err
 	}

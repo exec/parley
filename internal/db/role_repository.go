@@ -183,7 +183,10 @@ func (r *Repository) GetHighestRolePosition(ctx context.Context, serverID, userI
 	return pos, err
 }
 
-func (r *Repository) GetServerMembersWithRoles(ctx context.Context, serverID int64) ([]*ServerMember, error) {
+// GetServerMembersWithRoles is the jsonb_agg variant of GetServerMembers.
+// It applies the same bidirectional block filter (see GetServerMembers).
+// The viewer's own row is never filtered, so the requester always sees themselves.
+func (r *Repository) GetServerMembersWithRoles(ctx context.Context, serverID, viewerID int64) ([]*ServerMember, error) {
 	query := `
 		SELECT sm.id, sm.server_id, sm.user_id, sm.nickname, sm.joined_at,
 		       u.username, COALESCE(u.display_name, ''), COALESCE(u.avatar_url, ''),
@@ -212,10 +215,15 @@ func (r *Repository) GetServerMembersWithRoles(ctx context.Context, serverID int
 		JOIN users u ON u.id = sm.user_id
 		LEFT JOIN server_bots sb ON sb.server_id = sm.server_id AND sb.bot_user_id = sm.user_id
 		WHERE sm.server_id = $1
+		  AND (u.id = $2 OR NOT EXISTS (
+		      SELECT 1 FROM user_blocks ub
+		       WHERE (ub.blocker_id = $2 AND ub.blocked_id = u.id)
+		          OR (ub.blocker_id = u.id AND ub.blocked_id = $2)
+		  ))
 		ORDER BY sm.joined_at
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, serverID)
+	rows, err := r.db.QueryContext(ctx, query, serverID, viewerID)
 	if err != nil {
 		return nil, err
 	}

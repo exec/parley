@@ -700,11 +700,21 @@ func (r *Repository) UpdateUserFields(ctx context.Context, userID int64, usernam
 	return err
 }
 
+// SearchUsers returns up to 20 users whose username starts with `query`,
+// excluding the viewer themselves (excludeUserID) and any user with a
+// bidirectional block relationship to the viewer. A blocker should not be
+// able to keep the blocked user out of their own search results either —
+// we filter both directions.
 func (r *Repository) SearchUsers(ctx context.Context, query string, excludeUserID int64) ([]PublicUser, error) {
 	sqlQuery := `
 		SELECT id, username, COALESCE(avatar_url, ''), created_at
 		FROM users
 		WHERE username ILIKE $1 ESCAPE '\' AND id != $2
+		  AND NOT EXISTS (
+		      SELECT 1 FROM user_blocks ub
+		       WHERE (ub.blocker_id = $2 AND ub.blocked_id = users.id)
+		          OR (ub.blocker_id = users.id AND ub.blocked_id = $2)
+		  )
 		ORDER BY username
 		LIMIT 20
 	`

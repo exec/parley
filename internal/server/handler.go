@@ -391,7 +391,7 @@ func (h *Handler) GetMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	members, err := h.service.GetMembersWithRoles(r.Context(), serverID)
+	members, err := h.service.GetMembersWithRoles(r.Context(), serverID, uIDInt)
 	if err != nil {
 		httputil.InternalError(w, err)
 		return
@@ -1060,7 +1060,10 @@ func (h *Handler) GetMembersWithRoles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	members, err := h.service.GetMembersWithRoles(r.Context(), serverID)
+	userID := auth.GetUserIDFromContext(r)
+	uIDInt, _ := idToInt64(userID)
+
+	members, err := h.service.GetMembersWithRoles(r.Context(), serverID, uIDInt)
 	if err != nil {
 		httputil.InternalError(w, err)
 		return

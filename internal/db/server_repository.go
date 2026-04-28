@@ -251,7 +251,12 @@ func (r *Repository) GetMember(ctx context.Context, serverID, userID int64) (*Se
 	return &member, nil
 }
 
-func (r *Repository) GetServerMembers(ctx context.Context, serverID int64) ([]*ServerMember, error) {
+// GetServerMembers returns the member roster, hiding any user with a
+// bidirectional block relationship to viewerID — both directions, so a
+// blocked user cannot peek at a blocker's roster row (status text leaks
+// otherwise) and a blocker doesn't see the blocked user's row either.
+// viewerID is always included in the result if they are a member.
+func (r *Repository) GetServerMembers(ctx context.Context, serverID, viewerID int64) ([]*ServerMember, error) {
 	query := `
 		SELECT sm.id, sm.server_id, sm.user_id, sm.nickname, sm.joined_at,
 		       u.username, COALESCE(u.display_name, ''), COALESCE(u.avatar_url, ''),
@@ -262,10 +267,15 @@ func (r *Repository) GetServerMembers(ctx context.Context, serverID int64) ([]*S
 		JOIN users u ON u.id = sm.user_id
 		LEFT JOIN server_bots sb ON sb.server_id = sm.server_id AND sb.bot_user_id = sm.user_id
 		WHERE sm.server_id = $1
+		  AND (u.id = $2 OR NOT EXISTS (
+		      SELECT 1 FROM user_blocks ub
+		       WHERE (ub.blocker_id = $2 AND ub.blocked_id = u.id)
+		          OR (ub.blocker_id = u.id AND ub.blocked_id = $2)
+		  ))
 		ORDER BY sm.joined_at
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, serverID)
+	rows, err := r.db.QueryContext(ctx, query, serverID, viewerID)
 	if err != nil {
 		return nil, err
 	}

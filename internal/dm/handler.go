@@ -193,6 +193,16 @@ func (h *Handler) GetDmMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Membership is re-checked per request — once a user is kicked from a
+	// group DM their dm_channel_members row is deleted and IsMember returns
+	// false, blocking any further history fetch (including by-cursor pagination
+	// from a cached message ID).
+	//
+	// TODO(privacy): bound history by joined_at..removed_at on
+	// dm_channel_members so re-added members can't see messages from the
+	// window when they weren't a member. Requires adding a removed_at column
+	// (currently dm_channel_members has no soft-delete) and updating
+	// AddMembers/RemoveDmMember to manage it.
 	isMember, err := h.svc.IsMember(r.Context(), dmChannelID, userID)
 	if err != nil || !isMember {
 		httputil.JSONError(w, "not authorized to view this DM channel", http.StatusForbidden)
