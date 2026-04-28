@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 )
 
 // permDefaultEveryone mirrors permissions.PermDefaultEveryone.
@@ -183,43 +184,77 @@ func (r *Repository) GetHighestRolePosition(ctx context.Context, serverID, userI
 }
 
 func (r *Repository) GetServerMembersWithRoles(ctx context.Context, serverID int64) ([]*ServerMember, error) {
-	members, err := r.GetServerMembers(ctx, serverID)
+	query := `
+		SELECT sm.id, sm.server_id, sm.user_id, sm.nickname, sm.joined_at,
+		       u.username, COALESCE(u.display_name, ''), COALESCE(u.avatar_url, ''),
+		       COALESCE(u.banner_url, ''), COALESCE(u.bio, ''), u.badges,
+		       u.is_bot, COALESCE(sb.is_degraded, FALSE),
+		       COALESCE(u.status_type, 'online'), COALESCE(u.status_text, ''),
+		       COALESCE((
+		           SELECT jsonb_agg(
+		               jsonb_build_object(
+		                   'id', sr.id,
+		                   'server_id', sr.server_id,
+		                   'name', sr.name,
+		                   'color', sr.color,
+		                   'permissions', sr.permissions,
+		                   'hoist', sr.hoist,
+		                   'position', sr.position,
+		                   'is_everyone', sr.is_everyone,
+		                   'created_at', sr.created_at
+		               ) ORDER BY sr.position ASC, sr.created_at ASC
+		           )
+		           FROM server_member_roles smr
+		           JOIN server_roles sr ON sr.id = smr.role_id
+		           WHERE smr.server_id = sm.server_id AND smr.user_id = sm.user_id
+		       ), '[]'::jsonb)
+		FROM server_members sm
+		JOIN users u ON u.id = sm.user_id
+		LEFT JOIN server_bots sb ON sb.server_id = sm.server_id AND sb.bot_user_id = sm.user_id
+		WHERE sm.server_id = $1
+		ORDER BY sm.joined_at
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, serverID)
 	if err != nil {
 		return nil, err
 	}
-	if len(members) == 0 {
-		return members, nil
-	}
-
-	rows, err := r.db.QueryContext(ctx,
-		`SELECT smr.user_id, sr.id, sr.server_id, sr.name, sr.color, sr.permissions, sr.hoist, sr.position, sr.is_everyone, sr.created_at
-         FROM server_member_roles smr
-         JOIN server_roles sr ON sr.id = smr.role_id
-         WHERE smr.server_id = $1
-         ORDER BY sr.position ASC, sr.created_at ASC`,
-		serverID)
-	if err != nil {
-		return members, nil // non-fatal: return members without roles
-	}
 	defer rows.Close()
 
-	rolesByUser := make(map[int64][]ServerRole)
+	var members []*ServerMember
 	for rows.Next() {
-		var userID int64
-		var role ServerRole
-		if err := rows.Scan(&userID, &role.ID, &role.ServerID, &role.Name, &role.Color, &role.Permissions, &role.Hoist, &role.Position, &role.IsEveryone, &role.CreatedAt); err != nil {
-			continue
+		var member ServerMember
+		var rolesJSON []byte
+		if err := rows.Scan(
+			&member.ID,
+			&member.ServerID,
+			&member.UserID,
+			&member.Nickname,
+			&member.JoinedAt,
+			&member.Username,
+			&member.DisplayName,
+			&member.AvatarURL,
+			&member.BannerURL,
+			&member.Bio,
+			&member.Badges,
+			&member.IsBot,
+			&member.BotDegraded,
+			&member.StatusType,
+			&member.StatusText,
+			&rolesJSON,
+		); err != nil {
+			return nil, err
 		}
-		rolesByUser[userID] = append(rolesByUser[userID], role)
-	}
-
-	for i := range members {
-		if roles, ok := rolesByUser[members[i].UserID]; ok {
-			members[i].Roles = roles
-		} else {
-			members[i].Roles = []ServerRole{}
+		member.Roles = []ServerRole{}
+		if len(rolesJSON) > 0 {
+			if err := json.Unmarshal(rolesJSON, &member.Roles); err != nil {
+				return nil, err
+			}
 		}
+		members = append(members, &member)
 	}
-
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return members, nil
 }
