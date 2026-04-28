@@ -201,7 +201,7 @@ func (r *Repository) GetServerMembersWithRoles(ctx context.Context, serverID int
 		                   'hoist', sr.hoist,
 		                   'position', sr.position,
 		                   'is_everyone', sr.is_everyone,
-		                   'created_at', sr.created_at
+		                   'created_at', (sr.created_at AT TIME ZONE 'UTC')
 		               ) ORDER BY sr.position ASC, sr.created_at ASC
 		           )
 		           FROM server_member_roles smr
