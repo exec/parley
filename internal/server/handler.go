@@ -15,17 +15,20 @@ import (
 	"parley/internal/db"
 	"parley/internal/httputil"
 	"parley/internal/permissions"
+	"parley/internal/validation"
 )
 
 // Handler handles HTTP requests for server operations
 type Handler struct {
 	service  *ServerService
 	auditSvc *audit.AuditService
+	cdnHost  string
 }
 
-// NewHandler creates a new server handler
-func NewHandler(service *ServerService, auditSvc *audit.AuditService) *Handler {
-	return &Handler{service: service, auditSvc: auditSvc}
+// NewHandler creates a new server handler. cdnHost is used to validate
+// icon_url payloads on create/update — see validation.MediaURL.
+func NewHandler(service *ServerService, auditSvc *audit.AuditService, cdnHost string) *Handler {
+	return &Handler{service: service, auditSvc: auditSvc, cdnHost: cdnHost}
 }
 
 // Request/Response types
@@ -59,6 +62,11 @@ func (h *Handler) CreateServer(w http.ResponseWriter, r *http.Request) {
 
 	if req.Name == "" {
 		httputil.JSONError(w, "server name is required", http.StatusBadRequest)
+		return
+	}
+
+	if err := validation.MediaURL(req.IconURL, h.cdnHost); err != nil {
+		httputil.JSONError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -161,6 +169,11 @@ func (h *Handler) UpdateServer(w http.ResponseWriter, r *http.Request) {
 
 	if req.Name == "" {
 		httputil.JSONError(w, "server name is required", http.StatusBadRequest)
+		return
+	}
+
+	if err := validation.MediaURL(req.IconURL, h.cdnHost); err != nil {
+		httputil.JSONError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 

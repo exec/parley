@@ -4,15 +4,13 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strconv"
-	"strings"
 
 	"parley/internal/auth"
 	"parley/internal/db"
+	"parley/internal/validation"
 )
 
 // ============ Request / response types ============
@@ -85,20 +83,7 @@ func generateID() string {
 // validateMediaURL ensures a URL is either empty or points to the CDN host.
 // This prevents SSRF via arbitrary avatar/banner URLs.
 func validateMediaURL(rawURL, cdnHost string) error {
-	if rawURL == "" {
-		return nil
-	}
-	u, err := url.Parse(rawURL)
-	if err != nil {
-		return errors.New("invalid URL")
-	}
-	if u.Scheme != "https" {
-		return errors.New("media URLs must use https")
-	}
-	if cdnHost != "" && !strings.EqualFold(u.Host, cdnHost) {
-		return errors.New("media URLs must be hosted on the CDN")
-	}
-	return nil
+	return validation.MediaURL(rawURL, cdnHost)
 }
 
 // allowedFileExt inspects the magic bytes of data and returns the file extension

@@ -63,7 +63,10 @@ var (
 	ErrChannelNotFound = errors.New("channel not found")
 )
 
-const maxChannelNameLen = 100
+const (
+	maxChannelNameLen  = 100
+	maxChannelTopicLen = 500
+)
 
 // CreateChannel creates a new channel. userID must be the server owner or have MANAGE_CHANNELS.
 func (s *ChannelService) CreateChannel(ctx context.Context, serverID, name string, channelType int, parentID *string, topic string, userID string) (*Channel, error) {
@@ -72,6 +75,9 @@ func (s *ChannelService) CreateChannel(ctx context.Context, serverID, name strin
 	}
 	if len(name) > maxChannelNameLen {
 		return nil, errors.New("channel name must be 100 characters or fewer")
+	}
+	if len(topic) > maxChannelTopicLen {
+		return nil, errors.New("channel topic must be 500 characters or fewer")
 	}
 
 	serverIDInt, err := strconv.ParseInt(serverID, 10, 64)
@@ -237,6 +243,9 @@ func (s *ChannelService) UpdateChannel(ctx context.Context, id, name, topic, use
 	}
 	if len(name) > maxChannelNameLen {
 		return nil, errors.New("channel name must be 100 characters or fewer")
+	}
+	if len(topic) > maxChannelTopicLen {
+		return nil, errors.New("channel topic must be 500 characters or fewer")
 	}
 
 	idInt, err := strconv.ParseInt(id, 10, 64)
