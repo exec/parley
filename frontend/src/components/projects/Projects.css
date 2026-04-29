@@ -3,8 +3,8 @@
   flex-direction: column;
   height: 100%;
   width: 100%;
-  background: var(--parley-channel-bg, var(--parley-bg-secondary, #36393f));
-  color: var(--parley-text, #fff);
+  background: var(--parley-bg-secondary);
+  color: var(--parley-text);
   overflow: hidden;
 }
 
@@ -13,9 +13,9 @@
   align-items: center;
   gap: 12px;
   padding: 14px 18px;
-  border-bottom: 1px solid var(--parley-border, rgba(255, 255, 255, 0.08));
+  border-bottom: 1px solid var(--parley-border);
   background: var(--parley-panel-bg, transparent);
-  backdrop-filter: var(--parley-panel-blur, none);
+  backdrop-filter: blur(var(--parley-panel-blur, 0));
 }
 
 .projects-header h1 {
@@ -23,12 +23,13 @@
   margin: 0;
   font-size: 18px;
   font-weight: 600;
+  color: var(--parley-text);
 }
 
 .projects-back-btn {
   background: none;
   border: none;
-  color: var(--parley-text-muted, #b9bbbe);
+  color: var(--parley-text-muted);
   cursor: pointer;
   padding: 6px 8px;
   border-radius: 4px;
@@ -37,15 +38,15 @@
   gap: 6px;
 }
 .projects-back-btn:hover {
-  background: var(--parley-hover, rgba(255, 255, 255, 0.06));
-  color: var(--parley-text, #fff);
+  background: var(--parley-bg-hover);
+  color: var(--parley-text);
 }
 
 .projects-create-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: var(--parley-accent, #5865f2);
+  background: var(--parley-accent);
   color: #fff;
   border: none;
   border-radius: 4px;
@@ -53,7 +54,7 @@
   font-weight: 500;
   cursor: pointer;
 }
-.projects-create-btn:hover { filter: brightness(1.1); }
+.projects-create-btn:hover { background: var(--parley-accent-hover); }
 .projects-create-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .projects-body {
@@ -65,12 +66,12 @@
 .projects-empty {
   text-align: center;
   padding: 60px 20px;
-  color: var(--parley-text-muted, #b9bbbe);
+  color: var(--parley-text-muted);
 }
 .projects-empty h2 {
   font-size: 18px;
   font-weight: 600;
-  color: var(--parley-text, #fff);
+  color: var(--parley-text);
   margin-bottom: 8px;
 }
 .projects-empty p { margin-bottom: 18px; }
@@ -82,40 +83,43 @@
 }
 
 .project-card {
-  background: var(--parley-card-bg, rgba(255, 255, 255, 0.04));
-  border: 1px solid var(--parley-border, rgba(255, 255, 255, 0.08));
+  background: var(--parley-bg-tertiary);
+  border: 1px solid var(--parley-border);
   border-radius: 8px;
   padding: 14px;
   cursor: pointer;
   transition: background 120ms ease, border-color 120ms ease;
 }
 .project-card:hover {
-  background: var(--parley-card-hover, rgba(255, 255, 255, 0.06));
-  border-color: var(--parley-border-strong, rgba(255, 255, 255, 0.16));
+  background: var(--parley-bg-hover);
+  border-color: var(--parley-border-light);
 }
 
 .project-card-title {
   font-weight: 600;
   margin-bottom: 4px;
   word-break: break-word;
+  color: var(--parley-text);
 }
 
 .project-card-meta {
   font-size: 12px;
-  color: var(--parley-text-muted, #b9bbbe);
+  color: var(--parley-text-muted);
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  align-items: center;
 }
 .project-card-meta-pill {
-  background: var(--parley-pill-bg, rgba(255, 255, 255, 0.06));
+  background: var(--parley-input);
+  color: var(--parley-text);
   padding: 2px 8px;
   border-radius: 10px;
 }
 
 .project-card-desc {
   font-size: 13px;
-  color: var(--parley-text-muted, #dcddde);
+  color: var(--parley-text-muted);
   margin-top: 8px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -134,17 +138,27 @@
 
 .project-view-meta {
   padding: 14px 18px;
-  border-bottom: 1px solid var(--parley-border, rgba(255, 255, 255, 0.08));
+  border-bottom: 1px solid var(--parley-border);
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+.project-view-meta h1 {
+  margin: 0;
+  font-size: 20px;
+  color: var(--parley-text);
+}
+.project-view-meta-desc {
+  color: var(--parley-text-muted);
+  font-size: 14px;
 }
 .project-view-meta-row {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   font-size: 13px;
-  color: var(--parley-text-muted, #b9bbbe);
+  color: var(--parley-text-muted);
+  align-items: center;
 }
 
 .project-view-section {
@@ -156,40 +170,56 @@
 .project-view-section h3 {
   font-size: 13px;
   font-weight: 600;
-  color: var(--parley-text-muted, #b9bbbe);
+  color: var(--parley-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
+.project-view-section h3 .section-action {
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--parley-text-link);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+.project-view-section h3 .section-action:hover { text-decoration: underline; }
 
 .claude-md-display {
-  background: var(--parley-code-bg, rgba(0, 0, 0, 0.18));
+  background: var(--parley-bg-tertiary);
+  border: 1px solid var(--parley-border);
   border-radius: 6px;
   padding: 14px;
   white-space: pre-wrap;
-  font-family: var(--parley-mono, ui-monospace, "SF Mono", monospace);
+  font-family: 'Roboto Mono', ui-monospace, "SF Mono", monospace;
   font-size: 13px;
   line-height: 1.55;
-  color: var(--parley-text, #fff);
+  color: var(--parley-text);
   overflow-x: auto;
 }
 
 .claude-md-textarea {
   width: 100%;
   min-height: 320px;
-  background: var(--parley-input-bg, rgba(0, 0, 0, 0.2));
-  border: 1px solid var(--parley-border, rgba(255, 255, 255, 0.1));
+  background: var(--parley-input);
+  border: 1px solid var(--parley-border);
   border-radius: 6px;
   padding: 12px;
-  font-family: var(--parley-mono, ui-monospace, "SF Mono", monospace);
+  font-family: 'Roboto Mono', ui-monospace, "SF Mono", monospace;
   font-size: 13px;
   line-height: 1.55;
-  color: var(--parley-text, #fff);
+  color: var(--parley-text);
   resize: vertical;
 }
 .claude-md-textarea:focus {
   outline: none;
-  border-color: var(--parley-accent, #5865f2);
+  border-color: var(--parley-accent);
 }
 
 .project-view-actions {
@@ -199,29 +229,106 @@
   flex-wrap: wrap;
 }
 .project-view-actions button {
-  background: var(--parley-button-bg, rgba(255, 255, 255, 0.08));
-  border: 1px solid var(--parley-border, rgba(255, 255, 255, 0.1));
-  color: var(--parley-text, #fff);
+  background: var(--parley-bg-tertiary);
+  border: 1px solid var(--parley-border);
+  color: var(--parley-text);
   padding: 6px 14px;
   border-radius: 4px;
   cursor: pointer;
   font-size: 13px;
 }
 .project-view-actions button:hover {
-  background: var(--parley-hover, rgba(255, 255, 255, 0.14));
+  background: var(--parley-bg-hover);
 }
 .project-view-actions button.primary {
-  background: var(--parley-accent, #5865f2);
-  border-color: var(--parley-accent, #5865f2);
+  background: var(--parley-accent);
+  border-color: var(--parley-accent);
+  color: #fff;
 }
-.project-view-actions button.primary:hover { filter: brightness(1.1); }
+.project-view-actions button.primary:hover { background: var(--parley-accent-hover); }
 .project-view-actions button.danger {
-  color: var(--parley-danger, #ed4245);
-  border-color: var(--parley-danger, #ed4245);
+  color: var(--parley-danger);
+  border-color: var(--parley-danger);
   background: transparent;
 }
 .project-view-actions button.danger:hover {
-  background: rgba(237, 66, 69, 0.12);
+  background: var(--parley-danger);
+  color: #fff;
+}
+
+/* ---- Repo card inside ProjectView ---- */
+
+.project-repo-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--parley-bg-tertiary);
+  border: 1px solid var(--parley-border);
+  border-radius: 6px;
+  font-size: 14px;
+  color: var(--parley-text);
+}
+.project-repo-row a {
+  color: var(--parley-text-link);
+  text-decoration: none;
+}
+.project-repo-row a:hover { text-decoration: underline; }
+.project-repo-row .project-repo-remove {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--parley-text-muted);
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+.project-repo-row .project-repo-remove:hover { color: var(--parley-danger); }
+
+.project-repo-empty {
+  color: var(--parley-text-muted);
+  font-size: 13px;
+  padding: 8px 0;
+}
+
+/* ---- Version history drawer ---- */
+
+.version-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.version-history-item {
+  background: var(--parley-bg-tertiary);
+  border: 1px solid var(--parley-border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.version-history-item:hover { background: var(--parley-bg-hover); }
+.version-history-item-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--parley-text-muted);
+}
+.version-history-item-head .version-tag {
+  font-weight: 600;
+  color: var(--parley-text);
+}
+.version-history-content {
+  margin-top: 8px;
+  white-space: pre-wrap;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--parley-text);
+  background: var(--parley-input);
+  padding: 10px;
+  border-radius: 4px;
+  max-height: 320px;
+  overflow-y: auto;
 }
 
 /* ---- Wizard modal ---- */
@@ -237,18 +344,18 @@
   gap: 6px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--parley-text-muted, #b9bbbe);
+  color: var(--parley-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 .wizard-form input,
 .wizard-form select,
 .wizard-form textarea {
-  background: var(--parley-input-bg, rgba(0, 0, 0, 0.2));
-  border: 1px solid var(--parley-border, rgba(255, 255, 255, 0.1));
+  background: var(--parley-input);
+  border: 1px solid var(--parley-border);
   border-radius: 4px;
   padding: 8px 10px;
-  color: var(--parley-text, #fff);
+  color: var(--parley-text);
   font-family: inherit;
   font-size: 14px;
   text-transform: none;
@@ -256,7 +363,7 @@
   font-weight: normal;
 }
 .wizard-form textarea {
-  font-family: var(--parley-mono, ui-monospace, "SF Mono", monospace);
+  font-family: 'Roboto Mono', ui-monospace, "SF Mono", monospace;
   min-height: 180px;
   resize: vertical;
 }
@@ -264,7 +371,7 @@
 .wizard-form select:focus,
 .wizard-form textarea:focus {
   outline: none;
-  border-color: var(--parley-accent, #5865f2);
+  border-color: var(--parley-accent);
 }
 
 .wizard-actions {
@@ -280,29 +387,43 @@
   cursor: pointer;
 }
 .wizard-actions button.primary {
-  background: var(--parley-accent, #5865f2);
+  background: var(--parley-accent);
   color: #fff;
   border: none;
 }
-.wizard-actions button.primary:hover { filter: brightness(1.1); }
+.wizard-actions button.primary:hover { background: var(--parley-accent-hover); }
 .wizard-actions button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
 .wizard-actions button.secondary {
   background: transparent;
-  color: var(--parley-text, #fff);
-  border: 1px solid var(--parley-border, rgba(255, 255, 255, 0.1));
+  color: var(--parley-text);
+  border: 1px solid var(--parley-border);
 }
 .wizard-actions button.secondary:hover {
-  background: var(--parley-hover, rgba(255, 255, 255, 0.06));
+  background: var(--parley-bg-hover);
 }
 
 .wizard-error {
-  background: rgba(237, 66, 69, 0.12);
-  border: 1px solid rgba(237, 66, 69, 0.4);
-  color: #f8a4a6;
+  background: color-mix(in srgb, var(--parley-danger) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--parley-danger) 40%, transparent);
+  color: var(--parley-danger);
   border-radius: 4px;
   padding: 8px 10px;
   font-size: 13px;
 }
+
+.wizard-info {
+  font-size: 12px;
+  color: var(--parley-text-muted);
+}
+
+.wizard-repo-status {
+  font-size: 12px;
+  color: var(--parley-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.wizard-repo-status.ok { color: var(--parley-text-link); }
 
 /* ---- Sidebar Projects entry ---- */
 
@@ -313,16 +434,16 @@
   padding: 6px 10px;
   margin: 2px 8px;
   border-radius: 4px;
-  color: var(--parley-text-muted, #b9bbbe);
+  color: var(--parley-text-muted);
   cursor: pointer;
   font-size: 14px;
   user-select: none;
 }
 .projects-sidebar-entry:hover {
-  background: var(--parley-hover, rgba(255, 255, 255, 0.06));
-  color: var(--parley-text, #fff);
+  background: var(--parley-bg-hover);
+  color: var(--parley-text);
 }
 .projects-sidebar-entry.active {
-  background: var(--parley-active, rgba(255, 255, 255, 0.1));
-  color: var(--parley-text, #fff);
+  background: var(--parley-bg-hover);
+  color: var(--parley-text);
 }

@@ -1,9 +1,22 @@
 import React, { useEffect, useState } from 'react';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Check, AlertCircle, Loader2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { createProject, listPresets, synthesizeClaudeMD } from '../../api/projects';
-import type { Project, ProjectPreset, ProjectSkillLevel } from '../../api/types';
+import { getRepo } from '../../api/git';
+import type { Project, ProjectPreset, ProjectRepo, ProjectSkillLevel } from '../../api/types';
 import './Projects.css';
+
+// Accepts "https://github.com/owner/repo[/...]" or bare "owner/repo".
+// Returns null if the input doesn't look like either.
+function parseGithubInput(s: string): { owner: string; repo: string } | null {
+  const trimmed = s.trim();
+  if (!trimmed) return null;
+  const url = trimmed.match(/^https?:\/\/github\.com\/([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)(?:[/?#].*)?$/i);
+  if (url) return { owner: url[1], repo: url[2].replace(/\.git$/i, '') };
+  const slash = trimmed.match(/^([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)$/);
+  if (slash) return { owner: slash[1], repo: slash[2].replace(/\.git$/i, '') };
+  return null;
+}
 
 interface Props {
   isOpen: boolean;
@@ -31,6 +44,9 @@ export const CreateProjectWizard: React.FC<Props> = ({ isOpen, serverId, onClose
   const [presetSlug, setPresetSlug] = useState('');
   const [freeform, setFreeform] = useState('');
   const [claudeMd, setClaudeMd] = useState('');
+  const [repoInput, setRepoInput] = useState('');
+  const [repoStatus, setRepoStatus] = useState<'idle' | 'checking' | 'ok' | 'invalid' | 'notfound'>('idle');
+  const [verifiedRepo, setVerifiedRepo] = useState<ProjectRepo | null>(null);
   const [presets, setPresets] = useState<ProjectPreset[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [synthesizing, setSynthesizing] = useState(false);
@@ -53,10 +69,41 @@ export const CreateProjectWizard: React.FC<Props> = ({ isOpen, serverId, onClose
       setPresetSlug('');
       setFreeform('');
       setClaudeMd('');
+      setRepoInput('');
+      setRepoStatus('idle');
+      setVerifiedRepo(null);
       setError(null);
       setSynthInfo(null);
     }
   }, [isOpen]);
+
+  // Validate the repo input against GitHub. Debounced so we don't fire on
+  // every keystroke; runs after the user pauses for 500ms.
+  useEffect(() => {
+    if (!repoInput.trim()) {
+      setRepoStatus('idle');
+      setVerifiedRepo(null);
+      return;
+    }
+    const parsed = parseGithubInput(repoInput);
+    if (!parsed) {
+      setRepoStatus('invalid');
+      setVerifiedRepo(null);
+      return;
+    }
+    setRepoStatus('checking');
+    const handle = setTimeout(async () => {
+      try {
+        await getRepo('github', parsed.owner, parsed.repo);
+        setRepoStatus('ok');
+        setVerifiedRepo({ provider: 'github', owner: parsed.owner, repo: parsed.repo });
+      } catch {
+        setRepoStatus('notfound');
+        setVerifiedRepo(null);
+      }
+    }, 500);
+    return () => clearTimeout(handle);
+  }, [repoInput]);
 
   const synthesize = async () => {
     if (!name.trim()) {
@@ -105,6 +152,7 @@ export const CreateProjectWizard: React.FC<Props> = ({ isOpen, serverId, onClose
         skill_level: skillLevel,
         preset_slug: presetSlug || undefined,
         claude_md: claudeMd,
+        repos: verifiedRepo ? [verifiedRepo] : undefined,
       });
       onCreated(project);
       onClose();
@@ -141,6 +189,28 @@ export const CreateProjectWizard: React.FC<Props> = ({ isOpen, serverId, onClose
             onChange={(e) => setDescription(e.target.value)}
             placeholder="One-line summary"
           />
+        </label>
+
+        <label>
+          GitHub repository (optional)
+          <input
+            type="text"
+            value={repoInput}
+            onChange={(e) => setRepoInput(e.target.value)}
+            placeholder="https://github.com/owner/repo  or  owner/repo"
+          />
+          {repoStatus === 'checking' && (
+            <span className="wizard-repo-status"><Loader2 size={12} className="spin" /> Checking…</span>
+          )}
+          {repoStatus === 'ok' && verifiedRepo && (
+            <span className="wizard-repo-status ok"><Check size={12} /> {verifiedRepo.owner}/{verifiedRepo.repo} verified</span>
+          )}
+          {repoStatus === 'invalid' && (
+            <span className="wizard-repo-status"><AlertCircle size={12} /> Doesn't look like a GitHub URL or owner/repo.</span>
+          )}
+          {repoStatus === 'notfound' && (
+            <span className="wizard-repo-status"><AlertCircle size={12} /> Repo not found or not accessible.</span>
+          )}
         </label>
 
         <label>
