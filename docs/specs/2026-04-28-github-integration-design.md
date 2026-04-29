@@ -245,15 +245,19 @@ Binary detection: `git_provider/github` decodes blob `content` (base64 from GitH
 
 ## 7. Phasing
 
-| Phase | Scope | Estimate |
+| Phase | Scope | Status |
 |---|---|---|
-| **P0** | Backend `Provider` interface + GitHub client + cache; frontend `GitHubRepoEmbed` only (no Explore button yet) | 1-2 days |
-| **P1** | `RepoExplorer` (tree + blob viewer + Shiki) | 1-2 days |
-| **P2** | Releases endpoint + show in embed; deep-link `parley.app/explore/...` URLs | 0.5 day |
-| **P3** | Issue/PR/commit unfurl variants | separate spec |
-| **P4** | OAuth-linked GitHub for private repo support | separate spec |
+| **P0** | Backend `Provider` interface + GitHub client + cache; frontend `GitHubRepoEmbed` | ✅ Complete (`659b89f`) |
+| **P1** | `RepoExplorer` (tree + blob viewer + Shiki) **+ bonus branch switcher** | ✅ Complete (`0df790f`, `ade7a76`, `6954bf2`) |
+| **P2** | Deep-link `/explore/...` URLs + tree/blob URL parsing in chat | ✅ Complete (`7f0a6a9`) |
+| **P3** | Issue/PR/commit unfurl variants | Separate spec — deferred |
+| **P4** | OAuth-linked GitHub for private repo support | Separate spec — deferred (revisit after Phase A of `2026-04-29-phase-a-ai-dev-platform.md`) |
 
-P0+P1 is the "ship the user-visible feature" milestone.
+The releases-in-embed sub-piece of the original P2 was dropped: GitHub's
+`/repos/:o/:r` endpoint doesn't include the latest release inline and a
+second API call per embed is hard to justify until someone asks for it.
+The branch switcher (out of scope in the original spec) was added during
+P1 because the explorer felt incomplete without it.
 
 ## 8. Open questions
 

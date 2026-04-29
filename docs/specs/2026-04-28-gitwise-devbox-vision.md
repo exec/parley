@@ -1,8 +1,33 @@
 # Gitwise + Dev Box — Vision Spec
 
 **Date:** 2026-04-28
-**Status:** Vision (no implementation timeline)
+**Status:** ⚠️ **SUPERSEDED 2026-04-29** by `2026-04-29-phase-a-ai-dev-platform.md`. Kept for background.
 **Companion:** `2026-04-28-github-integration-design.md` (the foundation this builds on)
+
+> **Status update (2026-04-29):** This document captured the original
+> federation-style vision (gitwise as a peer service surfaced through a
+> `GitwiseProvider` implementing `gitprovider.Provider`). After a strategic
+> re-evaluation it was superseded by the Phase A spec, which:
+>
+> - **Reframes parley's positioning** from "Discord clone with selfbot
+>   support and a deeper GitHub embed" to "AI dev platform built on a
+>   social/voice substrate." parley's plausible user acquisition is as the
+>   latter, not the former.
+> - **Reorders the work.** Phase A (Dev Box voice activity on EXTERNAL
+>   GitHub repos + skill-level-aware project setup + agent/preset/skill
+>   framework) ships first to validate the pitch. Phase B (gitwise merge)
+>   is gated on Phase A signal, since it nearly doubles parley's scope and
+>   should not be undertaken speculatively.
+> - **Replaces the federation model with a merge model.** When/if Phase B
+>   happens, gitwise will be cherry-picked into parley's `internal/`
+>   packages, not federated as a separate service. The features that
+>   matter most (Dev Box wiring, AI-native data, PR review inside parley)
+>   all want a shared data layer; federation is fighting yourself.
+>
+> The R1–R5 phasing below is **obsolete**. The architectural sketches for
+> Dev Box (§5), the threat model, and the AI-native data-model rationale
+> remain useful as background, which is why this document survives in the
+> repo rather than being deleted.
 
 This spec describes the longer arc of parley's developer-collaboration story. It is **not** a green-lit implementation plan. It exists to:
 
