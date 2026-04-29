@@ -86,6 +86,11 @@ const (
 	EventBinLineCommentUpdate = "BIN_LINE_COMMENT_UPDATE"
 	EventBinLineCommentDelete = "BIN_LINE_COMMENT_DELETE"
 
+	// Project events (Phase A.A1) — broadcast to "server:{id}" topic.
+	EventProjectCreate = "PROJECT_CREATE"
+	EventProjectUpdate = "PROJECT_UPDATE"
+	EventProjectDelete = "PROJECT_DELETE"
+
 	// Soundboard events
 	EventSoundboardPlay = "SOUNDBOARD_PLAY"
 

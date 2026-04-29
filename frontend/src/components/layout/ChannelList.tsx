@@ -513,6 +513,8 @@ interface ChannelListProps {
   onVcNavigate?: () => void;
   userStatuses?: Record<string, { status_type: string; status_text: string }>;
   onStatusChange?: (statusType: StatusType, statusText: string) => void;
+  onProjectsClick?: () => void;
+  projectsActive?: boolean;
 }
 
 // ---- main component ----
@@ -528,6 +530,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
   vcConnected, vcMuted, vcDeafened, vcVideoEnabled, vcScreenSharing,
   onVcMuteToggle, onVcDeafenToggle, onVcVideoToggle, onVcScreenShareToggle, onVcLeave, onVcNavigate,
   userStatuses, onStatusChange,
+  onProjectsClick, projectsActive = false,
 }) => {
   const channelState = useChannelState();
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
@@ -686,6 +689,22 @@ const ChannelList: React.FC<ChannelListProps> = ({
           </div>
         </div>
       </div>
+
+      {onProjectsClick && (
+        <div
+          className={`projects-sidebar-entry${projectsActive ? ' active' : ''}`}
+          onClick={onProjectsClick}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onProjectsClick(); }}
+          title="Open this server's projects"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14" aria-hidden>
+            <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+          </svg>
+          <span>Projects</span>
+        </div>
+      )}
 
       <div className="channels-container">
         <DndContext

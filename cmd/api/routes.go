@@ -27,6 +27,7 @@ import (
 	"parley/internal/message"
 	"parley/internal/notification"
 	"parley/internal/passkey"
+	"parley/internal/projects"
 	"parley/internal/server"
 	"parley/internal/soundboard"
 	"parley/internal/spaces"
@@ -68,6 +69,7 @@ func registerRoutes(
 	auditSvc *audit.AuditService,
 	botCommandsHandler *botcommands.Handler,
 	gitHandler *gitprovider.Handler,
+	projectService *projects.Service,
 ) {
 	// Global 64 KB body cap. Upload-class routes (file upload, AI theme
 	// generation, soundboard) are exempted by path so their per-route
@@ -452,6 +454,20 @@ func registerRoutes(
 			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/channels/{channelID}/tags", binHandler.GetTags)
 			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Post("/channels/{channelID}/tags", binHandler.CreateTag)
 			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Delete("/channels/{channelID}/tags/{tagID}", binHandler.DeleteTag)
+
+			// Project routes (Phase A.A1) — server-scoped dev-platform
+			// primitive. Reads gate on servers:read (any server-aware bot
+			// can see project metadata); mutations gate on profile:write
+			// (matches the bar for channel/role mutations elsewhere).
+			projectHandler := projects.NewHandler(projectService)
+			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/projects/presets", projectHandler.ListPresets)
+			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Post("/projects", projectHandler.CreateProject)
+			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/servers/{id}/projects", projectHandler.GetServerProjects)
+			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/projects/{id}", projectHandler.GetProject)
+			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Patch("/projects/{id}", projectHandler.UpdateProject)
+			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Patch("/projects/{id}/claude-md", projectHandler.UpdateClaudeMD)
+			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/projects/{id}/claude-md/versions", projectHandler.GetClaudeMDVersions)
+			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Delete("/projects/{id}", projectHandler.DeleteProject)
 
 			// Soundboard routes — upload/update/delete are server-admin state
 			// (profile:write); list + play are read/write equivalents.

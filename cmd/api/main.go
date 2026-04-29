@@ -33,6 +33,7 @@ import (
 	"parley/internal/gitprovider/github"
 	"parley/internal/message"
 	"parley/internal/passkey"
+	"parley/internal/projects"
 	"parley/internal/permissions"
 	"parley/internal/server"
 	"parley/internal/spaces"
@@ -312,6 +313,10 @@ func main() {
 	binService := bin.NewService(repo)
 	binService.SetHub(hub)
 
+	// Initialize project service (Phase A.A1)
+	projectService := projects.NewService(repo)
+	projectService.SetHub(hub)
+
 	// Initialize bots service
 	botsRepo := bots.NewRepository(repo)
 	botsSvc := bots.NewService(botsRepo, config.BotKeySecret)
@@ -491,7 +496,7 @@ func main() {
 	}
 
 	// Setup chi router
-	router := setupRouter(config, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, passkeySvc, redisHub, parseCDNHost(spacesCDNURL), siteURL, botsHandler, auditSvc, botCommandsHandler, gitHandler)
+	router := setupRouter(config, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, passkeySvc, redisHub, parseCDNHost(spacesCDNURL), siteURL, botsHandler, auditSvc, botCommandsHandler, gitHandler, projectService)
 
 	// Start version purge goroutine
 	go func() {
@@ -580,6 +585,7 @@ func setupRouter(
 	auditSvc *audit.AuditService,
 	botCommandsHandler *botcommands.Handler,
 	gitHandler *gitprovider.Handler,
+	projectService *projects.Service,
 ) *chi.Mux {
 	router := chi.NewRouter()
 
@@ -601,7 +607,7 @@ func setupRouter(
 		log.Println("WARNING: using in-memory ticket store — WebSocket tickets will NOT work across multiple API nodes")
 		tickets = newTicketStore()
 	}
-	registerRoutes(router, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, tickets, passkeySvc, redisHub, config.OllamaAPIURL, config.OllamaAPIKey, config.OllamaModel, cdnHost, siteURL, botsHandler, auditSvc, botCommandsHandler, gitHandler)
+	registerRoutes(router, repo, authService, serverService, channelService, messageService, hub, spacesClient, voiceSvc, binService, tickets, passkeySvc, redisHub, config.OllamaAPIURL, config.OllamaAPIKey, config.OllamaModel, cdnHost, siteURL, botsHandler, auditSvc, botCommandsHandler, gitHandler, projectService)
 
 	return router
 }

@@ -8,7 +8,7 @@ function useLatest<T>(value: T): MutableRefObject<T> {
   useEffect(() => { ref.current = value; }, [value]);
   return ref;
 }
-import { Message, DmMessage, Channel, Server, Role, FriendUser, FriendRequest, AppNotification, DmChannel } from '../api/types';
+import { Message, DmMessage, Channel, Server, Role, FriendUser, FriendRequest, AppNotification, DmChannel, Project } from '../api/types';
 import { getWsTicket } from '../api/auth';
 
 interface WSMessage {
@@ -57,6 +57,11 @@ export interface VoiceForceMuteEvent {
 export interface BinPostEvent {
   post_id: string;
   channel_id: string;
+}
+
+export interface ProjectDeleteEvent {
+  id: string;
+  server_id: string;
 }
 
 export interface ChannelOverwriteUpdateEvent {
@@ -127,6 +132,9 @@ interface UseWebSocketOptions {
   onBinPostCreate?: (event: BinPostEvent) => void;
   onBinPostUpdate?: (event: BinPostEvent) => void;
   onBinPostDelete?: (event: BinPostEvent) => void;
+  onProjectCreate?: (project: Project) => void;
+  onProjectUpdate?: (project: Project) => void;
+  onProjectDelete?: (event: ProjectDeleteEvent) => void;
   onChannelOverwriteUpdate?: (event: ChannelOverwriteUpdateEvent) => void;
   onRoleUpdate?: (event: RoleUpdateEvent) => void;
   onRoleDelete?: (event: RoleDeleteEvent) => void;
@@ -157,7 +165,7 @@ interface UseWebSocketOptions {
   onConnect?: () => void; // Called on every successful (re)connect
 }
 
-export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onServerMemberLeave, onServerMemberKick, onServerMemberBan, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, onChannelCreate, onChannelUpdate, onChannelDelete, onServerUpdate, onServerDelete, onUserServersReorder, onMemberRoleUpdate, onUserUpdate, onVoiceStateUpdate, onVoiceForceMute, onVoiceForceDisconnect, onBinPostCreate, onBinPostUpdate, onBinPostDelete, onChannelOverwriteUpdate, onRoleUpdate, onRoleDelete, onBotStatusUpdate, onDmMessageDelete, onDmChannelCreate, onDmReactionUpdate, onFriendRequest, onFriendAccept, onFriendRemove, onUserStatusUpdate, onSoundboardPlay, onNotification, onChannelReadStateUpdate, onChannelNotificationUpdate, onDmMemberAdd, onDmMemberRemove, onDmChannelUpdate, onActivityStart, onActivityEnd, onCallRing, onCallAccept, onCallDecline, onCallCancel, onCallTimeout, onConnect, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
+export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onServerMemberLeave, onServerMemberKick, onServerMemberBan, onTyping, onUserOnline, onUserOffline, onPresenceSnapshot, onMessageUpdate, onMessageDelete, onReactionUpdate, onChannelCreate, onChannelUpdate, onChannelDelete, onServerUpdate, onServerDelete, onUserServersReorder, onMemberRoleUpdate, onUserUpdate, onVoiceStateUpdate, onVoiceForceMute, onVoiceForceDisconnect, onBinPostCreate, onBinPostUpdate, onBinPostDelete, onProjectCreate, onProjectUpdate, onProjectDelete, onChannelOverwriteUpdate, onRoleUpdate, onRoleDelete, onBotStatusUpdate, onDmMessageDelete, onDmChannelCreate, onDmReactionUpdate, onFriendRequest, onFriendAccept, onFriendRemove, onUserStatusUpdate, onSoundboardPlay, onNotification, onChannelReadStateUpdate, onChannelNotificationUpdate, onDmMemberAdd, onDmMemberRemove, onDmChannelUpdate, onActivityStart, onActivityEnd, onCallRing, onCallAccept, onCallDecline, onCallCancel, onCallTimeout, onConnect, activeChannelId, extraChannelIds = [] }: UseWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const subscribedChannelsRef = useRef<Set<string>>(new Set());
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -193,6 +201,9 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
   const onBinPostCreateRef = useLatest(onBinPostCreate);
   const onBinPostUpdateRef = useLatest(onBinPostUpdate);
   const onBinPostDeleteRef = useLatest(onBinPostDelete);
+  const onProjectCreateRef = useLatest(onProjectCreate);
+  const onProjectUpdateRef = useLatest(onProjectUpdate);
+  const onProjectDeleteRef = useLatest(onProjectDelete);
   const onChannelOverwriteUpdateRef = useLatest(onChannelOverwriteUpdate);
   const onRoleUpdateRef = useLatest(onRoleUpdate);
   const onRoleDeleteRef = useLatest(onRoleDelete);
@@ -405,6 +416,18 @@ export function useWebSocket({ onMessage, onDmMessage, onServerMemberJoin, onSer
         } else if (wsMsg.type === 'BIN_POST_DELETE') {
           if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null && onBinPostDeleteRef.current) {
             onBinPostDeleteRef.current(wsMsg.payload as BinPostEvent);
+          }
+        } else if (wsMsg.type === 'PROJECT_CREATE') {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null && onProjectCreateRef.current) {
+            onProjectCreateRef.current(wsMsg.payload as Project);
+          }
+        } else if (wsMsg.type === 'PROJECT_UPDATE') {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null && onProjectUpdateRef.current) {
+            onProjectUpdateRef.current(wsMsg.payload as Project);
+          }
+        } else if (wsMsg.type === 'PROJECT_DELETE') {
+          if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null && onProjectDeleteRef.current) {
+            onProjectDeleteRef.current(wsMsg.payload as ProjectDeleteEvent);
           }
         } else if (wsMsg.type === 'CHANNEL_OVERWRITE_UPDATE') {
           if (typeof wsMsg.payload === 'object' && wsMsg.payload !== null && onChannelOverwriteUpdateRef.current) {

@@ -407,6 +407,61 @@ type BinLineComment struct {
 	AuthorAvatarURL string `json:"author_avatar_url,omitempty" db:"-"`
 }
 
+// Project is a server-owned dev-platform primitive: a CLAUDE.md, a skill
+// level, optional linked repos, optional voice channel, and the preset the
+// project was created from. Phase A.A1 — see docs/specs/2026-04-29-phase-a.
+type Project struct {
+	ID            int64     `json:"id" db:"id"`
+	ServerID      int64     `json:"server_id" db:"server_id"`
+	Name          string    `json:"name" db:"name"`
+	Description   string    `json:"description" db:"description"`
+	ClaudeMD      string    `json:"claude_md" db:"claude_md"`
+	SkillLevel    string    `json:"skill_level" db:"skill_level"`
+	PresetID      *int64    `json:"preset_id,omitempty" db:"preset_id"`
+	VCChannelID   *int64    `json:"vc_channel_id,omitempty" db:"vc_channel_id"`
+	OwnerUserID   int64     `json:"owner_user_id" db:"owner_user_id"`
+	CreatedAt     time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at" db:"updated_at"`
+	// Computed fields
+	OwnerUsername  string        `json:"owner_username,omitempty" db:"-"`
+	OwnerAvatarURL string        `json:"owner_avatar_url,omitempty" db:"-"`
+	PresetSlug     string        `json:"preset_slug,omitempty" db:"-"`
+	PresetName     string        `json:"preset_name,omitempty" db:"-"`
+	Repos          []ProjectRepo `json:"repos,omitempty" db:"-"`
+	Skills         []string      `json:"skills,omitempty" db:"-"`
+	VersionCount   int           `json:"version_count" db:"-"`
+}
+
+// ProjectRepo links a project to an external repo via the gitprovider abstraction.
+type ProjectRepo struct {
+	ProjectID int64  `json:"project_id" db:"project_id"`
+	Provider  string `json:"provider" db:"provider"`
+	Owner     string `json:"owner" db:"owner"`
+	Repo      string `json:"repo" db:"repo"`
+}
+
+// ProjectClaudeMDVersion is a snapshot of a project's CLAUDE.md at a point in time.
+// Version 1 is the original (synthesized or manually entered at create time);
+// each PATCH appends a new version with the resulting content.
+type ProjectClaudeMDVersion struct {
+	ID        int64     `json:"id" db:"id"`
+	ProjectID int64     `json:"project_id" db:"project_id"`
+	Version   int       `json:"version" db:"version"`
+	Content   string    `json:"content" db:"content"`
+	EditedBy  *int64    `json:"edited_by,omitempty" db:"edited_by"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+}
+
+// ProjectPreset is a built-in scaffolding template (web-app, discord-bot, etc.).
+// Seeded by Migration #72; user-authored presets are A4.2.
+type ProjectPreset struct {
+	ID          int64  `json:"id" db:"id"`
+	Slug        string `json:"slug" db:"slug"`
+	Name        string `json:"name" db:"name"`
+	Description string `json:"description" db:"description"`
+	IsBuiltin   bool   `json:"is_builtin" db:"is_builtin"`
+}
+
 // Overwrite represents a permission overwrite for a channel (role or member).
 // TargetType: 0 = role, 1 = member.
 type Overwrite struct {

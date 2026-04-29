@@ -27,6 +27,7 @@ import { DmChannel, DmMessage, Message, BinChannelTag, ServerMember, AppNotifica
 import NotificationPanel from './components/notifications/NotificationPanel';
 import { ForwardModal } from './components/chat/ForwardModal';
 import { RepoExplorer } from './components/explorer/RepoExplorer';
+import { ProjectsPage } from './components/projects/ProjectsPage';
 import * as serversApi from './api/servers';
 import * as channelsApi from './api/channels';
 import * as dmsApi from './api/dms';
@@ -309,6 +310,19 @@ function MainApp() {
   }, [location.pathname, location.search, exploreMatch]);
   const closeExplorer = useCallback(() => {
     navigate(lastNonExplorerPathRef.current || '/channels/@me');
+  }, [navigate]);
+
+  // Projects takeover — same pattern as explorer. /servers/:id/projects[/:pid]
+  const projectsMatch = location.pathname.match(/^\/servers\/(\d+)\/projects(?:\/(\d+))?\/?$/);
+  const projectsTarget = projectsMatch
+    ? { serverId: projectsMatch[1], projectId: projectsMatch[2] || null }
+    : null;
+  const lastNonProjectsPathRef = useRef<string>('/channels/@me');
+  useEffect(() => {
+    if (!projectsMatch) lastNonProjectsPathRef.current = location.pathname + location.search;
+  }, [location.pathname, location.search, projectsMatch]);
+  const closeProjects = useCallback(() => {
+    navigate(lastNonProjectsPathRef.current || '/channels/@me');
   }, [navigate]);
   const [activeVoiceChannel, setActiveVoiceChannel] = useState<string | null>(null);
   // 'server' for guild VCs, 'dm' for 1:1/GC calls. Drives whether the LiveKit
@@ -1107,6 +1121,15 @@ function MainApp() {
     }, [applyDmChannelUpdate]),
     onActivityStart: vcReceiveActivityStart,
     onActivityEnd: vcReceiveActivityEnd,
+    onProjectCreate: useCallback((p: import('./api/types').Project) => {
+      window.dispatchEvent(new CustomEvent('parley:project_create', { detail: p }));
+    }, []),
+    onProjectUpdate: useCallback((p: import('./api/types').Project) => {
+      window.dispatchEvent(new CustomEvent('parley:project_update', { detail: p }));
+    }, []),
+    onProjectDelete: useCallback((evt: { id: string; server_id: string }) => {
+      window.dispatchEvent(new CustomEvent('parley:project_delete', { detail: evt }));
+    }, []),
     onCallRing: useCallback((payload: { vc: string; ring_id: string; caller: { user_id: number; username: string; display_name: string; avatar_url: string }; started_at_ms: number }) => {
       window.dispatchEvent(new CustomEvent('parley:call_ring', { detail: payload }));
     }, []),
@@ -1213,6 +1236,8 @@ function MainApp() {
       canManageChannels={canManageChannels}
       canMuteMembers={canMuteMembers}
       canKickFromVoice={canKickFromVoice}
+      onProjectsClick={activeServer?.id ? () => navigate(`/servers/${activeServer.id}/projects`) : undefined}
+      projectsActive={!!projectsTarget && activeServer?.id === projectsTarget.serverId}
       onRenameChannel={async (channelId, newName) => {
         const ch = channels.find(c => c.id === channelId);
         if (!ch) return;
@@ -1827,6 +1852,12 @@ function MainApp() {
               repo={explorerTarget.repo}
               onClose={closeExplorer}
             />
+          : projectsTarget
+          ? <ProjectsPage
+              serverId={projectsTarget.serverId}
+              projectId={projectsTarget.projectId}
+              onClose={closeProjects}
+            />
           : mainContent}
         {/* Mobile backdrop — closes drawers when tapping outside */}
         {(showChannelList || showMembers) && (
@@ -2203,6 +2234,9 @@ function App() {
        * matches /explore/{provider}/{owner}/{repo}. Query params drive ref +
        * path. Deep-linkable; refresh-safe; pasteable. */}
       <Route path="/explore/:provider/:owner/:repo" element={ProtectedApp} />
+      {/* Projects takeover — Phase A.A1. Same pattern as explorer. */}
+      <Route path="/servers/:serverId/projects" element={ProtectedApp} />
+      <Route path="/servers/:serverId/projects/:projectId" element={ProtectedApp} />
       <Route path="/theme/:token" element={<ThemeProvider><SharedThemePage /></ThemeProvider>} />
       <Route path="/themes" element={<ThemeProvider><Suspense fallback={null}><ThemeRepoPage /></Suspense></ThemeProvider>} />
       <Route path="/bots/invite/:token" element={<BotInvitePage />} />

@@ -1025,6 +1025,95 @@ ALTER TABLE user_preferences ADD CONSTRAINT user_preferences_active_theme_check
     'midnight-tokyo','custom'
   ));
 ALTER TABLE user_preferences ALTER COLUMN active_theme SET DEFAULT 'midnight-tokyo';`,
+
+	// Migration #72: Phase A.A1 — projects as a parley primitive. Servers
+	// gain a "projects" entity owned by a server with a CLAUDE.md, a
+	// self-reported skill level, an optional linked external repo (provider +
+	// owner + repo via the existing gitprovider abstraction), an optional
+	// associated voice channel where the Dev Workspace activity will attach
+	// later in A3, and a preset reference (the V1 presets are seeded here).
+	// CLAUDE.md edits are versioned via project_claude_md_versions, mirroring
+	// the bin_post_versions snapshot-on-edit pattern. project_skills is the
+	// attach-point for the V1 built-in skill registry (A4) and is kept
+	// freeform — slugs validated client-side against the registry, not in
+	// the DB, so adding a skill is a Go-code change rather than a migration.
+	`-- Project presets (created first; referenced by projects.preset_id)
+CREATE TABLE IF NOT EXISTS project_presets (
+    id          SERIAL PRIMARY KEY,
+    slug        VARCHAR(48) UNIQUE NOT NULL,
+    name        VARCHAR(80) NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    is_builtin  BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+-- Seed V1 built-in presets. Slugs are stable; names/descriptions can change.
+INSERT INTO project_presets (slug, name, description, is_builtin) VALUES
+  ('web-app',       'Web App (Next.js + TS)',    'Full-stack TypeScript web app scaffold with Next.js conventions.', TRUE),
+  ('discord-bot',   'Discord-style Bot (Python)', 'Python bot scaffold targeting parley''s selfbot pattern.', TRUE),
+  ('python-script', 'Python Script',              'Single-file Python project for scripts and prototypes.', TRUE),
+  ('static-site',   'Static Site (Astro)',        'Astro static site with content collections and Markdown posts.', TRUE),
+  ('backend-api',   'Backend API (Go)',           'Go HTTP API with chi router, postgres, and standard parley shape.', TRUE),
+  ('mobile-app',    'Mobile App (Expo)',          'React Native via Expo for iOS + Android.', TRUE),
+  ('custom',        'Custom (no scaffold)',       'No preset — bring your own structure. Synthesis still tunes CLAUDE.md.', TRUE)
+ON CONFLICT (slug) DO NOTHING;
+
+-- Projects: a server-owned entity that ties a repo, a CLAUDE.md, a skill
+-- level, and (optionally) a voice channel together. Single server_id FK
+-- enforces the 1:N (one-server-many-projects) cardinality decision from
+-- Phase A spec §5.3.
+CREATE TABLE IF NOT EXISTS projects (
+    id            BIGSERIAL PRIMARY KEY,
+    server_id     BIGINT      NOT NULL REFERENCES servers(id)        ON DELETE CASCADE,
+    name          VARCHAR(80) NOT NULL,
+    description   TEXT        NOT NULL DEFAULT '',
+    claude_md     TEXT        NOT NULL DEFAULT '',
+    skill_level   VARCHAR(16) NOT NULL DEFAULT 'auto'
+                    CHECK (skill_level IN ('beginner','intermediate','expert','auto','custom')),
+    preset_id     INT                  REFERENCES project_presets(id) ON DELETE SET NULL,
+    vc_channel_id BIGINT               REFERENCES channels(id)        ON DELETE SET NULL,
+    owner_user_id BIGINT      NOT NULL REFERENCES users(id)           ON DELETE CASCADE,
+    created_at    TIMESTAMP   NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMP   NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_projects_server     ON projects(server_id);
+CREATE INDEX IF NOT EXISTS idx_projects_owner      ON projects(owner_user_id);
+CREATE INDEX IF NOT EXISTS idx_projects_vc_channel ON projects(vc_channel_id) WHERE vc_channel_id IS NOT NULL;
+
+-- Linked external repos. Composite PK so the same provider/owner/repo
+-- triple can't be linked twice to one project. Multiple repos per project
+-- is allowed today (monorepo-of-repos cases) — frontend will only show
+-- the first in V1, but the schema doesn't artificially restrict.
+CREATE TABLE IF NOT EXISTS project_repos (
+    project_id BIGINT       NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    provider   VARCHAR(16)  NOT NULL,
+    owner      VARCHAR(100) NOT NULL,
+    repo       VARCHAR(100) NOT NULL,
+    PRIMARY KEY (project_id, provider, owner, repo)
+);
+
+-- Attached built-in skills (slugs from the registry under internal/skills).
+-- Validation lives in code, not the DB — adding a skill is a Go change.
+CREATE TABLE IF NOT EXISTS project_skills (
+    project_id BIGINT      NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    skill_id   VARCHAR(64) NOT NULL,
+    PRIMARY KEY (project_id, skill_id)
+);
+
+-- CLAUDE.md edit history. Mirrors the bin_post_versions snapshot-on-edit
+-- pattern: every PATCH to projects.claude_md appends a row here BEFORE
+-- the live row is overwritten, so version 1 captures the original (whether
+-- synthesized or user-typed) and subsequent versions capture each edit.
+CREATE TABLE IF NOT EXISTS project_claude_md_versions (
+    id         BIGSERIAL PRIMARY KEY,
+    project_id BIGINT    NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    version    INT       NOT NULL,
+    content    TEXT      NOT NULL DEFAULT '',
+    edited_by  BIGINT             REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE (project_id, version)
+);
+CREATE INDEX IF NOT EXISTS idx_project_claude_md_versions_project_id
+    ON project_claude_md_versions(project_id, version DESC);`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

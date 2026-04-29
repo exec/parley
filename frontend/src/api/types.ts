@@ -355,3 +355,52 @@ export interface UserChannelState {
   notification_setting: 0 | 1 | 2;
   updated_at: string;
 }
+
+// ── Projects (Phase A.A1) ─────────────────────────────────────────────────────
+
+export type ProjectSkillLevel = 'beginner' | 'intermediate' | 'expert' | 'auto' | 'custom';
+
+export interface ProjectRepo {
+  project_id?: string;
+  provider: string;
+  owner: string;
+  repo: string;
+}
+
+export interface Project {
+  id: string;
+  server_id: string;
+  name: string;
+  description: string;
+  claude_md: string;
+  skill_level: ProjectSkillLevel;
+  preset_id?: string;
+  vc_channel_id?: string;
+  owner_user_id: string;
+  created_at: string;
+  updated_at: string;
+  owner_username?: string;
+  owner_avatar_url?: string;
+  preset_slug?: string;
+  preset_name?: string;
+  repos?: ProjectRepo[];
+  skills?: string[];
+  version_count: number;
+}
+
+export interface ProjectPreset {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  is_builtin: boolean;
+}
+
+export interface ProjectClaudeMDVersion {
+  id: string;
+  project_id: string;
+  version: number;
+  content: string;
+  edited_by?: string;
+  created_at: string;
+}

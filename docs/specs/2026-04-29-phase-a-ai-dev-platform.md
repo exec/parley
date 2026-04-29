@@ -224,9 +224,9 @@ The create-project wizard:
    freeform) → produces a tailored `CLAUDE.md`
 6. **Preview the output**, edit if desired, save
 
-Synthesis agent = an Anthropic API call from the parley backend (see open
-question 2 below) with a carefully tuned system prompt that teaches the
-model to:
+Synthesis agent = an LLM call from the parley backend behind a provider
+interface (Ollama for V1, Anthropic-ready — see open question 2 below)
+with a carefully tuned system prompt that teaches the model to:
 
 - Map skill levels to verbosity / hand-holding / risk-aversion
   (`beginner` → "always run tests, ask before destructive ops, explain
@@ -317,15 +317,20 @@ orchestration.
    Docker-in-Docker. Recommendation: gVisor for V1 (fast cold-start, OK
    isolation for friend-and-family launch, runs Docker images directly).
    Firecracker if Phase A graduates to genuinely multi-tenant write.
-2. **Synthesis-agent provider.** Anthropic Claude vs Ollama. The existing
-   parley AI stack uses Ollama (theme generation). For CLAUDE.md
-   synthesis, output quality directly drives the product's value, so
-   recommendation is **Anthropic Claude** specifically here even if it
-   means a second AI integration in the codebase. Cost is also bounded
-   (one call per project create) — not a meaningful budget concern.
-3. **Project ↔ Server cardinality.** Is a project always scoped to one
-   server, or can it span multiple? Recommendation: 1 project = 1 server
-   in V1; revisit if cross-server collab becomes a real need.
+2. **Synthesis-agent provider.** **Locked: Ollama for V1, Anthropic-ready
+   abstraction.** Build `internal/synthesis/` with a `Provider` interface
+   so the call site is provider-agnostic; ship the Ollama implementation
+   first (matches the existing theme-generation stack), keep an Anthropic
+   implementation behind the same interface as a flip-the-flag upgrade
+   when funding/quality demands it. Why Ollama now: no `ANTHROPIC_API_KEY`
+   yet (claude.ai account, not API), and dogfooding our own infra is a
+   strength during private beta. The interface keeps the option open.
+   Implication: V1 quality is bounded by the local model — accept that
+   trade and re-evaluate at Phase A go/no-go.
+3. **Project ↔ Server cardinality.** **Locked: 1 project = 1 server
+   (1:N, no cross-server projects)** for V1. Revisit if cross-server
+   collab becomes a real ask. Schema enforces this via the single
+   `server_id` FK on `projects`.
 4. **Project ↔ VC cardinality.** Does a project always have a VC, or can
    it exist without one? Recommendation: VC is optional; the Dev
    Workspace activity is a per-VC override. Same project can be linked
@@ -333,17 +338,18 @@ orchestration.
 5. **Pricing for Dev Box.** Containers cost real money. We need an
    approach to bill or hard-cap usage before A3 ships beyond closed
    beta. Phase A-internal note; does not block coding A1/A2.
-6. **CLAUDE.md edit history.** Should edits to a project's CLAUDE.md be
-   versioned (so users can roll back / see what the synthesis agent
-   produced originally)? Recommendation: yes — same `version_history`
-   pattern as the bin posts already use. Cheap and useful.
+6. **CLAUDE.md edit history.** **Locked: yes, versioned** using the same
+   `version_history` pattern as bin posts. Add a `project_claude_md_versions`
+   table (or equivalent — match the exact bin-posts shape) in Migration #72.
+   Synthesis-generated original preserved as v1; every PATCH appends.
 
 ## 6. Files this spec touches
 
 **New (backend):**
 - `internal/projects/` — service, repository, handler
-- `internal/synthesis/` — Anthropic client wrapper + system prompt for
-  CLAUDE.md synthesis
+- `internal/synthesis/` — `Provider` interface + Ollama impl (V1) +
+  Anthropic impl (built but unwired) + system prompt for CLAUDE.md
+  synthesis
 - `internal/devbox/` — container orchestration, terminal proxy, lifecycle
   (only when A3 lands)
 - `internal/projects/presets/` — built-in preset registry (Go modules)
@@ -364,7 +370,9 @@ orchestration.
 - `cmd/api/main.go` — wire synthesis service + (later) devbox service
 - Server-channel-sidebar UI — new "Projects" entry alongside text + VC
 - Voice activity panel UI — Dev Workspace as the first activity
-- `terraform/userdata-api.sh` — `ANTHROPIC_API_KEY` env (synthesis)
+- `terraform/userdata-api.sh` — no env changes for V1 (Ollama is already
+  reachable from api LXC); `ANTHROPIC_API_KEY` deferred until provider
+  flip happens.
 
 ## 7. Out of scope but adjacent
 
@@ -411,13 +419,15 @@ implementation. Each is roughly a session-block of work; check off as
 they land.
 
 **Decisions to lock first** (15 min, no code):
-- [ ] Question §5.2 (synthesis-agent provider): commit to **Anthropic
-      Claude** unless there's a reason to revisit. Sets up env var
-      planning for `ANTHROPIC_API_KEY` in terraform.
-- [ ] Question §5.3 (project ↔ server cardinality): commit to **1:N
-      (one server, many projects, no cross-server)** for V1.
-- [ ] Question §5.6 (CLAUDE.md edit history): commit to **yes, version
-      it** using the same pattern as bin posts.
+- [x] Question §5.2 (synthesis-agent provider): **Ollama for V1 behind
+      a `Provider` interface; Anthropic impl built alongside but unwired
+      until funding/quality flip.** No `ANTHROPIC_API_KEY` in terraform
+      yet.
+- [x] Question §5.3 (project ↔ server cardinality): **1:N (one server,
+      many projects, no cross-server)** for V1. Single `server_id` FK
+      on `projects` enforces.
+- [x] Question §5.6 (CLAUDE.md edit history): **yes, versioned** —
+      `project_claude_md_versions` table mirrors the bin-posts pattern.
 
 **Backend (in order):**
 - [ ] Migration #72 in `internal/db/migrations.go` — full schema from
@@ -459,8 +469,10 @@ synthesis agent on top — the wizard's manual textarea gets replaced by
 the skill slider + freeform input + synthesis call → review-and-edit
 flow.
 
-A2.0's first commit should be `internal/synthesis/` (the Anthropic
-client wrapper) — that's the genuinely-new dependency. See §6.
+A2.0's first commit should be `internal/synthesis/` — the `Provider`
+interface, the Ollama implementation (used by the wizard immediately),
+and the Anthropic implementation alongside it (compiled, tested, but
+unwired in `cmd/api/main.go` until funding/quality flip). See §6.
 
 ## 10. Pointers for cold context
 
