@@ -1,0 +1,66 @@
+#!/bin/bash
+# parley-fs-watchdog: detect host-level filesystem failure and hard-reboot.
+#
+# Catches: ext4 emergency_ro, root remount-ro, persistent EIO/EROFS on writes.
+# Does NOT catch: full kernel hangs (use systemd RuntimeWatchdogSec for that).
+#
+# Recovery: hard reset via sysrq-trigger 'b'. Orderly reboot is unreliable
+# when the FS is RO — proven during incident 2026-04-29 (systemctl reboot
+# hung indefinitely; physical reset was required).
+#
+# Reboot-loop guardrail: refuses to reboot if MAX_REBOOTS_PER_HOUR have
+# already happened (suggests not-transient hardware issue → operator only).
+
+set -u
+
+SENTINEL_DIR=/var/lib/parley-watchdog
+SENTINEL=$SENTINEL_DIR/heartbeat
+TAG=parley-fs-watchdog
+MAX_REBOOTS_PER_HOUR=3
+DRY_RUN=0
+
+[ "${1:-}" = "--dry-run" ] && DRY_RUN=1
+
+mkdir -p "$SENTINEL_DIR" 2>/dev/null
+
+trip() {
+    local reason="$1"
+    if [ "$DRY_RUN" = "1" ]; then
+        echo "[dry-run] WOULD TRIP: $reason"
+        exit 2
+    fi
+    local recent
+    recent=$(last reboot --since "-1 hour" 2>/dev/null | grep -cE '^reboot')
+    if [ "$recent" -ge "$MAX_REBOOTS_PER_HOUR" ]; then
+        logger -t "$TAG" -p crit \
+            "TRIPPED ($reason) but $recent reboots in last hour — refusing further reboots. Manual intervention required."
+        exit 1
+    fi
+    logger -t "$TAG" -p crit "TRIPPED: $reason. Hard-resetting via sysrq-b. recent_reboots=$recent"
+    sync 2>/dev/null
+    sleep 1
+    echo 1 > /proc/sys/kernel/sysrq 2>/dev/null
+    echo b > /proc/sysrq-trigger
+    # Belt-and-suspenders fallback if sysrq-trigger somehow does not reboot.
+    sleep 5
+    systemctl reboot --force --force 2>/dev/null
+    exit 1
+}
+
+# Check 1: ext4 emergency_ro on / (the exact 2026-04-29 fingerprint).
+if grep -E ' / .*emergency_ro' /proc/mounts >/dev/null 2>&1; then
+    trip "ext4 emergency_ro on /"
+fi
+
+# Check 2: / remounted ro for any other reason.
+if grep -E ' / .* ro,' /proc/mounts >/dev/null 2>&1; then
+    trip "/ remounted ro"
+fi
+
+# Check 3: write a sentinel. Catches EIO that has not yet remounted ro.
+if ! echo "$(date +%s) $$" > "$SENTINEL" 2>/dev/null; then
+    trip "sentinel write failed (probable EIO/EROFS)"
+fi
+
+[ "$DRY_RUN" = "1" ] && echo "[dry-run] OK — all checks passed"
+exit 0

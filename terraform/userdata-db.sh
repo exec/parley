@@ -294,6 +294,21 @@ echo "\"pgbouncer_auth\" \"$PGB_AUTH_PW\"" > /etc/pgbouncer/userlist.txt
 chmod 640 /etc/pgbouncer/userlist.txt
 chown postgres:postgres /etc/pgbouncer/userlist.txt
 
+# Boot-ordering hardening (incident 2026-04-29): postgresql + pgbouncer bind
+# explicitly to 10.10.10.10 (not just loopback). On a host reboot the LXC
+# can start them BEFORE the IP is assigned to eth0 — they fall back to
+# 127.0.0.1 only and never re-bind without a manual restart. ExecStartPre
+# below blocks the unit from starting until the IP is actually up. Plain
+# `network-online.target` is unreliable inside Proxmox LXCs.
+for svc in postgresql pgbouncer; do
+  mkdir -p /etc/systemd/system/${svc}.service.d
+  cat > /etc/systemd/system/${svc}.service.d/wait-for-ip.conf <<'EOF'
+[Service]
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 30); do ip -o addr show | grep -q "inet 10.10.10.10/" && exit 0; sleep 1; done; exit 1'
+EOF
+done
+systemctl daemon-reload
+
 systemctl enable pgbouncer
 systemctl restart pgbouncer
 echo "PgBouncer listening on port 6432"

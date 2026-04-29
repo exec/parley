@@ -1,0 +1,6 @@
+[Unit]
+Description=Parley filesystem watchdog (hard-reboot on EIO/EROFS)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/parley-fs-watchdog
