@@ -1114,6 +1114,13 @@ CREATE TABLE IF NOT EXISTS project_claude_md_versions (
 );
 CREATE INDEX IF NOT EXISTS idx_project_claude_md_versions_project_id
     ON project_claude_md_versions(project_id, version DESC);`,
+
+	// Migration #73: per-user opt-in for beta features. Gates the Projects
+	// surface (Phase A.A1+A2) so the half-built dev-platform UX doesn't
+	// leak to the general user base while VC activities (A3) are still
+	// pending. Defaults to FALSE; users opt in via a toggle in user
+	// settings. Existing rows pick up the default automatically.
+	`ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS beta_features BOOLEAN NOT NULL DEFAULT FALSE;`,
 }
 
 // MigrationSQL returns all migrations as a single concatenated string

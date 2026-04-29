@@ -69,6 +69,7 @@ func (h *Handler) GetPreferences(w http.ResponseWriter, r *http.Request) {
 		render.JSON(w, r, &UserPreferences{
 			ActiveTheme:         "midnight-tokyo",
 			ActiveCustomThemeID: nil,
+			BetaFeatures:        false,
 			CustomThemes:        []UserTheme{},
 		})
 		return
@@ -78,6 +79,28 @@ func (h *Handler) GetPreferences(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	render.JSON(w, r, p)
+}
+
+type setBetaReq struct {
+	Enabled bool `json:"enabled"`
+}
+
+func (h *Handler) SetBetaFeatures(w http.ResponseWriter, r *http.Request) {
+	uid, ok := userID(r)
+	if !ok {
+		httputil.JSONError(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	var req setBetaReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if err := h.svc.SetBetaFeatures(r.Context(), uid, req.Enabled); err != nil {
+		httputil.InternalError(w, err)
+		return
+	}
+	render.JSON(w, r, map[string]bool{"beta_features": req.Enabled})
 }
 
 func (h *Handler) SetActiveTheme(w http.ResponseWriter, r *http.Request) {

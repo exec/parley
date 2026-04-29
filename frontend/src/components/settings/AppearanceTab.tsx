@@ -85,6 +85,22 @@ export const AppearanceTab: React.FC = () => {
         </div>
       </div>
 
+      <div className="appearance-section-title">Beta Features</div>
+      <div className="appearance-display-options">
+        <div className="appearance-display-option">
+          <div className="appearance-display-option-info">
+            <div className="appearance-display-option-label">Enable beta features</div>
+            <div className="appearance-display-option-desc">Opt in to in-progress features like Projects (AI-paired dev workflows). Half-built UX — expect rough edges and missing pieces.</div>
+          </div>
+          <button
+            type="button"
+            className={`custom-toggle${theme.betaFeatures ? ' on' : ''}`}
+            onClick={() => theme.setBetaFeatures(!theme.betaFeatures)}
+            aria-pressed={theme.betaFeatures}
+          />
+        </div>
+      </div>
+
       <div className="appearance-section-title">Built-in Themes</div>
       <div className="appearance-theme-grid">
         {theme.builtinIds.map(id => {

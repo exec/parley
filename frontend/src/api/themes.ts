@@ -28,6 +28,7 @@ export interface ThemeRepoResponse {
 export interface UserPreferences {
   active_theme: string;
   active_custom_theme_id: number | null;
+  beta_features: boolean;
   custom_themes: UserTheme[];
 }
 
@@ -51,3 +52,6 @@ export const publishTheme = (id: number, published: boolean) =>
 
 export const featureTheme = (id: number, featured: boolean) =>
   apiClient.put<void>(`/themes/${id}/feature`, { featured });
+
+export const setBetaFeatures = (enabled: boolean) =>
+  apiClient.put<{ beta_features: boolean }>('/me/preferences/beta-features', { enabled });

@@ -10,7 +10,7 @@ import { ResetPassword } from './pages/ResetPassword';
 import { AuthDesktop } from './pages/AuthDesktop';
 import { AppProvider, useApp } from './context/AppContext';
 import { IS_DESKTOP } from './api/client';
-import { ThemeProvider } from './context/ThemeContext';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { ChannelStateProvider } from './context/ChannelStateContext';
 import { Landing } from './pages/Landing';
 import { SharedThemePage } from './pages/SharedThemePage';
@@ -77,6 +77,7 @@ import { isTauri } from './lib/tauri';
 type View = 'homepage' | 'server' | 'dm';
 
 function MainApp() {
+  const { betaFeatures } = useTheme();
   const {
     currentUser,
     servers,
@@ -313,8 +314,11 @@ function MainApp() {
   }, [navigate]);
 
   // Projects takeover — same pattern as explorer. /servers/:id/projects[/:pid]
+  // Gated on user_preferences.beta_features: a non-opt-in user navigating
+  // directly to the URL falls through to the chat view, and the sidebar
+  // entry stays hidden (see ChannelList prop wiring below).
   const projectsMatch = location.pathname.match(/^\/servers\/(\d+)\/projects(?:\/(\d+))?\/?$/);
-  const projectsTarget = projectsMatch
+  const projectsTarget = projectsMatch && betaFeatures
     ? { serverId: projectsMatch[1], projectId: projectsMatch[2] || null }
     : null;
   const lastNonProjectsPathRef = useRef<string>('/channels/@me');
@@ -1236,7 +1240,7 @@ function MainApp() {
       canManageChannels={canManageChannels}
       canMuteMembers={canMuteMembers}
       canKickFromVoice={canKickFromVoice}
-      onProjectsClick={activeServer?.id ? () => navigate(`/servers/${activeServer.id}/projects`) : undefined}
+      onProjectsClick={activeServer?.id && betaFeatures ? () => navigate(`/servers/${activeServer.id}/projects`) : undefined}
       projectsActive={!!projectsTarget && activeServer?.id === projectsTarget.serverId}
       onRenameChannel={async (channelId, newName) => {
         const ch = channels.find(c => c.id === channelId);

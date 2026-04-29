@@ -201,6 +201,20 @@ func (r *Repository) RunMigrations(ctx context.Context) error {
 	return nil
 }
 
+// IsBetaUser returns whether the user has opted into beta features. Used
+// by the requireBetaFeatures middleware to gate beta-only routes. Defaults
+// to false for users without a preferences row (legacy users).
+func (r *Repository) IsBetaUser(ctx context.Context, userID int64) (bool, error) {
+	var enabled bool
+	err := r.db.QueryRowContext(ctx,
+		`SELECT beta_features FROM user_preferences WHERE user_id = $1`, userID,
+	).Scan(&enabled)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	return enabled, err
+}
+
 // CreateUserPreferences inserts a default preferences row for a new user.
 // active_theme is intentionally omitted from the column list so the column's
 // DEFAULT (currently 'midnight-tokyo' — see Migration #71) is authoritative.

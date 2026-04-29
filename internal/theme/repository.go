@@ -20,8 +20,8 @@ func NewRepository(db *sql.DB) *Repository {
 func (r *Repository) GetPreferences(ctx context.Context, userID int64) (*UserPreferences, error) {
 	p := &UserPreferences{}
 	err := r.db.QueryRowContext(ctx,
-		`SELECT active_theme, active_custom_theme_id FROM user_preferences WHERE user_id=$1`,
-		userID).Scan(&p.ActiveTheme, &p.ActiveCustomThemeID)
+		`SELECT active_theme, active_custom_theme_id, beta_features FROM user_preferences WHERE user_id=$1`,
+		userID).Scan(&p.ActiveTheme, &p.ActiveCustomThemeID, &p.BetaFeatures)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -34,6 +34,30 @@ func (r *Repository) GetPreferences(ctx context.Context, userID int64) (*UserPre
 	}
 	p.CustomThemes = themes
 	return p, nil
+}
+
+// SetBetaFeatures toggles the user's beta-features flag. Auto-creates the
+// preferences row (matches the SetActiveTheme upsert behavior).
+func (r *Repository) SetBetaFeatures(ctx context.Context, userID int64, enabled bool) error {
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO user_preferences (user_id, beta_features)
+		 VALUES ($1, $2)
+		 ON CONFLICT (user_id) DO UPDATE SET beta_features = $2`,
+		userID, enabled)
+	return err
+}
+
+// IsBetaUser returns whether the user has opted into beta features.
+// Defaults to false for users without a preferences row.
+func (r *Repository) IsBetaUser(ctx context.Context, userID int64) (bool, error) {
+	var enabled bool
+	err := r.db.QueryRowContext(ctx,
+		`SELECT beta_features FROM user_preferences WHERE user_id=$1`, userID,
+	).Scan(&enabled)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return enabled, err
 }
 
 func (r *Repository) SetActiveTheme(ctx context.Context, userID int64, theme string, customThemeID *int) error {

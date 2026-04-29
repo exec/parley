@@ -3,6 +3,7 @@ import {
   UserTheme, NewTheme,
   getPreferences, setBuiltinTheme, setCustomTheme,
   createTheme, updateTheme, deleteTheme,
+  setBetaFeatures as apiSetBetaFeatures,
 } from '../api/themes';
 
 // Order = display order in the picker. Midnight Tokyo first since it's the
@@ -15,6 +16,7 @@ interface ThemeContextValue {
   customThemes: UserTheme[];
   builtinIds: string[];
   compactMode: boolean;
+  betaFeatures: boolean;
   setBuiltin(id: string): Promise<void>;
   setCustom(id: number, themeData?: UserTheme): Promise<void>;
   createCustomTheme(t: NewTheme): Promise<UserTheme>;
@@ -23,6 +25,7 @@ interface ThemeContextValue {
   setThemePublished(id: number, published: boolean): void;
   applyTheme(id: string, css?: string, baseTheme?: string): void;
   setCompactMode(v: boolean): void;
+  setBetaFeatures(enabled: boolean): Promise<void>;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -63,6 +66,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [activeCustomThemeId, setActiveCustomThemeId] = useState<number | null>(null);
   const [customThemes, setCustomThemes] = useState<UserTheme[]>([]);
   const [compactMode, setCompactModeState] = useState(() => localStorage.getItem('parley-compact-mode') === 'true');
+  const [betaFeatures, setBetaFeaturesState] = useState<boolean>(false);
 
   const setCompactMode = useCallback((v: boolean) => {
     setCompactModeState(v);
@@ -84,11 +88,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       setActiveTheme(p.active_theme);
       setActiveCustomThemeId(p.active_custom_theme_id);
       setCustomThemes(p.custom_themes);
+      setBetaFeaturesState(!!p.beta_features);
       const activeCustom = p.active_theme === 'custom' && p.active_custom_theme_id
         ? p.custom_themes.find(t => t.id === p.active_custom_theme_id)
         : undefined;
       applyToDOM(p.active_theme, activeCustom?.css, activeCustom?.base_theme);
     }).catch(() => {});
+  }, []);
+
+  const setBetaFeatures = useCallback(async (enabled: boolean) => {
+    const res = await apiSetBetaFeatures(enabled);
+    setBetaFeaturesState(!!res.beta_features);
   }, []);
 
   const setBuiltin = useCallback(async (id: string) => {
@@ -140,6 +150,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     <ThemeContext.Provider value={{
       activeTheme, activeCustomThemeId, customThemes, builtinIds: BUILTIN_IDS,
       compactMode, setCompactMode,
+      betaFeatures, setBetaFeatures,
       setBuiltin, setCustom, createCustomTheme, updateCustomTheme, deleteCustomTheme, setThemePublished, applyTheme,
     }}>
       {children}

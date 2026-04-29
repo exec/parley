@@ -36,6 +36,11 @@ func (s *Service) GetPreferences(ctx context.Context, userID int64) (*UserPrefer
 	return s.repo.GetPreferences(ctx, userID)
 }
 
+// SetBetaFeatures flips the per-user beta-features opt-in flag.
+func (s *Service) SetBetaFeatures(ctx context.Context, userID int64, enabled bool) error {
+	return s.repo.SetBetaFeatures(ctx, userID, enabled)
+}
+
 func (s *Service) SetActiveTheme(ctx context.Context, userID int64, theme string, customThemeID *int) error {
 	if customThemeID != nil {
 		belongs, err := s.repo.ThemeBelongsToUser(ctx, int64(*customThemeID), userID)

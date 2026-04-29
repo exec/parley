@@ -26,5 +26,6 @@ type ThemeRepoResponse struct {
 type UserPreferences struct {
 	ActiveTheme         string      `json:"active_theme"`
 	ActiveCustomThemeID *int        `json:"active_custom_theme_id"`
+	BetaFeatures        bool        `json:"beta_features"`
 	CustomThemes        []UserTheme `json:"custom_themes"`
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -12,6 +13,7 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 
 	"parley/internal/auth"
+	"parley/internal/db"
 )
 
 // ----- Rate limiter interface -----
@@ -283,6 +285,48 @@ func denyImpersonation(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// requireBetaFeatures returns 403 unless the authenticated user has opted
+// into beta features (user_preferences.beta_features = TRUE). Wrap routes
+// that should only be visible to opt-in users while a feature is in beta.
+//
+// Phase A.A1+A2 (projects + synthesis) is gated this way so the half-built
+// dev-platform UX doesn't leak to the general user base while VC-side
+// activities (A3) are still pending. Drop the wrap when the surface goes GA.
+func requireBetaFeatures(repo *db.Repository) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			uidStr := auth.GetUserIDFromContext(r)
+			if uidStr == "" {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusUnauthorized)
+				_, _ = w.Write([]byte(`{"error":"unauthorized"}`))
+				return
+			}
+			uid, err := strconv.ParseInt(uidStr, 10, 64)
+			if err != nil {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusUnauthorized)
+				_, _ = w.Write([]byte(`{"error":"unauthorized"}`))
+				return
+			}
+			ok, err := repo.IsBetaUser(r.Context(), uid)
+			if err != nil {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusInternalServerError)
+				_, _ = w.Write([]byte(`{"error":"failed to check beta access"}`))
+				return
+			}
+			if !ok {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				_, _ = w.Write([]byte(`{"error":"beta features not enabled for this account"}`))
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // ----- Request body size limiter -----

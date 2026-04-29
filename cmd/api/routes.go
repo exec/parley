@@ -455,20 +455,24 @@ func registerRoutes(
 			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Post("/channels/{channelID}/tags", binHandler.CreateTag)
 			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Delete("/channels/{channelID}/tags/{tagID}", binHandler.DeleteTag)
 
-			// Project routes (Phase A.A1) — server-scoped dev-platform
-			// primitive. Reads gate on servers:read (any server-aware bot
-			// can see project metadata); mutations gate on profile:write
-			// (matches the bar for channel/role mutations elsewhere).
+			// Project routes (Phase A.A1+A2) — server-scoped dev-platform
+			// primitive. Gated behind user_preferences.beta_features so the
+			// half-built dev-platform UX (no Dev Workspace activities yet)
+			// doesn't leak to non-opt-in users. Drop the requireBetaFeatures
+			// wrap when Projects + A3 ship together.
 			projectHandler := projects.NewHandler(projectService)
-			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/projects/presets", projectHandler.ListPresets)
-			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Post("/projects/synthesize-claude-md", projectHandler.SynthesizeClaudeMD)
-			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Post("/projects", projectHandler.CreateProject)
-			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/servers/{id}/projects", projectHandler.GetServerProjects)
-			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/projects/{id}", projectHandler.GetProject)
-			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Patch("/projects/{id}", projectHandler.UpdateProject)
-			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Patch("/projects/{id}/claude-md", projectHandler.UpdateClaudeMD)
-			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/projects/{id}/claude-md/versions", projectHandler.GetClaudeMDVersions)
-			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Delete("/projects/{id}", projectHandler.DeleteProject)
+			r.Group(func(r chi.Router) {
+				r.Use(requireBetaFeatures(repo))
+				r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/projects/presets", projectHandler.ListPresets)
+				r.With(auth.RequireScope(auth.ScopeProfileWrite)).Post("/projects/synthesize-claude-md", projectHandler.SynthesizeClaudeMD)
+				r.With(auth.RequireScope(auth.ScopeProfileWrite)).Post("/projects", projectHandler.CreateProject)
+				r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/servers/{id}/projects", projectHandler.GetServerProjects)
+				r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/projects/{id}", projectHandler.GetProject)
+				r.With(auth.RequireScope(auth.ScopeProfileWrite)).Patch("/projects/{id}", projectHandler.UpdateProject)
+				r.With(auth.RequireScope(auth.ScopeProfileWrite)).Patch("/projects/{id}/claude-md", projectHandler.UpdateClaudeMD)
+				r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/projects/{id}/claude-md/versions", projectHandler.GetClaudeMDVersions)
+				r.With(auth.RequireScope(auth.ScopeProfileWrite)).Delete("/projects/{id}", projectHandler.DeleteProject)
+			})
 
 			// Soundboard routes — upload/update/delete are server-admin state
 			// (profile:write); list + play are read/write equivalents.
@@ -597,6 +601,7 @@ func registerRoutes(
 				r.Use(auth.RequireScope(auth.ScopeProfileWrite))
 				r.Get("/me/preferences", themeHandler.GetPreferences)
 				r.Put("/me/preferences/theme", themeHandler.SetActiveTheme)
+				r.Put("/me/preferences/beta-features", themeHandler.SetBetaFeatures)
 				r.Post("/me/themes", themeHandler.CreateTheme)
 				r.Put("/me/themes/{id}", themeHandler.UpdateTheme)
 				r.Delete("/me/themes/{id}", themeHandler.DeleteTheme)
