@@ -86,40 +86,128 @@ A "parley project" is a new entity owned by a server with:
 - An optional associated voice channel (where the Dev Workspace activity
   attaches when a session is active)
 
-Schema sketch (revisable):
+#### Schema (Migration #72)
 
 ```sql
-projects (
-  id BIGSERIAL PK,
-  server_id BIGINT FK,
-  name VARCHAR(80),
-  description TEXT,
-  claude_md TEXT,
-  skill_level VARCHAR(16),  -- enum
-  preset_id INT FK -> project_presets(id),
-  vc_channel_id BIGINT FK -> channels(id) NULL,
-  owner_user_id BIGINT FK -> users(id),
-  created_at, updated_at
-)
-project_repos (project_id, provider, owner, repo)  -- N:N (rare; usually 1)
-project_skills (project_id, skill_id)              -- N:N
-project_presets (id, slug, name, description, is_builtin)  -- seed-data only in V1
+CREATE TABLE projects (
+  id              BIGSERIAL PRIMARY KEY,
+  server_id       BIGINT      NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
+  name            VARCHAR(80) NOT NULL,
+  description     TEXT        NOT NULL DEFAULT '',
+  claude_md       TEXT        NOT NULL DEFAULT '',
+  skill_level     VARCHAR(16) NOT NULL DEFAULT 'auto'
+                    CHECK (skill_level IN ('beginner','intermediate','expert','auto','custom')),
+  preset_id       INT         REFERENCES project_presets(id) ON DELETE SET NULL,
+  vc_channel_id   BIGINT      REFERENCES channels(id) ON DELETE SET NULL,
+  owner_user_id   BIGINT      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at      TIMESTAMP   NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMP   NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_projects_server     ON projects(server_id);
+CREATE INDEX idx_projects_owner      ON projects(owner_user_id);
+CREATE INDEX idx_projects_vc_channel ON projects(vc_channel_id) WHERE vc_channel_id IS NOT NULL;
+
+CREATE TABLE project_repos (
+  project_id BIGINT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  provider   VARCHAR(16) NOT NULL,                 -- 'github' for V1
+  owner      VARCHAR(100) NOT NULL,
+  repo       VARCHAR(100) NOT NULL,
+  PRIMARY KEY (project_id, provider, owner, repo)
+);
+
+CREATE TABLE project_skills (
+  project_id BIGINT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  skill_id   VARCHAR(64) NOT NULL,                 -- matches built-in registry slugs
+  PRIMARY KEY (project_id, skill_id)
+);
+
+CREATE TABLE project_presets (
+  id          SERIAL PRIMARY KEY,
+  slug        VARCHAR(48) UNIQUE NOT NULL,         -- 'web-app', 'discord-bot', etc.
+  name        VARCHAR(80) NOT NULL,
+  description TEXT        NOT NULL DEFAULT '',
+  is_builtin  BOOLEAN     NOT NULL DEFAULT TRUE
+);
+-- Seed inserts for built-in presets happen in the same migration; see A4.
 ```
 
-Backend:
-- `POST /api/projects` — create from preset + freeform description (calls
-  the synthesis agent, see A2)
-- `GET  /api/servers/:id/projects` — list
-- `GET  /api/projects/:id`
-- `PATCH /api/projects/:id/claude-md` — edit after creation
-- `DELETE /api/projects/:id`
+Same `'custom'`-as-CHECK pattern as `user_preferences.active_theme` —
+keep the allowlist tight so freeform skill levels can't leak into the
+column.
 
-Frontend:
-- New "Projects" entry in the server-channel sidebar (sibling to text
-  channels and VCs)
-- Create-project wizard
-- Project detail view (CLAUDE.md preview + linked repo + linked VC + skill
-  pills + actions)
+#### Permission model
+
+| Action | Required permission |
+|---|---|
+| Create project | `MANAGE_CHANNELS` on the server (or server owner) |
+| Update / delete project | project's `owner_user_id` OR `MANAGE_CHANNELS` |
+| Edit CLAUDE.md | same as update |
+| View project | `VIEW_CHANNEL` on any channel in the server (i.e. server members) |
+
+`MANAGE_CHANNELS` is the closest existing perm — projects feel like a
+channel-class primitive, not a user-class one. If demand emerges for a
+finer-grained `MANAGE_PROJECTS` permission later, add the bit then.
+
+#### API endpoints
+
+All under `/api`, all behind the standard auth middleware.
+
+| Method | Path | Scope | Purpose |
+|---|---|---|---|
+| POST   | `/projects`              | `profile:write` + perm check | Create project |
+| GET    | `/servers/{id}/projects` | `servers:read`               | List server's projects |
+| GET    | `/projects/{id}`         | `servers:read`               | Detail (incl. CLAUDE.md inline) |
+| PATCH  | `/projects/{id}`         | `profile:write` + perm check | Update name/desc/skill/vc/repo |
+| PATCH  | `/projects/{id}/claude-md` | `profile:write` + perm check | Edit CLAUDE.md (own endpoint to make WS broadcasting cleaner) |
+| DELETE | `/projects/{id}`         | `profile:write` + perm check | Delete |
+
+Bot scope mapping follows the same pattern as servers/channels in
+`cmd/api/routes.go`. A `messages:read`-only bot can't see projects;
+a `servers:read` bot can see metadata but not edit; a `profile:write`
+bot can manage its own projects.
+
+#### WebSocket events
+
+All scoped to the `server:{id}` topic so members of the server receive
+them; non-members never see project state.
+
+| Event | Payload |
+|---|---|
+| `PROJECT_CREATE` | full project record |
+| `PROJECT_UPDATE` | full project record (last-write-wins on the client) |
+| `PROJECT_DELETE` | `{id, server_id}` |
+
+The CLAUDE.md edit explicitly does NOT broadcast on every keystroke —
+only on the PATCH commit. Live collaborative editing of CLAUDE.md is out
+of scope for V1.
+
+#### Frontend
+
+- New "Projects" entry in the server-channel sidebar, between the channel
+  list and the voice-channel section. Renders as a collapsible group
+  (matches the existing channel-group visual).
+- Create-project wizard (modal, 5 steps: preset → repo → skill → describe
+  → review CLAUDE.md). Stays open with "Save draft" support so a slow
+  synthesis call doesn't block the user.
+- Project detail view: CLAUDE.md rendered as markdown via the existing
+  `MarkdownRenderer`, with an "Edit" button that swaps to a textarea +
+  "Save" / "Cancel". Linked repo card uses `GitHubRepoEmbed` to render
+  the same embed as in chat. Linked VC link if set.
+- Pages route: `/servers/:serverId/projects/:projectId` (deep-linkable
+  same as the explorer).
+
+Files (frontend new):
+- `frontend/src/api/projects.ts`
+- `frontend/src/components/projects/ProjectList.tsx` (sidebar group)
+- `frontend/src/components/projects/CreateProjectWizard.tsx`
+- `frontend/src/components/projects/ProjectView.tsx`
+- `frontend/src/components/projects/*.css`
+
+Files (backend new):
+- `internal/projects/service.go`
+- `internal/projects/repository.go`
+- `internal/projects/handler.go`
+- Migration #72 entry in `internal/db/migrations.go`
 
 ### A2 — Skill-level-aware setup + synthesis agent
 
@@ -313,3 +401,83 @@ If that experience makes the user say "this is the first time
 collaborative coding has actually felt natural," Phase A worked. If they
 shrug or say "I'd just use Cursor and Discord separately," Phase A
 didn't. That's the gate before Phase B.
+
+---
+
+## 9. Kickoff for A1.0 (cold-start checklist)
+
+For the next session — what to do first, in order, to start A1
+implementation. Each is roughly a session-block of work; check off as
+they land.
+
+**Decisions to lock first** (15 min, no code):
+- [ ] Question §5.2 (synthesis-agent provider): commit to **Anthropic
+      Claude** unless there's a reason to revisit. Sets up env var
+      planning for `ANTHROPIC_API_KEY` in terraform.
+- [ ] Question §5.3 (project ↔ server cardinality): commit to **1:N
+      (one server, many projects, no cross-server)** for V1.
+- [ ] Question §5.6 (CLAUDE.md edit history): commit to **yes, version
+      it** using the same pattern as bin posts.
+
+**Backend (in order):**
+- [ ] Migration #72 in `internal/db/migrations.go` — full schema from
+      A1 §Schema above + seed inserts for the V1 presets.
+- [ ] `internal/projects/repository.go` — Postgres CRUD + the
+      perm-check helpers.
+- [ ] `internal/projects/service.go` — the business layer (CreateProject,
+      UpdateProject, DeleteProject, GetServerProjects, GetProject,
+      UpdateClaudeMd). Hub broadcaster wired in for WS events.
+- [ ] `internal/projects/handler.go` — HTTP handlers per the API table.
+- [ ] Wire into `cmd/api/routes.go` under the protected group with the
+      scope gates from A1 §API endpoints.
+- [ ] Add `PROJECT_CREATE/UPDATE/DELETE` event constants to
+      `internal/websocket/events.go` (or wherever event names live —
+      check existing pattern).
+- [ ] Tests: handler tests with the standard parley test harness
+      (matches `internal/bin/handler_test.go`-shape).
+
+**Frontend (in order):**
+- [ ] `frontend/src/api/projects.ts` with typed client matching the
+      backend payloads.
+- [ ] WebSocket handler in App.tsx for the three new event types.
+- [ ] `ProjectList.tsx` sidebar group — read-only for now, no create
+      button.
+- [ ] Create-project wizard skeleton with manual CLAUDE.md textarea
+      (NO synthesis call yet — that's A2.0). Wire the POST.
+- [ ] `ProjectView.tsx` with view + edit modes for CLAUDE.md.
+- [ ] Route `/servers/:serverId/projects/:projectId` mounted in App.tsx.
+
+**Smoke test gate (manual):**
+- [ ] Create a project from the wizard with a manual CLAUDE.md.
+- [ ] Verify it appears in the sidebar for other server members in real
+      time (WS broadcast working).
+- [ ] Edit the CLAUDE.md, refresh — persists.
+- [ ] Delete the project — disappears for everyone.
+
+A1.0 ships when the smoke test gate passes. Then A2.0 layers the
+synthesis agent on top — the wizard's manual textarea gets replaced by
+the skill slider + freeform input + synthesis call → review-and-edit
+flow.
+
+A2.0's first commit should be `internal/synthesis/` (the Anthropic
+client wrapper) — that's the genuinely-new dependency. See §6.
+
+## 10. Pointers for cold context
+
+If you're picking this up in a fresh session:
+
+- This spec is the source of truth for Phase A. Read it whole; it's
+  ~1.5k lines of markdown.
+- Companion specs: `2026-04-28-github-integration-design.md` (the
+  gitprovider abstraction Phase A leans on) and
+  `2026-04-28-gitwise-devbox-vision.md` (background, marked superseded).
+- The `internal/bin/` package is the closest existing pattern to project
+  for backend shape (entity owned by a channel, with versioned content,
+  WS broadcasting, handler tests). Use it as the template.
+- The `frontend/src/components/bin/` directory is the closest pattern for
+  frontend shape (sidebar group + create modal + detail view).
+- Theme variables, the explorer, and the GitHub embed are all live in
+  prod (commit `7f0a6a9` and after). Don't re-implement those.
+- Existing `MarkdownRenderer` in `frontend/src/components/ui/` should be
+  reused for CLAUDE.md preview — same component the chat uses for
+  message bodies and bin descriptions.
