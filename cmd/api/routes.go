@@ -461,6 +461,7 @@ func registerRoutes(
 			// (matches the bar for channel/role mutations elsewhere).
 			projectHandler := projects.NewHandler(projectService)
 			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/projects/presets", projectHandler.ListPresets)
+			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Post("/projects/synthesize-claude-md", projectHandler.SynthesizeClaudeMD)
 			r.With(auth.RequireScope(auth.ScopeProfileWrite)).Post("/projects", projectHandler.CreateProject)
 			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/servers/{id}/projects", projectHandler.GetServerProjects)
 			r.With(auth.RequireScope(auth.ScopeServersRead)).Get("/projects/{id}", projectHandler.GetProject)

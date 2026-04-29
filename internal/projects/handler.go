@@ -11,6 +11,7 @@ import (
 	"parley/internal/auth"
 	"parley/internal/db"
 	"parley/internal/httputil"
+	"parley/internal/synthesis"
 )
 
 // Handler is the HTTP layer for project endpoints.
@@ -69,6 +70,8 @@ func writeServiceError(w http.ResponseWriter, err error) {
 		httputil.JSONError(w, err.Error(), http.StatusForbidden)
 	case errors.Is(err, ErrInvalidInput):
 		httputil.JSONError(w, err.Error(), http.StatusBadRequest)
+	case errors.Is(err, synthesis.ErrProviderUnavailable):
+		httputil.JSONError(w, "synthesis temporarily unavailable", http.StatusServiceUnavailable)
 	default:
 		httputil.InternalError(w, err)
 	}
@@ -261,6 +264,52 @@ func (h *Handler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+type synthesizeRequest struct {
+	ServerID    string `json:"server_id"`
+	PresetSlug  string `json:"preset_slug,omitempty"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	SkillLevel  string `json:"skill_level"`
+	Freeform    string `json:"freeform,omitempty"`
+}
+
+// SynthesizeClaudeMD handles POST /projects/synthesize-claude-md.
+// Calls the configured LLM provider with a CLAUDE.md-tuned system prompt
+// and returns the generated markdown for the wizard to display + edit.
+// Caller must hold PermManageChannels on the target server (same gate as
+// project create) so synthesis isn't a free compute hop for non-creators.
+func (h *Handler) SynthesizeClaudeMD(w http.ResponseWriter, r *http.Request) {
+	userID := auth.GetUserIDFromContext(r)
+	if userID == "" {
+		httputil.JSONError(w, "user not authenticated", http.StatusUnauthorized)
+		return
+	}
+	var req synthesizeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httputil.JSONError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	serverID, err := strconv.ParseInt(req.ServerID, 10, 64)
+	if err != nil {
+		httputil.JSONError(w, "invalid server_id", http.StatusBadRequest)
+		return
+	}
+	out, err := h.service.SynthesizeClaudeMD(r.Context(), userID, SynthesizeInput{
+		ServerID:    serverID,
+		PresetSlug:  req.PresetSlug,
+		ProjectName: req.Name,
+		Description: req.Description,
+		SkillLevel:  req.SkillLevel,
+		Freeform:    req.Freeform,
+	})
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(out)
 }
 
 // ListPresets handles GET /projects/presets

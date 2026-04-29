@@ -11,6 +11,7 @@ import (
 
 	"parley/internal/db"
 	"parley/internal/permissions"
+	"parley/internal/synthesis"
 	ws "parley/internal/websocket"
 )
 
@@ -62,9 +63,10 @@ type UpdateInput struct {
 // Service provides project management operations with permission gates and
 // WebSocket broadcasting.
 type Service struct {
-	mu   sync.RWMutex
-	repo *db.Repository
-	hub  *ws.Hub
+	mu        sync.RWMutex
+	repo      *db.Repository
+	hub       *ws.Hub
+	synthesis *synthesis.Service
 }
 
 func NewService(repo *db.Repository) *Service {
@@ -74,6 +76,14 @@ func NewService(repo *db.Repository) *Service {
 func (s *Service) SetHub(hub *ws.Hub) {
 	s.mu.Lock()
 	s.hub = hub
+	s.mu.Unlock()
+}
+
+// SetSynthesis wires the synthesis service used by SynthesizeClaudeMD.
+// Pass nil to disable synthesis (handler returns 503).
+func (s *Service) SetSynthesis(svc *synthesis.Service) {
+	s.mu.Lock()
+	s.synthesis = svc
 	s.mu.Unlock()
 }
 
@@ -407,6 +417,82 @@ func (s *Service) DeleteProject(ctx context.Context, projectIDStr, userIDStr str
 		"server_id": strconv.FormatInt(serverID, 10),
 	})
 	return nil
+}
+
+// SynthesizeInput is the API-layer request for SynthesizeClaudeMD.
+type SynthesizeInput struct {
+	ServerID    int64
+	PresetSlug  string
+	ProjectName string
+	Description string
+	SkillLevel  string
+	Freeform    string
+}
+
+// SynthesizeResult is the API-layer response.
+type SynthesizeResult struct {
+	ClaudeMD string `json:"claude_md"`
+	Provider string `json:"provider"`
+}
+
+// SynthesizeClaudeMD generates a CLAUDE.md from the user's intent. Gated
+// the same as project create: caller must hold PermManageChannels on the
+// target server (or be the owner). Returns ErrInvalidInput on bad inputs,
+// synthesis.ErrProviderUnavailable when no synthesizer is configured.
+func (s *Service) SynthesizeClaudeMD(ctx context.Context, userIDStr string, in SynthesizeInput) (*SynthesizeResult, error) {
+	userID, err := strconv.ParseInt(userIDStr, 10, 64)
+	if err != nil {
+		return nil, ErrInvalidInput
+	}
+	if in.ProjectName == "" {
+		return nil, fmt.Errorf("%w: name is required", ErrInvalidInput)
+	}
+	if in.SkillLevel == "" {
+		in.SkillLevel = "auto"
+	}
+	if !validSkillLevels[in.SkillLevel] {
+		return nil, fmt.Errorf("%w: invalid skill_level", ErrInvalidInput)
+	}
+
+	if err := s.requireManageChannels(ctx, in.ServerID, userID); err != nil {
+		return nil, err
+	}
+
+	s.mu.RLock()
+	syn := s.synthesis
+	s.mu.RUnlock()
+	if syn == nil {
+		return nil, synthesis.ErrProviderUnavailable
+	}
+
+	// Resolve preset to its human-readable name + description (better signal
+	// for the model than just the slug).
+	var presetName, presetDesc string
+	if in.PresetSlug != "" {
+		preset, err := s.repo.GetProjectPresetBySlug(ctx, in.PresetSlug)
+		if err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				return nil, ErrPresetNotFound
+			}
+			return nil, err
+		}
+		presetName = preset.Name
+		presetDesc = preset.Description
+	}
+
+	out, err := syn.SynthesizeClaudeMD(ctx, synthesis.Input{
+		PresetSlug:        in.PresetSlug,
+		PresetName:        presetName,
+		PresetDescription: presetDesc,
+		SkillLevel:        in.SkillLevel,
+		ProjectName:       in.ProjectName,
+		Description:       in.Description,
+		Freeform:          in.Freeform,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &SynthesizeResult{ClaudeMD: out, Provider: syn.ProviderName()}, nil
 }
 
 // ListPresets returns all built-in presets. Auth-only — no perm gate.

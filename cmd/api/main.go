@@ -34,6 +34,7 @@ import (
 	"parley/internal/message"
 	"parley/internal/passkey"
 	"parley/internal/projects"
+	"parley/internal/synthesis"
 	"parley/internal/permissions"
 	"parley/internal/server"
 	"parley/internal/spaces"
@@ -316,6 +317,21 @@ func main() {
 	// Initialize project service (Phase A.A1)
 	projectService := projects.NewService(repo)
 	projectService.SetHub(hub)
+
+	// Synthesis service for CLAUDE.md generation (Phase A.A2). V1 wires the
+	// Ollama provider; the Anthropic implementation in internal/synthesis/
+	// is built but unwired until the funding/quality flip — see spec §5.2.
+	// If Ollama URL is empty (dev without local model), synthesis service
+	// is constructed with a nil provider and the handler returns 503.
+	var synthService *synthesis.Service
+	if config.OllamaAPIURL != "" {
+		synthService = synthesis.NewService(synthesis.NewOllamaProvider(
+			config.OllamaAPIURL, config.OllamaAPIKey, config.OllamaModel,
+		))
+	} else {
+		synthService = synthesis.NewService(nil)
+	}
+	projectService.SetSynthesis(synthService)
 
 	// Initialize bots service
 	botsRepo := bots.NewRepository(repo)

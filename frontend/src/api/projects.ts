@@ -65,3 +65,23 @@ export async function listPresets(): Promise<ProjectPreset[]> {
 export async function getClaudeMDVersions(projectId: string): Promise<ProjectClaudeMDVersion[]> {
   return apiClient.get<ProjectClaudeMDVersion[]>(`/projects/${projectId}/claude-md/versions`);
 }
+
+// ── Synthesis (Phase A.A2) ────────────────────────────────────────────────────
+
+export interface SynthesizeRequest {
+  server_id: string;
+  preset_slug?: string;
+  name: string;
+  description?: string;
+  skill_level: ProjectSkillLevel;
+  freeform?: string;
+}
+
+export interface SynthesizeResult {
+  claude_md: string;
+  provider: string; // "ollama" | "anthropic" — for telemetry display
+}
+
+export async function synthesizeClaudeMD(req: SynthesizeRequest): Promise<SynthesizeResult> {
+  return apiClient.post<SynthesizeResult>('/projects/synthesize-claude-md', req);
+}

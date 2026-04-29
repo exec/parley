@@ -430,41 +430,47 @@ they land.
       `project_claude_md_versions` table mirrors the bin-posts pattern.
 
 **Backend (in order):**
-- [ ] Migration #72 in `internal/db/migrations.go` — full schema from
-      A1 §Schema above + seed inserts for the V1 presets.
-- [ ] `internal/projects/repository.go` — Postgres CRUD + the
-      perm-check helpers.
-- [ ] `internal/projects/service.go` — the business layer (CreateProject,
-      UpdateProject, DeleteProject, GetServerProjects, GetProject,
-      UpdateClaudeMd). Hub broadcaster wired in for WS events.
-- [ ] `internal/projects/handler.go` — HTTP handlers per the API table.
-- [ ] Wire into `cmd/api/routes.go` under the protected group with the
-      scope gates from A1 §API endpoints.
-- [ ] Add `PROJECT_CREATE/UPDATE/DELETE` event constants to
-      `internal/websocket/events.go` (or wherever event names live —
-      check existing pattern).
-- [ ] Tests: handler tests with the standard parley test harness
-      (matches `internal/bin/handler_test.go`-shape).
+- [x] Migration #72 — projects + project_repos + project_skills +
+      project_presets + project_claude_md_versions + 7 seeded V1 presets.
+- [x] `internal/db/project_repository.go` — Postgres CRUD + version
+      snapshotting in tx (no separate per-package repo file; matches
+      the parley convention of per-domain files in `internal/db/`).
+- [x] `internal/projects/service.go` — perm-gated business layer with
+      hub broadcasting (uses `permissions.HasPermission` with
+      `PermManageChannels` for mutations; server-membership check for view).
+- [x] `internal/projects/handler.go` — HTTP handlers per the API table.
+- [x] Wired into `cmd/api/routes.go` under the protected group; scope
+      gates per A1 §API endpoints (servers:read for reads, profile:write
+      for mutations).
+- [x] `PROJECT_CREATE/UPDATE/DELETE` event constants in
+      `internal/websocket/events.go`; broadcast on `server:{id}` topic.
+- [x] Tests: `internal/projects/service_test.go` — sentinel-error
+      distinctness + validation paths (matches `internal/bin/service_test.go`
+      shape; no DB integration tests at this layer).
 
 **Frontend (in order):**
-- [ ] `frontend/src/api/projects.ts` with typed client matching the
-      backend payloads.
-- [ ] WebSocket handler in App.tsx for the three new event types.
-- [ ] `ProjectList.tsx` sidebar group — read-only for now, no create
-      button.
-- [ ] Create-project wizard skeleton with manual CLAUDE.md textarea
-      (NO synthesis call yet — that's A2.0). Wire the POST.
-- [ ] `ProjectView.tsx` with view + edit modes for CLAUDE.md.
-- [ ] Route `/servers/:serverId/projects/:projectId` mounted in App.tsx.
+- [x] `frontend/src/api/projects.ts` typed client + types in
+      `frontend/src/api/types.ts`.
+- [x] WS handler in App.tsx — dispatches `parley:project_*` CustomEvents
+      that ProjectsPage listens for (matches the call-events pattern).
+- [x] Sidebar entry: small "Projects" button below the server header
+      in `ChannelList.tsx` (full collapsible group deferred — single
+      button is enough for V1 discoverability; tracks `projectsActive`).
+- [x] `CreateProjectWizard.tsx` with manual CLAUDE.md textarea.
+- [x] `ProjectView.tsx` with view + edit modes.
+- [x] `ProjectsPage.tsx` is the page-level container; URL-driven via
+      `/servers/:id/projects[/:pid]` (mirrors the explorer takeover
+      pattern in App.tsx).
 
-**Smoke test gate (manual):**
-- [ ] Create a project from the wizard with a manual CLAUDE.md.
-- [ ] Verify it appears in the sidebar for other server members in real
-      time (WS broadcast working).
-- [ ] Edit the CLAUDE.md, refresh — persists.
-- [ ] Delete the project — disappears for everyone.
+**Smoke test gate (manual):** ✅ **PASSED 2026-04-29.**
+- [x] Create a project from the wizard with a manual CLAUDE.md.
+- [x] Verify it appears for other server members in real time (WS broadcast).
+- [x] Edit the CLAUDE.md, refresh — persists.
+- [x] Delete the project — disappears for everyone.
 
-A1.0 ships when the smoke test gate passes. Then A2.0 layers the
+A1.0 shipped to prod 2026-04-29 (commit `3be3cc1`). Theme-variable polish
+on the projects UI deferred — uses hardcoded fallbacks today, not yet
+calibrated against user themes. Acceptable for closed beta. Then A2.0 layers the
 synthesis agent on top — the wizard's manual textarea gets replaced by
 the skill slider + freeform input + synthesis call → review-and-edit
 flow.
