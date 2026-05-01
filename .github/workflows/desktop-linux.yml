@@ -94,23 +94,36 @@ jobs:
         # Plain .deb / .rpm still build; release.yml ships the signed updater.
         run: npx tauri build --bundles deb,rpm -c '{"bundle":{"createUpdaterArtifacts":false}}'
 
-      # Rewrite the .deb Depends so the package installs on Debian trixie+ as
-      # well as Ubuntu 24.04+. Both libgtk-3-0 and libwebkit2gtk-4.1-0 were
-      # renamed with a "t64" suffix during Debian's time64 transition, and
-      # Tauri's auto-detected deps hard-code the pre-transition names. The
-      # tauri.conf.json "depends" override only *appends* to the list, so the
-      # original (broken) names still appear — we fix it up after the build.
-      - name: Fix .deb Depends for Debian t64 transition
+      # Post-process the .deb:
+      #   1. Rename `Package: parley` → `parley-client`. KDE upstream's `parley`
+      #      vocabulary trainer ships in Debian's main repo with a higher epoch,
+      #      so without this rename `apt install parley` resolves to KDE's app
+      #      on any system that has both repos enabled. The rename also clears
+      #      the way for a future `parley-server` package.
+      #   2. Rewrite Depends so the package installs on Debian trixie+ as well
+      #      as Ubuntu 24.04+. Both libgtk-3-0 and libwebkit2gtk-4.1-0 were
+      #      renamed with a "t64" suffix during Debian's time64 transition, and
+      #      Tauri's auto-detected deps hard-code the pre-transition names. The
+      #      tauri.conf.json "depends" override only *appends* to the list, so
+      #      the original (broken) names still appear — we fix it up here.
+      #   3. Rename the file itself from Parley_*.deb → parley-client_*.deb so
+      #      the artifact name matches the package name.
+      - name: Repackage .deb as parley-client (rename + t64 deps)
         run: |
           DEB=$(ls desktop/src-tauri/target/release/bundle/deb/*.deb | head -1)
           WORKDIR=$(mktemp -d)
           dpkg-deb -R "$DEB" "$WORKDIR/extracted"
           echo "--- before:"
-          grep -i '^Depends' "$WORKDIR/extracted/DEBIAN/control"
-          sed -i 's#^Depends:.*#Depends: libwebkit2gtk-4.1-0 | libwebkit2gtk-4.1-0t64, libgtk-3-0 | libgtk-3-0t64#' "$WORKDIR/extracted/DEBIAN/control"
-          dpkg-deb -b "$WORKDIR/extracted" "$DEB"
+          grep -iE '^(Package|Depends)' "$WORKDIR/extracted/DEBIAN/control"
+          sed -i \
+            -e 's/^Package: parley$/Package: parley-client/' \
+            -e 's#^Depends:.*#Depends: libwebkit2gtk-4.1-0 | libwebkit2gtk-4.1-0t64, libgtk-3-0 | libgtk-3-0t64, libayatana-appindicator3-1#' \
+            "$WORKDIR/extracted/DEBIAN/control"
+          NEW_DEB="$(dirname "$DEB")/$(basename "$DEB" | sed 's/^Parley_/parley-client_/')"
+          rm -f "$DEB"
+          dpkg-deb -b "$WORKDIR/extracted" "$NEW_DEB"
           echo "--- after:"
-          dpkg-deb -f "$DEB" Depends
+          dpkg-deb -f "$NEW_DEB" Package Version Architecture Depends
 
       # Surface the .rpm's requirements in the build log so we can tell whether
       # Fedora/RHEL targets need the same kind of alternatives wrangling.

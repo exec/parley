@@ -108,6 +108,41 @@ jobs:
           updaterJsonKeepUniversal: true
           args: ${{ matrix.args }}
 
+      # Linux only: ship a parallel parley-client_*.deb alongside the original
+      # Parley_*.deb. KDE upstream owns the `parley` package name in Debian main
+      # (vocabulary trainer, epoch 4:), so a system with both repos enabled
+      # would resolve `apt install parley` to KDE's app, not ours. The renamed
+      # deb is what apt repos consume; the original Tauri-signed Parley_*.deb
+      # stays in the release for backwards-compat downloads and is what
+      # latest.json's linux-*-deb entries point at.
+      #
+      # Same step also fixes Tauri's hard-coded pre-time64 dep names so the
+      # package installs on Debian trixie+ alongside Ubuntu 24.04+.
+      - name: Build parley-client sibling .deb (Linux only)
+        if: startsWith(matrix.platform, 'ubuntu')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          DEB=$(ls desktop/src-tauri/target/release/bundle/deb/*.deb 2>/dev/null | head -1 || true)
+          if [ -z "${DEB:-}" ]; then
+            echo "::warning::No .deb found in bundle output; skipping parley-client repackage"
+            exit 0
+          fi
+          WORKDIR=$(mktemp -d)
+          dpkg-deb -R "$DEB" "$WORKDIR/extracted"
+          sed -i \
+            -e 's/^Package: parley$/Package: parley-client/' \
+            -e 's#^Depends:.*#Depends: libwebkit2gtk-4.1-0 | libwebkit2gtk-4.1-0t64, libgtk-3-0 | libgtk-3-0t64, libayatana-appindicator3-1#' \
+            "$WORKDIR/extracted/DEBIAN/control"
+          NEW_DEB="$WORKDIR/$(basename "$DEB" | sed 's/^Parley_/parley-client_/')"
+          dpkg-deb --build --root-owner-group "$WORKDIR/extracted" "$NEW_DEB"
+          echo "--- repackaged:"
+          dpkg-deb -f "$NEW_DEB" Package Version Architecture Depends
+          gh release upload "$TAG_NAME" "$NEW_DEB" --clobber -R "$REPO"
+
   publish:
     name: Publish release
     needs: build
