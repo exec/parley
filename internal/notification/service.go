@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"parley/internal/db"
 	ws "parley/internal/websocket"
 )
@@ -121,37 +123,58 @@ func (s *Service) create(ctx context.Context, n *db.Notification) {
 // arbitrary `<@uid>` strings out as cross-server notification spam. (audit #10)
 func (s *Service) NotifyMentions(ctx context.Context, authorID int64, authorUsername, authorAvatarURL, content, channelName string, serverID, channelID, messageID int64) {
 	matches := mentionRe.FindAllStringSubmatch(content, -1)
+
+	// Parse + dedup sequentially: the `seen` map is not safe for concurrent
+	// use, so collect the surviving deduped uids before fanning out.
 	seen := map[int64]bool{}
+	uids := make([]int64, 0, len(matches))
 	for _, m := range matches {
 		uid, err := strconv.ParseInt(m[1], 10, 64)
 		if err != nil || uid == authorID || seen[uid] {
 			continue
 		}
 		seen[uid] = true
-		// Skip notifications for users who aren't members of the source
-		// server. GetMember returns ErrNotFound for non-members.
-		if _, err := s.repo.GetMember(ctx, serverID, uid); err != nil {
-			continue
-		}
-		// Recipient blocked the author? Drop the notification but let the
-		// message through (defense-in-depth — the message itself isn't
-		// gated server-wide, only its notification spam vector is).
-		if s.suppressed(ctx, uid, authorID) {
-			continue
-		}
-		sid, cid, mid := serverID, channelID, messageID
-		s.create(ctx, &db.Notification{
-			UserID:         uid,
-			Type:           "mention",
-			Title:          authorUsername + " mentioned you in #" + channelName,
-			Body:           truncate(content, 120),
-			ActorUsername:  authorUsername,
-			ActorAvatarURL: authorAvatarURL,
-			ServerID:       &sid,
-			ChannelID:      &cid,
-			MessageID:      &mid,
+		uids = append(uids, uid)
+	}
+
+	// Process recipients concurrently: each recipient's GetMember +
+	// suppression + create work is independent blocking DB I/O. errgroup
+	// with SetLimit bounds goroutine fan-out for large mention lists.
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(8)
+	for _, uid := range uids {
+		uid := uid
+		g.Go(func() error {
+			// Skip notifications for users who aren't members of the source
+			// server. GetMember returns ErrNotFound for non-members.
+			if _, err := s.repo.GetMember(gctx, serverID, uid); err != nil {
+				return nil
+			}
+			// Recipient blocked the author? Drop the notification but let the
+			// message through (defense-in-depth — the message itself isn't
+			// gated server-wide, only its notification spam vector is).
+			if s.suppressed(gctx, uid, authorID) {
+				return nil
+			}
+			// Each goroutine builds its own sid/cid/mid so the Notification
+			// pointer fields never alias across goroutines.
+			sid, cid, mid := serverID, channelID, messageID
+			s.create(gctx, &db.Notification{
+				UserID:         uid,
+				Type:           "mention",
+				Title:          authorUsername + " mentioned you in #" + channelName,
+				Body:           truncate(content, 120),
+				ActorUsername:  authorUsername,
+				ActorAvatarURL: authorAvatarURL,
+				ServerID:       &sid,
+				ChannelID:      &cid,
+				MessageID:      &mid,
+			})
+			return nil
 		})
 	}
+	// Per-user steps never abort siblings; ignore the aggregate error.
+	_ = g.Wait()
 }
 
 // NotifyDM creates a notification for a new DM received. authorID is used to
