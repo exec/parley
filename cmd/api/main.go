@@ -610,7 +610,7 @@ func setupRouter(
 	// Global middleware
 	router.Use(middleware.RequestID)
 	router.Use(middleware.RealIP)
-	router.Use(middleware.Logger)
+	router.Use(errorOnlyLogger)
 	router.Use(middleware.Recoverer)
 
 	// CORS middleware

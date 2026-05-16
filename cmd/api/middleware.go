@@ -10,11 +10,33 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-chi/chi/v5/middleware"
 	goredis "github.com/redis/go-redis/v9"
 
 	"parley/internal/auth"
 	"parley/internal/db"
 )
+
+// errorOnlyLogger replaces chi's default middleware.Logger. The default fires
+// one fmt.Fprintf+stdout write per request — at ~200 RPS that's a constant
+// trickle of synchronous I/O picked up by Alloy and shipped to Loki for no
+// signal (we already have audit: lines on every meaningful auth/permission
+// decision plus per-handler structured logs). This logs only 4xx/5xx
+// responses, with the chi request ID so traces stay linkable.
+func errorOnlyLogger(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+		start := time.Now()
+		next.ServeHTTP(ww, r)
+		status := ww.Status()
+		if status < 400 {
+			return
+		}
+		reqID := middleware.GetReqID(r.Context())
+		log.Printf("http: status=%d method=%s path=%s dur_ms=%d req_id=%s ip=%s",
+			status, r.Method, r.URL.Path, time.Since(start).Milliseconds(), reqID, auth.ClientIP(r))
+	})
+}
 
 // ----- Rate limiter interface -----
 
