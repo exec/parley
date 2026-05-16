@@ -117,11 +117,15 @@ server {
     listen 80;
     server_name _;
 
-    # F1 ingress gate — only accept connections from the DMZ proxy (10.10.10.5).
-    # The admin surface (SPA + /api/) must never be reachable from any other
-    # vmbr1 host. Admin Go is separately bound to 127.0.0.1:8080 via
-    # ADMIN_BIND_LOCAL=1 so direct :8080 access from vmbr1 is also blocked at L4.
+    # F1 ingress gate — only accept connections from the DMZ proxy (10.10.10.5)
+    # plus the proxmox host's vmbr1 IP (10.10.10.1). The host IP is the source
+    # for SSH-forwarded tunnels (operator → proxmox → 10.10.10.15:80), used to
+    # reach Grafana embedded at /grafana/ and the admin SPA. The admin surface
+    # (SPA + /api/) must never be reachable from any other vmbr1 host. Admin Go
+    # is separately bound to 127.0.0.1:8080 via ADMIN_BIND_LOCAL=1 so direct
+    # :8080 access from vmbr1 is also blocked at L4.
     allow 10.10.10.5;
+    allow 10.10.10.1;
     deny all;
 
     # Allow large request bodies so uploaded images / bulk API calls aren't truncated

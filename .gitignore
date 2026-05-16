@@ -65,3 +65,8 @@ extras/parley/**/*.egg-info/
 
 # Claude Code session lock file
 .claude/scheduled_tasks.lock
+# Claude Code agent worktrees
+.claude/worktrees/
+
+# Root-level node_modules (stray install — frontend deps live in frontend/)
+/node_modules/
