@@ -193,22 +193,30 @@ func HasPermission(ctx context.Context, repo *db.Repository, serverID, userID, o
 	return HasPerm(perms, perm), nil
 }
 
-// HasChannelPermission checks if a user has a permission in a specific channel,
-// taking into account channel permission overwrites.
-func HasChannelPermission(ctx context.Context, repo *db.Repository, serverID, userID, ownerID, channelID int64, perm int64) (bool, error) {
+// computeChannelMask is the uncached core: runs the 4-query cascade
+// (badges → everyone → roles → overwrites) and returns the full int64
+// channel permission mask for (serverID, userID, channelID).
+//
+// Callers should prefer GetEffectiveChannelPermissions which front-loads a
+// cache hit before this work. The returned mask is the same value
+// ComputeChannelPermissions produces, with Administrator/owner already
+// collapsed to PermAllPermissions.
+func computeChannelMask(ctx context.Context, repo *db.Repository, serverID, userID, ownerID, channelID int64) (int64, error) {
 	basePerms, err := GetEffectivePermissions(ctx, repo, serverID, userID, ownerID)
 	if err != nil {
-		return false, err
+		return 0, err
 	}
 	if HasPerm(basePerms, PermAdministrator) {
-		return true, nil
+		return PermAllPermissions, nil
 	}
 
 	everyoneRole, _ := repo.GetEveryoneRole(ctx, serverID)
 	memberRoles, _ := repo.GetMemberRoles(ctx, serverID, userID)
 	overwrites, err := repo.GetChannelOverwrites(ctx, channelID)
 	if err != nil {
-		return HasPerm(basePerms, perm), nil
+		// Overwrite lookup failed — return base perms so callers degrade to
+		// server-wide check (matches legacy HasChannelPermission behavior).
+		return basePerms, nil
 	}
 
 	everyoneID := int64(0)
@@ -221,22 +229,52 @@ func HasChannelPermission(ctx context.Context, repo *db.Repository, serverID, us
 		roleIDs[i] = r.ID
 	}
 
-	channelPerms := ComputeChannelPermissions(basePerms, userID, roleIDs, everyoneID, overwrites)
-	return HasPerm(channelPerms, perm), nil
+	return ComputeChannelPermissions(basePerms, userID, roleIDs, everyoneID, overwrites), nil
 }
 
-// HasChannelPermissionCached is like HasChannelPermission but caches results
-// in mc for 45 seconds to avoid repeated DB lookups for stable permission data.
-func HasChannelPermissionCached(ctx context.Context, repo *db.Repository, mc *cache.MembershipCache, serverID, userID, ownerID, channelID int64, perm int64) (bool, error) {
-	if allowed, ok := mc.GetPerm(serverID, userID, channelID, perm); ok {
-		return allowed, nil
+// GetEffectiveChannelPermissions returns the full int64 channel permission
+// mask for (serverID, userID, channelID), populating mc on miss. Callers can
+// then check multiple permission bits in-process via HasPerm without
+// re-running the 4-query cascade.
+//
+// Passing a nil mc skips the cache and recomputes on every call.
+func GetEffectiveChannelPermissions(ctx context.Context, repo *db.Repository, mc *cache.MembershipCache, serverID, userID, ownerID, channelID int64) (int64, error) {
+	if mc != nil {
+		if mask, ok := mc.GetChannelPermMask(serverID, userID, channelID); ok {
+			return mask, nil
+		}
 	}
-	allowed, err := HasChannelPermission(ctx, repo, serverID, userID, ownerID, channelID, perm)
+	mask, err := computeChannelMask(ctx, repo, serverID, userID, ownerID, channelID)
+	if err != nil {
+		return 0, err
+	}
+	if mc != nil {
+		mc.SetChannelPermMask(serverID, userID, channelID, mask)
+	}
+	return mask, nil
+}
+
+// HasChannelPermission checks if a user has a permission in a specific channel,
+// taking into account channel permission overwrites. Uncached — prefer
+// HasChannelPermissionCached when a cache is available.
+func HasChannelPermission(ctx context.Context, repo *db.Repository, serverID, userID, ownerID, channelID int64, perm int64) (bool, error) {
+	mask, err := computeChannelMask(ctx, repo, serverID, userID, ownerID, channelID)
 	if err != nil {
 		return false, err
 	}
-	mc.SetPerm(serverID, userID, channelID, perm, allowed)
-	return allowed, nil
+	return HasPerm(mask, perm), nil
+}
+
+// HasChannelPermissionCached is like HasChannelPermission but caches the
+// computed channel-permission mask in mc for 45 seconds. Cache key is
+// (serverID, userID, channelID) — independent of `perm` — so a second
+// permission check for the same (server,user,channel) reuses the work.
+func HasChannelPermissionCached(ctx context.Context, repo *db.Repository, mc *cache.MembershipCache, serverID, userID, ownerID, channelID int64, perm int64) (bool, error) {
+	mask, err := GetEffectiveChannelPermissions(ctx, repo, mc, serverID, userID, ownerID, channelID)
+	if err != nil {
+		return false, err
+	}
+	return HasPerm(mask, perm), nil
 }
 
 // ParseInt64 is a convenience wrapper for strconv.ParseInt used by handlers.

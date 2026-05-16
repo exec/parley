@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"sync"
 
+	"parley/internal/cache"
 	"parley/internal/db"
 	"parley/internal/permissions"
 	ws "parley/internal/websocket"
@@ -27,9 +28,10 @@ var (
 
 // Service provides bin post management operations.
 type Service struct {
-	mu   sync.RWMutex
-	repo *db.Repository
-	hub  *ws.Hub
+	mu          sync.RWMutex
+	repo        *db.Repository
+	hub         *ws.Hub
+	memberCache *cache.MembershipCache
 }
 
 // NewService creates a new bin Service with the given repository.
@@ -41,6 +43,14 @@ func NewService(repo *db.Repository) *Service {
 func (s *Service) SetHub(hub *ws.Hub) {
 	s.mu.Lock()
 	s.hub = hub
+	s.mu.Unlock()
+}
+
+// SetMemberCache wires the membership cache so permission lookups can reuse
+// the cached channel-permission mask.
+func (s *Service) SetMemberCache(mc *cache.MembershipCache) {
+	s.mu.Lock()
+	s.memberCache = mc
 	s.mu.Unlock()
 }
 
@@ -97,23 +107,20 @@ func (s *Service) CreatePost(ctx context.Context, channelID, userID string, titl
 		return nil, ErrNotBinChannel
 	}
 
-	// Permission checks: ViewChannel (404 if denied) and CreatePosts.
+	// Permission checks: ViewChannel (404 if denied) and CreatePosts. Fetch
+	// the full channel mask once and check both bits in-process.
 	serverID, ownerID, err := s.getServerForChannel(ctx, chID)
 	if err != nil {
 		return nil, err
 	}
-	canView, err := permissions.HasChannelPermission(ctx, s.repo, serverID, uID, ownerID, chID, permissions.PermViewChannel)
+	mask, err := permissions.GetEffectiveChannelPermissions(ctx, s.repo, s.memberCache, serverID, uID, ownerID, chID)
 	if err != nil {
 		return nil, err
 	}
-	if !canView {
+	if !permissions.HasPerm(mask, permissions.PermViewChannel) {
 		return nil, ErrChannelNotFound
 	}
-	canCreate, err := permissions.HasChannelPermission(ctx, s.repo, serverID, uID, ownerID, chID, permissions.PermCreatePosts)
-	if err != nil {
-		return nil, err
-	}
-	if !canCreate {
+	if !permissions.HasPerm(mask, permissions.PermCreatePosts) {
 		return nil, ErrForbidden
 	}
 

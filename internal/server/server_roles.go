@@ -252,6 +252,9 @@ func (s *ServerService) AssignRoleToMember(ctx context.Context, serverID, userID
 	if err := s.repo.AssignRoleToMember(ctx, sID, uID, rID); err != nil {
 		return err
 	}
+	if s.memberCache != nil {
+		s.memberCache.InvalidatePermsForUser(sID, uID)
+	}
 	s.broadcastRoleUpdate(ctx, serverID, userID, sID, uID)
 	role, err := s.repo.GetServerRoleByID(ctx, rID)
 	if err != nil {
@@ -288,6 +291,9 @@ func (s *ServerService) RemoveRoleFromMember(ctx context.Context, serverID, user
 	}
 	if err := s.repo.RemoveRoleFromMember(ctx, sID, uID, rID); err != nil {
 		return err
+	}
+	if s.memberCache != nil {
+		s.memberCache.InvalidatePermsForUser(sID, uID)
 	}
 	s.broadcastRoleUpdate(ctx, serverID, userID, sID, uID)
 	role, err := s.repo.GetServerRoleByID(ctx, rID)

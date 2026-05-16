@@ -419,6 +419,11 @@ func (h *Handler) GetMyChannelPermissions(w http.ResponseWriter, r *http.Request
 // broadcastChannelOverwriteUpdate fetches the current overwrites for a channel and broadcasts
 // a CHANNEL_OVERWRITE_UPDATE event to the channel's subscribers.
 func (h *Handler) broadcastChannelOverwriteUpdate(r *http.Request, serverID, channelID int64) {
+	// Invalidate cached permission masks for this channel — an overwrite
+	// change can flip any user's effective bits in this channel.
+	if h.service.memberCache != nil {
+		h.service.memberCache.InvalidateChannelMasks(channelID)
+	}
 	if h.service.hub == nil {
 		return
 	}
@@ -459,6 +464,10 @@ func (h *Handler) handleOverwriteSync(r *http.Request, serverID, channelID int64
 	for _, child := range children {
 		if copyErr := h.service.repo.CopyOverwrites(r.Context(), channelID, child.ID); copyErr != nil {
 			return copyErr
+		}
+		// CopyOverwrites mutated this child's overwrites — drop its cached masks.
+		if h.service.memberCache != nil {
+			h.service.memberCache.InvalidateChannelMasks(child.ID)
 		}
 	}
 	return nil

@@ -299,6 +299,7 @@ func main() {
 
 	messageService.SetMemberCache(memberCache)
 	serverService.SetMemberCache(memberCache)
+	channelService.SetMemberCache(memberCache)
 
 	// Set up hub broadcasting for message service
 	hubBroadcaster := &HubBroadcaster{hub: hub}
@@ -313,6 +314,7 @@ func main() {
 	// Initialize bin service
 	binService := bin.NewService(repo)
 	binService.SetHub(hub)
+	binService.SetMemberCache(memberCache)
 
 	// Initialize project service (Phase A.A1)
 	projectService := projects.NewService(repo)

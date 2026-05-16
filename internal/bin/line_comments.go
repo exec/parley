@@ -54,19 +54,16 @@ func (s *Service) CreateLineComment(ctx context.Context, postID, userID string, 
 	if err != nil {
 		return nil, err
 	}
-	// ViewChannel check first (return 404).
-	canView, err := permissions.HasChannelPermission(ctx, s.repo, serverID, uID, ownerID, post.ChannelID, permissions.PermViewChannel)
+	// Fetch the channel mask once; check ViewChannel (404) and SendMessages
+	// (403) in-process.
+	mask, err := permissions.GetEffectiveChannelPermissions(ctx, s.repo, s.memberCache, serverID, uID, ownerID, post.ChannelID)
 	if err != nil {
 		return nil, err
 	}
-	if !canView {
+	if !permissions.HasPerm(mask, permissions.PermViewChannel) {
 		return nil, ErrPostNotFound
 	}
-	canSend, err := permissions.HasChannelPermission(ctx, s.repo, serverID, uID, ownerID, post.ChannelID, permissions.PermSendMessages)
-	if err != nil {
-		return nil, err
-	}
-	if !canSend {
+	if !permissions.HasPerm(mask, permissions.PermSendMessages) {
 		return nil, ErrForbidden
 	}
 

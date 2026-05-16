@@ -751,22 +751,14 @@ func (s *MessageService) PinMessage(ctx context.Context, channelID, messageID, u
 		return ErrServerNotFound
 	}
 
-	// Either ManageMessages or PinMessages is sufficient. The previous form
-	// passed PermManageMessages|PermPinMessages as a single bitmask to
-	// HasChannelPermission, which delegates to HasPerm (perms&perm == perm)
-	// — i.e. the actor needed *both* bits. Two calls express the OR
-	// correctly. (audit #13)
-	canPin, err := permissions.HasChannelPermission(ctx, s.repo, srv.ID, userIDInt, srv.OwnerID, chIDInt, permissions.PermManageMessages)
+	// Either ManageMessages or PinMessages is sufficient (audit #13). Fetch
+	// the full channel mask once and check both bits in-process — avoids the
+	// 4-query cascade running twice on cache miss.
+	mask, err := permissions.GetEffectiveChannelPermissions(ctx, s.repo, s.memberCache, srv.ID, userIDInt, srv.OwnerID, chIDInt)
 	if err != nil {
 		return err
 	}
-	if !canPin {
-		canPin, err = permissions.HasChannelPermission(ctx, s.repo, srv.ID, userIDInt, srv.OwnerID, chIDInt, permissions.PermPinMessages)
-		if err != nil {
-			return err
-		}
-	}
-	if !canPin {
+	if !permissions.HasPerm(mask, permissions.PermManageMessages) && !permissions.HasPerm(mask, permissions.PermPinMessages) {
 		return ErrForbidden
 	}
 
@@ -823,17 +815,11 @@ func (s *MessageService) UnpinMessage(ctx context.Context, channelID, messageID,
 
 	// Either ManageMessages or PinMessages is sufficient (audit #13 — see
 	// PinMessage above for rationale).
-	canPin, err := permissions.HasChannelPermission(ctx, s.repo, srv.ID, userIDInt, srv.OwnerID, chIDInt, permissions.PermManageMessages)
+	mask, err := permissions.GetEffectiveChannelPermissions(ctx, s.repo, s.memberCache, srv.ID, userIDInt, srv.OwnerID, chIDInt)
 	if err != nil {
 		return err
 	}
-	if !canPin {
-		canPin, err = permissions.HasChannelPermission(ctx, s.repo, srv.ID, userIDInt, srv.OwnerID, chIDInt, permissions.PermPinMessages)
-		if err != nil {
-			return err
-		}
-	}
-	if !canPin {
+	if !permissions.HasPerm(mask, permissions.PermManageMessages) && !permissions.HasPerm(mask, permissions.PermPinMessages) {
 		return ErrForbidden
 	}
 

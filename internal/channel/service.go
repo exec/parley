@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"parley/internal/cache"
 	"parley/internal/db"
 	"parley/internal/permissions"
 	ws "parley/internal/websocket"
@@ -40,8 +41,9 @@ type Channel struct {
 
 // ChannelService provides channel management operations
 type ChannelService struct {
-	repo *db.Repository
-	hub  *ws.Hub
+	repo        *db.Repository
+	hub         *ws.Hub
+	memberCache *cache.MembershipCache
 }
 
 // NewChannelService creates a new ChannelService with the given repository
@@ -54,6 +56,12 @@ func NewChannelService(repo *db.Repository) *ChannelService {
 // SetHub sets the WebSocket hub for broadcasting channel events
 func (s *ChannelService) SetHub(hub *ws.Hub) {
 	s.hub = hub
+}
+
+// SetMemberCache wires the membership cache so overwrite mutations can drop
+// stale channel-permission masks.
+func (s *ChannelService) SetMemberCache(mc *cache.MembershipCache) {
+	s.memberCache = mc
 }
 
 // Sentinel errors returned by ChannelService methods.

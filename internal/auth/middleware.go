@@ -115,6 +115,67 @@ func extractToken(r *http.Request) string {
 	return tokenFromCookie(r)
 }
 
+// apiKeyLastUsedFlushInterval gates how often UpdateAPIKeyLastUsed fires per
+// API key. A bot doing 5 req/s previously generated 5 DB UPDATEs/s; with this
+// gate, the same bot generates at most 1 UPDATE/minute per key. last_used_at
+// is informational (admin "last seen" UI, key rotation hygiene) so a 60 s
+// granularity is well within tolerance.
+const apiKeyLastUsedFlushInterval = 60 * time.Second
+
+// apiKeyLastUsedTTL bounds entry lifetime in apiKeyLastUsed. Entries older
+// than this are pruned by the periodic sweep. 24 h is long enough that a
+// once-a-day key still benefits from the throttle, short enough that the map
+// can't grow without bound across key rotations / abandoned keys.
+const apiKeyLastUsedTTL = 24 * time.Hour
+
+// apiKeyLastUsedSweepInterval is how often a request triggers the inline
+// prune. With 1-in-1024 sampling at ~200 RPS, prune fires roughly every 5 s
+// regardless of key churn — no separate goroutine needed.
+const apiKeyLastUsedSweepEvery = 1024
+
+// apiKeyLastUsed tracks the last time we fired UpdateAPIKeyLastUsed for a
+// given API key, keyed by keyID. Values are time.Time. Bounded by the
+// periodic sweep below.
+var apiKeyLastUsed sync.Map
+
+// apiKeyLastUsedReqCounter feeds the inline sweep sampler. atomic-ish ops
+// against a sync.Map counter would be heavier than this; a plain uint64 with
+// occasional torn reads is fine because we don't need exact periodicity.
+var apiKeyLastUsedReqCounter uint64
+
+// apiKeyLastUsedReqCounterMu guards apiKeyLastUsedReqCounter to avoid the
+// data-race detector flagging the increment. The lock is held only across
+// the counter bump, never across the prune.
+var apiKeyLastUsedReqCounterMu sync.Mutex
+
+// shouldFlushAPIKeyLastUsed returns true if it's been at least
+// apiKeyLastUsedFlushInterval since the previous UpdateAPIKeyLastUsed for
+// keyID. It also opportunistically prunes stale entries.
+func shouldFlushAPIKeyLastUsed(keyID int64) bool {
+	now := time.Now()
+	if prev, ok := apiKeyLastUsed.Load(keyID); ok {
+		if last, ok := prev.(time.Time); ok && now.Sub(last) < apiKeyLastUsedFlushInterval {
+			return false
+		}
+	}
+	apiKeyLastUsed.Store(keyID, now)
+
+	apiKeyLastUsedReqCounterMu.Lock()
+	apiKeyLastUsedReqCounter++
+	doSweep := apiKeyLastUsedReqCounter%apiKeyLastUsedSweepEvery == 0
+	apiKeyLastUsedReqCounterMu.Unlock()
+	if doSweep {
+		cutoff := now.Add(-apiKeyLastUsedTTL)
+		apiKeyLastUsed.Range(func(k, v any) bool {
+			if t, ok := v.(time.Time); ok && t.Before(cutoff) {
+				apiKeyLastUsed.Delete(k)
+			}
+			return true
+		})
+	}
+	return true
+}
+
 // impersonationAuditDedupInterval bounds how often the per-request audit
 // line fires for the same actor/target/path triple. A single page load can
 // fan out into dozens of XHRs; we want one line per distinct action within
@@ -153,8 +214,13 @@ func AuthMiddlewareWith(svc *AuthService) func(http.Handler) http.Handler {
 					http.Error(w, "Account banned", http.StatusForbidden)
 					return
 				}
-				// Update last_used_at asynchronously
-				go svc.repo.UpdateAPIKeyLastUsed(context.Background(), keyID)
+				// Update last_used_at asynchronously — throttled per keyID so
+				// a hot bot can't drive an unbounded UPDATE rate against
+				// api_keys. last_used_at is informational, 60 s granularity
+				// is plenty.
+				if shouldFlushAPIKeyLastUsed(keyID) {
+					go svc.repo.UpdateAPIKeyLastUsed(context.Background(), keyID)
+				}
 				ctx := context.WithValue(r.Context(), UserIDKey, userIDStr)
 				ctx = context.WithValue(ctx, IsAPIKeyAuthKey, true)
 				// The owner is the user who created this key; for bot
