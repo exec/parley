@@ -7,6 +7,8 @@ import (
 	"log"
 	"strconv"
 
+	"golang.org/x/sync/errgroup"
+
 	"parley/internal/audit"
 	ws "parley/internal/websocket"
 )
@@ -178,13 +180,27 @@ func (s *ServerService) UpdateServerRole(ctx context.Context, serverID, roleID, 
 	if err != nil {
 		log.Printf("Failed to get members for role %d during update broadcast: %v", roleIDInt, err)
 	} else {
+		// Broadcast each member's role update concurrently across cores.
+		// Each call does an independent DB query + marshal + hub broadcast;
+		// running them serially is an N+1 of DB round-trips that blocks
+		// the request. errgroup bounds concurrency to 8.
+		var g errgroup.Group
+		g.SetLimit(8)
 		for _, m := range members {
-			uIDStr := int64ToID(m.UserID)
-			s.broadcastRoleUpdate(ctx, serverID, uIDStr, serverIDInt, m.UserID)
-			if s.memberCache != nil {
-				s.memberCache.InvalidatePermsForUser(serverIDInt, m.UserID)
-			}
+			m := m
+			g.Go(func() error {
+				uIDStr := int64ToID(m.UserID)
+				s.broadcastRoleUpdate(ctx, serverID, uIDStr, serverIDInt, m.UserID)
+				if s.memberCache != nil {
+					s.memberCache.InvalidatePermsForUser(serverIDInt, m.UserID)
+				}
+				return nil
+			})
 		}
+		// broadcastRoleUpdate logs its own errors and returns nothing, so
+		// g.Wait never yields a non-nil error; we still wait so all
+		// broadcasts finish before the audit-log step.
+		_ = g.Wait()
 	}
 	if beforeRole != nil {
 		s.auditSvc.Log(ctx, audit.Entry{
